@@ -12,6 +12,8 @@ struct Vector2
 };
 
 extern const Vector2 vector2_zero;
+extern const Vector2 vector2_min;
+extern const Vector2 vector2_max;
 
 Vector2 operator + (Vector2 v0, Vector2 v1);
 Vector2& operator += (Vector2& v0, Vector2 v1);

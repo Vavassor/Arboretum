@@ -7,6 +7,8 @@
 #include "math_basics.h"
 
 extern const Vector2 vector2_zero = {0.0f, 0.0f};
+extern const Vector2 vector2_min = {-infinity, -infinity};
+extern const Vector2 vector2_max = {+infinity, +infinity};
 
 Vector2 operator + (Vector2 v0, Vector2 v1)
 {

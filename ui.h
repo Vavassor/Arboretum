@@ -17,13 +17,6 @@ struct Padding
 	const float& operator [] (int index) const {return reinterpret_cast<const float*>(this)[index];}
 };
 
-struct TextBlock
-{
-	Padding padding;
-	char* text;
-	bmfont::Font* font;
-};
-
 enum class Direction
 {
 	Left_To_Right,
@@ -55,6 +48,20 @@ enum class Alignment
 
 struct Item;
 
+struct TextBlock
+{
+	Padding padding;
+	char* text;
+	bmfont::Font* font;
+};
+
+struct Button
+{
+	TextBlock text_block;
+	bool enabled;
+	bool hovered;
+};
+
 struct Container
 {
 	Padding padding;
@@ -67,10 +74,16 @@ struct Container
 	Alignment alignment;
 };
 
-struct Button
+struct List
 {
-	TextBlock text_block;
-	bool hovered;
+	TextBlock* items;
+	Rect* items_bounds;
+	float item_spacing;
+	float side_margin;
+	float scroll_top;
+	int items_count;
+	int hovered_item_index;
+	int selected_item_index;
 };
 
 enum class ItemType
@@ -78,7 +91,13 @@ enum class ItemType
 	Container,
 	Text_Block,
 	Button,
+	List,
 };
+
+// A UI-Id, User Interface Identifier, not to be confused with a UUID, a
+// Universally Unique Identifier. This id is meant to be unique among items
+// but not consistent between separate runs of the program.
+typedef unsigned int Id;
 
 struct Item
 {
@@ -87,21 +106,79 @@ struct Item
 		Container container;
 		TextBlock text_block;
 		Button button;
+		List list;
 	};
 	Rect bounds;
 	Vector2 ideal_dimensions;
 	Vector2 min_dimensions;
 	ItemType type;
+	Id id;
 	bool growable;
 	bool unfocusable;
 };
 
-void destroy_container(Container* container, Heap* heap);
-void add_row(Container* container, int count, Heap* heap);
-void add_column(Container* container, int count, Heap* heap);
+enum class EventType
+{
+	Button,
+	List_Selection,
+	Focus_Change,
+};
+
+struct Event
+{
+	EventType type;
+	union
+	{
+		struct
+		{
+			Id id;
+		} button;
+
+		struct
+		{
+			int index;
+		} list_selection;
+
+		struct
+		{
+			Id now_focused;
+			Id now_unfocused;
+		} focus_change;
+	};
+};
+
+struct EventQueue
+{
+	Event* events;
+	int head;
+	int tail;
+	int cap;
+};
+
+struct Context
+{
+	EventQueue queue;
+	Vector2 viewport;
+	Item* focused_container;
+	Item** toplevel_containers;
+	int toplevel_containers_count;
+	Id seed;
+};
+
+bool dequeue(EventQueue* queue, Event* event);
+void create_context(Context* context, Heap* heap);
+void destroy_context(Context* context, Heap* heap);
+bool focused_on(Context* context, Item* item);
+void focus_on_container(Context* context, Item* item);
+Item* create_toplevel_container(Context* context, Heap* heap);
+void destroy_toplevel_container(Context* context, Item* item, Heap* heap);
+void add_row(Container* container, int count, Context* context, Heap* heap);
+void add_column(Container* container, int count, Context* context, Heap* heap);
+void create_items(Item* item, int lines_count, Heap* heap);
 void lay_out(Item* item, Rect space);
-void draw(Item* item);
-void detect_hover(Item* item, Vector2 pointer_position);
+void draw(Item* item, Context* context);
+
+void update(Context* context);
 
 } // namespace ui
 

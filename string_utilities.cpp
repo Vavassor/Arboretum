@@ -127,6 +127,16 @@ bool string_ends_with(const char* RESTRICT a, const char* RESTRICT b)
 	}
 }
 
+int count_char_occurrences(const char* string, char c)
+{
+	int count = 0;
+	for(; *string; string += 1)
+	{
+		count += (*string == c);
+	}
+	return count;
+}
+
 static void reverse_string(char* s, int length)
 {
 	for(int i = 0, j = length - 1; i < j; i += 1, j -= 1)

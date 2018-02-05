@@ -4,42 +4,205 @@
 #include "math_basics.h"
 #include "vector_math.h"
 #include "string_utilities.h"
+#include "string_build.h"
 #include "immediate.h"
 #include "input.h"
 #include "logging.h"
+#include "int_utilities.h"
+#include "float_utilities.h"
 #include "assert.h"
 #include "loop_macros.h"
 
 namespace ui {
 
-void destroy_container(Container* container, Heap* heap)
+static void create_event_queue(EventQueue* queue, Heap* heap)
+{
+	queue->cap = 32;
+	queue->events = HEAP_ALLOCATE(heap, Event, queue->cap);
+}
+
+static void destroy_event_queue(EventQueue* queue, Heap* heap)
+{
+	SAFE_HEAP_DEALLOCATE(heap, queue->events);
+}
+
+static void enqueue(EventQueue* queue, Event event)
+{
+	queue->events[queue->tail] = event;
+	queue->tail = (queue->tail + 1) % queue->cap;
+}
+
+bool dequeue(EventQueue* queue, Event* event)
+{
+	if(queue->head == queue->tail)
+	{
+		return false;
+	}
+	else
+	{
+		*event = queue->events[queue->head];
+		queue->head = (queue->head + 1) % queue->cap;
+		return true;
+	}
+}
+
+void create_context(Context* context, Heap* heap)
+{
+	create_event_queue(&context->queue, heap);
+	context->seed = 1;
+}
+
+static void destroy_list(List* list, Heap* heap)
+{
+	SAFE_HEAP_DEALLOCATE(heap, list->items);
+}
+
+static void destroy_text_block(TextBlock* text_block, Heap* heap)
+{
+	SAFE_HEAP_DEALLOCATE(heap, text_block->text);
+}
+
+static void destroy_container(Container* container, Heap* heap)
 {
 	if(container)
 	{
 		FOR_N(i, container->items_count)
 		{
 			Item* item = &container->items[i];
-			if(item->type == ItemType::Container)
+			switch(item->type)
 			{
-				destroy_container(container, heap);
+				case ItemType::Button:
+				{
+					destroy_text_block(&item->button.text_block, heap);
+					break;
+				}
+				case ItemType::Container:
+				{
+					destroy_container(&item->container, heap);
+					break;
+				}
+				case ItemType::List:
+				{
+					destroy_list(&item->list, heap);
+					break;
+				}
+				case ItemType::Text_Block:
+				{
+					destroy_text_block(&item->text_block, heap);
+					break;
+				}
 			}
 		}
 		SAFE_HEAP_DEALLOCATE(heap, container->items);
 	}
 }
 
-void add_row(Container* container, int count, Heap* heap)
+void destroy_context(Context* context, Heap* heap)
+{
+	destroy_event_queue(&context->queue, heap);
+
+	FOR_N(i, context->toplevel_containers_count)
+	{
+		Item* item = context->toplevel_containers[i];
+		destroy_container(&item->container, heap);
+		SAFE_HEAP_DEALLOCATE(heap, item);
+	}
+	SAFE_HEAP_DEALLOCATE(heap, context->toplevel_containers);
+}
+
+static Id generate_id(Context* context)
+{
+	Id id = context->seed;
+	context->seed += 1;
+	return id;
+}
+
+bool focused_on(Context* context, Item* item)
+{
+	return item == context->focused_container;
+}
+
+void focus_on_container(Context* context, Item* item)
+{
+	if(item != context->focused_container)
+	{
+		Event event = {};
+		event.type = EventType::Focus_Change;
+		if(item)
+		{
+			event.focus_change.now_focused = item->id;
+		}
+		if(context->focused_container)
+		{
+			event.focus_change.now_unfocused = context->focused_container->id;
+		}
+		enqueue(&context->queue, event);
+	}
+
+	context->focused_container = item;
+}
+
+Item* create_toplevel_container(Context* context, Heap* heap)
+{
+	int count = context->toplevel_containers_count;
+	context->toplevel_containers = HEAP_REALLOCATE(heap, Item*, context->toplevel_containers, count + 1);
+
+	Item* item = HEAP_ALLOCATE(heap, Item, 1);
+	item->id = generate_id(context);
+	context->toplevel_containers[count] = item;
+	context->toplevel_containers_count += 1;
+	return item;
+}
+
+void destroy_toplevel_container(Context* context, Item* item, Heap* heap)
+{
+	destroy_container(&item->container, heap);
+
+	// Find the container and overwrite it with the container on the end.
+	int count = context->toplevel_containers_count;
+	FOR_N(i, count)
+	{
+		Item* next = context->toplevel_containers[i];
+		if(next == item)
+		{
+			Item* last = context->toplevel_containers[count - 1];
+			context->toplevel_containers[i] = last;
+			break;
+		}
+	}
+	// If the container is currently focused, make sure it becomes unfocused.
+	if(focused_on(context, item))
+	{
+		focus_on_container(context, nullptr);
+	}
+	// Only deallocate after the item is removed, because it sets the pointer to
+	// null and would cause it not to be found.
+	SAFE_HEAP_DEALLOCATE(heap, item);
+
+	context->toplevel_containers = HEAP_REALLOCATE(heap, Item*, context->toplevel_containers, count - 1);
+	context->toplevel_containers_count = count - 1;
+}
+
+void add_row(Container* container, int count, Context* context, Heap* heap)
 {
 	container->axis = Axis::Horizontal;
 	container->items = HEAP_ALLOCATE(heap, Item, count);
 	container->items_count = count;
+	FOR_N(i, count)
+	{
+		container->items[i].id = generate_id(context);
+	}
 }
 
-void add_column(Container* container, int count, Heap* heap)
+void add_column(Container* container, int count, Context* context, Heap* heap)
 {
 	container->axis = Axis::Vertical;
 	container->items = HEAP_ALLOCATE(heap, Item, count);
 	container->items_count = count;
+	FOR_N(i, count)
+	{
+		container->items[i].id = generate_id(context);
+	}
 }
 
 // The "main" axis of a container is the one items are placed along and the
@@ -59,6 +222,64 @@ static int get_cross_axis_index(Axis axis)
 static float padding_along_axis(Padding padding, int axis)
 {
 	return padding[axis] + padding[axis + 2];
+}
+
+static const int invalid_index = -1;
+
+static bool is_valid_list_index(int index)
+{
+	return index != invalid_index;
+}
+
+static float get_list_item_height(List* list, TextBlock* text_block)
+{
+	float spacing = list->item_spacing;
+	Padding padding = text_block->padding;
+	return padding.top + text_block->font->line_height + padding.bottom + spacing;
+}
+
+static float get_scroll_bottom(Item* item)
+{
+	float inner_height = item->bounds.dimensions.y;
+	List* list = &item->list;
+	float content_height = 0.0f;
+	if(list->items_count > 0)
+	{
+		float lines = list->items_count;
+		content_height = lines * get_list_item_height(list, &list->items[0]);
+	}
+	return fmax(content_height - inner_height, 0.0f);
+}
+
+static void set_scroll(Item* item, float scroll)
+{
+	float scroll_bottom = get_scroll_bottom(item);
+	item->list.scroll_top = clamp(scroll, 0.0f, scroll_bottom);
+}
+
+static void scroll(Item* item, float scroll_velocity_y)
+{
+	const float speed = 120.0f;
+	float scroll_top = item->list.scroll_top - (speed * scroll_velocity_y);
+	set_scroll(item, scroll_top);
+}
+
+void create_items(Item* item, int lines_count, Heap* heap)
+{
+	List* list = &item->list;
+	list->items_count = lines_count;
+	if(lines_count)
+	{
+		list->items = HEAP_ALLOCATE(heap, TextBlock, lines_count);
+		list->items_bounds = HEAP_ALLOCATE(heap, Rect, lines_count);
+	}
+	else
+	{
+		list->items = nullptr;
+		list->items_bounds = nullptr;
+	}
+	list->hovered_item_index = invalid_index;
+	list->selected_item_index = invalid_index;
 }
 
 static Vector2 measure_ideal_dimensions(TextBlock* text_block)
@@ -128,6 +349,11 @@ static Vector2 measure_ideal_dimensions(Container* container)
 				item_ideal = measure_ideal_dimensions(&item->button.text_block);
 				break;
 			}
+			case ItemType::List:
+			{
+				item_ideal = vector2_max;
+				break;
+			}
 		}
 		item->ideal_dimensions = max2(item_ideal, item->min_dimensions);
 
@@ -194,25 +420,7 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
 	return bounds;
 }
 
-static void stretch_items_crosswise(Container* container, float length)
-{
-	if(container->alignment == Alignment::Stretch)
-	{
-		int axis = get_cross_axis_index(container->axis);
-		float padded_length = length - padding_along_axis(container->padding, axis);
-		FOR_N(i, container->items_count)
-		{
-			Item* item = &container->items[i];
-			item->bounds.dimensions[axis] = padded_length;
-			if(item->type == ItemType::Container)
-			{
-				stretch_items_crosswise(&item->container, item->bounds.dimensions[axis]);
-			}
-		}
-	}
-}
-
-static Vector2 measure_bound_dimensions(Container* container, Vector2 container_space, bool container_growable, float shrink, Axis shrink_along)
+static Vector2 measure_bound_dimensions(Container* container, Vector2 container_space, float shrink, Axis shrink_along)
 {
 	Vector2 result = vector2_zero;
 	int main_axis = get_main_axis_index(container->axis);
@@ -232,19 +440,24 @@ static Vector2 measure_bound_dimensions(Container* container, Vector2 container_
 		Vector2 dimensions;
 		switch(item->type)
 		{
+			case ItemType::Button:
+			{
+				dimensions = measure_bound_dimensions(&item->button.text_block, space);
+				break;
+			}
 			case ItemType::Container:
 			{
-				dimensions = measure_bound_dimensions(&item->container, space, item->growable, shrink, shrink_along);
+				dimensions = measure_bound_dimensions(&item->container, space, shrink, shrink_along);
+				break;
+			}
+			case ItemType::List:
+			{
+				dimensions = vector2_zero;
 				break;
 			}
 			case ItemType::Text_Block:
 			{
 				dimensions = measure_bound_dimensions(&item->text_block, space);
-				break;
-			}
-			case ItemType::Button:
-			{
-				dimensions = measure_bound_dimensions(&item->button.text_block, space);
 				break;
 			}
 		}
@@ -259,7 +472,7 @@ static Vector2 measure_bound_dimensions(Container* container, Vector2 container_
 	result.y += padding.top + padding.bottom;
 
 	// Distribute any excess among the growable items, if allowed.
-	if(container_growable && result[main_axis] < container_space[main_axis])
+	if(result[main_axis] < container_space[main_axis])
 	{
 		int growable_items = 0;
 		FOR_N(i, container->items_count)
@@ -281,6 +494,15 @@ static Vector2 measure_bound_dimensions(Container* container, Vector2 container_
 					item->bounds.dimensions[main_axis] += grow;
 				}
 			}
+		}
+	}
+	if(container->alignment == Alignment::Stretch && result[cross_axis] < container_space[cross_axis])
+	{
+		result[cross_axis] = container_space[cross_axis];
+		FOR_N(i, container->items_count)
+		{
+			Item* item = &container->items[i];
+			item->bounds.dimensions[cross_axis] = container_space[cross_axis];
 		}
 	}
 
@@ -331,79 +553,68 @@ static float compute_shrink_factor(Container* container, Rect space, float ideal
 	return shrink;
 }
 
-static void commit_ideal_dimensions(Item* item)
-{
-	Container* container = &item->container;
-	item->bounds.dimensions = item->ideal_dimensions;
-	FOR_N(i, container->items_count)
-	{
-		Item* next = &container->items[i];
-		next->bounds.dimensions = next->ideal_dimensions;
-		if(next->type == ItemType::Container && next->container.items_count > 0)
-		{
-			commit_ideal_dimensions(next);
-		}
-	}
-}
-
 static void grow_or_commit_ideal_dimensions(Item* item, Vector2 container_space)
 {
 	Container* container = &item->container;
 	int main_axis = get_main_axis_index(container->axis);
 	int cross_axis = get_cross_axis_index(container->axis);
 
-	if(item->growable)
+	item->bounds.dimensions[main_axis] = container_space[main_axis];
+	item->bounds.dimensions[cross_axis] = item->ideal_dimensions[cross_axis];
+
+	// Record how much space is taken up by items that won't grow and measure
+	// the ideal length at the same time.
+	float ungrowable_length = 0.0f;
+	float ideal_length = 0.0f;
+	FOR_N(i, container->items_count)
 	{
-		item->bounds.dimensions[main_axis] = container_space[main_axis];
-		item->bounds.dimensions[cross_axis] = item->ideal_dimensions[cross_axis];
-
-		// Commit the ideal dimensions for items that won't grow and
-		// record how much space they took up.
-		float ungrowable_length = 0.0f;
-		float ideal_length = 0.0f;
-		FOR_N(i, container->items_count)
+		Item* next = &container->items[i];
+		if(!next->growable)
 		{
-			Item* next = &container->items[i];
-			if(!next->growable)
-			{
-				commit_ideal_dimensions(next);
-				ungrowable_length += next->bounds.dimensions[main_axis];
-			}
-			ideal_length += next->ideal_dimensions[main_axis];
+			ungrowable_length += next->bounds.dimensions[main_axis];
 		}
-
-		// Compute by how much to grow the growable items.
-		float available = container_space[main_axis] - padding_along_axis(container->padding, main_axis);
-		float grow = (available - ungrowable_length) / (ideal_length - ungrowable_length);
-
-		// Grow them.
-		FOR_N(i, container->items_count)
-		{
-			Item* next = &container->items[i];
-			if(next->growable)
-			{
-				Vector2 space;
-				space[main_axis] = grow * next->ideal_dimensions[main_axis];
-				space[cross_axis] = next->ideal_dimensions[cross_axis];
-				switch(next->type)
-				{
-					case ItemType::Container:
-					{
-						grow_or_commit_ideal_dimensions(next, space);
-						break;
-					}
-					case ItemType::Text_Block:
-					{
-						next->bounds.dimensions = space;
-						break;
-					}
-				}
-			}
-		}
+		ideal_length += next->ideal_dimensions[main_axis];
 	}
-	else
+
+	// Compute by how much to grow the growable items.
+	float available = container_space[main_axis] - padding_along_axis(container->padding, main_axis);
+	float grow = (available - ungrowable_length) / (ideal_length - ungrowable_length);
+
+	// Grow them.
+	FOR_N(i, container->items_count)
 	{
-		commit_ideal_dimensions(item);
+		Item* next = &container->items[i];
+
+		Vector2 space;
+		if(next->growable)
+		{
+			space[main_axis] = grow * next->ideal_dimensions[main_axis];
+			space[cross_axis] = next->ideal_dimensions[cross_axis];
+		}
+		else
+		{
+			space = next->ideal_dimensions;
+		}
+		if(container->alignment == Alignment::Stretch)
+		{
+			space[cross_axis] = item->ideal_dimensions[cross_axis];
+		}
+
+		switch(next->type)
+		{
+			case ItemType::Container:
+			{
+				grow_or_commit_ideal_dimensions(next, space);
+				break;
+			}
+			case ItemType::Button:
+			case ItemType::List:
+			case ItemType::Text_Block:
+			{
+				next->bounds.dimensions = space;
+				break;
+			}
+		}
 	}
 }
 
@@ -679,7 +890,6 @@ void lay_out(Item* item, Rect space)
 {
 	Container* container = &item->container;
 	int main_axis = get_main_axis_index(container->axis);
-	int cross_axis = get_cross_axis_index(container->axis);
 
 	// Compute the ideal dimensions of the container and its contents.
 	Vector2 ideal = measure_ideal_dimensions(container);
@@ -704,7 +914,7 @@ void lay_out(Item* item, Rect space)
 		// fit in the container.
 		float shrink = compute_shrink_factor(container, space, ideal_length);
 
-		Vector2 bound = measure_bound_dimensions(container, space.dimensions, item->growable, shrink, container->axis);
+		Vector2 bound = measure_bound_dimensions(container, space.dimensions, shrink, container->axis);
 		if(item->growable)
 		{
 			bound[main_axis] = space.dimensions[main_axis];
@@ -712,23 +922,9 @@ void lay_out(Item* item, Rect space)
 		item->bounds.dimensions = max2(bound, item->min_dimensions);
 	}
 
-	stretch_items_crosswise(container, item->bounds.dimensions[cross_axis]);
-
 	// Now that all the items have been sized, just place them where they need to be.
 	place_items_along_main_axis(item, space);
 	place_items_along_cross_axis(item, space);
-}
-
-static void draw_container(Item* item)
-{
-	ASSERT(item->type == ItemType::Container);
-
-	immediate::draw_opaque_rect(item->bounds, item->container.background_colour);
-
-	FOR_N(i, item->container.items_count)
-	{
-		draw(&item->container.items[i]);
-	}
 }
 
 static void draw_text_block(TextBlock* text_block, Rect bounds)
@@ -823,13 +1019,108 @@ static void draw_button(Item* item)
 	draw_text_block(&item->button.text_block, item->bounds);
 }
 
-void draw(Item* item)
+static void draw_container(Item* item, Context* context)
+{
+	ASSERT(item->type == ItemType::Container);
+
+	immediate::draw_opaque_rect(item->bounds, item->container.background_colour);
+
+	FOR_N(i, item->container.items_count)
+	{
+		draw(&item->container.items[i], context);
+	}
+}
+
+static void place_list_items(Item* item)
+{
+	List* list = &item->list;
+
+	if(list->items_count > 0)
+	{
+		float item_height = get_list_item_height(list, &list->items[0]);
+		Vector2 top_left = rect_top_left(item->bounds);
+
+		Rect place;
+		place.bottom_left.x = list->side_margin + top_left.x;
+		place.bottom_left.y = -item_height + top_left.y;
+		place.dimensions.x = item->bounds.dimensions.x - (2.0f * list->side_margin);
+		place.dimensions.y = item_height - list->item_spacing;
+
+		FOR_N(i, list->items_count)
+		{
+			list->items_bounds[i] = place;
+			place.bottom_left.y -= place.dimensions.y + list->item_spacing;
+		}
+	}
+}
+
+static void draw_list(Item* item, Context* context)
+{
+	ASSERT(item->type == ItemType::List);
+
+	place_list_items(item);
+
+	immediate::set_clip_area(item->bounds, context->viewport.x, context->viewport.y);
+
+	List* list = &item->list;
+	const Vector4 hover_colour = {1.0f, 1.0f, 1.0f, 0.3f};
+	const Vector4 selection_colour = {1.0f, 1.0f, 1.0f, 0.5f};
+
+	if(list->items)
+	{
+		// Draw the hover highlight for the items.
+		if(is_valid_list_index(list->hovered_item_index) && list->hovered_item_index != list->selected_item_index)
+		{
+			Rect rect = list->items_bounds[list->hovered_item_index];
+			rect.bottom_left.y += list->scroll_top;
+			immediate::draw_transparent_rect(rect, hover_colour);
+		}
+
+		// Draw the selection highlight for the records.
+		if(is_valid_list_index(list->selected_item_index))
+		{
+			Rect rect = list->items_bounds[list->selected_item_index];
+			rect.bottom_left.y += list->scroll_top;
+			immediate::draw_transparent_rect(rect, selection_colour);
+		}
+
+		// Draw each item's contents.
+		float item_height = get_list_item_height(list, &list->items[0]);
+		float scroll = list->scroll_top;
+		int start_index = scroll / item_height;
+		start_index = MAX(start_index, 0);
+		int end_index = ceil((scroll + item->bounds.dimensions.y) / item_height);
+		end_index = MIN(end_index, list->items_count);
+
+		for(int i = start_index; i < end_index; i += 1)
+		{
+			TextBlock* next = &list->items[i];
+			Rect bounds = list->items_bounds[i];
+			bounds.bottom_left.y += list->scroll_top;
+			draw_text_block(next, bounds);
+		}
+	}
+
+	immediate::stop_clip_area();
+}
+
+void draw(Item* item, Context* context)
 {
 	switch(item->type)
 	{
+		case ItemType::Button:
+		{
+			draw_button(item);
+			break;
+		}
 		case ItemType::Container:
 		{
-			draw_container(item);
+			draw_container(item, context);
+			break;
+		}
+		case ItemType::List:
+		{
+			draw_list(item, context);
 			break;
 		}
 		case ItemType::Text_Block:
@@ -837,18 +1128,19 @@ void draw(Item* item)
 			draw_text_block(&item->text_block, item->bounds);
 			break;
 		}
-		case ItemType::Button:
-		{
-			draw_button(item);
-			break;
-		}
 	}
 }
 
-void detect_hover(Item* item, Vector2 pointer_position)
+static void detect_hover(Item* item, Vector2 pointer_position)
 {
 	switch(item->type)
 	{
+		case ItemType::Button:
+		{
+			bool hovered = point_in_rect(item->bounds, pointer_position);
+			item->button.hovered = hovered;
+			break;
+		}
 		case ItemType::Container:
 		{
 			Container* container = &item->container;
@@ -859,16 +1151,124 @@ void detect_hover(Item* item, Vector2 pointer_position)
 			}
 			break;
 		}
+		case ItemType::List:
+		{
+			List* list = &item->list;
+			list->hovered_item_index = invalid_index;
+			FOR_N(i, list->items_count)
+			{
+				Rect bounds = list->items_bounds[i];
+				bounds.bottom_left.y += list->scroll_top;
+				clip_rects(bounds, item->bounds, &bounds);
+				bool hovered = point_in_rect(bounds, pointer_position);
+				if(hovered)
+				{
+					list->hovered_item_index = i;
+				}
+			}
+			break;
+		}
+		case ItemType::Text_Block:
+		{
+			break;
+		}
+	}
+}
+
+void detect_focus_changes_for_toplevel_containers(Context* context)
+{
+	bool clicked =
+		input::get_mouse_clicked(input::MouseButton::Left) ||
+		input::get_mouse_clicked(input::MouseButton::Middle) ||
+		input::get_mouse_clicked(input::MouseButton::Right);
+
+	Vector2 mouse_position;
+	int position_x;
+	int position_y;
+	input::get_mouse_position(&position_x, &position_y);
+	mouse_position.x = position_x - context->viewport.x / 2.0f;
+	mouse_position.y = -(position_y - context->viewport.y / 2.0f);
+
+	bool any_changed = false;
+	FOR_N(i, context->toplevel_containers_count)
+	{
+		Item* item = context->toplevel_containers[i];
+		bool hovered = point_in_rect(item->bounds, mouse_position);
+		if(hovered)
+		{
+			if(clicked && !item->unfocusable && !any_changed)
+			{
+				focus_on_container(context, item);
+				any_changed = true;
+			}
+			detect_hover(item, mouse_position);
+		}
+	}
+	if(clicked && !any_changed)
+	{
+		focus_on_container(context, nullptr);
+	}
+}
+
+void update_input(Item* item, Context* context)
+{
+	switch(item->type)
+	{
 		case ItemType::Button:
 		{
-			bool hovered = point_in_rect(item->bounds, pointer_position);
-			item->button.hovered = hovered;
+			Button* button = &item->button;
+			if(button->hovered && input::get_mouse_clicked(input::MouseButton::Left))
+			{
+				Event event;
+				event.type = EventType::Button;
+				event.button.id = item->id;
+				enqueue(&context->queue, event);
+			}
 			break;
 		}
-		default:
+		case ItemType::Container:
+		{
+			Container* container = &item->container;
+			FOR_N(i, container->items_count)
+			{
+				update_input(&container->items[i], context);
+			}
+			break;
+		}
+		case ItemType::List:
+		{
+			List* list = &item->list;
+
+			int velocity_x;
+			int velocity_y;
+			input::get_mouse_scroll_velocity(&velocity_x, &velocity_y);
+			const float speed = 0.17f;
+			scroll(item, speed * velocity_y);
+
+			if(is_valid_list_index(list->hovered_item_index) && input::get_mouse_clicked(input::MouseButton::Left))
+			{
+				list->selected_item_index = list->hovered_item_index;
+
+				Event event;
+				event.type = EventType::List_Selection;
+				event.list_selection.index = list->selected_item_index;
+				enqueue(&context->queue, event);
+			}
+			break;
+		}
+		case ItemType::Text_Block:
 		{
 			break;
 		}
+	}
+}
+
+void update(Context* context)
+{
+	detect_focus_changes_for_toplevel_containers(context);
+	if(context->focused_container)
+	{
+		update_input(context->focused_container, context);
 	}
 }
 

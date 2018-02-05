@@ -23,6 +23,7 @@
 #include "ui.h"
 #include "filesystem.h"
 #include "sorting.h"
+#include "colours.h"
 #include "loop_macros.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -427,155 +428,20 @@ GLuint upload_bitmap(Bitmap* bitmap)
 	return texture;
 }
 
-static void draw_text(const char* text, Vector2 baseline_start, bmfont::Font* font)
-{
-	Vector2 texture_dimensions;
-	texture_dimensions.x = font->image_width;
-	texture_dimensions.y = font->image_height;
-
-	Vector2 pen = baseline_start;
-	char32_t prior_char = '\0';
-
-	int size = string_size(text);
-	for(int i = 0; i < size; i += 1)
-	{
-		char32_t current = text[i];
-		bmfont::Glyph* glyph = bmfont::find_glyph(font, current);
-
-		float kerning = bmfont::lookup_kerning(font, prior_char, current);
-		pen.x += kerning;
-
-		Vector2 top_left = pen;
-		top_left.x += glyph->offset.x;
-		top_left.y -= glyph->offset.y;
-
-		Rect viewport_rect;
-		viewport_rect.dimensions = glyph->rect.dimensions;
-		viewport_rect.bottom_left.x = top_left.x;
-		viewport_rect.bottom_left.y = top_left.y + font->line_height - viewport_rect.dimensions.y;
-		Quad quad = rect_to_quad(viewport_rect);
-
-		Rect texture_rect = glyph->rect;
-		texture_rect.bottom_left = pointwise_divide(texture_rect.bottom_left, texture_dimensions);
-		texture_rect.dimensions = pointwise_divide(texture_rect.dimensions, texture_dimensions);
-
-		immediate::add_quad_textured(&quad, texture_rect);
-
-		pen.x += glyph->x_advance;
-		prior_char = current;
-	}
-	immediate::set_blend_mode(immediate::BlendMode::Transparent);
-	immediate::draw();
-}
-
-static Vector2 compute_text_bounds(const char* text, bmfont::Font* font)
-{
-	Vector2 bounds;
-	bounds.x = 0.0f;
-	bounds.y = font->line_height;
-
-	char32_t prior_char = '\0';
-	int size = string_size(text);
-	for(int i = 0; i < size; i += 1)
-	{
-		char32_t current = text[i];
-		bmfont::Glyph* glyph = bmfont::find_glyph(font, current);
-		float kerning = bmfont::lookup_kerning(font, prior_char, current);
-		bounds.x += kerning + glyph->x_advance;
-		prior_char = current;
-	}
-
-	return bounds;
-}
-
-struct PathButton
-{
-	Rect bounds;
-	char* text;
-};
-
-struct Spacing
-{
-	float start;
-	float top;
-	float end;
-	float bottom;
-};
-
-struct Item
-{
-	Rect bounds;
-	Spacing padding;
-};
-
-struct Button
-{
-	Item item;
-	const char* label;
-	bool enabled;
-	bool hovered;
-};
-
-static const int invalid_index = -1;
-
 struct FilePickDialog
 {
-	Button pick;
-	Rect bounds;
-	Spacing path_button_padding;
-	Spacing path_button_margin;
-	Spacing record_padding;
-	Spacing record_margin;
-	Spacing footer_padding;
 	Directory directory;
 	char* path;
-	Rect* records_bounds;
-	PathButton* path_buttons;
+	ui::Item* panel;
+	ui::Id* path_buttons;
+	ui::TextBlock* file_readout;
+	ui::Id pick_button;
+	ui::Button* pick;
 	int path_buttons_count;
-	int path_button_selected;
-	int record_hovered;
 	int record_selected;
-	float scroll_top;
 	bool show_hidden_records;
 	bool enabled;
 };
-
-static float get_record_height(FilePickDialog* dialog, bmfont::Font* font)
-{
-	Spacing margin = dialog->record_margin;
-	Spacing padding = dialog->record_padding;
-	return margin.top + padding.top + font->line_height + padding.bottom + margin.bottom;
-}
-
-static float get_path_bar_height(FilePickDialog* dialog, bmfont::Font* font)
-{
-	Spacing margin = dialog->path_button_margin;
-	Spacing padding = dialog->path_button_padding;
-	return margin.top + padding.top + font->line_height + padding.bottom + margin.bottom;
-}
-
-static float get_footer_height(FilePickDialog* dialog, bmfont::Font* font)
-{
-	Spacing padding = dialog->footer_padding;
-	return padding.top + font->line_height + padding.bottom;
-}
-
-static float get_inner_height(FilePickDialog* dialog, bmfont::Font* font)
-{
-	float path_bar_height = get_path_bar_height(dialog, font);
-	float footer_height = get_footer_height(dialog, font);
-	return dialog->bounds.dimensions.y - path_bar_height - footer_height;
-}
-
-static void add_path_button(FilePickDialog* dialog, const char* path, int end, Vector2 pen, bmfont::Font* font, Heap* heap)
-{
-	dialog->path_buttons = HEAP_REALLOCATE(heap, PathButton, dialog->path_buttons, dialog->path_buttons_count + 1);
-	PathButton* button = &dialog->path_buttons[dialog->path_buttons_count];
-	button->text = copy_string_to_heap(path, end, heap);
-	button->bounds.bottom_left = pen;
-	button->bounds.dimensions = compute_text_bounds(button->text, font);
-	dialog->path_buttons_count += 1;
-}
 
 static bool record_is_before(DirectoryRecord a, DirectoryRecord b)
 {
@@ -629,43 +495,72 @@ static void filter_directory(Directory* directory, const char** extensions, int 
 	directory->records_count = filtered.count;
 }
 
-static void open_directory(FilePickDialog* dialog, const char* directory, bmfont::Font* font, Heap* heap)
+static void open_directory(FilePickDialog* dialog, const char* directory, bmfont::Font* font, ui::Context* context, Heap* heap)
 {
 	dialog->enabled = true;
 
+	// Create the panel for the dialog box.
+	ui::Item* panel = ui::create_toplevel_container(context, heap);
+	panel->type = ui::ItemType::Container;
+	panel->growable = true;
+	panel->container.alignment = ui::Alignment::Stretch;
+	dialog->panel = panel;
+
+	ui::add_column(&panel->container, 3, context, heap);
+
+	// Set up the path bar at the top of the dialog.
 	dialog->path = copy_string_onto_heap(directory, heap);
 
-	// Add and layout path buttons at the top of the dialog.
-	Spacing margin = dialog->path_button_margin;
-	Spacing padding = dialog->path_button_padding;
-	float path_bar_height = margin.top + padding.top + font->line_height + padding.bottom + margin.bottom;
-	Vector2 top_left = rect_top_left(dialog->bounds);
-	Vector2 pen;
-	pen.x = top_left.x + margin.start;
-	pen.y = top_left.y - font->line_height - margin.top;
-	for(const char* path = dialog->path; *path;)
+	int slashes = count_char_occurrences(dialog->path, '/');
+	int buttons_in_row = slashes + 1;
+	dialog->path_buttons_count = buttons_in_row;
+	dialog->path_buttons = HEAP_ALLOCATE(heap, ui::Id, buttons_in_row);
+
+	ui::Item* path_bar = &panel->container.items[0];
+	path_bar->type = ui::ItemType::Container;
+	path_bar->container.background_colour = vector4_yellow;
+	ui::add_row(&path_bar->container, buttons_in_row, context, heap);
+
+	// Add buttons to the path bar.
+	int i = 0;
+	for(const char* path = dialog->path; *path; i += 1)
 	{
+		ui::Item* item = &path_bar->container.items[i];
+		item->type = ui::ItemType::Button;
+
+		ui::Button* button = &item->button;
+		button->text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+		button->text_block.font = font;
+		dialog->path_buttons[i] = item->id;
+
 		int found_index = find_char(path, '/');
 		if(found_index == 0)
 		{
 			// root directory
 			const char* name = "Filesystem";
-			add_path_button(dialog, name, string_size(name), pen, font, heap);
+			button->text_block.text = copy_string_to_heap(name, string_size(name), heap);
 		}
 		else if(found_index == -1)
 		{
 			// final path segment
-			add_path_button(dialog, path, string_size(path), pen, font, heap);
+			button->text_block.text = copy_string_to_heap(path, string_size(path), heap);
 			break;
 		}
 		else
 		{
-			add_path_button(dialog, path, found_index, pen, font, heap);
+			button->text_block.text = copy_string_to_heap(path, found_index, heap);
 		}
-		PathButton added = dialog->path_buttons[dialog->path_buttons_count - 1];
-		pen.x += padding.start + added.bounds.dimensions.x + padding.end + margin.end + margin.start;
 		path += found_index + 1;
 	}
+
+	// Set up the directory listing.
+	ui::Item* file_list = &panel->container.items[1];
+	file_list->type = ui::ItemType::List;
+	file_list->growable = true;
+
+	ui::List* list = &file_list->list;
+	list->item_spacing = 2.0f;
+	list->side_margin = 2.0f;
 
 	bool listed = list_files_in_directory(dialog->path, &dialog->directory, heap);
 	ASSERT(listed);
@@ -674,93 +569,64 @@ static void open_directory(FilePickDialog* dialog, const char* directory, bmfont
 	const char* extensions[extensions_count] = {".obj"};
 	filter_directory(&dialog->directory, extensions, extensions_count, dialog->show_hidden_records, heap);
 
+	ui::create_items(file_list, dialog->directory.records_count, heap);
+
 	if(dialog->directory.records_count == 0)
 	{
 		// Listing the directory succeeded, it's just empty.
-		dialog->records_bounds = nullptr;
 	}
 	else
 	{
 		quick_sort_by_filename(dialog->directory.records, dialog->directory.records_count);
 
-		dialog->records_bounds = HEAP_ALLOCATE(heap, Rect, dialog->directory.records_count);
-
-		margin = dialog->record_margin;
-		padding = dialog->record_padding;
-		Vector2 dimensions;
-		dimensions.x = dialog->bounds.dimensions.x - margin.start - margin.end;
-		dimensions.y = padding.top + font->line_height + padding.bottom;
-		float advance = margin.top + dimensions.y + margin.bottom;
-
-		Vector2 area_top_left = top_left;
-		area_top_left.y -= path_bar_height;
-
-		pen.x = area_top_left.x + margin.start;
-		pen.y = area_top_left.y - font->line_height - margin.top;
 		FOR_N(i, dialog->directory.records_count)
 		{
-			Rect rect;
-			rect.bottom_left = pen;
-			rect.dimensions = dimensions;
-			dialog->records_bounds[i] = rect;
-			pen.y -= advance;
+			DirectoryRecord record = dialog->directory.records[i];
+			ui::TextBlock* text_block = &list->items[i];
+			text_block->text = copy_string_onto_heap(record.name, heap);
+			text_block->padding = {1.0f, 1.0f, 1.0f, 1.0f};
+			text_block->font = font;
 		}
 	}
 
-	dialog->record_hovered = invalid_index;
-	dialog->record_selected = invalid_index;
-	dialog->path_button_selected = invalid_index;
-	dialog->pick.enabled = false;
-	dialog->scroll_top = 0.0f;
+	// Set up the footer.
+	ui::Item* footer = &panel->container.items[2];
+	footer->type = ui::ItemType::Container;
+	footer->container.background_colour = vector4_blue;
+	footer->container.justification = ui::Justification::Space_Between;
+
+	ui::add_row(&footer->container, 2, context, heap);
+
+	ui::Item* file_readout = &footer->container.items[0];
+	file_readout->type = ui::ItemType::Text_Block;
+	file_readout->text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+	file_readout->text_block.text = copy_string_onto_heap("", heap);
+	file_readout->text_block.font = font;
+	dialog->file_readout = &file_readout->text_block;
+
+	ui::Item* pick = &footer->container.items[1];
+	pick->type = ui::ItemType::Button;
+	pick->button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+	pick->button.text_block.text = copy_string_onto_heap("Import", heap);
+	pick->button.text_block.font = font;
+	dialog->pick_button = pick->id;
+	dialog->pick = &pick->button;
+
+	ui::focus_on_container(context, panel);
 }
 
-static void open_dialog(FilePickDialog* dialog, bmfont::Font* font, Heap* heap)
+static void open_dialog(FilePickDialog* dialog, bmfont::Font* font, ui::Context* context, Heap* heap)
 {
-	dialog->bounds.bottom_left = {-350.0f, -250.0f};
-	dialog->bounds.dimensions = {400.0f, 500.0f};
-
-	dialog->path_button_padding = {1.0f, 1.0f, 1.0f, 1.0f};
-	dialog->path_button_margin = {5.0f, 5.0f, 0.0f, 5.0f + font->line_height};
-	dialog->record_padding = {1.0f, 1.0f, 1.0f, 1.0f};
-	dialog->record_margin = {3.0f, 1.0f, 3.0f, 1.0f};
-	dialog->footer_padding = {5.0f, 10.0f, 5.0f, 10.0f};
-
-	// Layout the pick button.
-	{
-		dialog->pick.label = "Open File";
-
-		Item* item = &dialog->pick.item;
-		Spacing padding = {1.0f, 1.0f, 1.0f, 1.0f};
-		item->padding = padding;
-
-		Vector2 text_bounds = compute_text_bounds(dialog->pick.label, font);
-		Vector2 dimensions;
-		dimensions.x = padding.start + text_bounds.x + padding.end;
-		dimensions.y = padding.top + text_bounds.y + padding.bottom;
-		item->bounds.dimensions = dimensions;
-
-		float right = dialog->bounds.bottom_left.x + dialog->bounds.dimensions.x;
-		float bottom = dialog->bounds.bottom_left.y;
-		item->bounds.bottom_left.x = right - dimensions.x;
-		item->bounds.bottom_left.y = bottom + padding.bottom;
-	}
-
 	const char* default_path = get_documents_folder(heap);
-	open_directory(dialog, default_path, font, heap);
+	open_directory(dialog, default_path, font, context, heap);
 }
 
-static void close_dialog(FilePickDialog* dialog, Heap* heap)
+static void close_dialog(FilePickDialog* dialog, ui::Context* context, Heap* heap)
 {
 	if(dialog)
 	{
-		FOR_N(i, dialog->path_buttons_count)
-		{
-			SAFE_HEAP_DEALLOCATE(heap, dialog->path_buttons[i].text);
-		}
-		dialog->path_buttons_count = 0;
-		SAFE_HEAP_DEALLOCATE(heap, dialog->path_buttons);
 		SAFE_HEAP_DEALLOCATE(heap, dialog->path);
-		SAFE_HEAP_DEALLOCATE(heap, dialog->records_bounds);
+		ui::destroy_toplevel_container(context, dialog->panel, heap);
 		destroy_directory(&dialog->directory, heap);
 		dialog->enabled = false;
 	}
@@ -772,105 +638,7 @@ struct Viewport
 	int height;
 };
 
-static void draw_dialog(FilePickDialog* dialog, bmfont::Font* font, Viewport* viewport)
-{
-	const Vector4 backdrop_colour = {0.0f, 0.0f, 0.0f, 0.9f};
-	const Vector4 hover_colour = {1.0f, 1.0f, 1.0f, 0.3f};
-	const Vector4 selection_colour = {1.0f, 1.0f, 1.0f, 0.5f};
-	const Vector4 disabled_button_colour = {0.2f, 0.2f, 0.2f, 1.0f};
-
-	// Draw the backdrop.
-	immediate::draw_transparent_rect(dialog->bounds, backdrop_colour);
-
-	// Draw the selection highlight for a selected path button.
-	if(dialog->path_button_selected != invalid_index)
-	{
-		PathButton button = dialog->path_buttons[dialog->path_button_selected];
-		immediate::draw_transparent_rect(button.bounds, hover_colour);
-	}
-
-	// Draw buttons for each segment in the current directory's path.
-	FOR_N(i, dialog->path_buttons_count)
-	{
-		PathButton button = dialog->path_buttons[i];
-		draw_text(button.text, button.bounds.bottom_left, font);
-	}
-
-	// Clip anything that scrolls outside the middle area of the window.
-	float scroll_area_height = get_inner_height(dialog, font);
-	Rect clip_area = dialog->bounds;
-	clip_area.dimensions.y = scroll_area_height;
-	clip_area.bottom_left.y += get_footer_height(dialog, font);
-	immediate::set_clip_area(clip_area, viewport->width, viewport->height);
-
-	// Draw the hover highlight for the records.
-	if(dialog->record_hovered != invalid_index && dialog->record_hovered != dialog->record_selected)
-	{
-		Rect rect = dialog->records_bounds[dialog->record_hovered];
-		rect.bottom_left.y += dialog->scroll_top;
-		immediate::draw_transparent_rect(rect, hover_colour);
-	}
-
-	// Draw the selection highlight for the records.
-	if(dialog->record_selected != invalid_index)
-	{
-		Rect rect = dialog->records_bounds[dialog->record_selected];
-		rect.bottom_left.y += dialog->scroll_top;
-		immediate::draw_transparent_rect(rect, selection_colour);
-	}
-
-	// Draw a line for each file in the current directory.
-	float record_height = get_record_height(dialog, font);
-	float scroll = dialog->scroll_top;
-	int start_index = scroll / record_height;
-	start_index = MAX(start_index, 0);
-	int end_index = ceil((scroll + scroll_area_height) / record_height);
-	end_index = MIN(end_index, dialog->directory.records_count);
-
-	for(int i = start_index; i < end_index; i += 1)
-	{
-		DirectoryRecord record = dialog->directory.records[i];
-		char* name = record.name;
-
-		Rect bounds = dialog->records_bounds[i];
-		Vector2 start = bounds.bottom_left;
-		start.y += dialog->scroll_top;
-
-		draw_text(name, start, font);
-	}
-
-	immediate::stop_clip_area();
-
-	// Draw the footer.
-	Spacing padding = dialog->footer_padding;
-	Rect rect;
-	rect.bottom_left = dialog->bounds.bottom_left;
-	rect.dimensions.x = dialog->bounds.dimensions.x;
-	rect.dimensions.y = padding.top + font->line_height + padding.bottom;
-	immediate::draw_opaque_rect(rect, {0.0f, 0.0f, 0.0f, 1.0f});
-
-	if(dialog->record_selected != invalid_index)
-	{
-		Vector2 start;
-		start.x = rect.bottom_left.x + padding.start;
-		start.y = rect.bottom_left.y + padding.bottom;
-		DirectoryRecord record = dialog->directory.records[dialog->record_selected];
-		draw_text(record.name, start, font);
-	}
-
-	Button pick = dialog->pick;
-	if(!pick.enabled)
-	{
-		immediate::draw_opaque_rect(pick.item.bounds, disabled_button_colour);
-	}
-	else if(pick.hovered)
-	{
-		immediate::draw_transparent_rect(pick.item.bounds, hover_colour);
-	}
-	draw_text(pick.label, pick.item.bounds.bottom_left, font);
-}
-
-static void touch_record(FilePickDialog* dialog, int record_index, bmfont::Font* font, Heap* heap)
+static void touch_record(FilePickDialog* dialog, int record_index, bmfont::Font* font, ui::Context* context, Heap* heap)
 {
 	DirectoryRecord record = dialog->directory.records[record_index];
 	switch(record.type)
@@ -879,8 +647,8 @@ static void touch_record(FilePickDialog* dialog, int record_index, bmfont::Font*
 		{
 			char* path = append_to_path(dialog->path, record.name, heap);
 
-			close_dialog(dialog, heap);
-			open_directory(dialog, path, font, heap);
+			close_dialog(dialog, context, heap);
+			open_directory(dialog, path, font, context, heap);
 
 			HEAP_DEALLOCATE(heap, path);
 			break;
@@ -888,7 +656,9 @@ static void touch_record(FilePickDialog* dialog, int record_index, bmfont::Font*
 		case DirectoryRecordType::File:
 		{
 			dialog->record_selected = record_index;
-			dialog->pick.enabled = true;
+			dialog->pick->enabled = true;
+			const char* filename = dialog->directory.records[record_index].name;
+			replace_string(&dialog->file_readout->text, filename, heap);
 			break;
 		}
 		default:
@@ -898,7 +668,7 @@ static void touch_record(FilePickDialog* dialog, int record_index, bmfont::Font*
 	}
 }
 
-static void open_parent_directory(FilePickDialog* dialog, int segment, bmfont::Font* font, Heap* heap)
+static void open_parent_directory(FilePickDialog* dialog, int segment, bmfont::Font* font, ui::Context* context, Heap* heap)
 {
 	const char* path = dialog->path;
 	int slash = 0;
@@ -933,118 +703,58 @@ static void open_parent_directory(FilePickDialog* dialog, int segment, bmfont::F
 	char* subpath = HEAP_ALLOCATE(heap, char, subpath_size);
 	copy_string(subpath, subpath_size, path);
 
-	close_dialog(dialog, heap);
-	open_directory(dialog, subpath, font, heap);
+	close_dialog(dialog, context, heap);
+	open_directory(dialog, subpath, font, context, heap);
 
 	HEAP_DEALLOCATE(heap, subpath);
 }
 
-void pick_file(FilePickDialog* dialog, const char* name, Heap* heap, Stack* stack);
+void pick_file(FilePickDialog* dialog, const char* name, ui::Context* context, Heap* heap, Stack* stack);
 
-static void detect_mouse_selection(FilePickDialog* dialog, Vector2 mouse_position, bool clicked, bmfont::Font* font, Heap* heap, Stack* stack)
+static void handle_input(FilePickDialog* dialog, ui::Event event, bmfont::Font* font, ui::Context* context, Heap* heap, Stack* stack)
 {
-	if(!point_in_rect(dialog->bounds, mouse_position))
+	switch(event.type)
 	{
-		return;
-	}
-
-	dialog->path_button_selected = invalid_index;
-	FOR_N(i, dialog->path_buttons_count)
-	{
-		PathButton button = dialog->path_buttons[i];
-		if(point_in_rect(button.bounds, mouse_position))
+		case ui::EventType::Button:
 		{
-			dialog->path_button_selected = i;
-			if(clicked)
+			ui::Id id = event.button.id;
+
+			FOR_N(i, dialog->path_buttons_count)
 			{
-				open_parent_directory(dialog, i, font, heap);
+				if(id == dialog->path_buttons[i])
+				{
+					open_parent_directory(dialog, i, font, context, heap);
+				}
 			}
-			break;
-		}
-	}
 
-	float record_height = get_record_height(dialog, font);
-	float scroll_area_height = get_inner_height(dialog, font);
-	float scroll = dialog->scroll_top;
-	int start_index = scroll / record_height;
-	start_index = MAX(start_index, 0);
-	int end_index = ceil((scroll + scroll_area_height) / record_height);
-	end_index = MIN(end_index, dialog->directory.records_count);
-
-	dialog->record_hovered = invalid_index;
-	for(int i = start_index; i < end_index; i += 1)
-	{
-		Rect bounds = dialog->records_bounds[i];
-		bounds.bottom_left.y += dialog->scroll_top;
-		if(point_in_rect(bounds, mouse_position))
-		{
-			dialog->record_hovered = i;
-			if(clicked)
+			if(id == dialog->pick_button)
 			{
-				touch_record(dialog, i, font, heap);
-			}
-			break;
-		}
-	}
-
-	Button* pick = &dialog->pick;
-	pick->hovered = false;
-	if(pick->enabled && point_in_rect(pick->item.bounds, mouse_position))
-	{
-		pick->hovered = true;
-		if(clicked)
-		{
-			int selected = dialog->record_selected;
-			if(selected != invalid_index)
-			{
+				int selected = dialog->record_selected;
 				DirectoryRecord record = dialog->directory.records[selected];
-				pick_file(dialog, record.name, heap, stack);
+				pick_file(dialog, record.name, context, heap, stack);
 			}
+			break;
+		}
+		case ui::EventType::Focus_Change:
+		{
+			ui::Id id = event.focus_change.now_unfocused;
+			if(id == dialog->panel->id)
+			{
+				close_dialog(dialog, context, heap);
+			}
+			break;
+		}
+		case ui::EventType::List_Selection:
+		{
+			int index = event.list_selection.index;
+			touch_record(dialog, index, font, context, heap);
+			break;
 		}
 	}
-}
-
-static float get_scroll_bottom(FilePickDialog* dialog, bmfont::Font* font)
-{
-	float inner_height = get_inner_height(dialog, font);
-	float lines = dialog->directory.records_count;
-	float content_height = lines * get_record_height(dialog, font);
-	return fmax(content_height - inner_height, 0.0f);
-}
-
-static void set_scroll(FilePickDialog* dialog, float scroll, bmfont::Font* font)
-{
-	float scroll_bottom = get_scroll_bottom(dialog, font);
-	dialog->scroll_top = clamp(scroll, 0.0f, scroll_bottom);
-}
-
-static void scroll(FilePickDialog* dialog, float scroll_velocity_y, bmfont::Font* font)
-{
-	const float speed = 120.0f;
-	float scroll_top = dialog->scroll_top - (speed * scroll_velocity_y);
-	set_scroll(dialog, scroll_top, font);
 }
 
 namespace
 {
-	const Vector3 vector3_red     = {1.0f, 0.0f, 0.0f};
-	const Vector3 vector3_green   = {0.0f, 1.0f, 0.0f};
-	const Vector3 vector3_blue    = {0.0f, 0.0f, 1.0f};
-	const Vector3 vector3_cyan    = {0.0f, 1.0f, 1.0f};
-	const Vector3 vector3_magenta = {1.0f, 0.0f, 1.0f};
-	const Vector3 vector3_yellow  = {1.0f, 1.0f, 0.0f};
-	const Vector3 vector3_black   = {0.0f, 0.0f, 0.0f};
-	const Vector3 vector3_white   = {1.0f, 1.0f, 1.0f};
-
-	const Vector4 vector4_red     = {1.0f, 0.0f, 0.0f, 1.0f};
-	const Vector4 vector4_green   = {0.0f, 1.0f, 0.0f, 1.0f};
-	const Vector4 vector4_blue    = {0.0f, 0.0f, 1.0f, 1.0f};
-	const Vector4 vector4_cyan    = {0.0f, 1.0f, 1.0f, 1.0f};
-	const Vector4 vector4_magenta = {1.0f, 0.0f, 1.0f, 1.0f};
-	const Vector4 vector4_yellow  = {1.0f, 1.0f, 0.0f, 1.0f};
-	const Vector4 vector4_black   = {0.0f, 0.0f, 0.0f, 1.0f};
-	const Vector4 vector4_white   = {1.0f, 1.0f, 1.0f, 1.0f};
-
 	const float near_plane = 0.001f;
 	const float far_plane = 100.0f;
 
@@ -1121,9 +831,10 @@ namespace
 	bmfont::Font font;
 	GLuint font_textures[1];
 
-	ui::Item test_container;
-	ui::Item dialog_panel;
-	ui::Item* focused_container;
+	ui::Item* main_menu;
+	ui::Context ui_context;
+	ui::Id import_button_id;
+	ui::Id export_button_id;
 }
 
 bool system_startup()
@@ -1279,7 +990,7 @@ bool system_startup()
 	{
 		bmfont::load_font(&font, "droid_12.fnt", &heap, &scratch);
 
-		for(int i = 0; i < font.pages_count; i += 1)
+		FOR_N(i, font.pages_count)
 		{
 			const char* path = font.pages[i].bitmap_filename;
 			Bitmap bitmap;
@@ -1293,28 +1004,33 @@ bool system_startup()
 	immediate::set_shader(shader_vertex_colour.program);
 	immediate::set_textured_shader(shader_font.program);
 
-	// Test UI prototype.
+	ui::create_context(&ui_context, &heap);
+
+	// Setup the main menu.
 	{
-		test_container.type = ui::ItemType::Container;
-		test_container.growable = true;
-		test_container.container.background_colour = {0.145f, 0.145f, 0.145f, 1.0f};
-		test_container.container.padding = {1.0f, 1.0f, 1.0f, 1.0f};
-		test_container.container.direction = ui::Direction::Left_To_Right;
-		test_container.container.alignment = ui::Alignment::Start;
-		test_container.container.justification = ui::Justification::Start;
+		main_menu = ui::create_toplevel_container(&ui_context, &heap);
+		main_menu->type = ui::ItemType::Container;
+		main_menu->growable = true;
+		main_menu->container.background_colour = {0.145f, 0.145f, 0.145f, 1.0f};
+		main_menu->container.padding = {1.0f, 1.0f, 1.0f, 1.0f};
+		main_menu->container.direction = ui::Direction::Left_To_Right;
+		main_menu->container.alignment = ui::Alignment::Start;
+		main_menu->container.justification = ui::Justification::Start;
 
 		const int items_in_row = 2;
-		ui::add_row(&test_container.container, items_in_row, &heap);
+		ui::add_row(&main_menu->container, items_in_row, &ui_context, &heap);
 
-		test_container.container.items[0].type = ui::ItemType::Button;
-		test_container.container.items[0].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-		test_container.container.items[0].button.text_block.text = "Import .obj";
-		test_container.container.items[0].button.text_block.font = &font;
+		main_menu->container.items[0].type = ui::ItemType::Button;
+		main_menu->container.items[0].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+		main_menu->container.items[0].button.text_block.text = copy_string_onto_heap("Import .obj", &heap);
+		main_menu->container.items[0].button.text_block.font = &font;
+		import_button_id = main_menu->container.items[0].id;
 
-		test_container.container.items[1].type = ui::ItemType::Button;
-		test_container.container.items[1].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-		test_container.container.items[1].button.text_block.text = "Export .obj";
-		test_container.container.items[1].button.text_block.font = &font;
+		main_menu->container.items[1].type = ui::ItemType::Button;
+		main_menu->container.items[1].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+		main_menu->container.items[1].button.text_block.text = copy_string_onto_heap("Export .obj", &heap);
+		main_menu->container.items[1].button.text_block.font = &font;
+		export_button_id = main_menu->container.items[1].id;
 	}
 
 	return true;
@@ -1345,9 +1061,9 @@ void system_shutdown(bool functions_loaded)
 		immediate::context_destroy(&heap);
 	}
 
-	close_dialog(&dialog, &heap);
+	close_dialog(&dialog, &ui_context, &heap);
 
-	ui::destroy_container(&test_container.container, &heap);
+	ui::destroy_context(&ui_context, &heap);
 
 	stack_destroy(&scratch);
 	heap_destroy(&heap);
@@ -1380,87 +1096,6 @@ Ray ray_from_viewport_point(Vector2 point, int viewport_width, int viewport_heig
 	result.origin = start;
 	result.direction = normalise(end - start);
 	return result;
-}
-
-static void focus_on_container(ui::Item* item)
-{
-	focused_container = item;
-}
-
-static bool focused_on(ui::Item* item)
-{
-	return item == focused_container;
-}
-
-void ui_handle_input(ui::Item* item)
-{
-	switch(item->type)
-	{
-		case ui::ItemType::Container:
-		{
-			ui::Container* container = &item->container;
-			FOR_N(i, container->items_count)
-			{
-				ui_handle_input(&container->items[i]);
-			}
-			break;
-		}
-		case ui::ItemType::Text_Block:
-		{
-			break;
-		}
-		case ui::ItemType::Button:
-		{
-			ui::Button* button = &item->button;
-			if(button->hovered && input::get_mouse_clicked(input::MouseButton::Left))
-			{
-				open_dialog(&dialog, &font, &heap);
-				dialog_panel.bounds = dialog.bounds;
-				focus_on_container(&dialog_panel);
-				dialog_panel.unfocusable = false;
-			}
-			break;
-		}
-	}
-}
-
-static void detect_focus_changes_for_toplevel_containers()
-{
-	bool clicked =
-		input::get_mouse_clicked(input::MouseButton::Left) ||
-		input::get_mouse_clicked(input::MouseButton::Middle) ||
-		input::get_mouse_clicked(input::MouseButton::Right);
-
-	Vector2 mouse_position;
-	mouse_position.x = mouse.position.x - viewport.width / 2.0f;
-	mouse_position.y = -(mouse.position.y - viewport.height / 2.0f);
-
-	const int items_count = 2;
-	ui::Item* items[items_count] =
-	{
-		&test_container,
-		&dialog_panel,
-	};
-
-	bool any_changed = false;
-	FOR_N(i, items_count)
-	{
-		ui::Item* item = items[i];
-		bool hovered = point_in_rect(item->bounds, mouse_position);
-		if(hovered)
-		{
-			if(clicked && !item->unfocusable && !any_changed)
-			{
-				focused_container = item;
-				any_changed = true;
-			}
-			ui::detect_hover(item, mouse_position);
-		}
-	}
-	if(clicked && !any_changed)
-	{
-		focused_container = nullptr;
-	}
 }
 
 void system_update()
@@ -1509,33 +1144,40 @@ void system_update()
 		mouse.scroll_velocity_y = scroll_speed * scroll_velocity_y;
 	}
 
-	detect_focus_changes_for_toplevel_containers();
-
-	// Update the file pick dialog.
-	if(dialog.enabled)
+	// Update the UI system and respond to any events that occurred.
 	{
-		if(focused_on(&dialog_panel))
+		ui::update(&ui_context);
+		ui::Event event;
+		while(ui::dequeue(&ui_context.queue, &event))
 		{
-			Vector2 mouse_position;
-			mouse_position.x = mouse.position.x - viewport.width / 2.0f;
-			mouse_position.y = -(mouse.position.y - viewport.height / 2.0f);
-			bool clicked = input::get_mouse_clicked(input::MouseButton::Left);
-			detect_mouse_selection(&dialog, mouse_position, clicked, &font, &heap, &scratch);
-			scroll(&dialog, mouse.scroll_velocity_y, &font);
-		}
-		else
-		{
-			close_dialog(&dialog, &heap);
-			dialog_panel.unfocusable = true;
+			if(dialog.enabled)
+			{
+				handle_input(&dialog, event, &font, &ui_context, &heap, &scratch);
+			}
+			else
+			{
+				switch(event.type)
+				{
+					case ui::EventType::Button:
+					{
+						ui::Id id = event.button.id;
+						if(id == import_button_id)
+						{
+							open_dialog(&dialog, &font, &ui_context, &heap);
+							dialog.panel->unfocusable = false;
+						}
+						else if(id == export_button_id)
+						{
+
+						}
+						break;
+					}
+				}
+			}
 		}
 	}
 
-	if(focused_on(&test_container))
-	{
-		ui_handle_input(&test_container);
-	}
-
-	if(!focused_container)
+	if(!ui_context.focused_container)
 	{
 		if(input::get_key_tapped(input::Key::G))
 		{
@@ -1764,14 +1406,18 @@ void system_update()
 	Matrix4 screen_view = matrix4_identity;
 	immediate::set_matrices(screen_view, screen_projection);
 
-	// Test drawing text.
+	// Draw the open file dialog.
 	if(dialog.enabled)
 	{
 		glActiveTexture(GL_TEXTURE0 + 0);
 		glBindTexture(GL_TEXTURE_2D, font_textures[0]);
 		glBindSampler(0, nearest_repeat);
 
-		draw_dialog(&dialog, &font, &viewport);
+		Rect space;
+		space.bottom_left = {0.0f, -250.0f};
+		space.dimensions = {300.0f, 500.0f};
+		ui::lay_out(dialog.panel, space);
+		ui::draw(dialog.panel, &ui_context);
 	}
 
 	// Test UI prototypes.
@@ -1784,8 +1430,8 @@ void system_update()
 		space.bottom_left = {-viewport.width / 2.0f, viewport.height / 2.0f};
 		space.dimensions = {viewport.width, 60.0f};
 		space.bottom_left.y -= space.dimensions.y;
-		ui::lay_out(&test_container, space);
-		ui::draw(&test_container);
+		ui::lay_out(main_menu, space);
+		ui::draw(main_menu, &ui_context);
 	}
 
 	glDepthMask(GL_TRUE);
@@ -1802,7 +1448,7 @@ void system_update()
 	}
 }
 
-void pick_file(FilePickDialog* dialog, const char* name, Heap* heap, Stack* stack)
+void pick_file(FilePickDialog* dialog, const char* name, ui::Context* context, Heap* heap, Stack* stack)
 {
 	char* path = append_to_path(dialog->path, name, heap);
 	jan::Mesh mesh;
@@ -1827,8 +1473,8 @@ void pick_file(FilePickDialog* dialog, const char* name, Heap* heap, Stack* stac
 		HEAP_DEALLOCATE(heap, indices);
 		jan::destroy_mesh(&mesh);
 
-		close_dialog(dialog, heap);
-		dialog_panel.unfocusable = true;
+		close_dialog(dialog, context, heap);
+		dialog->panel->unfocusable = true;
 	}
 }
 
@@ -1836,6 +1482,9 @@ void resize_viewport(int width, int height)
 {
 	viewport.width = width;
 	viewport.height = height;
+
+	ui_context.viewport.x = width;
+	ui_context.viewport.y = height;
 
 	const float fov = pi_over_2 * (2.0f / 3.0f);
 	projection = perspective_projection_matrix(fov, width, height, near_plane, far_plane);

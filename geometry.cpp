@@ -1,5 +1,7 @@
 #include "geometry.h"
 
+#include "math_basics.h"
+
 Quad rect_to_quad(Rect r)
 {
 	float left = r.bottom_left.x;
@@ -47,4 +49,33 @@ bool point_in_rect(Rect rect, Vector2 point)
 	return
 		point.x >= min.x && point.x <= max.x &&
 		point.y >= min.y && point.y <= max.y;
+}
+
+bool clip_rects(Rect inner, Rect outer, Rect* result)
+{
+	float i_right = inner.bottom_left.x + inner.dimensions.x;
+	float o_right = outer.bottom_left.x + outer.dimensions.x;
+	i_right = fmin(i_right, o_right);
+
+	float i_top = inner.bottom_left.y + inner.dimensions.y;
+	float o_top = outer.bottom_left.y + outer.dimensions.y;
+	i_top = fmin(i_top, o_top);
+
+	float x = fmax(inner.bottom_left.x, outer.bottom_left.x);
+	float y = fmax(inner.bottom_left.y, outer.bottom_left.y);
+	float width = i_right - x;
+	float height = i_top - y;
+
+	if(width <= 0.0f && height <= 0.0f)
+	{
+		return false;
+	}
+	else
+	{
+		result->bottom_left.x = x;
+		result->bottom_left.y = y;
+		result->dimensions.x = width;
+		result->dimensions.y = height;
+		return true;
+	}
 }

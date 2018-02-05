@@ -23,5 +23,6 @@ Vector2 rect_bottom_right(Rect rect);
 float rect_top(Rect rect);
 float rect_right(Rect rect);
 bool point_in_rect(Rect rect, Vector2 point);
+bool clip_rects(Rect inner, Rect outer, Rect* result);
 
 #endif // GEOMETRY_H_

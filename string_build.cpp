@@ -17,6 +17,12 @@ char* copy_string_onto_heap(const char* original, Heap* heap)
 	return copy_string_to_heap(original, size, heap);
 }
 
+void replace_string(char** original, const char* new_string, Heap* heap)
+{
+	HEAP_DEALLOCATE(heap, *original);
+	*original = copy_string_onto_heap(new_string, heap);
+}
+
 char* append_to_path(const char* path, const char* segment, Heap* heap)
 {
 	int size = string_size(path) + 1 + string_size(segment) + 1;
