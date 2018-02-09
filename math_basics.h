@@ -9,5 +9,6 @@
 
 using std::abs;
 using std::isfinite;
+using std::signbit;
 
 #endif // MATH_BASICS_H_

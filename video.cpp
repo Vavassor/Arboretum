@@ -1098,6 +1098,132 @@ Ray ray_from_viewport_point(Vector2 point, int viewport_width, int viewport_heig
 	return result;
 }
 
+static void draw_move_tool(bool silhouetted)
+{
+	const float shaft_length = 2.0f * sqrt(3.0f);
+	const float shaft_radius = 0.125f;
+	const float head_height = sqrt(3.0f) / 2.0f;
+	const float head_radius = 0.5f;
+	const float quadrant_length = 1.0f;
+	const float quadrant_radius = 0.0625f;
+	const float ball_radius = 0.4f;
+
+	const Vector3 xy_quadrant = {quadrant_length, quadrant_length, 0.0f};
+	const Vector3 yz_quadrant = {0.0f, quadrant_length, quadrant_length};
+	const Vector3 xz_quadrant = {quadrant_length, 0.0f, quadrant_length};
+
+	Vector4 x_axis_colour = {1.0f, 0.0314f, 0.0314f, 1.0f};
+	Vector4 y_axis_colour = {0.3569f, 1.0f, 0.0f, 1.0f};
+	Vector4 z_axis_colour = {0.0863f, 0.0314f, 1.0f, 1.0f};
+	Vector4 x_axis_shadow_colour = {0.7f, 0.0314f, 0.0314f, 1.0f};
+	Vector4 y_axis_shadow_colour = {0.3569f, 0.7f, 0.0f, 1.0f};
+	Vector4 z_axis_shadow_colour = {0.0863f, 0.0314f, 0.7f, 1.0f};
+
+	const Vector4 ball_colour = {0.9f, 0.9f, 0.9f, 1.0f};
+	const Vector4 silhouette_colour = {0.3f, 0.3f, 0.3f, 1.0f};
+
+	if(silhouetted)
+	{
+		x_axis_colour = silhouette_colour;
+		y_axis_colour = silhouette_colour;
+		z_axis_colour = silhouette_colour;
+		x_axis_shadow_colour = silhouette_colour;
+		y_axis_shadow_colour = silhouette_colour;
+		z_axis_shadow_colour = silhouette_colour;
+	}
+
+	Vector3 shaft_axis_x = {shaft_length, 0.0f, 0.0f};
+	Vector3 shaft_axis_y = {0.0f, shaft_length, 0.0f};
+	Vector3 shaft_axis_z = {0.0f, 0.0f, shaft_length};
+
+	Vector3 head_axis_x = {head_height, 0.0f, 0.0f};
+	Vector3 head_axis_y = {0.0f, head_height, 0.0f};
+	Vector3 head_axis_z = {0.0f, 0.0f, head_height};
+
+	Vector3 quadrant_x = {quadrant_length, 0.0, 0.0f};
+	Vector3 quadrant_y = {0.0, quadrant_length, 0.0f};
+	Vector3 quadrant_z = {0.0, 0.0f, quadrant_length};
+
+	immediate::add_cone(shaft_axis_x, head_axis_x, head_radius, x_axis_colour, x_axis_shadow_colour);
+	immediate::add_cylinder(vector3_zero, shaft_axis_x, shaft_radius, x_axis_colour);
+	immediate::add_cylinder(quadrant_x, xy_quadrant, quadrant_radius, x_axis_colour);
+	immediate::add_cylinder(quadrant_x, xz_quadrant, quadrant_radius, x_axis_colour);
+
+	immediate::add_cone(shaft_axis_y, head_axis_y, head_radius, y_axis_colour, y_axis_shadow_colour);
+	immediate::add_cylinder(vector3_zero, shaft_axis_y, shaft_radius, y_axis_colour);
+	immediate::add_cylinder(quadrant_y, xy_quadrant, quadrant_radius, y_axis_colour);
+	immediate::add_cylinder(quadrant_y, yz_quadrant, quadrant_radius, y_axis_colour);
+
+	immediate::add_cone(shaft_axis_z, head_axis_z, head_radius, z_axis_colour, z_axis_shadow_colour);
+	immediate::add_cylinder(vector3_zero, shaft_axis_z, shaft_radius, z_axis_colour);
+	immediate::add_cylinder(quadrant_z, xz_quadrant, quadrant_radius, z_axis_colour);
+	immediate::add_cylinder(quadrant_z, yz_quadrant, quadrant_radius, z_axis_colour);
+
+	immediate::add_sphere(vector3_zero, ball_radius, ball_colour);
+
+	immediate::draw();
+}
+
+void draw_scale_tool(bool silhouetted)
+{
+	const float shaft_length = 2.0f * sqrt(3.0f);
+	const float shaft_radius = 0.125f;
+	const float knob_extent = 0.3333f;
+	const float brace = 0.6666f * shaft_length;
+	const float brace_radius = shaft_radius / 2.0f;
+
+	Vector3 knob_extents = {knob_extent, knob_extent, knob_extent};
+
+	Vector3 shaft_axis_x = {shaft_length, 0.0f, 0.0f};
+	Vector3 shaft_axis_y = {0.0f, shaft_length, 0.0f};
+	Vector3 shaft_axis_z = {0.0f, 0.0f, shaft_length};
+
+	Vector3 brace_x = {brace, 0.0f, 0.0f};
+	Vector3 brace_y = {0.0f, brace, 0.0f};
+	Vector3 brace_z = {0.0f, 0.0f, brace};
+	Vector3 brace_xy = (brace_x + brace_y) / 2.0f;
+	Vector3 brace_yz = (brace_y + brace_z) / 2.0f;
+	Vector3 brace_xz = (brace_x + brace_z) / 2.0f;
+
+	const Vector4 silhouette_colour = {0.3f, 0.3f, 0.3f, 1.0f};
+	const Vector4 origin_colour = {0.9f, 0.9f, 0.9f, 1.0f};
+
+	Vector4 x_axis_colour;
+	Vector4 y_axis_colour;
+	Vector4 z_axis_colour;
+	if(silhouetted)
+	{
+		x_axis_colour = silhouette_colour;
+		y_axis_colour = silhouette_colour;
+		z_axis_colour = silhouette_colour;
+	}
+	else
+	{
+		x_axis_colour = {1.0f, 0.0314f, 0.0314f, 1.0f};
+		y_axis_colour = {0.3569f, 1.0f, 0.0f, 1.0f};
+		z_axis_colour = {0.0863f, 0.0314f, 1.0f, 1.0f};
+	}
+
+	immediate::add_cylinder(vector3_zero, shaft_axis_x, shaft_radius, x_axis_colour);
+	immediate::add_box(shaft_axis_x, knob_extents, x_axis_colour);
+	immediate::add_cylinder(brace_x, brace_xy, brace_radius, x_axis_colour);
+	immediate::add_cylinder(brace_x, brace_xz, brace_radius, x_axis_colour);
+
+	immediate::add_cylinder(vector3_zero, shaft_axis_y, shaft_radius, y_axis_colour);
+	immediate::add_box(shaft_axis_y, knob_extents, y_axis_colour);
+	immediate::add_cylinder(brace_y, brace_xy, brace_radius, y_axis_colour);
+	immediate::add_cylinder(brace_y, brace_yz, brace_radius, y_axis_colour);
+
+	immediate::add_cylinder(vector3_zero, shaft_axis_z, shaft_radius, z_axis_colour);
+	immediate::add_box(shaft_axis_z, knob_extents, z_axis_colour);
+	immediate::add_cylinder(brace_z, brace_xz, brace_radius, z_axis_colour);
+	immediate::add_cylinder(brace_z, brace_yz, brace_radius, z_axis_colour);
+
+	immediate::add_box(vector3_zero, knob_extents, origin_colour);
+
+	immediate::draw();
+}
+
 void system_update()
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1387,6 +1513,24 @@ void system_update()
 		glDrawElements(GL_TRIANGLES, imported_model.indices_count, GL_UNSIGNED_SHORT, nullptr);
 	}
 
+	// move tool
+	{
+		Vector3 position = {5.0f, 0.0f, 0.0f};
+		float d = distance(camera.position, position);
+		d *= 0.05f;
+		Vector3 scale = {d, d, d};
+
+		Matrix4 model = compose_transform(position, quaternion_identity, scale);
+		Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
+		immediate::set_matrices(view * model, projection);
+
+		glDisable(GL_DEPTH_TEST);
+		draw_move_tool(true);
+
+		glEnable(GL_DEPTH_TEST);
+		draw_move_tool(false);
+	}
+
 	// Draw the sky behind everything else.
 	{
 		glDepthFunc(GL_EQUAL);
@@ -1399,7 +1543,46 @@ void system_update()
 		glDepthRange(0.0, 1.0);
 	}
 
-	// Draw screen-space debug UI.
+	// Draw the little axes in the corner.
+	{
+		const int scale = 40;
+		const int padding = 10;
+
+		const Vector3 x_axis = {sqrt(3.0f) / 2.0f, 0.0f, 0.0f};
+		const Vector3 y_axis = {0.0f, sqrt(3.0f) / 2.0f, 0.0f};
+		const Vector3 z_axis = {0.0f, 0.0f, sqrt(3.0f) / 2.0f};
+
+		const Vector4 x_axis_colour = {1.0f, 0.0314f, 0.0314f, 1.0f};
+		const Vector4 y_axis_colour = {0.3569f, 1.0f, 0.0f, 1.0f};
+		const Vector4 z_axis_colour = {0.0863f, 0.0314f, 1.0f, 1.0f};
+		const Vector4 x_axis_shadow_colour = {0.7f, 0.0314f, 0.0314f, 1.0f};
+		const Vector4 y_axis_shadow_colour = {0.3569f, 0.7f, 0.0f, 1.0f};
+		const Vector4 z_axis_shadow_colour = {0.0863f, 0.0314f, 0.7f, 1.0f};
+
+		int corner_x = viewport.width - scale - padding;
+		int corner_y = padding;
+		glViewport(corner_x, corner_y, scale, scale);
+		glClear(GL_DEPTH_BUFFER_BIT);
+
+		const float across = 3.0f * sqrt(3.0f);
+		const float extent = across / 2.0f;
+
+		Vector3 direction = normalise(camera.target - camera.position);
+		Matrix4 view = look_at_matrix(vector3_zero, direction, vector3_unit_z);
+		Matrix4 axis_projection = orthographic_projection_matrix(across, across, -extent, extent);
+		immediate::set_matrices(view, axis_projection);
+
+		immediate::add_cone(2.0f * x_axis, x_axis, 0.5f, x_axis_colour, x_axis_shadow_colour);
+		immediate::add_cylinder(vector3_zero, 2.0f * x_axis, 0.125f, x_axis_colour);
+		immediate::add_cone(2.0f * y_axis, y_axis, 0.5f, y_axis_colour, y_axis_shadow_colour);
+		immediate::add_cylinder(vector3_zero, 2.0f * y_axis, 0.125f, y_axis_colour);
+		immediate::add_cone(2.0f * z_axis, z_axis, 0.5f, z_axis_colour, z_axis_shadow_colour);
+		immediate::add_cylinder(vector3_zero, 2.0f * z_axis, 0.125f, z_axis_colour);
+		immediate::draw();
+	}
+
+	// Draw the screen-space UI.
+	glViewport(0, 0, viewport.width, viewport.height);
 	glDisable(GL_DEPTH_TEST);
 	glDepthMask(GL_FALSE);
 
@@ -1420,7 +1603,7 @@ void system_update()
 		ui::draw(dialog.panel, &ui_context);
 	}
 
-	// Test UI prototypes.
+	// Draw the main menu.
 	{
 		glActiveTexture(GL_TEXTURE0 + 0);
 		glBindTexture(GL_TEXTURE_2D, font_textures[0]);

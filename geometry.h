@@ -9,6 +9,12 @@ struct Rect
 	Vector2 dimensions;
 };
 
+struct Triangle
+{
+	// assumes counter-clockwise winding for the front face
+	Vector3 vertices[3];
+};
+
 struct Quad
 {
 	// assumes counter-clockwise winding for the front face

@@ -4,6 +4,8 @@
 #include "assert.h"
 #include "vertex_layout.h"
 #include "memory.h"
+#include "math_basics.h"
+#include "float_utilities.h"
 
 namespace immediate {
 
@@ -220,6 +222,22 @@ void add_line(Vector3 start, Vector3 end, Vector4 colour)
 	c->vertex_type = VertexType::Colour;
 }
 
+void add_triangle(Triangle* triangle, Vector4 colour)
+{
+	Context* c = context;
+	ASSERT(c->draw_mode == DrawMode::Triangles || c->draw_mode == DrawMode::None);
+	ASSERT(c->vertex_type == VertexType::Colour || c->vertex_type == VertexType::None);
+	ASSERT(c->filled + 3 < context_vertices_cap);
+	for(int i = 0; i < 3; ++i)
+	{
+		c->vertices[c->filled + i].position = triangle->vertices[i];
+		c->vertices[c->filled + i].colour = rgba_to_u32(colour);
+	}
+	c->filled += 3;
+	c->draw_mode = DrawMode::Triangles;
+	c->vertex_type = VertexType::Colour;
+}
+
 void add_rect(Rect rect, Vector4 colour)
 {
 	Quad quad = rect_to_quad(rect);
@@ -289,6 +307,182 @@ void add_wire_quad(Quad* quad, Vector4 colour)
 	add_line(quad->vertices[1], quad->vertices[2], colour);
 	add_line(quad->vertices[2], quad->vertices[3], colour);
 	add_line(quad->vertices[3], quad->vertices[0], colour);
+}
+
+void add_circle(Vector3 center, Vector3 axis, float radius, Vector4 colour)
+{
+	const int segments = 16;
+	Quaternion orientation = axis_angle_rotation(axis, 0.0f);
+	Vector3 arm = radius * normalise(perp(axis));
+	Vector3 position = (orientation * arm) + center;
+
+	for(int i = 1; i <= segments; i += 1)
+	{
+		Vector3 prior = position;
+		float t = (static_cast<float>(i) / segments) * tau;
+		orientation = axis_angle_rotation(axis, t);
+		position = (orientation * arm) + center;
+
+		Triangle triangle;
+		triangle.vertices[0] = position;
+		triangle.vertices[1] = prior;
+		triangle.vertices[2] = center;
+		add_triangle(&triangle, colour);
+	}
+}
+
+void add_cone(Vector3 base_center, Vector3 axis, float radius, Vector4 side_colour, Vector4 base_colour)
+{
+	const int segments = 16;
+	Quaternion orientation = axis_angle_rotation(axis, 0.0f);
+	Vector3 arm = radius * normalise(perp(axis));
+	Vector3 position = (orientation * arm) + base_center;
+	Vector3 apex = axis + base_center;
+
+	for(int i = 1; i <= segments; i += 1)
+	{
+		Vector3 prior = position;
+		float t = (static_cast<float>(i) / segments) * tau;
+		orientation = axis_angle_rotation(axis, t);
+		position = (orientation * arm) + base_center;
+
+		Triangle triangle;
+		triangle.vertices[0] = prior;
+		triangle.vertices[1] = position;
+		triangle.vertices[2] = apex;
+		add_triangle(&triangle, side_colour);
+	}
+
+	add_circle(base_center, axis, radius, base_colour);
+}
+
+void add_cylinder(Vector3 start, Vector3 end, float radius, Vector4 colour)
+{
+	const int segments = 16;
+	Vector3 axis = end - start;
+	Quaternion orientation = axis_angle_rotation(axis, 0.0f);
+	Vector3 arm = radius * normalise(perp(axis));
+	Vector3 next_top = (orientation * arm) + start;
+	Vector3 next_bottom = (orientation * arm) + end;
+
+	for(int i = 1; i <= segments; i += 1)
+	{
+		Vector3 prior_top = next_top;
+		Vector3 prior_bottom = next_bottom;
+		float t = (static_cast<float>(i) / segments) * tau;
+		orientation = axis_angle_rotation(axis, t);
+		next_top = (orientation * arm) + start;
+		next_bottom = (orientation * arm) + end;
+
+		Quad quad;
+		quad.vertices[0] = prior_top;
+		quad.vertices[1] = next_top;
+		quad.vertices[2] = next_bottom;
+		quad.vertices[3] = prior_bottom;
+		add_quad(&quad, colour);
+	}
+
+	add_circle(start, axis, radius, colour);
+	add_circle(end, -axis, radius, colour);
+}
+
+void add_box(Vector3 center, Vector3 extents, Vector4 colour)
+{
+	// corners
+	Vector3 c[8] =
+	{
+		{+extents.x, +extents.y, +extents.z},
+		{+extents.x, +extents.y, -extents.z},
+		{+extents.x, -extents.y, +extents.z},
+		{+extents.x, -extents.y, -extents.z},
+		{-extents.x, +extents.y, +extents.z},
+		{-extents.x, +extents.y, -extents.z},
+		{-extents.x, -extents.y, +extents.z},
+		{-extents.x, -extents.y, -extents.z},
+	};
+	for(int i = 0; i < 8; i += 1)
+	{
+		c[i] += center;
+	}
+
+	Quad sides[6] =
+	{
+		{c[1], c[0], c[2], c[3]},
+		{c[4], c[5], c[7], c[6]},
+		{c[0], c[1], c[5], c[4]},
+		{c[3], c[2], c[6], c[7]},
+		{c[2], c[0], c[4], c[6]},
+		{c[1], c[3], c[7], c[5]},
+	};
+
+	add_quad(&sides[0], colour);
+	add_quad(&sides[1], colour);
+	add_quad(&sides[2], colour);
+	add_quad(&sides[3], colour);
+	add_quad(&sides[4], colour);
+	add_quad(&sides[5], colour);
+}
+
+static Vector3 polar_to_cartesian(float theta, float phi, float radius)
+{
+	Vector3 point;
+	point.x = radius * sin(theta) * cos(phi);
+	point.y = radius * sin(theta) * sin(phi);
+	point.z = radius * cos(theta);
+	return point;
+}
+
+void add_sphere(Vector3 center, float radius, Vector4 colour)
+{
+	const int meridians = 9;
+	const int parallels = 7;
+	const int rings = parallels + 1;
+
+	Vector3 top = {0.0f, 0.0f, radius};
+	for(int i = 0; i < meridians; i += 1)
+	{
+		float theta = 1.0f / static_cast<float>(rings) * pi;
+		float phi0 = (i    ) / static_cast<float>(meridians) * tau;
+		float phi1 = (i + 1) / static_cast<float>(meridians) * tau;
+
+		Triangle triangle;
+		triangle.vertices[0] = polar_to_cartesian(theta, phi0, radius) + center;
+		triangle.vertices[1] = polar_to_cartesian(theta, phi1, radius) + center;
+		triangle.vertices[2] = top + center;
+		add_triangle(&triangle, colour);
+	}
+
+	Vector3 bottom = {0.0f, 0.0f, -radius};
+	for(int i = 0; i < meridians; i += 1)
+	{
+		float theta = (parallels) / static_cast<float>(rings) * pi;
+		float phi0 = (i + 1) / static_cast<float>(meridians) * tau;
+		float phi1 = (i    ) / static_cast<float>(meridians) * tau;
+
+		Triangle triangle;
+		triangle.vertices[0] = polar_to_cartesian(theta, phi0, radius) + center;
+		triangle.vertices[1] = polar_to_cartesian(theta, phi1, radius) + center;
+		triangle.vertices[2] = bottom + center;
+		add_triangle(&triangle, colour);
+	}
+
+	for(int i = 1; i < parallels; i += 1)
+	{
+		float theta0 = (i    ) / static_cast<float>(rings) * pi;
+		float theta1 = (i + 1) / static_cast<float>(rings) * pi;
+		for(int j = 0; j < meridians; j += 1)
+		{
+			float phi0 = (j    ) / static_cast<float>(meridians) * tau;
+			float phi1 = (j + 1) / static_cast<float>(meridians) * tau;
+
+			Quad quad;
+			quad.vertices[0] = polar_to_cartesian(theta0, phi0, radius) + center;
+			quad.vertices[1] = polar_to_cartesian(theta1, phi0, radius) + center;
+			quad.vertices[2] = polar_to_cartesian(theta1, phi1, radius) + center;
+			quad.vertices[3] = polar_to_cartesian(theta0, phi1, radius) + center;
+			add_quad(&quad, colour);
+		}
+	}
 }
 
 void draw_opaque_rect(Rect rect, Vector4 colour)

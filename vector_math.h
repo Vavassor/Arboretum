@@ -78,6 +78,7 @@ Vector3 lerp(Vector3 v0, Vector3 v1, float t);
 Vector3 reciprocal(Vector3 v);
 Vector3 max3(Vector3 v0, Vector3 v1);
 Vector3 min3(Vector3 v0, Vector3 v1);
+Vector3 perp(Vector3 v);
 bool exactly_equals(Vector3 v0, Vector3 v1);
 bool is_normalised(Vector3 v);
 Vector3 make_vector3(Vector2 v);

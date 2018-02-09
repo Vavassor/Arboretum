@@ -341,6 +341,23 @@ Vector3 min3(Vector3 v0, Vector3 v1)
 	return result;
 }
 
+Vector3 perp(Vector3 v)
+{
+	Vector3 a = {abs(v.x), abs(v.y), abs(v.z)};
+
+	bool syx = signbit(a.x - a.y);
+	bool szx = signbit(a.x - a.z);
+	bool szy = signbit(a.y - a.z);
+
+	bool xm = syx & szx;
+	bool ym = (1 ^ xm) & szy;
+	bool zm = 1 ^ (xm & ym);
+
+	Vector3 m = {xm, ym, zm};
+
+	return cross(v, m);
+}
+
 bool exactly_equals(Vector3 v0, Vector3 v1)
 {
 	return v0.x == v1.x && v0.y == v1.y && v0.z == v1.z;

@@ -25,6 +25,8 @@ struct VertexPT
 
 u32 rgb_to_u32(Vector3 c);
 u32 rgba_to_u32(Vector4 c);
+Vector4 u32_to_rgba(u32 u);
+Vector3 u32_to_rgb(u32 u);
 
 u32 texcoord_to_u32(Vector2 v);
 

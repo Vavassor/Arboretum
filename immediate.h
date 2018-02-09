@@ -29,11 +29,16 @@ void stop_clip_area();
 
 void draw();
 void add_line(Vector3 start, Vector3 end, Vector4 colour);
+void add_triangle(Triangle* triangle, Vector4 colour);
 void add_rect(Rect rect, Vector4 colour);
 void add_wire_rect(Rect rect, Vector4 colour);
 void add_quad(Quad* quad, Vector4 colour);
 void add_quad_textured(Quad* quad, Rect texture_rect);
 void add_wire_quad(Quad* quad, Vector4 colour);
+void add_cone(Vector3 base_center, Vector3 axis, float radius, Vector4 side_colour, Vector4 base_colour);
+void add_cylinder(Vector3 start, Vector3 end, float radius, Vector4 colour);
+void add_box(Vector3 center, Vector3 extents, Vector4 colour);
+void add_sphere(Vector3 center, float radius, Vector4 colour);
 
 void draw_opaque_rect(Rect rect, Vector4 colour);
 void draw_transparent_rect(Rect rect, Vector4 colour);

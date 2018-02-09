@@ -14,22 +14,6 @@
 		type& operator [] (int index) {return this->items[index];}\
 		const type& operator [] (int index) const {return this->items[index];}\
 	};\
-	void create(Array##suffix* array, Heap* heap)\
-	{\
-		array->heap = heap;\
-		array->items = nullptr;\
-		array->count = 0;\
-		array->cap = 0;\
-	}\
-	void destroy(Array##suffix* array)\
-	{\
-		if(array)\
-		{\
-			HEAP_DEALLOCATE(array->heap, array->items);\
-			array->items = nullptr;\
-			array->heap = nullptr;\
-		}\
-	}\
 	bool reserve(Array##suffix* array, int extra)\
 	{\
 		while(array->count + extra >= array->cap)\
@@ -51,6 +35,23 @@
 		}\
 		return true;\
 	}\
+	void create(Array##suffix* array, Heap* heap)\
+	{\
+		array->heap = heap;\
+		array->items = nullptr;\
+		array->count = 0;\
+		array->cap = 0;\
+		reserve(array, 1);\
+	}\
+	void destroy(Array##suffix* array)\
+	{\
+		if(array)\
+		{\
+			HEAP_DEALLOCATE(array->heap, array->items);\
+			array->items = nullptr;\
+			array->heap = nullptr;\
+		}\
+	}\
 	void add(Array##suffix* array, type item)\
 	{\
 		(*array)[array->count] = item;\
@@ -58,8 +59,8 @@
 	}\
 	void add_and_expand(Array##suffix* array, type item)\
 	{\
-		reserve(array, 1);\
 		add(array, item);\
+		reserve(array, 1);\
 	}
 
 #define DEFINE_ARRAY(type)\

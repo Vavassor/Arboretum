@@ -21,6 +21,17 @@ static u32 pack_unorm3x8(Vector3 v)
 	return u.packed;
 }
 
+static Vector3 unpack_unorm3x8(u32 x)
+{
+	Pack4x8 u;
+	u.packed = x;
+	Vector3 v;
+	v.x = u.r / 255.0f;
+	v.y = u.g / 255.0f;
+	v.z = u.b / 255.0f;
+	return v;
+}
+
 static u32 pack_unorm4x8(Vector4 v)
 {
 	Pack4x8 u;
@@ -29,6 +40,18 @@ static u32 pack_unorm4x8(Vector4 v)
 	u.b = 0xff * v.z;
 	u.a = 0xff * v.w;
 	return u.packed;
+}
+
+static Vector4 unpack_unorm4x8(u32 x)
+{
+	Pack4x8 u;
+	u.packed = x;
+	Vector4 v;
+	v.x = u.r / 255.0f;
+	v.y = u.g / 255.0f;
+	v.z = u.b / 255.0f;
+	v.w = u.a / 255.0f;
+	return v;
 }
 
 static u32 pack_unorm16x2(Vector2 v)
@@ -67,6 +90,16 @@ u32 rgba_to_u32(Vector4 c)
 	ASSERT(is_unorm(c.z));
 	ASSERT(is_unorm(c.w));
 	return pack_unorm4x8(c);
+}
+
+Vector3 u32_to_rgb(u32 u)
+{
+	return unpack_unorm3x8(u);
+}
+
+Vector4 u32_to_rgba(u32 u)
+{
+	return unpack_unorm4x8(u);
 }
 
 u32 texcoord_to_u32(Vector2 v)
