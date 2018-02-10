@@ -17,6 +17,7 @@ int compare_alphabetic_ascii(const char* RESTRICT a, const char* RESTRICT b);
 
 int string_to_int(const char* string);
 float string_to_float(const char* string);
+double string_to_double(const char* string);
 
 const char* bool_to_string(bool b);
 int int_to_string(char* string, int size, int value);

@@ -485,6 +485,36 @@ void add_sphere(Vector3 center, float radius, Vector4 colour)
 	}
 }
 
+void add_arc(Vector3 center, Vector3 axis, float angle, float start_angle, float radius, float width, Vector4 colour)
+{
+	const int segments = 11;
+
+	Vector3 arm = radius * normalise(perp(axis));
+	float half_width = width / 2.0f;
+	Quaternion orientation = axis_angle_rotation(axis, start_angle);
+	Vector3 medial = orientation * arm;
+	Vector3 direction = normalise(medial);
+
+	Quad quad;
+	quad.vertices[0] = (half_width * -direction) + medial + center;
+	quad.vertices[1] = (half_width * direction) + medial + center;
+
+	for(int i = 1; i <= segments; i += 1)
+	{
+		float theta = (i / static_cast<float>(segments) * angle) + start_angle;
+		orientation = axis_angle_rotation(axis, theta);
+		medial = orientation * arm;
+		direction = normalise(medial);
+
+		quad.vertices[2] = (half_width * direction) + medial + center;
+		quad.vertices[3] = (half_width * -direction) + medial + center;
+		add_quad(&quad, colour);
+
+		quad.vertices[0] = quad.vertices[3];
+		quad.vertices[1] = quad.vertices[2];
+	}
+}
+
 void draw_opaque_rect(Rect rect, Vector4 colour)
 {
 	add_rect(rect, colour);

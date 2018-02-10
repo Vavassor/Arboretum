@@ -310,7 +310,7 @@ static bool is_decimal_digit(char c)
 	return c >= '0' && c <= '9';
 }
 
-static double string_to_double(const char* string)
+double string_to_double(const char* string)
 {
 	const char* s = string;
 

@@ -1,5 +1,6 @@
 #include <X11/X.h>
 #include <X11/Xlib.h>
+#include <X11/Xresource.h>
 
 #include "gl_core_3_3.h"
 #include "glx_extensions.h"
@@ -8,6 +9,7 @@
 #include "logging.h"
 #include "assert.h"
 #include "sized_types.h"
+#include "string_utilities.h"
 
 #include <ctime>
 
@@ -19,8 +21,40 @@ struct PlatformX11
 	Colormap colormap;
 	Window window;
 	Atom wm_delete_window;
+	int screen;
 	bool close_window_requested;
 };
+
+static double get_dots_per_millimeter(PlatformX11* platform)
+{
+    char* resource = XResourceManagerString(platform->display);
+
+    XrmInitialize();
+    XrmDatabase database = XrmGetStringDatabase(resource);
+
+	double dots_per_millimeter = 0.0;
+	if(resource)
+	{
+		XrmValue value;
+		char* type = nullptr;
+		if(XrmGetResource(database, "Xft.dpi", "String", &type, &value) == True)
+		{
+			if(value.addr)
+			{
+				dots_per_millimeter = string_to_double(value.addr) / 25.4;
+			}
+		}
+	}
+
+	if(dots_per_millimeter == 0.0)
+	{
+		double height = DisplayHeight(platform->display, platform->screen);
+		double millimeters = DisplayHeightMM(platform->display, platform->screen);
+		dots_per_millimeter = height / millimeters;
+	}
+
+	return dots_per_millimeter;
+}
 
 namespace
 {
@@ -71,11 +105,12 @@ bool main_startup()
 		LOG_ERROR("X Display failed to open.");
 		return false;
 	}
+	platform.screen = DefaultScreen(platform.display);
 
 	// Choose the abstract "Visual" type that will be used to describe both the
 	// window and the OpenGL rendering context.
 	GLint visual_attributes[] = {GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_STENCIL_SIZE, 8, GLX_DOUBLEBUFFER, None};
-	platform.visual_info = glXChooseVisual(platform.display, DefaultScreen(platform.display), visual_attributes);
+	platform.visual_info = glXChooseVisual(platform.display, platform.screen, visual_attributes);
 	if(!platform.visual_info)
 	{
 		LOG_ERROR("Wasn't able to choose an appropriate Visual type given the requested attributes. [The Visual type contains information on color mappings for the display hardware]");
@@ -84,7 +119,7 @@ bool main_startup()
 
 	// Create the platform.
 	{
-		int screen = DefaultScreen(platform.display);
+		int screen = platform.screen;
 		Window root = RootWindow(platform.display, screen);
 		Visual* visual = platform.visual_info->visual;
 		platform.colormap = XCreateColormap(platform.display, root, visual, AllocNone);
@@ -137,7 +172,8 @@ bool main_startup()
 		LOG_ERROR("Video system failed startup.");
 		return false;
 	}
-	video::resize_viewport(window_width, window_height);
+	double dpmm = get_dots_per_millimeter(&platform);
+	video::resize_viewport(window_width, window_height, dpmm);
 
 	build_key_table(&platform);
 
@@ -207,7 +243,8 @@ static void handle_event(XEvent event)
 		case ConfigureNotify:
 		{
 			XConfigureRequestEvent configure = event.xconfigurerequest;
-			video::resize_viewport(configure.width, configure.height);
+			double dpmm = get_dots_per_millimeter(&platform);
+			video::resize_viewport(configure.width, configure.height, dpmm);
 			break;
 		}
 		case KeyPress:

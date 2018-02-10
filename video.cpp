@@ -201,6 +201,49 @@ void main()
 }
 )";
 
+const char* vertex_source_screen_pattern = R"(
+#version 330
+
+layout(location = 0) in vec3 position;
+layout(location = 2) in vec4 colour;
+
+uniform mat4x4 model_view_projection;
+
+out vec3 surface_texcoord;
+out vec4 surface_colour;
+
+void main()
+{
+	vec4 surface_position = model_view_projection * vec4(position, 1.0);
+    gl_Position = surface_position;
+    surface_texcoord = vec3(surface_position.xy, surface_position.w);
+	surface_colour = colour;
+}
+)";
+
+const char* fragment_source_screen_pattern = R"(
+#version 330
+
+uniform sampler2D texture;
+uniform vec2 pattern_scale;
+uniform vec2 viewport_dimensions;
+uniform vec2 texture_dimensions;
+
+layout(location = 0) out vec4 output_colour;
+
+in vec3 surface_texcoord;
+in vec4 surface_colour;
+
+void main()
+{
+	vec2 screen_texcoord = surface_texcoord.xy / surface_texcoord.z;
+	screen_texcoord *= viewport_dimensions;
+	screen_texcoord /= texture_dimensions;
+	screen_texcoord *= pattern_scale;
+	output_colour = surface_colour * texture2D(texture, screen_texcoord);
+}
+)";
+
 struct Object
 {
 	Matrix4 model_view_projection;
@@ -759,6 +802,7 @@ namespace
 	const float far_plane = 100.0f;
 
 	GLuint nearest_repeat;
+	GLuint linear_repeat;
 
 	struct
 	{
@@ -788,6 +832,16 @@ namespace
 		GLint model_view_projection;
 		GLint normal_matrix;
 	} shader_lit;
+
+	struct
+	{
+		GLuint program;
+		GLint model_view_projection;
+		GLint texture;
+		GLint viewport_dimensions;
+		GLint texture_dimensions;
+		GLint pattern_scale;
+	} shader_screen_pattern;
 
 	struct
 	{
@@ -830,6 +884,7 @@ namespace
 	FilePickDialog dialog;
 	bmfont::Font font;
 	GLuint font_textures[1];
+	GLuint hatch_pattern;
 
 	ui::Item* main_menu;
 	ui::Context ui_context;
@@ -852,6 +907,12 @@ bool system_startup()
 		glSamplerParameteri(nearest_repeat, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glSamplerParameteri(nearest_repeat, GL_TEXTURE_WRAP_S, GL_REPEAT);
 		glSamplerParameteri(nearest_repeat, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+		glGenSamplers(1, &linear_repeat);
+		glSamplerParameteri(linear_repeat, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glSamplerParameteri(linear_repeat, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glSamplerParameteri(linear_repeat, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glSamplerParameteri(linear_repeat, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	}
 
 	// Vertex Colour Shader
@@ -924,6 +985,28 @@ bool system_startup()
 	{
 		GLuint program = shader_halo.program;
 		shader_halo.model_view_projection = glGetUniformLocation(program, "model_view_projection");
+	}
+
+	// Screen Pattern Shader
+	shader_screen_pattern.program = load_shader_program(vertex_source_screen_pattern, fragment_source_screen_pattern, &scratch);
+	if(shader_screen_pattern.program == 0)
+	{
+		LOG_ERROR("The screen pattern shader failed to load.");
+		return false;
+	}
+	{
+		GLuint program = shader_screen_pattern.program;
+		shader_screen_pattern.model_view_projection = glGetUniformLocation(program, "model_view_projection");
+		shader_screen_pattern.texture = glGetUniformLocation(program, "texture");
+		shader_screen_pattern.viewport_dimensions = glGetUniformLocation(program, "viewport_dimensions");
+		shader_screen_pattern.texture_dimensions = glGetUniformLocation(program, "texture_dimensions");
+		shader_screen_pattern.pattern_scale = glGetUniformLocation(program, "pattern_scale");
+
+		const Vector2 pattern_scale = {2.5f, 2.5f};
+
+		glUseProgram(shader_screen_pattern.program);
+		glUniform1i(shader_screen_pattern.texture, 0);
+		glUniform2fv(shader_screen_pattern.pattern_scale, 1, &pattern_scale[0]);
 	}
 
 	// Sky
@@ -1000,6 +1083,18 @@ bool system_startup()
 		}
 	}
 
+	// Hatch pattern texture
+	{
+		const char* path = "polka_dot.png";
+		Bitmap bitmap;
+		bitmap.pixels = stbi_load(path, &bitmap.width, &bitmap.height, &bitmap.bytes_per_pixel, STBI_default);
+		hatch_pattern = upload_bitmap(&bitmap);
+		stbi_image_free(bitmap.pixels);
+
+		glUseProgram(shader_screen_pattern.program);
+		glUniform2f(shader_screen_pattern.texture_dimensions, bitmap.width, bitmap.height);
+	}
+
 	immediate::context_create(&heap);
 	immediate::set_shader(shader_vertex_colour.program);
 	immediate::set_textured_shader(shader_font.program);
@@ -1041,12 +1136,20 @@ void system_shutdown(bool functions_loaded)
 	if(functions_loaded)
 	{
 		glDeleteSamplers(1, &nearest_repeat);
+		glDeleteSamplers(1, &linear_repeat);
 
 		glDeleteProgram(shader_vertex_colour.program);
 		glDeleteProgram(shader_texture_only.program);
 		glDeleteProgram(shader_font.program);
 		glDeleteProgram(shader_lit.program);
 		glDeleteProgram(shader_halo.program);
+		glDeleteProgram(shader_screen_pattern.program);
+
+		FOR_N(i, 1)
+		{
+			glDeleteTextures(1, &font_textures[i]);
+		}
+		glDeleteTextures(1, &hatch_pattern);
 
 		object_destroy(&sky);
 		object_destroy(&dodecahedron);
@@ -1120,17 +1223,6 @@ static void draw_move_tool(bool silhouetted)
 	Vector4 z_axis_shadow_colour = {0.0863f, 0.0314f, 0.7f, 1.0f};
 
 	const Vector4 ball_colour = {0.9f, 0.9f, 0.9f, 1.0f};
-	const Vector4 silhouette_colour = {0.3f, 0.3f, 0.3f, 1.0f};
-
-	if(silhouetted)
-	{
-		x_axis_colour = silhouette_colour;
-		y_axis_colour = silhouette_colour;
-		z_axis_colour = silhouette_colour;
-		x_axis_shadow_colour = silhouette_colour;
-		y_axis_shadow_colour = silhouette_colour;
-		z_axis_shadow_colour = silhouette_colour;
-	}
 
 	Vector3 shaft_axis_x = {shaft_length, 0.0f, 0.0f};
 	Vector3 shaft_axis_y = {0.0f, shaft_length, 0.0f};
@@ -1164,6 +1256,27 @@ static void draw_move_tool(bool silhouetted)
 	immediate::draw();
 }
 
+void draw_rotate_tool(bool silhouetted)
+{
+	const float radius = 2.0f;
+	const float width = 0.3f;
+
+	Vector4 x_axis_colour = {1.0f, 0.0314f, 0.0314f, 1.0f};
+	Vector4 y_axis_colour = {0.3569f, 1.0f, 0.0f, 1.0f};
+	Vector4 z_axis_colour = {0.0863f, 0.0314f, 1.0f, 1.0f};
+
+	immediate::add_arc(vector3_zero, vector3_unit_x, pi_over_2, -pi_over_2, radius, width, x_axis_colour);
+	immediate::add_arc(vector3_zero, -vector3_unit_x, pi_over_2, pi, radius, width, x_axis_colour);
+
+	immediate::add_arc(vector3_zero, vector3_unit_y, pi_over_2, -pi_over_2, radius, width, y_axis_colour);
+	immediate::add_arc(vector3_zero, -vector3_unit_y, pi_over_2, pi, radius, width, y_axis_colour);
+
+	immediate::add_arc(vector3_zero, vector3_unit_z, pi_over_2, pi_over_2, radius, width, z_axis_colour);
+	immediate::add_arc(vector3_zero, -vector3_unit_z, pi_over_2, 0.0f, radius, width, z_axis_colour);
+
+	immediate::draw();
+}
+
 void draw_scale_tool(bool silhouetted)
 {
 	const float shaft_length = 2.0f * sqrt(3.0f);
@@ -1185,24 +1298,10 @@ void draw_scale_tool(bool silhouetted)
 	Vector3 brace_yz = (brace_y + brace_z) / 2.0f;
 	Vector3 brace_xz = (brace_x + brace_z) / 2.0f;
 
-	const Vector4 silhouette_colour = {0.3f, 0.3f, 0.3f, 1.0f};
 	const Vector4 origin_colour = {0.9f, 0.9f, 0.9f, 1.0f};
-
-	Vector4 x_axis_colour;
-	Vector4 y_axis_colour;
-	Vector4 z_axis_colour;
-	if(silhouetted)
-	{
-		x_axis_colour = silhouette_colour;
-		y_axis_colour = silhouette_colour;
-		z_axis_colour = silhouette_colour;
-	}
-	else
-	{
-		x_axis_colour = {1.0f, 0.0314f, 0.0314f, 1.0f};
-		y_axis_colour = {0.3569f, 1.0f, 0.0f, 1.0f};
-		z_axis_colour = {0.0863f, 0.0314f, 1.0f, 1.0f};
-	}
+	const Vector4 x_axis_colour = {1.0f, 0.0314f, 0.0314f, 1.0f};
+	const Vector4 y_axis_colour = {0.3569f, 1.0f, 0.0f, 1.0f};
+	const Vector4 z_axis_colour = {0.0863f, 0.0314f, 1.0f, 1.0f};
 
 	immediate::add_cylinder(vector3_zero, shaft_axis_x, shaft_radius, x_axis_colour);
 	immediate::add_box(shaft_axis_x, knob_extents, x_axis_colour);
@@ -1513,6 +1612,15 @@ void system_update()
 		glDrawElements(GL_TRIANGLES, imported_model.indices_count, GL_UNSIGNED_SHORT, nullptr);
 	}
 
+	// rotate tool
+	{
+		Vector3 center = {-5.0f, 0.0f, 0.0f};
+		Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
+		immediate::set_matrices(view, projection);
+
+		draw_rotate_tool(false);
+	}
+
 	// move tool
 	{
 		Vector3 position = {5.0f, 0.0f, 0.0f};
@@ -1525,9 +1633,14 @@ void system_update()
 		immediate::set_matrices(view * model, projection);
 
 		glDisable(GL_DEPTH_TEST);
+		immediate::set_shader(shader_screen_pattern.program);
+		glActiveTexture(GL_TEXTURE0 + 0);
+		glBindTexture(GL_TEXTURE_2D, hatch_pattern);
+		glBindSampler(0, linear_repeat);
 		draw_move_tool(true);
 
 		glEnable(GL_DEPTH_TEST);
+		immediate::set_shader(shader_vertex_colour.program);
 		draw_move_tool(false);
 	}
 
@@ -1661,7 +1774,7 @@ void pick_file(FilePickDialog* dialog, const char* name, ui::Context* context, H
 	}
 }
 
-void resize_viewport(int width, int height)
+void resize_viewport(int width, int height, double dots_per_millimeter)
 {
 	viewport.width = width;
 	viewport.height = height;
@@ -1674,6 +1787,10 @@ void resize_viewport(int width, int height)
 	sky_projection = perspective_projection_matrix(fov, width, height, 0.001f, 1.0f);
 	screen_projection = orthographic_projection_matrix(width, height, -1.0f, 1.0f);
 	glViewport(0, 0, width, height);
+
+	// Update any shaders that use the viewport dimensions.
+	glUseProgram(shader_screen_pattern.program);
+	glUniform2f(shader_screen_pattern.viewport_dimensions, viewport.width, viewport.height);
 }
 
 } // namespace video
