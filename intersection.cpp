@@ -2,6 +2,7 @@
 
 #include "assert.h"
 #include "float_utilities.h"
+#include "math_basics.h"
 #include "jan.h"
 #include "logging.h"
 
@@ -52,6 +53,12 @@ bool point_in_polygon(Vector2 point, Vector2* vertices, int vertices_count)
 		}
 	}
 	return winding != 0;
+}
+
+float distance_point_plane(Vector3 point, Vector3 origin, Vector3 normal)
+{
+	ASSERT(is_normalised(normal));
+	return abs(dot(origin - point, normal));
 }
 
 static bool intersect_ray_plane(Vector3 start, Vector3 direction, Vector3 origin, Vector3 normal, float* distance)

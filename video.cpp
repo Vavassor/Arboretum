@@ -1686,7 +1686,8 @@ void system_update()
 	// move tool
 	{
 		Vector3 position = {5.0f, 0.0f, 0.0f};
-		float d = distance(camera.position, position);
+		Vector3 normal = normalise(camera.target - camera.position);
+		float d = distance_point_plane(position, camera.position, normal);
 		d *= 0.05f;
 		Vector3 scale = {d, d, d};
 
