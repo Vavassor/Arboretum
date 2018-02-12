@@ -651,9 +651,9 @@ void create_selection(Selection* selection, Heap* heap)
 
 void destroy_selection(Selection* selection)
 {
-	if(selection)
+	if(selection && selection->heap)
 	{
-		HEAP_DEALLOCATE(selection->heap, selection->parts);
+		SAFE_HEAP_DEALLOCATE(selection->heap, selection->parts);
 	}
 }
 

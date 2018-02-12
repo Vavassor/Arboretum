@@ -3,6 +3,7 @@
 #include "assert.h"
 #include "float_utilities.h"
 #include "jan.h"
+#include "logging.h"
 
 static float orient(Vector2 v0, Vector2 v1, Vector2 v2)
 {
@@ -57,10 +58,10 @@ static bool intersect_ray_plane(Vector3 start, Vector3 direction, Vector3 origin
 {
 	ASSERT(is_normalised(normal));
 	ASSERT(is_normalised(direction));
-	float d = dot(normal, direction);
+	float d = dot(-normal, direction);
 	if(d > 1e-6)
 	{
-		float q = dot(origin - start, normal) / d;
+		float q = dot(origin - start, -normal) / d;
 		if(q < 0.0f)
 		{
 			return false;

@@ -246,6 +246,7 @@ void main()
 
 struct Object
 {
+	Matrix4 model;
 	Matrix4 model_view_projection;
 	Matrix4 normal;
 	GLuint buffers[2];
@@ -257,6 +258,8 @@ static void object_create(Object* object)
 {
 	glGenVertexArrays(1, &object->vertex_array);
 	glGenBuffers(2, object->buffers);
+
+	object->model = matrix4_identity;
 }
 
 static void object_destroy(Object* object)
@@ -315,9 +318,9 @@ static void object_update_mesh(Object* object, jan::Mesh* mesh, Heap* heap)
 	HEAP_DEALLOCATE(heap, indices);
 }
 
-static void object_set_matrices(Object* object, Matrix4 model, Matrix4 view, Matrix4 projection)
+static void object_set_matrices(Object* object, Matrix4 view, Matrix4 projection)
 {
-	Matrix4 model_view = view * model;
+	Matrix4 model_view = view * object->model;
 	object->model_view_projection = projection * model_view;
 	object->normal = transpose(inverse_transform(model_view));
 }
@@ -850,11 +853,13 @@ namespace
 	} shader_halo;
 
 	Object sky;
-	Object dodecahedron;
-	Object test_model;
-	Object imported_model;
+	Object* objects;
+	int objects_count;
 
-	jan::Mesh test_mesh;
+	jan::Mesh* meshes;
+	int meshes_count;
+
+	int selected_object_index;
 	jan::Selection selection;
 
 	Viewport viewport;
@@ -890,6 +895,45 @@ namespace
 	ui::Context ui_context;
 	ui::Id import_button_id;
 	ui::Id export_button_id;
+}
+
+static Object* add_object(Heap* heap)
+{
+	objects = HEAP_REALLOCATE(heap, Object, objects, objects_count + 1);
+
+	Object* object = &objects[objects_count];
+	objects_count += 1;
+	object_create(object);
+
+	return object;
+}
+
+static jan::Mesh* add_mesh(Heap* heap)
+{
+	meshes = HEAP_REALLOCATE(heap, jan::Mesh, meshes, meshes_count + 1);
+
+	jan::Mesh* mesh = &meshes[meshes_count];
+	meshes_count += 1;
+	jan::create_mesh(mesh);
+
+	return mesh;
+}
+
+static void select_mesh(jan::Mesh* mesh)
+{
+	jan::destroy_selection(&selection);
+
+	jan::create_selection(&selection, &heap);
+	selection.type = jan::Selection::Type::Face;
+
+	FOR_N(i, meshes_count)
+	{
+		if(&meshes[i] == mesh)
+		{
+			selected_object_index = i;
+			break;
+		}
+	}
 }
 
 bool system_startup()
@@ -1015,59 +1059,57 @@ bool system_startup()
 
 	// Dodecahedron
 	{
-		object_create(&dodecahedron);
-		jan::Mesh mesh;
-		jan::create_mesh(&mesh);
-		jan::make_a_weird_face(&mesh);
+		Object* dodecahedron = add_object(&heap);
+		jan::Mesh* mesh = add_mesh(&heap);
 
-		jan::Selection selection = jan::select_all(&mesh, &heap);
-		jan::extrude(&mesh, &selection, 0.6f, &scratch);
+		jan::make_a_weird_face(mesh);
+
+		jan::Selection selection = jan::select_all(mesh, &heap);
+		jan::extrude(mesh, &selection, 0.6f, &scratch);
 		jan::destroy_selection(&selection);
 
-		jan::colour_all_faces(&mesh, vector3_cyan);
+		jan::colour_all_faces(mesh, vector3_cyan);
 
 		VertexPNC* vertices;
 		int vertices_count;
 		u16* indices;
 		int indices_count;
-		jan::triangulate(&mesh, &heap, &vertices, &vertices_count, &indices, &indices_count);
-		object_set_surface(&dodecahedron, vertices, vertices_count, indices, indices_count);
+		jan::triangulate(mesh, &heap, &vertices, &vertices_count, &indices, &indices_count);
+		object_set_surface(dodecahedron, vertices, vertices_count, indices, indices_count);
 		HEAP_DEALLOCATE(&heap, vertices);
 		HEAP_DEALLOCATE(&heap, indices);
 
-		obj::save_file("weird.obj", &mesh, &heap);
-		jan::destroy_mesh(&mesh);
+		obj::save_file("weird.obj", mesh, &heap);
+
+		Quaternion orientation = axis_angle_rotation(vector3_unit_x, pi / 4.0f);
+		dodecahedron->model = compose_transform({2.0f, 0.0f, 0.0f}, orientation, vector3_one);
+
+		select_mesh(mesh);
+	}
+
+	// Test Model
+	{
+		jan::Mesh* mesh = add_mesh(&heap);
+
+		obj::load_file("test.obj", mesh, &heap, &scratch);
+		jan::colour_all_faces(mesh, vector3_yellow);
+
+		Object* test_model = add_object(&heap);
+		test_model->model = matrix4_identity;
+
+		VertexPNC* vertices;
+		int vertices_count;
+		u16* indices;
+		int indices_count;
+		jan::triangulate(mesh, &heap, &vertices, &vertices_count, &indices, &indices_count);
+		object_set_surface(test_model, vertices, vertices_count, indices, indices_count);
+		HEAP_DEALLOCATE(&heap, vertices);
+		HEAP_DEALLOCATE(&heap, indices);
 	}
 
 	// Camera
 	camera.position = {-4.0f, -4.0f, 2.0f};
 	camera.target = vector3_zero;
-
-	// Test Model
-	{
-		obj::load_file("test.obj", &test_mesh, &heap, &scratch);
-
-		jan::colour_all_faces(&test_mesh, vector3_yellow);
-
-		object_create(&test_model);
-
-		VertexPNC* vertices;
-		int vertices_count;
-		u16* indices;
-		int indices_count;
-		jan::triangulate(&test_mesh, &heap, &vertices, &vertices_count, &indices, &indices_count);
-		object_set_surface(&test_model, vertices, vertices_count, indices, indices_count);
-		HEAP_DEALLOCATE(&heap, vertices);
-		HEAP_DEALLOCATE(&heap, indices);
-
-		jan::create_selection(&selection, &heap);
-		selection.type = jan::Selection::Type::Face;
-	}
-
-	// Imported model
-	{
-		object_create(&imported_model);
-	}
 
 	// Droid font
 	{
@@ -1152,11 +1194,18 @@ void system_shutdown(bool functions_loaded)
 		glDeleteTextures(1, &hatch_pattern);
 
 		object_destroy(&sky);
-		object_destroy(&dodecahedron);
-		object_destroy(&test_model);
-		object_destroy(&imported_model);
+		FOR_N(i, objects_count)
+		{
+			object_destroy(&objects[i]);
+		}
+		SAFE_HEAP_DEALLOCATE(&heap, objects);
 
-		jan::destroy_mesh(&test_mesh);
+		FOR_N(i, meshes_count)
+		{
+			jan::destroy_mesh(&meshes[i]);
+		}
+		SAFE_HEAP_DEALLOCATE(&heap, meshes);
+
 		jan::destroy_selection(&selection);
 
 		bmfont::destroy_font(&font, &heap);
@@ -1189,8 +1238,8 @@ Ray ray_from_viewport_point(Vector2 point, int viewport_width, int viewport_heig
 		inverse = inverse_view_matrix(view) * inverse_perspective_matrix(projection);
 	}
 
-	Vector3 near = {point.x, point.y, 1.0f};
-	Vector3 far = {point.x, point.y, 0.0f};
+	Vector3 near = {point.x, point.y, 0.0f};
+	Vector3 far = {point.x, point.y, 1.0f};
 
 	Vector3 start = inverse * near;
 	Vector3 end = inverse * far;
@@ -1198,6 +1247,14 @@ Ray ray_from_viewport_point(Vector2 point, int viewport_width, int viewport_heig
 	Ray result;
 	result.origin = start;
 	result.direction = normalise(end - start);
+	return result;
+}
+
+static Ray transform_ray(Ray ray, Matrix4 transform)
+{
+	Ray result;
+	result.origin = transform * ray.origin;
+	result.direction = normalise(transform * (ray.direction + ray.origin) - result.origin);
 	return result;
 }
 
@@ -1323,6 +1380,139 @@ void draw_scale_tool(bool silhouetted)
 	immediate::draw();
 }
 
+static void update_face_mode()
+{
+	ASSERT(selected_object_index != -1);
+	ASSERT(selected_object_index >= 0 && selected_object_index < objects_count);
+	ASSERT(selected_object_index >= 0 && selected_object_index < meshes_count);
+
+	Object* object = &objects[selected_object_index];
+	jan::Mesh* mesh = &meshes[selected_object_index];
+
+	if(input::get_key_tapped(input::Key::G))
+	{
+		translating = !translating;
+	}
+
+	// Update the camera.
+	Vector3 forward = camera.position - camera.target;
+	Vector3 right = normalise(cross(vector3_unit_z, forward));
+	Vector3 up = normalise(cross(right, forward));
+	if(mouse.scroll_velocity_y != 0.0f)
+	{
+		Vector3 moved = (mouse.scroll_velocity_y * -forward) + camera.position;
+		Vector3 forward_moved = moved - camera.target;
+		const float too_close = 0.1f;
+		const float too_far = 40.0f;
+		if(dot(forward_moved, forward) < 0.0f)
+		{
+			// If this would move the camera past the target, instead place
+			// it at a close threshold.
+			camera.position = (too_close * normalise(forward)) + camera.target;
+		}
+		else if(length(forward_moved) > too_far)
+		{
+			camera.position = (too_far * normalise(forward)) + camera.target;
+		}
+		else
+		{
+			camera.position = moved;
+		}
+	}
+	if(mouse.drag && !translating)
+	{
+		switch(mouse.button)
+		{
+			case input::MouseButton::Left:
+			{
+				const Vector2 orbit_speed = {0.01f, 0.01f};
+				Vector2 angular_velocity = pointwise_multiply(orbit_speed, -mouse.velocity);
+				Quaternion orbit_x = axis_angle_rotation(vector3_unit_z, angular_velocity.x);
+				Quaternion orbit_y = axis_angle_rotation(right, angular_velocity.y);
+				if(dot(cross(forward, vector3_unit_z), cross(orbit_y * forward, vector3_unit_z)) < 0.0f)
+				{
+					// Prevent from orbiting over the pole (Z axis), because
+					// it creates an issue where next frame it would orient
+					// the camera relative to the axis it had just passed
+					// and flip the camera view over. Furthermore, since
+					// you're usually still moving the mouse it'll move back
+					// toward the pole next frame, and flip again over and
+					// over every frame.
+					orbit_y = quaternion_identity;
+				}
+				camera.position = (orbit_y * orbit_x * forward) + camera.target;
+				break;
+			}
+			case input::MouseButton::Right:
+			{
+				// Cast rays into world space corresponding to the mouse
+				// position for this frame and the frame prior.
+				Vector2 prior_position = mouse.position + mouse.velocity;
+				Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
+				Ray prior = ray_from_viewport_point(prior_position, viewport.width, viewport.height, view, projection, false);
+				Ray current = ray_from_viewport_point(mouse.position, viewport.width, viewport.height, view, projection, false);
+
+				// Project the rays onto the plane containing the camera
+				// target and facing the camera.
+				Vector3 n = normalise(camera.position - camera.target);
+				float d0 = dot(camera.target - current.origin, n) / dot(n, current.direction);
+				float d1 = dot(camera.target - prior.origin, n) / dot(n, prior.direction);
+				Vector3 p0 = (d0 * current.direction) + current.origin;
+				Vector3 p1 = (d1 * prior.direction) + prior.origin;
+
+				// Pan by the amount moved across that plane.
+				Vector3 pan = p0 - p1;
+				camera.position += pan;
+				camera.target += pan;
+				break;
+			}
+			default:
+			{
+				break;
+			}
+		}
+	}
+
+	// Translation of faces.
+	if(translating)
+	{
+		int velocity_x;
+		int velocity_y;
+		input::get_mouse_velocity(&velocity_x, &velocity_y);
+		mouse.velocity.x = velocity_x;
+		mouse.velocity.y = velocity_y;
+
+		const Vector2 move_speed = {0.007f, 0.007f};
+		Vector2 move_velocity = pointwise_multiply(move_speed, mouse.velocity);
+		Vector3 move = (move_velocity.x * right) + (move_velocity.y * up);
+		move_faces(mesh, &selection, move);
+	}
+
+	// Cast a ray from the mouse to the test model.
+	{
+		jan::colour_all_faces(mesh, vector3_yellow);
+		jan::colour_selection(mesh, &selection, vector3_cyan);
+
+		Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
+		Ray ray = ray_from_viewport_point(mouse.position, viewport.width, viewport.height, view, projection, false);
+		ray = transform_ray(ray, inverse_transform(object->model));
+		jan::Face* face = first_face_hit_by_ray(mesh, ray);
+		if(face)
+		{
+			if(input::get_key_tapped(input::Key::F))
+			{
+				toggle_face_in_selection(&selection, face);
+				jan::colour_just_the_one_face(face, vector3_cyan);
+			}
+			else
+			{
+				jan::colour_just_the_one_face(face, vector3_red);
+			}
+		}
+		object_update_mesh(object, mesh, &heap);
+	}
+}
+
 void system_update()
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1404,146 +1594,21 @@ void system_update()
 
 	if(!ui_context.focused_container)
 	{
-		if(input::get_key_tapped(input::Key::G))
-		{
-			translating = !translating;
-		}
-
-		// Update the camera.
-		Vector3 forward = camera.position - camera.target;
-		Vector3 right = normalise(cross(vector3_unit_z, forward));
-		Vector3 up = normalise(cross(right, forward));
-		if(mouse.scroll_velocity_y != 0.0f)
-		{
-			Vector3 moved = (mouse.scroll_velocity_y * -forward) + camera.position;
-			Vector3 forward_moved = moved - camera.target;
-			const float too_close = 0.1f;
-			const float too_far = 40.0f;
-			if(dot(forward_moved, forward) < 0.0f)
-			{
-				// If this would move the camera past the target, instead place
-				// it at a close threshold.
-				camera.position = (too_close * normalise(forward)) + camera.target;
-			}
-			else if(length(forward_moved) > too_far)
-			{
-				camera.position = (too_far * normalise(forward)) + camera.target;
-			}
-			else
-			{
-				camera.position = moved;
-			}
-		}
-		if(mouse.drag && !translating)
-		{
-			switch(mouse.button)
-			{
-				case input::MouseButton::Left:
-				{
-					const Vector2 orbit_speed = {0.01f, 0.01f};
-					Vector2 angular_velocity = pointwise_multiply(orbit_speed, -mouse.velocity);
-					Quaternion orbit_x = axis_angle_rotation(vector3_unit_z, angular_velocity.x);
-					Quaternion orbit_y = axis_angle_rotation(right, angular_velocity.y);
-					if(dot(cross(forward, vector3_unit_z), cross(orbit_y * forward, vector3_unit_z)) < 0.0f)
-					{
-						// Prevent from orbiting over the pole (Z axis), because
-						// it creates an issue where next frame it would orient
-						// the camera relative to the axis it had just passed
-						// and flip the camera view over. Furthermore, since
-						// you're usually still moving the mouse it'll move back
-						// toward the pole next frame, and flip again over and
-						// over every frame.
-						orbit_y = quaternion_identity;
-					}
-					camera.position = (orbit_y * orbit_x * forward) + camera.target;
-					break;
-				}
-				case input::MouseButton::Right:
-				{
-					// Cast rays into world space corresponding to the mouse
-					// position for this frame and the frame prior.
-					Vector2 prior_position = mouse.position + mouse.velocity;
-					Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
-					Ray prior = ray_from_viewport_point(prior_position, viewport.width, viewport.height, view, projection, false);
-					Ray current = ray_from_viewport_point(mouse.position, viewport.width, viewport.height, view, projection, false);
-
-					// Project the rays onto the plane containing the camera
-					// target and facing the camera.
-					Vector3 n = normalise(camera.position - camera.target);
-					float d0 = dot(camera.target - current.origin, n) / dot(n, current.direction);
-					float d1 = dot(camera.target - prior.origin, n) / dot(n, prior.direction);
-					Vector3 p0 = (d0 * current.direction) + current.origin;
-					Vector3 p1 = (d1 * prior.direction) + prior.origin;
-
-					// Pan by the amount moved across that plane.
-					Vector3 pan = p0 - p1;
-					camera.position += pan;
-					camera.target += pan;
-					break;
-				}
-				default:
-				{
-					break;
-				}
-			}
-		}
-
-		// Translation of faces.
-		if(translating)
-		{
-			int velocity_x;
-			int velocity_y;
-			input::get_mouse_velocity(&velocity_x, &velocity_y);
-			mouse.velocity.x = velocity_x;
-			mouse.velocity.y = velocity_y;
-
-			const Vector2 move_speed = {0.007f, 0.007f};
-			Vector2 move_velocity = pointwise_multiply(move_speed, mouse.velocity);
-			Vector3 move = (move_velocity.x * right) + (move_velocity.y * up);
-			move_faces(&test_mesh, &selection, move);
-		}
-
-		// Cast a ray from the mouse to the test model.
-		{
-			jan::colour_all_faces(&test_mesh, vector3_yellow);
-			jan::colour_selection(&test_mesh, &selection, vector3_cyan);
-
-			Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
-			Ray ray = ray_from_viewport_point(mouse.position, viewport.width, viewport.height, view, projection, false);
-			jan::Face* face = first_face_hit_by_ray(&test_mesh, ray);
-			if(face)
-			{
-				if(input::get_key_tapped(input::Key::F))
-				{
-					toggle_face_in_selection(&selection, face);
-					jan::colour_just_the_one_face(face, vector3_cyan);
-				}
-				else
-				{
-					jan::colour_just_the_one_face(face, vector3_red);
-				}
-			}
-			object_update_mesh(&test_model, &test_mesh, &heap);
-		}
+		update_face_mode();
 	}
 
 	// Update matrices.
 	{
-		Matrix4 model = matrix4_identity;
-
 		Vector3 direction = normalise(camera.target - camera.position);
 		Matrix4 view = look_at_matrix(vector3_zero, direction, vector3_unit_z);
-		object_set_matrices(&sky, model, view, sky_projection);
+		object_set_matrices(&sky, view, sky_projection);
 
-		model = compose_transform({2.0f, 0.0f, 0.0f}, quaternion_identity, vector3_one);
 		view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
-		object_set_matrices(&dodecahedron, model, view, projection);
 
-		model = matrix4_identity;
-		object_set_matrices(&test_model, model, view, projection);
-
-		model = compose_transform({-2.0f, 0.0f, 0.0f}, quaternion_identity, vector3_one);
-		object_set_matrices(&imported_model, model, view, projection);
+		FOR_N(i, objects_count)
+		{
+			object_set_matrices(&objects[i], view, projection);
+		}
 
 		immediate::set_matrices(view, projection);
 
@@ -1558,16 +1623,24 @@ void system_update()
 
 	glUseProgram(shader_lit.program);
 
-	// Draw the dodecahedron.
+	// Draw all unselected models.
+	FOR_N(i, objects_count)
 	{
-		glUniformMatrix4fv(shader_lit.model_view_projection, 1, GL_TRUE, dodecahedron.model_view_projection.elements);
-		glUniformMatrix4fv(shader_lit.normal_matrix, 1, GL_TRUE, dodecahedron.normal.elements);
-		glBindVertexArray(dodecahedron.vertex_array);
-		glDrawElements(GL_TRIANGLES, dodecahedron.indices_count, GL_UNSIGNED_SHORT, nullptr);
+		if(i == selected_object_index)
+		{
+			continue;
+		}
+		Object object = objects[i];
+		glUniformMatrix4fv(shader_lit.model_view_projection, 1, GL_TRUE, object.model_view_projection.elements);
+		glUniformMatrix4fv(shader_lit.normal_matrix, 1, GL_TRUE, object.normal.elements);
+		glBindVertexArray(object.vertex_array);
+		glDrawElements(GL_TRIANGLES, object.indices_count, GL_UNSIGNED_SHORT, nullptr);
 	}
 
-	// Draw the test model.
+	// Draw the selected model.
 	{
+		Object object = objects[selected_object_index];
+
 		glEnable(GL_STENCIL_TEST);
 		glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
 
@@ -1576,25 +1649,23 @@ void system_update()
 
 		glStencilFunc(GL_ALWAYS, 1, 0xff);
 
-		glUniformMatrix4fv(shader_lit.model_view_projection, 1, GL_TRUE, test_model.model_view_projection.elements);
-		glUniformMatrix4fv(shader_lit.normal_matrix, 1, GL_TRUE, test_model.normal.elements);
-		glBindVertexArray(test_model.vertex_array);
-		glDrawElements(GL_TRIANGLES, test_model.indices_count, GL_UNSIGNED_SHORT, nullptr);
-	}
+		glUniformMatrix4fv(shader_lit.model_view_projection, 1, GL_TRUE, object.model_view_projection.elements);
+		glUniformMatrix4fv(shader_lit.normal_matrix, 1, GL_TRUE, object.normal.elements);
+		glBindVertexArray(object.vertex_array);
+		glDrawElements(GL_TRIANGLES, object.indices_count, GL_UNSIGNED_SHORT, nullptr);
 
-	glUseProgram(shader_halo.program);
+		glUseProgram(shader_halo.program);
 
-	// Draw the test model's halo.
-	{
+		// Draw the selected model's halo.
 		glStencilFunc(GL_NOTEQUAL, 1, 0xff);
 		glStencilMask(0x00);
 
 		glLineWidth(3.0f);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-		glUniformMatrix4fv(shader_halo.model_view_projection, 1, GL_TRUE, test_model.model_view_projection.elements);
-		glBindVertexArray(test_model.vertex_array);
-		glDrawElements(GL_TRIANGLES, test_model.indices_count, GL_UNSIGNED_SHORT, nullptr);
+		glUniformMatrix4fv(shader_halo.model_view_projection, 1, GL_TRUE, object.model_view_projection.elements);
+		glBindVertexArray(object.vertex_array);
+		glDrawElements(GL_TRIANGLES, object.indices_count, GL_UNSIGNED_SHORT, nullptr);
 
 		glLineWidth(1.0f);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -1602,15 +1673,6 @@ void system_update()
 	}
 
 	glUseProgram(shader_lit.program);
-
-	// Draw the imported model.
-	if(imported_model.indices_count)
-	{
-		glUniformMatrix4fv(shader_lit.model_view_projection, 1, GL_TRUE, imported_model.model_view_projection.elements);
-		glUniformMatrix4fv(shader_lit.normal_matrix, 1, GL_TRUE, imported_model.normal.elements);
-		glBindVertexArray(imported_model.vertex_array);
-		glDrawElements(GL_TRIANGLES, imported_model.indices_count, GL_UNSIGNED_SHORT, nullptr);
-	}
 
 	// rotate tool
 	{
@@ -1747,8 +1809,8 @@ void system_update()
 void pick_file(FilePickDialog* dialog, const char* name, ui::Context* context, Heap* heap, Stack* stack)
 {
 	char* path = append_to_path(dialog->path, name, heap);
-	jan::Mesh mesh;
-	bool loaded = obj::load_file(path, &mesh, heap, stack);
+	jan::Mesh* mesh = add_mesh(heap);
+	bool loaded = obj::load_file(path, mesh, heap, stack);
 	HEAP_DEALLOCATE(heap, path);
 
 	if(!loaded)
@@ -1758,16 +1820,18 @@ void pick_file(FilePickDialog* dialog, const char* name, ui::Context* context, H
 	}
 	else
 	{
-		jan::colour_all_faces(&mesh, vector3_magenta);
+		Object* imported_model = add_object(heap);
+		imported_model->model = compose_transform({-2.0f, 0.0f, 0.0f}, quaternion_identity, vector3_one);
+
+		jan::colour_all_faces(mesh, vector3_magenta);
 		VertexPNC* vertices;
 		int vertices_count;
 		u16* indices;
 		int indices_count;
-		jan::triangulate(&mesh, heap, &vertices, &vertices_count, &indices, &indices_count);
-		object_set_surface(&imported_model, vertices, vertices_count, indices, indices_count);
+		jan::triangulate(mesh, heap, &vertices, &vertices_count, &indices, &indices_count);
+		object_set_surface(imported_model, vertices, vertices_count, indices, indices_count);
 		HEAP_DEALLOCATE(heap, vertices);
 		HEAP_DEALLOCATE(heap, indices);
-		jan::destroy_mesh(&mesh);
 
 		close_dialog(dialog, context, heap);
 		dialog->panel->unfocusable = true;
