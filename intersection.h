@@ -14,7 +14,7 @@ namespace jan {
 struct Mesh;
 struct Face;
 
-Face* first_face_hit_by_ray(Mesh* mesh, Ray ray);
+Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance);
 
 } // namespace jan
 

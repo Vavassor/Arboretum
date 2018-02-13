@@ -86,6 +86,9 @@ Vector3 make_vector3(Vector2 v);
 struct Vector4
 {
 	float x, y, z, w;
+
+	float& operator [] (int index) {return reinterpret_cast<float*>(this)[index];}
+	const float& operator [] (int index) const {return reinterpret_cast<const float*>(this)[index];}
 };
 
 Vector4 make_vector4(Vector3 v);

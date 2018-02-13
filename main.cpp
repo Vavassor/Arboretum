@@ -1,6 +1,7 @@
 #include <X11/X.h>
 #include <X11/Xlib.h>
 #include <X11/Xresource.h>
+#include <X11/Xcursor/Xcursor.h>
 
 #include "gl_core_3_3.h"
 #include "glx_extensions.h"
@@ -10,11 +11,13 @@
 #include "assert.h"
 #include "sized_types.h"
 #include "string_utilities.h"
+#include "platform.h"
 
 #include <ctime>
 
 struct PlatformX11
 {
+	Platform base;
 	input::Key key_table[256];
 	Display* display;
 	XVisualInfo* visual_info;
@@ -54,6 +57,23 @@ static double get_dots_per_millimeter(PlatformX11* platform)
 	}
 
 	return dots_per_millimeter;
+}
+
+static const char* translate_cursor_type(CursorType type)
+{
+	switch(type)
+	{
+		case CursorType::Arrow:         return "left_ptr";
+		case CursorType::Hand_Pointing: return "hand1";
+	}
+}
+
+void change_cursor(Platform* base, CursorType type)
+{
+	PlatformX11* platform = reinterpret_cast<PlatformX11*>(base);
+	const char* name = translate_cursor_type(type);
+	Cursor cursor = XcursorLibraryLoadCursor(platform->display, name);
+	XDefineCursor(platform->display, platform->window, cursor);
 }
 
 namespace
@@ -371,7 +391,7 @@ void main_loop()
 	{
 		double frame_start_time = get_time(clock_frequency);
 
-		video::system_update();
+		video::system_update(&platform.base);
 		input::system_update();
 
 		glXSwapBuffers(platform.display, platform.window);

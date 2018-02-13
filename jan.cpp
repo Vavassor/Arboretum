@@ -654,6 +654,7 @@ void destroy_selection(Selection* selection)
 	if(selection && selection->heap)
 	{
 		SAFE_HEAP_DEALLOCATE(selection->heap, selection->parts);
+		selection->parts_count = 0;
 	}
 }
 

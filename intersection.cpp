@@ -98,7 +98,7 @@ static void project_face_onto_plane(Face* face, Vector2* vertices)
 	} while(link != first);
 }
 
-Face* first_face_hit_by_ray(Mesh* mesh, Ray ray)
+Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance)
 {
 	float closest = infinity;
 	Face* result = nullptr;
@@ -121,6 +121,10 @@ Face* first_face_hit_by_ray(Mesh* mesh, Ray ray)
 				result = face;
 			}
 		}
+	}
+	if(face_distance)
+	{
+		*face_distance = closest;
 	}
 	return result;
 }

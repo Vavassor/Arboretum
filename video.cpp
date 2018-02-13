@@ -22,6 +22,7 @@
 #include "bmfont.h"
 #include "ui.h"
 #include "filesystem.h"
+#include "platform.h"
 #include "sorting.h"
 #include "colours.h"
 #include "loop_macros.h"
@@ -195,9 +196,11 @@ const char* fragment_source_halo = R"(
 
 layout(location = 0) out vec4 output_colour;
 
+uniform vec4 halo_colour;
+
 void main()
 {
-	output_colour = vec4(1.0);
+	output_colour = halo_colour;
 }
 )";
 
@@ -249,6 +252,8 @@ struct Object
 	Matrix4 model;
 	Matrix4 model_view_projection;
 	Matrix4 normal;
+	Vector3 position;
+	Quaternion orientation;
 	GLuint buffers[2];
 	GLuint vertex_array;
 	int indices_count;
@@ -260,6 +265,7 @@ static void object_create(Object* object)
 	glGenBuffers(2, object->buffers);
 
 	object->model = matrix4_identity;
+	object->orientation = quaternion_identity;
 }
 
 static void object_destroy(Object* object)
@@ -803,6 +809,7 @@ namespace
 {
 	const float near_plane = 0.001f;
 	const float far_plane = 100.0f;
+	const int invalid_index = -1;
 
 	GLuint nearest_repeat;
 	GLuint linear_repeat;
@@ -850,6 +857,7 @@ namespace
 	{
 		GLuint program;
 		GLint model_view_projection;
+		GLint halo_colour;
 	} shader_halo;
 
 	Object sky;
@@ -859,6 +867,7 @@ namespace
 	jan::Mesh* meshes;
 	int meshes_count;
 
+	int hovered_object_index;
 	int selected_object_index;
 	jan::Selection selection;
 
@@ -884,6 +893,15 @@ namespace
 		bool drag;
 	} mouse;
 
+	enum class Mode
+	{
+		Object,
+		Face,
+		Edge,
+		Vertex,
+	};
+
+	Mode mode;
 	bool translating;
 
 	FilePickDialog dialog;
@@ -895,6 +913,8 @@ namespace
 	ui::Context ui_context;
 	ui::Id import_button_id;
 	ui::Id export_button_id;
+	ui::Id object_mode_button_id;
+	ui::Id face_mode_button_id;
 }
 
 static Object* add_object(Heap* heap)
@@ -919,21 +939,17 @@ static jan::Mesh* add_mesh(Heap* heap)
 	return mesh;
 }
 
-static void select_mesh(jan::Mesh* mesh)
+static void select_mesh(int index)
 {
 	jan::destroy_selection(&selection);
 
-	jan::create_selection(&selection, &heap);
-	selection.type = jan::Selection::Type::Face;
-
-	FOR_N(i, meshes_count)
+	if(index != invalid_index)
 	{
-		if(&meshes[i] == mesh)
-		{
-			selected_object_index = i;
-			break;
-		}
+		jan::create_selection(&selection, &heap);
+		selection.type = jan::Selection::Type::Face;
 	}
+
+	selected_object_index = index;
 }
 
 bool system_startup()
@@ -1029,6 +1045,7 @@ bool system_startup()
 	{
 		GLuint program = shader_halo.program;
 		shader_halo.model_view_projection = glGetUniformLocation(program, "model_view_projection");
+		shader_halo.halo_colour = glGetUniformLocation(program, "halo_colour");
 	}
 
 	// Screen Pattern Shader
@@ -1052,6 +1069,9 @@ bool system_startup()
 		glUniform1i(shader_screen_pattern.texture, 0);
 		glUniform2fv(shader_screen_pattern.pattern_scale, 1, &pattern_scale[0]);
 	}
+
+	hovered_object_index = invalid_index;
+	selected_object_index = invalid_index;
 
 	// Sky
 	object_create(&sky);
@@ -1081,10 +1101,11 @@ bool system_startup()
 
 		obj::save_file("weird.obj", mesh, &heap);
 
+		Vector3 position = {2.0f, 0.0f, 0.0f};
 		Quaternion orientation = axis_angle_rotation(vector3_unit_x, pi / 4.0f);
-		dodecahedron->model = compose_transform({2.0f, 0.0f, 0.0f}, orientation, vector3_one);
-
-		select_mesh(mesh);
+		dodecahedron->position = position;
+		dodecahedron->orientation = orientation;
+		dodecahedron->model = compose_transform(position, orientation, vector3_one);
 	}
 
 	// Test Model
@@ -1154,7 +1175,7 @@ bool system_startup()
 		main_menu->container.alignment = ui::Alignment::Start;
 		main_menu->container.justification = ui::Justification::Start;
 
-		const int items_in_row = 2;
+		const int items_in_row = 4;
 		ui::add_row(&main_menu->container, items_in_row, &ui_context, &heap);
 
 		main_menu->container.items[0].type = ui::ItemType::Button;
@@ -1168,6 +1189,18 @@ bool system_startup()
 		main_menu->container.items[1].button.text_block.text = copy_string_onto_heap("Export .obj", &heap);
 		main_menu->container.items[1].button.text_block.font = &font;
 		export_button_id = main_menu->container.items[1].id;
+
+		main_menu->container.items[2].type = ui::ItemType::Button;
+		main_menu->container.items[2].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+		main_menu->container.items[2].button.text_block.text = copy_string_onto_heap("Object Mode", &heap);
+		main_menu->container.items[2].button.text_block.font = &font;
+		object_mode_button_id = main_menu->container.items[2].id;
+
+		main_menu->container.items[3].type = ui::ItemType::Button;
+		main_menu->container.items[3].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+		main_menu->container.items[3].button.text_block.text = copy_string_onto_heap("Face Mode", &heap);
+		main_menu->container.items[3].button.text_block.font = &font;
+		face_mode_button_id = main_menu->container.items[3].id;
 	}
 
 	return true;
@@ -1380,24 +1413,54 @@ void draw_scale_tool(bool silhouetted)
 	immediate::draw();
 }
 
-static void update_face_mode()
+static void draw_object_with_halo(int index, Vector4 colour)
 {
-	ASSERT(selected_object_index != -1);
-	ASSERT(selected_object_index >= 0 && selected_object_index < objects_count);
-	ASSERT(selected_object_index >= 0 && selected_object_index < meshes_count);
+	ASSERT(index != invalid_index);
+	ASSERT(index >= 0 && index < objects_count);
 
-	Object* object = &objects[selected_object_index];
-	jan::Mesh* mesh = &meshes[selected_object_index];
+	Object object = objects[index];
 
-	if(input::get_key_tapped(input::Key::G))
-	{
-		translating = !translating;
-	}
+	// Draw the object.
+	glUseProgram(shader_lit.program);
 
-	// Update the camera.
+	glEnable(GL_STENCIL_TEST);
+	glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+
+	glStencilMask(0xff);
+	glClear(GL_STENCIL_BUFFER_BIT);
+
+	glStencilFunc(GL_ALWAYS, 1, 0xff);
+
+	glUniformMatrix4fv(shader_lit.model_view_projection, 1, GL_TRUE, object.model_view_projection.elements);
+	glUniformMatrix4fv(shader_lit.normal_matrix, 1, GL_TRUE, object.normal.elements);
+	glBindVertexArray(object.vertex_array);
+	glDrawElements(GL_TRIANGLES, object.indices_count, GL_UNSIGNED_SHORT, nullptr);
+
+	// Draw the halo.
+	glUseProgram(shader_halo.program);
+
+	glUniform4fv(shader_halo.halo_colour, 1, &colour[0]);
+
+	glStencilFunc(GL_NOTEQUAL, 1, 0xff);
+	glStencilMask(0x00);
+
+	glLineWidth(3.0f);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+	glUniformMatrix4fv(shader_halo.model_view_projection, 1, GL_TRUE, object.model_view_projection.elements);
+	glBindVertexArray(object.vertex_array);
+	glDrawElements(GL_TRIANGLES, object.indices_count, GL_UNSIGNED_SHORT, nullptr);
+
+	glLineWidth(1.0f);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	glDisable(GL_STENCIL_TEST);
+}
+
+static void update_camera_controls()
+{
 	Vector3 forward = camera.position - camera.target;
 	Vector3 right = normalise(cross(vector3_unit_z, forward));
-	Vector3 up = normalise(cross(right, forward));
+
 	if(mouse.scroll_velocity_y != 0.0f)
 	{
 		Vector3 moved = (mouse.scroll_velocity_y * -forward) + camera.position;
@@ -1419,7 +1482,8 @@ static void update_face_mode()
 			camera.position = moved;
 		}
 	}
-	if(mouse.drag && !translating)
+
+	if(mouse.drag)
 	{
 		switch(mouse.button)
 		{
@@ -1472,6 +1536,76 @@ static void update_face_mode()
 			}
 		}
 	}
+}
+
+static void update_object_mode(Platform* platform)
+{
+	update_camera_controls();
+
+	// Update pointer hover detection.
+	// Casually raycast against every triangle in the scene.
+	float closest = infinity;
+	int prior_hovered_index = hovered_object_index;
+	hovered_object_index = invalid_index;
+	FOR_N(i, objects_count)
+	{
+		Object* object = &objects[i];
+		jan::Mesh* mesh = &meshes[i];
+
+		Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
+		Ray ray = ray_from_viewport_point(mouse.position, viewport.width, viewport.height, view, projection, false);
+		ray = transform_ray(ray, inverse_transform(object->model));
+		float distance;
+		jan::Face* face = first_face_hit_by_ray(mesh, ray, &distance);
+		if(face && distance < closest)
+		{
+			closest = distance;
+			hovered_object_index = i;
+		}
+	}
+
+	// Update the mouse cursor based on the hover status.
+	if(prior_hovered_index == invalid_index && hovered_object_index != invalid_index)
+	{
+		change_cursor(platform, CursorType::Hand_Pointing);
+	}
+	if(prior_hovered_index != invalid_index && hovered_object_index == invalid_index)
+	{
+		change_cursor(platform, CursorType::Arrow);
+	}
+
+	// Detect selection.
+	if(input::get_mouse_clicked(input::MouseButton::Left) && hovered_object_index != invalid_index)
+	{
+		if(selected_object_index == hovered_object_index)
+		{
+			select_mesh(invalid_index);
+		}
+		else
+		{
+			select_mesh(hovered_object_index);
+		}
+	}
+}
+
+static void update_face_mode()
+{
+	ASSERT(selected_object_index != invalid_index);
+	ASSERT(selected_object_index >= 0 && selected_object_index < objects_count);
+	ASSERT(selected_object_index >= 0 && selected_object_index < meshes_count);
+
+	Object* object = &objects[selected_object_index];
+	jan::Mesh* mesh = &meshes[selected_object_index];
+
+	if(input::get_key_tapped(input::Key::G))
+	{
+		translating = !translating;
+	}
+
+	if(!translating)
+	{
+		update_camera_controls();
+	}
 
 	// Translation of faces.
 	if(translating)
@@ -1481,6 +1615,10 @@ static void update_face_mode()
 		input::get_mouse_velocity(&velocity_x, &velocity_y);
 		mouse.velocity.x = velocity_x;
 		mouse.velocity.y = velocity_y;
+
+		Vector3 forward = camera.position - camera.target;
+		Vector3 right = normalise(cross(vector3_unit_z, forward));
+		Vector3 up = normalise(cross(right, forward));
 
 		const Vector2 move_speed = {0.007f, 0.007f};
 		Vector2 move_velocity = pointwise_multiply(move_speed, mouse.velocity);
@@ -1496,7 +1634,7 @@ static void update_face_mode()
 		Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
 		Ray ray = ray_from_viewport_point(mouse.position, viewport.width, viewport.height, view, projection, false);
 		ray = transform_ray(ray, inverse_transform(object->model));
-		jan::Face* face = first_face_hit_by_ray(mesh, ray);
+		jan::Face* face = first_face_hit_by_ray(mesh, ray, nullptr);
 		if(face)
 		{
 			if(input::get_key_tapped(input::Key::F))
@@ -1513,7 +1651,53 @@ static void update_face_mode()
 	}
 }
 
-void system_update()
+static void exit_face_mode()
+{
+	jan::Mesh* mesh = &meshes[selected_object_index];
+	Object* object = &objects[selected_object_index];
+
+	jan::colour_all_faces(mesh, vector3_yellow);
+	object_update_mesh(object, mesh, &heap);
+	destroy_selection(&selection);
+}
+
+static void request_mode_change(Mode requested_mode)
+{
+	switch(requested_mode)
+	{
+		case Mode::Object:
+		{
+			switch(mode)
+			{
+				case Mode::Face:
+				{
+					exit_face_mode();
+					break;
+				}
+				case Mode::Object:
+				case Mode::Edge:
+				case Mode::Vertex:
+				{
+					break;
+				}
+			}
+			mode = requested_mode;
+			break;
+		}
+		case Mode::Face:
+		case Mode::Edge:
+		case Mode::Vertex:
+		{
+			if(selected_object_index != invalid_index)
+			{
+				mode = requested_mode;
+			}
+			break;
+		}
+	}
+}
+
+void system_update(Platform* platform)
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -1585,6 +1769,14 @@ void system_update()
 						{
 
 						}
+						else if(id == object_mode_button_id)
+						{
+							request_mode_change(Mode::Object);
+						}
+						else if(id == face_mode_button_id)
+						{
+							request_mode_change(Mode::Face);
+						}
 						break;
 					}
 				}
@@ -1594,7 +1786,27 @@ void system_update()
 
 	if(!ui_context.focused_container)
 	{
-		update_face_mode();
+		switch(mode)
+		{
+			case Mode::Object:
+			{
+				update_object_mode(platform);
+				break;
+			}
+			case Mode::Face:
+			{
+				update_face_mode();
+				break;
+			}
+			case Mode::Edge:
+			{
+				break;
+			}
+			case Mode::Vertex:
+			{
+				break;
+			}
+		}
 	}
 
 	// Update matrices.
@@ -1626,7 +1838,7 @@ void system_update()
 	// Draw all unselected models.
 	FOR_N(i, objects_count)
 	{
-		if(i == selected_object_index)
+		if(i == selected_object_index || i == hovered_object_index)
 		{
 			continue;
 		}
@@ -1637,61 +1849,37 @@ void system_update()
 		glDrawElements(GL_TRIANGLES, object.indices_count, GL_UNSIGNED_SHORT, nullptr);
 	}
 
-	// Draw the selected model.
+	// Draw the selected and hovered models.
+	if(selected_object_index != invalid_index)
 	{
-		Object object = objects[selected_object_index];
-
-		glEnable(GL_STENCIL_TEST);
-		glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
-
-		glStencilMask(0xff);
-		glClear(GL_STENCIL_BUFFER_BIT);
-
-		glStencilFunc(GL_ALWAYS, 1, 0xff);
-
-		glUniformMatrix4fv(shader_lit.model_view_projection, 1, GL_TRUE, object.model_view_projection.elements);
-		glUniformMatrix4fv(shader_lit.normal_matrix, 1, GL_TRUE, object.normal.elements);
-		glBindVertexArray(object.vertex_array);
-		glDrawElements(GL_TRIANGLES, object.indices_count, GL_UNSIGNED_SHORT, nullptr);
-
-		glUseProgram(shader_halo.program);
-
-		// Draw the selected model's halo.
-		glStencilFunc(GL_NOTEQUAL, 1, 0xff);
-		glStencilMask(0x00);
-
-		glLineWidth(3.0f);
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-		glUniformMatrix4fv(shader_halo.model_view_projection, 1, GL_TRUE, object.model_view_projection.elements);
-		glBindVertexArray(object.vertex_array);
-		glDrawElements(GL_TRIANGLES, object.indices_count, GL_UNSIGNED_SHORT, nullptr);
-
-		glLineWidth(1.0f);
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-		glDisable(GL_STENCIL_TEST);
+		draw_object_with_halo(selected_object_index, vector4_white);
+	}
+	if(hovered_object_index != invalid_index && hovered_object_index != selected_object_index)
+	{
+		draw_object_with_halo(hovered_object_index, vector4_yellow);
 	}
 
 	glUseProgram(shader_lit.program);
 
 	// rotate tool
 	{
-		Vector3 center = {-5.0f, 0.0f, 0.0f};
 		Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
 		immediate::set_matrices(view, projection);
-
 		draw_rotate_tool(false);
 	}
 
 	// move tool
+	if(selected_object_index != invalid_index)
 	{
-		Vector3 position = {5.0f, 0.0f, 0.0f};
+		Object object = objects[selected_object_index];
+
+		Vector3 position = object.position;
 		Vector3 normal = normalise(camera.target - camera.position);
 		float d = distance_point_plane(position, camera.position, normal);
 		d *= 0.05f;
 		Vector3 scale = {d, d, d};
 
-		Matrix4 model = compose_transform(position, quaternion_identity, scale);
+		Matrix4 model = compose_transform(object.position, object.orientation, scale);
 		Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
 		immediate::set_matrices(view * model, projection);
 
