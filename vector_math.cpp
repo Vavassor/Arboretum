@@ -541,7 +541,7 @@ Matrix4 operator * (const Matrix4& a, const Matrix4& b)
 	return result;
 }
 
-Vector3 operator * (const Matrix4& m, Vector3 v)
+Vector3 transform_point(const Matrix4& m, Vector3 v)
 {
 	float a = (m[12] * v.x) + (m[13] * v.y) + (m[14] * v.z) + m[15];
 
@@ -549,6 +549,17 @@ Vector3 operator * (const Matrix4& m, Vector3 v)
 	result.x = ((m[0] * v.x) + (m[1] * v.y) + (m[2]  * v.z) + m[3])  / a;
 	result.y = ((m[4] * v.x) + (m[5] * v.y) + (m[6]  * v.z) + m[7])  / a;
 	result.z = ((m[8] * v.x) + (m[9] * v.y) + (m[10] * v.z) + m[11]) / a;
+	return result;
+}
+
+Vector3 transform_vector(const Matrix4& m, Vector3 v)
+{
+	float a = (m[12] * v.x) + (m[13] * v.y) + (m[14] * v.z) + 1.0f;
+
+	Vector3 result;
+	result.x = ((m[0] * v.x) + (m[1] * v.y) + (m[2]  * v.z)) / a;
+	result.y = ((m[4] * v.x) + (m[5] * v.y) + (m[6]  * v.z)) / a;
+	result.z = ((m[8] * v.x) + (m[9] * v.y) + (m[10] * v.z)) / a;
 	return result;
 }
 
@@ -676,6 +687,17 @@ Matrix4 orthographic_projection_matrix(float width, float height, float near_pla
 	result[15] = 1.0f;
 
 	return result;
+}
+
+Matrix4 dilation_matrix(Vector3 dilation)
+{
+	return
+	{{
+		dilation.x, 0.0f, 0.0f, 0.0f,
+		0.0f, dilation.y, 0.0f, 0.0f,
+		0.0f, 0.0f, dilation.z, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f,
+	}};
 }
 
 Matrix4 compose_transform(Vector3 position, Quaternion orientation, Vector3 scale)

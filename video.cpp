@@ -1116,7 +1116,10 @@ bool system_startup()
 		jan::colour_all_faces(mesh, vector3_yellow);
 
 		Object* test_model = add_object(&heap);
-		test_model->model = matrix4_identity;
+
+		Vector3 position = {-2.0f, 0.0f, 0.0f};
+		test_model->position = position;
+		test_model->model = compose_transform(position, quaternion_identity, vector3_one);
 
 		VertexPNC* vertices;
 		int vertices_count;
@@ -1274,20 +1277,12 @@ Ray ray_from_viewport_point(Vector2 point, int viewport_width, int viewport_heig
 	Vector3 near = {point.x, point.y, 0.0f};
 	Vector3 far = {point.x, point.y, 1.0f};
 
-	Vector3 start = inverse * near;
-	Vector3 end = inverse * far;
+	Vector3 start = transform_point(inverse, near);
+	Vector3 end = transform_point(inverse, far);
 
 	Ray result;
 	result.origin = start;
 	result.direction = normalise(end - start);
-	return result;
-}
-
-static Ray transform_ray(Ray ray, Matrix4 transform)
-{
-	Ray result;
-	result.origin = transform * ray.origin;
-	result.direction = normalise(transform * (ray.direction + ray.origin) - result.origin);
 	return result;
 }
 
@@ -1827,7 +1822,7 @@ void system_update(Platform* platform)
 		// Update light parameters.
 
 		Vector3 light_direction = {0.7f, 0.4f, -1.0f};
-		light_direction = normalise(-(view * light_direction));
+		light_direction = normalise(-transform_vector(view, light_direction));
 
 		glUseProgram(shader_lit.program);
 		glUniform3fv(shader_lit.light_direction, 1, &light_direction[0]);

@@ -139,7 +139,8 @@ struct Matrix4
 extern const Matrix4 matrix4_identity;
 
 Matrix4 operator * (const Matrix4& a, const Matrix4& b);
-Vector3 operator * (const Matrix4& m, Vector3 v);
+Vector3 transform_point(const Matrix4& m, Vector3 v);
+Vector3 transform_vector(const Matrix4& m, Vector3 v);
 
 Matrix4 transpose(const Matrix4& m);
 Matrix4 view_matrix(Vector3 x_axis, Vector3 y_axis, Vector3 z_axis, Vector3 position);
@@ -147,6 +148,7 @@ Matrix4 look_at_matrix(Vector3 position, Vector3 target, Vector3 world_up);
 Matrix4 turn_matrix(Vector3 position, float yaw, float pitch, Vector3 world_up);
 Matrix4 perspective_projection_matrix(float fovy, float width, float height, float near_plane, float far_plane);
 Matrix4 orthographic_projection_matrix(float width, float height, float near_plane, float far_plane);
+Matrix4 dilation_matrix(Vector3 dilation);
 Matrix4 compose_transform(Vector3 position, Quaternion orientation, Vector3 scale);
 Matrix4 inverse_view_matrix(const Matrix4& m);
 Matrix4 inverse_perspective_matrix(const Matrix4& m);
