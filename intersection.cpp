@@ -3,6 +3,7 @@
 #include "assert.h"
 #include "float_utilities.h"
 #include "math_basics.h"
+#include "complex_math.h"
 #include "restrict.h"
 #include "jan.h"
 #include "logging.h"
@@ -91,7 +92,7 @@ static bool intersect_ray_plane(Vector3 start, Vector3 direction, Vector3 origin
 	return false;
 }
 
-static bool quadratic(float a, float b, float c, float* RESTRICT t0, float* RESTRICT t1)
+static bool solve_quadratic_equation(float a, float b, float c, float* RESTRICT t0, float* RESTRICT t1)
 {
 	float discriminant = (b * b) - (4.0f * a * c);
 	if(discriminant < 0.0f)
@@ -113,6 +114,75 @@ static bool quadratic(float a, float b, float c, float* RESTRICT t0, float* REST
 			*t0 = u0;
 			*t1 = u1;
 		}
+		return true;
+	}
+}
+
+static void solve_quartic_equation(Complex coefficients[5], Complex roots[4])
+{
+	Complex a = coefficients[0];
+	Complex b = coefficients[1] / a;
+	Complex c = coefficients[2] / a;
+	Complex d = coefficients[3] / a;
+	Complex e = coefficients[4] / a;
+
+	Complex q0 = (c * c) - (3.0f * b * d) + (12.0f * e);
+	Complex q1 = (2.0 * c * c * c) - (9.0f * b * c * d) + (27.0f * d * d) + (27.0f * b * b * e) - (72.0f * c * e);
+	Complex q2 = (8.0f * b * c) - (16.0f * d) - (2.0f * b * b * b);
+	Complex q3 = (3.0f * b * b) - (8.0f * c);
+	Complex q4 = cbrt((q1 / 2.0f) + sqrt((q1 * q1 / 4.0f) - (q0 * q0 * q0)));
+	Complex q5 = ((q0 / q4) + q4) / 3.0f;
+	Complex q6 = 2.0f * sqrt((q3 / 12.0f) + q5);
+
+	Complex s = (4.0f * q3 / 6.0f) - (4.0f * q5);
+
+	roots[0] = (-b - q6 - sqrt(s - (q2 / q6))) / 4.0f;
+	roots[1] = (-b - q6 + sqrt(s - (q2 / q6))) / 4.0f;
+	roots[2] = (-b + q6 - sqrt(s + (q2 / q6))) / 4.0f;
+	roots[3] = (-b + q6 + sqrt(s + (q2 / q6))) / 4.0f;
+}
+
+static int solve_real_quartic_equation(float coefficients[5], float roots[4])
+{
+	Complex c[5];
+	for(int i = 0; i < 5; i += 1)
+	{
+		c[i] = {coefficients[i], 0.0f};
+	}
+
+	Complex r[4];
+	solve_quartic_equation(c, r);
+
+	int real_roots = 0;
+	for(int i = 0; i < 4; i += 1)
+	{
+		if(almost_zero(r[i].i))
+		{
+			roots[real_roots] = r[i].r;
+			real_roots += 1;
+		}
+	}
+
+	return real_roots;
+}
+
+bool intersect_ray_sphere(Ray ray, Sphere sphere, Vector3* intersection)
+{
+	Vector3 origin = (ray.origin - sphere.center) / sphere.radius;
+	Vector3 direction = ray.direction;
+
+	float a = squared_length(direction);
+	float b = dot(2.0f * direction, origin);
+	float c = squared_length(origin) - 1.0f;
+
+	float t0, t1;
+	if(!solve_quadratic_equation(a, b, c, &t0, &t1))
+	{
+		return false;
+	}
+	else
+	{
+		*intersection = (ray.direction * t0) + ray.origin;
 		return true;
 	}
 }
@@ -144,7 +214,7 @@ bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Vector3* intersection)
 	float c = (ox * ox) + (oy * oy) - 1.0f;
 
 	float t0, t1;
-	if(!quadratic(a, b, c, &t0, &t1))
+	if(!solve_quadratic_equation(a, b, c, &t0, &t1))
 	{
 		return false;
 	}
@@ -232,7 +302,7 @@ bool intersect_ray_cone(Ray ray, Cone cone, Vector3* intersection)
 	float c = (ox * ox) + (oy * oy) - (oz * oz);
 
 	float t0, t1;
-	if(!quadratic(a, b, c, &t0, &t1))
+	if(!solve_quadratic_equation(a, b, c, &t0, &t1))
 	{
 		return false;
 	}
@@ -272,6 +342,62 @@ bool intersect_ray_cone(Ray ray, Cone cone, Vector3* intersection)
 	}
 
 	return false;
+}
+
+bool intersect_ray_torus(Ray ray, Torus torus, Vector3* intersection)
+{
+	float r = torus.major_radius;
+	float s = torus.minor_radius;
+
+	Vector3 forward = normalise(torus.axis);
+	Vector3 right = normalise(perp(forward));
+	Vector3 up = normalise(cross(forward, right));
+	Matrix4 tranform = view_matrix(right, up, forward, torus.center);
+	Ray torus_ray = transform_ray(ray, tranform);
+
+	Vector3 direction = torus_ray.direction;
+	Vector3 origin = torus_ray.origin;
+
+	float dx = direction.x;
+	float dy = direction.y;
+	float ox = origin.x;
+	float oy = origin.y;
+
+    float f = 4.0f * r * r;
+    float g = f * ((dx * dx) + (dy * dy));
+    float h = 2.0f * f * ((ox * dx) + (oy * dy));
+    float i = f * ((ox * ox) + (oy * oy));
+    float j = squared_length(direction);
+    float k = 2.0f * dot(origin, direction);
+    float l = squared_length(origin) + (r * r) - (s * s);
+
+    float coefficients[5] =
+    {
+    	j * j,
+    	2.0f * j * k,
+    	(2.0f * j * l) + (k * k) - g,
+    	(2.0f * k * l) - h,
+    	(l * l) - i,
+    };
+
+    float roots[4];
+    int roots_found = solve_real_quartic_equation(coefficients, roots);
+    if(roots_found == 0)
+    {
+    	return false;
+    }
+
+	float t = 1e-4f;
+	for(int i = 0; i < roots_found; i += 1)
+	{
+		if(roots[i] > t)
+		{
+			t = roots[i];
+		}
+	}
+
+	*intersection =  (t * ray.direction) + ray.origin;
+	return true;
 }
 
 namespace jan {
