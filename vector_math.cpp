@@ -378,6 +378,11 @@ Vector4 make_vector4(Vector3 v)
 	return {v.x, v.y, v.z, 0.0f};
 }
 
+Vector3 broadcast_vector3(float x)
+{
+	return {x, x, x};
+}
+
 Vector3 extract_vector3(Vector4 v)
 {
 	return {v.x, v.y, v.z};

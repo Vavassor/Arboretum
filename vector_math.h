@@ -82,6 +82,7 @@ Vector3 perp(Vector3 v);
 bool exactly_equals(Vector3 v0, Vector3 v1);
 bool is_normalised(Vector3 v);
 Vector3 make_vector3(Vector2 v);
+Vector3 broadcast_vector3(float x);
 
 struct Vector4
 {

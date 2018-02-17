@@ -805,6 +805,20 @@ static void handle_input(FilePickDialog* dialog, ui::Event event, bmfont::Font* 
 	}
 }
 
+struct MoveTool
+{
+	Quaternion orientation;
+	Vector3 position;
+	Vector3 reference_position;
+	float scale;
+	float shaft_length;
+	float shaft_radius;
+	float head_height;
+	float head_radius;
+	int hovered_axis;
+	int selected_axis;
+};
+
 namespace
 {
 	const float near_plane = 0.001f;
@@ -901,8 +915,22 @@ namespace
 		Vertex,
 	};
 
+	enum class Action
+	{
+		None,
+		Zoom_Camera,
+		Orbit_Camera,
+		Pan_Camera,
+		Select,
+		Move,
+		Rotate,
+		Scale,
+	};
+
 	Mode mode;
+	Action action_in_progress;
 	bool translating;
+	MoveTool move_tool;
 
 	FilePickDialog dialog;
 	bmfont::Font font;
@@ -1206,6 +1234,20 @@ bool system_startup()
 		face_mode_button_id = main_menu->container.items[3].id;
 	}
 
+	// Move tool
+	{
+		move_tool.orientation = quaternion_identity;
+		move_tool.position = vector3_zero;
+		move_tool.reference_position = vector3_zero;
+		move_tool.scale = 1.0f;
+		move_tool.shaft_length = 2.0f * sqrt(3.0f);
+		move_tool.shaft_radius = 0.125f;
+		move_tool.head_height = sqrt(3.0f) / 2.0f;
+		move_tool.head_radius = 0.5f;
+		move_tool.hovered_axis = invalid_index;
+		move_tool.selected_axis = invalid_index;
+	}
+
 	return true;
 }
 
@@ -1286,12 +1328,8 @@ Ray ray_from_viewport_point(Vector2 point, int viewport_width, int viewport_heig
 	return result;
 }
 
-static void draw_move_tool(bool silhouetted)
+static void draw_move_tool(MoveTool* tool, bool silhouetted)
 {
-	const float shaft_length = 2.0f * sqrt(3.0f);
-	const float shaft_radius = 0.125f;
-	const float head_height = sqrt(3.0f) / 2.0f;
-	const float head_radius = 0.5f;
 	const float quadrant_length = 1.0f;
 	const float quadrant_radius = 0.0625f;
 	const float ball_radius = 0.4f;
@@ -1300,12 +1338,62 @@ static void draw_move_tool(bool silhouetted)
 	const Vector3 yz_quadrant = {0.0f, quadrant_length, quadrant_length};
 	const Vector3 xz_quadrant = {quadrant_length, 0.0f, quadrant_length};
 
+	float shaft_length = tool->shaft_length;
+	float shaft_radius = tool->shaft_radius;
+	float head_height = tool->head_height;
+	float head_radius = tool->head_radius;
+	int hovered_axis = tool->hovered_axis;
+	int selected_axis = tool->selected_axis;
+
 	Vector4 x_axis_colour = {1.0f, 0.0314f, 0.0314f, 1.0f};
 	Vector4 y_axis_colour = {0.3569f, 1.0f, 0.0f, 1.0f};
 	Vector4 z_axis_colour = {0.0863f, 0.0314f, 1.0f, 1.0f};
 	Vector4 x_axis_shadow_colour = {0.7f, 0.0314f, 0.0314f, 1.0f};
 	Vector4 y_axis_shadow_colour = {0.3569f, 0.7f, 0.0f, 1.0f};
 	Vector4 z_axis_shadow_colour = {0.0863f, 0.0314f, 0.7f, 1.0f};
+
+	switch(hovered_axis)
+	{
+		case 0:
+		{
+			x_axis_colour = vector4_yellow;
+			x_axis_shadow_colour = {0.8f, 0.8f, 0.0f, 1.0f};
+			break;
+		}
+		case 1:
+		{
+			y_axis_colour = vector4_yellow;
+			y_axis_shadow_colour = {0.8f, 0.8f, 0.0f, 1.0f};
+			break;
+		}
+		case 2:
+		{
+			z_axis_colour = vector4_yellow;
+			z_axis_shadow_colour = {0.8f, 0.8f, 0.0f, 1.0f};
+			break;
+		}
+	}
+	switch(selected_axis)
+	{
+		case 0:
+		{
+			x_axis_colour = vector4_white;
+			x_axis_shadow_colour = {0.8f, 0.8f, 0.8f, 1.0f};
+			break;
+		}
+		case 1:
+		{
+			y_axis_colour = vector4_white;
+			y_axis_shadow_colour = {0.8f, 0.8f, 0.8f, 1.0f};
+			break;
+		}
+		case 2:
+		{
+			z_axis_colour = vector4_white;
+			z_axis_shadow_colour = {0.8f, 0.8f, 0.8f, 1.0f};
+			break;
+		}
+	}
 
 	const Vector4 ball_colour = {0.9f, 0.9f, 0.9f, 1.0f};
 
@@ -1451,12 +1539,46 @@ static void draw_object_with_halo(int index, Vector4 colour)
 	glDisable(GL_STENCIL_TEST);
 }
 
+static bool action_allowed(Action action)
+{
+	return action_in_progress == Action::None || action_in_progress == action;
+}
+
+static void action_perform(Action action)
+{
+	action_in_progress = action;
+}
+
+static void action_stop(Action action)
+{
+	if(action_in_progress == action)
+	{
+		action_in_progress = Action::None;
+	}
+}
+
+static const char* action_as_string(Action action)
+{
+	switch(action)
+	{
+		default:
+		case Action::None:         return "None";
+		case Action::Zoom_Camera:  return "Zoom_Camera";
+		case Action::Orbit_Camera: return "Orbit_Camera";
+		case Action::Pan_Camera:   return "Pan_Camera";
+		case Action::Select:       return "Select";
+		case Action::Move:         return "Move";
+		case Action::Rotate:       return "Rotate";
+		case Action::Scale:        return "Scale";
+	}
+}
+
 static void update_camera_controls()
 {
 	Vector3 forward = camera.position - camera.target;
 	Vector3 right = normalise(cross(vector3_unit_z, forward));
 
-	if(mouse.scroll_velocity_y != 0.0f)
+	if(mouse.scroll_velocity_y != 0.0f && action_allowed(Action::Zoom_Camera))
 	{
 		Vector3 moved = (mouse.scroll_velocity_y * -forward) + camera.position;
 		Vector3 forward_moved = moved - camera.target;
@@ -1476,9 +1598,14 @@ static void update_camera_controls()
 		{
 			camera.position = moved;
 		}
+		action_in_progress = Action::Zoom_Camera;
+	}
+	else
+	{
+		action_stop(Action::Zoom_Camera);
 	}
 
-	if(mouse.drag)
+	if(mouse.drag && (action_allowed(Action::Orbit_Camera) || action_allowed(Action::Pan_Camera)))
 	{
 		switch(mouse.button)
 		{
@@ -1500,6 +1627,8 @@ static void update_camera_controls()
 					orbit_y = quaternion_identity;
 				}
 				camera.position = (orbit_y * orbit_x * forward) + camera.target;
+
+				action_perform(Action::Orbit_Camera);
 				break;
 			}
 			case input::MouseButton::Right:
@@ -1523,6 +1652,8 @@ static void update_camera_controls()
 				Vector3 pan = p0 - p1;
 				camera.position += pan;
 				camera.target += pan;
+
+				action_perform(Action::Pan_Camera);
 				break;
 			}
 			default:
@@ -1531,56 +1662,189 @@ static void update_camera_controls()
 			}
 		}
 	}
+	else
+	{
+		action_stop(Action::Orbit_Camera);
+		action_stop(Action::Pan_Camera);
+	}
+}
+
+static void begin_move()
+{
+	ASSERT(selected_object_index != invalid_index);
+	Object object = objects[selected_object_index];
+	move_tool.reference_position = object.position;
+}
+
+static Vector3 closest_point_on_line(Ray ray, Vector3 start, Vector3 end)
+{
+	Vector3 line = end - start;
+	float a = squared_length(ray.direction);
+	float b = dot(ray.direction, line);
+	float e = squared_length(line);
+	float d = (a * e) - (b * b);
+	if(d == 0.0f)
+	{
+		return start;
+	}
+	else
+	{
+		Vector3 r = ray.origin - start;
+		float c = dot(ray.direction, r);
+		float f = dot(line, r);
+		float t = ((a * f) - (c * b)) / d;
+		return (t * line) + start;
+	}
+}
+
+static void move(Ray mouse_ray)
+{
+	ASSERT(selected_object_index != invalid_index);
+	ASSERT(move_tool.selected_axis != invalid_index);
+
+	Object* object = &objects[selected_object_index];
+
+	Vector3 axis = vector3_zero;
+	axis[move_tool.selected_axis] = 1.0f;
+
+	Vector3 point = closest_point_on_line(mouse_ray, object->position, object->position + axis);
+
+	object->position = point;
+	Matrix4 model = compose_transform(object->position, object->orientation, vector3_one);
+	object->model = model;
 }
 
 static void update_object_mode(Platform* platform)
 {
-	update_camera_controls();
-
-	// Update pointer hover detection.
-	// Casually raycast against every triangle in the scene.
-	float closest = infinity;
-	int prior_hovered_index = hovered_object_index;
-	hovered_object_index = invalid_index;
-	FOR_N(i, objects_count)
+	// Update the move tool.
+	if(selected_object_index != invalid_index && action_allowed(Action::Move))
 	{
-		Object* object = &objects[i];
-		jan::Mesh* mesh = &meshes[i];
-
+		Vector3 scale = broadcast_vector3(move_tool.scale);
+		Matrix4 model = compose_transform(move_tool.position, move_tool.orientation, scale);
 		Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
 		Ray ray = ray_from_viewport_point(mouse.position, viewport.width, viewport.height, view, projection, false);
-		ray = transform_ray(ray, inverse_transform(object->model));
-		float distance;
-		jan::Face* face = first_face_hit_by_ray(mesh, ray, &distance);
-		if(face && distance < closest)
+
+		int hovered_axis = invalid_index;
+		float closest = infinity;
+		FOR_N(i, 3)
 		{
-			closest = distance;
-			hovered_object_index = i;
+			Vector3 shaft_axis = vector3_zero;
+			shaft_axis[i] = move_tool.shaft_length;
+			Vector3 head_axis = vector3_zero;
+			head_axis[i] = move_tool.head_height;
+
+			Cylinder cylinder;
+			cylinder.start = transform_point(model, vector3_zero);
+			cylinder.end = transform_point(model, shaft_axis);
+			cylinder.radius = move_tool.scale * move_tool.shaft_radius;
+
+			Vector3 intersection;
+			bool intersected = intersect_ray_cylinder(ray, cylinder, &intersection);
+			float distance = squared_distance(ray.origin, intersection);
+			if(intersected && distance < closest)
+			{
+				closest = distance;
+				hovered_axis = i;
+			}
+
+			Cone cone;
+			cone.base_center = transform_point(model, shaft_axis);
+			cone.axis = move_tool.scale * head_axis;
+			cone.radius = move_tool.scale * move_tool.head_radius;
+
+			intersected = intersect_ray_cone(ray, cone, &intersection);
+			distance = squared_distance(ray.origin, intersection);
+			if(intersected && distance < closest)
+			{
+				closest = distance;
+				hovered_axis = i;
+			}
 		}
-	}
+		move_tool.hovered_axis = hovered_axis;
 
-	// Update the mouse cursor based on the hover status.
-	if(prior_hovered_index == invalid_index && hovered_object_index != invalid_index)
-	{
-		change_cursor(platform, CursorType::Hand_Pointing);
-	}
-	if(prior_hovered_index != invalid_index && hovered_object_index == invalid_index)
-	{
-		change_cursor(platform, CursorType::Arrow);
-	}
-
-	// Detect selection.
-	if(input::get_mouse_clicked(input::MouseButton::Left) && hovered_object_index != invalid_index)
-	{
-		if(selected_object_index == hovered_object_index)
+		if(input::get_mouse_clicked(input::MouseButton::Left) && hovered_axis != invalid_index)
 		{
-			select_mesh(invalid_index);
+			move_tool.selected_axis = hovered_axis;
+			begin_move();
+			action_perform(Action::Move);
+		}
+		if(mouse.drag && mouse.button == input::MouseButton::Left)
+		{
+			move(ray);
 		}
 		else
 		{
-			select_mesh(hovered_object_index);
+			move_tool.selected_axis = invalid_index;
+			action_stop(Action::Move);
 		}
 	}
+
+	if(action_allowed(Action::Select))
+	{
+		// Update pointer hover detection.
+		// Casually raycast against every triangle in the scene.
+		float closest = infinity;
+		int prior_hovered_index = hovered_object_index;
+		hovered_object_index = invalid_index;
+		FOR_N(i, objects_count)
+		{
+			Object* object = &objects[i];
+			jan::Mesh* mesh = &meshes[i];
+
+			Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
+			Ray ray = ray_from_viewport_point(mouse.position, viewport.width, viewport.height, view, projection, false);
+			ray = transform_ray(ray, inverse_transform(object->model));
+			float distance;
+			jan::Face* face = first_face_hit_by_ray(mesh, ray, &distance);
+			if(face && distance < closest)
+			{
+				closest = distance;
+				hovered_object_index = i;
+			}
+		}
+
+		// Update the mouse cursor based on the hover status.
+		if(prior_hovered_index == invalid_index && hovered_object_index != invalid_index)
+		{
+			change_cursor(platform, CursorType::Hand_Pointing);
+		}
+		if(prior_hovered_index != invalid_index && hovered_object_index == invalid_index)
+		{
+			change_cursor(platform, CursorType::Arrow);
+		}
+
+		// Detect selection.
+		if(input::get_mouse_clicked(input::MouseButton::Left) && hovered_object_index != invalid_index)
+		{
+			if(selected_object_index == hovered_object_index)
+			{
+				select_mesh(invalid_index);
+			}
+			else
+			{
+				select_mesh(hovered_object_index);
+			}
+			action_perform(Action::Select);
+		}
+		else
+		{
+			action_stop(Action::Select);
+		}
+	}
+
+	// Center the move tool in the selected object, if needed.
+	if(selected_object_index != invalid_index)
+	{
+		Object object = objects[selected_object_index];
+		Vector3 position = object.position;
+		Vector3 normal = normalise(camera.target - camera.position);
+		float scale = 0.05f * distance_point_plane(position, camera.position, normal);
+		move_tool.position = object.position;
+		move_tool.orientation = object.orientation;
+		move_tool.scale = scale;
+	}
+
+	update_camera_controls();
 }
 
 static void update_face_mode()
@@ -1866,15 +2130,7 @@ void system_update(Platform* platform)
 	// move tool
 	if(selected_object_index != invalid_index)
 	{
-		Object object = objects[selected_object_index];
-
-		Vector3 position = object.position;
-		Vector3 normal = normalise(camera.target - camera.position);
-		float d = distance_point_plane(position, camera.position, normal);
-		d *= 0.05f;
-		Vector3 scale = {d, d, d};
-
-		Matrix4 model = compose_transform(object.position, object.orientation, scale);
+		Matrix4 model = compose_transform(move_tool.position, move_tool.orientation, broadcast_vector3(move_tool.scale));
 		Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
 		immediate::set_matrices(view * model, projection);
 
@@ -1883,11 +2139,11 @@ void system_update(Platform* platform)
 		glActiveTexture(GL_TEXTURE0 + 0);
 		glBindTexture(GL_TEXTURE_2D, hatch_pattern);
 		glBindSampler(0, linear_repeat);
-		draw_move_tool(true);
+		draw_move_tool(&move_tool, true);
 
 		glEnable(GL_DEPTH_TEST);
 		immediate::set_shader(shader_vertex_colour.program);
-		draw_move_tool(false);
+		draw_move_tool(&move_tool, false);
 	}
 
 	// Draw the sky behind everything else.
