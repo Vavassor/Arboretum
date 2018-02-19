@@ -71,27 +71,6 @@ Ray transform_ray(Ray ray, Matrix4 transform)
 	return result;
 }
 
-static bool intersect_ray_plane(Vector3 start, Vector3 direction, Vector3 origin, Vector3 normal, float* distance)
-{
-	ASSERT(is_normalised(normal));
-	ASSERT(is_normalised(direction));
-	float d = dot(-normal, direction);
-	if(d > 1e-6)
-	{
-		float q = dot(origin - start, -normal) / d;
-		if(q < 0.0f)
-		{
-			return false;
-		}
-		else
-		{
-			*distance = q;
-			return true;
-		}
-	}
-	return false;
-}
-
 static bool solve_quadratic_equation(float a, float b, float c, float* RESTRICT t0, float* RESTRICT t1)
 {
 	float discriminant = (b * b) - (4.0f * a * c);
@@ -164,6 +143,29 @@ static int solve_real_quartic_equation(float coefficients[5], float roots[4])
 	}
 
 	return real_roots;
+}
+
+bool intersect_ray_plane(Ray ray, Vector3 origin, Vector3 normal, Vector3* intersection)
+{
+	ASSERT(is_normalised(normal));
+	ASSERT(is_normalised(ray.direction));
+
+	float d = dot(-normal, ray.direction);
+	if(abs(d) < 1e-6)
+	{
+		return false;
+	}
+
+	float t = dot(origin - ray.origin, -normal) / d;
+	if(t < 0.0f)
+	{
+		return false;
+	}
+	else
+	{
+		*intersection = (t * ray.direction) + ray.origin;
+		return true;
+	}
 }
 
 bool intersect_ray_sphere(Ray ray, Sphere sphere, Vector3* intersection)
@@ -400,6 +402,58 @@ bool intersect_ray_torus(Ray ray, Torus torus, Vector3* intersection)
 	return true;
 }
 
+bool intersect_ray_box(Ray ray, Box box, Vector3* intersection)
+{
+	Vector3 direction = box.orientation * ray.direction;
+	Vector3 origin = box.orientation * (ray.origin - box.center);
+
+	float t0 = (-box.extents.x - origin.x) / direction.x;
+	float t1 = (+box.extents.x - origin.x) / direction.x;
+
+	float tl = fmin(t0, t1);
+	float th = fmax(t0, t1);
+
+	for(int i = 1; i < 3; i += 1)
+	{
+		t0 = (-box.extents[i] - origin[i]) / direction[i];
+		t1 = (+box.extents[i] - origin[i]) / direction[i];
+
+		tl = fmax(tl, fmin(fmin(t0, t1), th));
+		th = fmin(th, fmax(fmax(t0, t1), tl));
+	}
+
+	if(th <= fmax(tl, 0.0f))
+	{
+		return false;
+	}
+	else
+	{
+		*intersection = (tl * ray.direction) + ray.origin;
+		return true;
+	}
+}
+
+static bool intersect_ray_plane_one_sided(Vector3 start, Vector3 direction, Vector3 origin, Vector3 normal, Vector3* intersection)
+{
+	ASSERT(is_normalised(normal));
+	ASSERT(is_normalised(direction));
+	float d = dot(-normal, direction);
+	if(d > 1e-6)
+	{
+		float t = dot(origin - start, -normal) / d;
+		if(t < 0.0f)
+		{
+			return false;
+		}
+		else
+		{
+			*intersection = (t * direction) + start;
+			return true;
+		}
+	}
+	return false;
+}
+
 namespace jan {
 
 static void project_face_onto_plane(Face* face, Vector2* vertices)
@@ -422,21 +476,24 @@ Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance)
 	Face* result = nullptr;
 	FOR_EACH_IN_POOL(Face, face, mesh->face_pool)
 	{
-		float distance;
-		bool intersected = intersect_ray_plane(ray.origin, ray.direction, face->link->vertex->position, face->normal, &distance);
-		if(intersected && distance < closest)
+		Vector3 intersection;
+		bool intersected = intersect_ray_plane_one_sided(ray.origin, ray.direction, face->link->vertex->position, face->normal, &intersection);
+		if(intersected)
 		{
-			Vector3 intersection = (distance * ray.direction) + ray.origin;
-			Matrix3 mi = transpose(orthogonal_basis(face->normal));
-			Vector2 point = mi * intersection;
-
-			Vector2 projected[face->edges];
-			project_face_onto_plane(face, projected);
-
-			if(point_in_polygon(point, projected, face->edges))
+			float distance = squared_distance(ray.origin, intersection);
+			if(distance < closest)
 			{
-				closest = distance;
-				result = face;
+				Matrix3 mi = transpose(orthogonal_basis(face->normal));
+				Vector2 point = mi * intersection;
+
+				Vector2 projected[face->edges];
+				project_face_onto_plane(face, projected);
+
+				if(point_in_polygon(point, projected, face->edges))
+				{
+					closest = distance;
+					result = face;
+				}
 			}
 		}
 	}

@@ -3,6 +3,13 @@
 
 #include "vector_math.h"
 
+struct Box
+{
+	Quaternion orientation;
+	Vector3 center;
+	Vector3 extents;
+};
+
 struct Cone
 {
 	Vector3 base_center;
@@ -49,9 +56,11 @@ Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance);
 bool point_in_polygon(Vector2 point, Vector2* vertices, int vertices_count);
 float distance_point_plane(Vector3 point, Vector3 origin, Vector3 normal);
 Ray transform_ray(Ray ray, Matrix4 transform);
+bool intersect_ray_plane(Ray ray, Vector3 origin, Vector3 normal, Vector3* intersection);
 bool intersect_ray_sphere(Ray ray, Sphere sphere, Vector3* intersection);
 bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Vector3* intersection);
 bool intersect_ray_cone(Ray ray, Cone cone, Vector3* intersection);
 bool intersect_ray_torus(Ray ray, Torus torus, Vector3* intersection);
+bool intersect_ray_box(Ray ray, Box box, Vector3* intersection);
 
 #endif // INTERSECTION_H_

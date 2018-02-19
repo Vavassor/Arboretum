@@ -810,13 +810,18 @@ struct MoveTool
 	Quaternion orientation;
 	Vector3 position;
 	Vector3 reference_position;
+	Vector3 reference_offset;
 	float scale;
 	float shaft_length;
 	float shaft_radius;
 	float head_height;
 	float head_radius;
+	float plane_extent;
+	float plane_thickness;
 	int hovered_axis;
+	int hovered_plane;
 	int selected_axis;
+	int selected_plane;
 };
 
 namespace
@@ -1244,8 +1249,12 @@ bool system_startup()
 		move_tool.shaft_radius = 0.125f;
 		move_tool.head_height = sqrt(3.0f) / 2.0f;
 		move_tool.head_radius = 0.5f;
+		move_tool.plane_extent = 0.4f;
+		move_tool.plane_thickness = 0.05f;
 		move_tool.hovered_axis = invalid_index;
+		move_tool.hovered_plane = invalid_index;
 		move_tool.selected_axis = invalid_index;
+		move_tool.selected_plane = invalid_index;
 	}
 
 	return true;
@@ -1330,19 +1339,16 @@ Ray ray_from_viewport_point(Vector2 point, int viewport_width, int viewport_heig
 
 static void draw_move_tool(MoveTool* tool, bool silhouetted)
 {
-	const float quadrant_length = 1.0f;
-	const float quadrant_radius = 0.0625f;
 	const float ball_radius = 0.4f;
-
-	const Vector3 xy_quadrant = {quadrant_length, quadrant_length, 0.0f};
-	const Vector3 yz_quadrant = {0.0f, quadrant_length, quadrant_length};
-	const Vector3 xz_quadrant = {quadrant_length, 0.0f, quadrant_length};
 
 	float shaft_length = tool->shaft_length;
 	float shaft_radius = tool->shaft_radius;
 	float head_height = tool->head_height;
 	float head_radius = tool->head_radius;
+	float plane_extent = tool->plane_extent;
+	float plane_thickness = tool->plane_thickness;
 	int hovered_axis = tool->hovered_axis;
+	int hovered_plane = tool->hovered_plane;
 	int selected_axis = tool->selected_axis;
 
 	Vector4 x_axis_colour = {1.0f, 0.0314f, 0.0314f, 1.0f};
@@ -1351,6 +1357,10 @@ static void draw_move_tool(MoveTool* tool, bool silhouetted)
 	Vector4 x_axis_shadow_colour = {0.7f, 0.0314f, 0.0314f, 1.0f};
 	Vector4 y_axis_shadow_colour = {0.3569f, 0.7f, 0.0f, 1.0f};
 	Vector4 z_axis_shadow_colour = {0.0863f, 0.0314f, 0.7f, 1.0f};
+
+	Vector4 yz_plane_colour = {0.9f, 0.9f, 0.9f, 1.0f};
+	Vector4 xz_plane_colour = {0.9f, 0.9f, 0.9f, 1.0f};
+	Vector4 xy_plane_colour = {0.9f, 0.9f, 0.9f, 1.0f};
 
 	switch(hovered_axis)
 	{
@@ -1370,6 +1380,24 @@ static void draw_move_tool(MoveTool* tool, bool silhouetted)
 		{
 			z_axis_colour = vector4_yellow;
 			z_axis_shadow_colour = {0.8f, 0.8f, 0.0f, 1.0f};
+			break;
+		}
+	}
+	switch(hovered_plane)
+	{
+		case 0:
+		{
+			yz_plane_colour = vector4_yellow;
+			break;
+		}
+		case 1:
+		{
+			xz_plane_colour = vector4_yellow;
+			break;
+		}
+		case 2:
+		{
+			xy_plane_colour = vector4_yellow;
 			break;
 		}
 	}
@@ -1405,24 +1433,26 @@ static void draw_move_tool(MoveTool* tool, bool silhouetted)
 	Vector3 head_axis_y = {0.0f, head_height, 0.0f};
 	Vector3 head_axis_z = {0.0f, 0.0f, head_height};
 
-	Vector3 quadrant_x = {quadrant_length, 0.0, 0.0f};
-	Vector3 quadrant_y = {0.0, quadrant_length, 0.0f};
-	Vector3 quadrant_z = {0.0, 0.0f, quadrant_length};
+	Vector3 yz_plane = {0.0f, shaft_length, shaft_length};
+	Vector3 xz_plane = {shaft_length, 0.0f, shaft_length};
+	Vector3 xy_plane = {shaft_length, shaft_length, 0.0f};
+
+	Vector3 yz_plane_extents = {plane_thickness, plane_extent, plane_extent};
+	Vector3 xz_plane_extents = {plane_extent, plane_thickness, plane_extent};
+	Vector3 xy_plane_extents = {plane_extent, plane_extent, plane_thickness};
 
 	immediate::add_cone(shaft_axis_x, head_axis_x, head_radius, x_axis_colour, x_axis_shadow_colour);
 	immediate::add_cylinder(vector3_zero, shaft_axis_x, shaft_radius, x_axis_colour);
-	immediate::add_cylinder(quadrant_x, xy_quadrant, quadrant_radius, x_axis_colour);
-	immediate::add_cylinder(quadrant_x, xz_quadrant, quadrant_radius, x_axis_colour);
 
 	immediate::add_cone(shaft_axis_y, head_axis_y, head_radius, y_axis_colour, y_axis_shadow_colour);
 	immediate::add_cylinder(vector3_zero, shaft_axis_y, shaft_radius, y_axis_colour);
-	immediate::add_cylinder(quadrant_y, xy_quadrant, quadrant_radius, y_axis_colour);
-	immediate::add_cylinder(quadrant_y, yz_quadrant, quadrant_radius, y_axis_colour);
 
 	immediate::add_cone(shaft_axis_z, head_axis_z, head_radius, z_axis_colour, z_axis_shadow_colour);
 	immediate::add_cylinder(vector3_zero, shaft_axis_z, shaft_radius, z_axis_colour);
-	immediate::add_cylinder(quadrant_z, xz_quadrant, quadrant_radius, z_axis_colour);
-	immediate::add_cylinder(quadrant_z, yz_quadrant, quadrant_radius, z_axis_colour);
+
+	immediate::add_box(yz_plane, yz_plane_extents, yz_plane_colour);
+	immediate::add_box(xz_plane, xz_plane_extents, xz_plane_colour);
+	immediate::add_box(xy_plane, xy_plane_extents, xy_plane_colour);
 
 	immediate::add_sphere(vector3_zero, ball_radius, ball_colour);
 
@@ -1669,13 +1699,6 @@ static void update_camera_controls()
 	}
 }
 
-static void begin_move()
-{
-	ASSERT(selected_object_index != invalid_index);
-	Object object = objects[selected_object_index];
-	move_tool.reference_position = object.position;
-}
-
 static Vector3 closest_point_on_line(Ray ray, Vector3 start, Vector3 end)
 {
 	Vector3 line = end - start;
@@ -1683,6 +1706,7 @@ static Vector3 closest_point_on_line(Ray ray, Vector3 start, Vector3 end)
 	float b = dot(ray.direction, line);
 	float e = squared_length(line);
 	float d = (a * e) - (b * b);
+
 	if(d == 0.0f)
 	{
 		return start;
@@ -1697,19 +1721,66 @@ static Vector3 closest_point_on_line(Ray ray, Vector3 start, Vector3 end)
 	}
 }
 
+static Vector3 closest_ray_point(Ray ray, Vector3 point)
+{
+	double d = dot(point - ray.origin, ray.direction);
+	if(d <= 0.0f)
+	{
+		return ray.origin;
+	}
+	else
+	{
+		return (d * ray.direction) + ray.origin;
+	}
+}
+
+static void begin_move(Ray mouse_ray)
+{
+	ASSERT(selected_object_index != invalid_index);
+	Object object = objects[selected_object_index];
+	move_tool.reference_position = object.position;
+
+	Vector3 point = closest_ray_point(mouse_ray, object.position);
+	move_tool.reference_offset = object.position - point;
+}
+
 static void move(Ray mouse_ray)
 {
 	ASSERT(selected_object_index != invalid_index);
-	ASSERT(move_tool.selected_axis != invalid_index);
+	ASSERT(move_tool.selected_axis != invalid_index || move_tool.selected_plane != invalid_index);
 
 	Object* object = &objects[selected_object_index];
 
-	Vector3 axis = vector3_zero;
-	axis[move_tool.selected_axis] = 1.0f;
+	Vector3 point;
+	if(move_tool.selected_axis != invalid_index)
+	{
+		Vector3 axis = vector3_zero;
+		axis[move_tool.selected_axis] = 1.0f;
+		axis = conjugate(object->orientation) * axis;
 
-	Vector3 point = closest_point_on_line(mouse_ray, object->position, object->position + axis);
+		Vector3 line_point = object->position - move_tool.reference_offset;
+		point = closest_point_on_line(mouse_ray, line_point, line_point + axis);
+	}
+	else if(move_tool.selected_plane != invalid_index)
+	{
+		Vector3 normal = vector3_zero;
+		normal[move_tool.selected_plane] = 1.0f;
+		normal = normalise(conjugate(object->orientation) * normal);
 
-	object->position = point;
+		Vector3 origin = object->position - move_tool.reference_offset;
+		Vector3 intersection;
+		bool intersected = intersect_ray_plane(mouse_ray, origin, normal, &intersection);
+		if(intersected)
+		{
+			point = intersection;
+		}
+		else
+		{
+			point = origin;
+		}
+	}
+
+	object->position = point + move_tool.reference_offset;
 	Matrix4 model = compose_transform(object->position, object->orientation, vector3_one);
 	object->model = model;
 }
@@ -1719,7 +1790,7 @@ static void update_object_mode(Platform* platform)
 	// Update the move tool.
 	if(selected_object_index != invalid_index && action_allowed(Action::Move))
 	{
-		Vector3 scale = broadcast_vector3(move_tool.scale);
+		Vector3 scale = set_all_vector3(move_tool.scale);
 		Matrix4 model = compose_transform(move_tool.position, move_tool.orientation, scale);
 		Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
 		Ray ray = ray_from_viewport_point(mouse.position, viewport.width, viewport.height, view, projection, false);
@@ -1762,19 +1833,61 @@ static void update_object_mode(Platform* platform)
 		}
 		move_tool.hovered_axis = hovered_axis;
 
-		if(input::get_mouse_clicked(input::MouseButton::Left) && hovered_axis != invalid_index)
+		int hovered_plane = invalid_index;
+		FOR_N(i, 3)
 		{
-			move_tool.selected_axis = hovered_axis;
-			begin_move();
-			action_perform(Action::Move);
+			Vector3 center = set_all_vector3(move_tool.shaft_length);
+			center[i] = 0.0f;
+
+			Vector3 extents = set_all_vector3(move_tool.scale * move_tool.plane_extent);
+			extents[i] = move_tool.scale * move_tool.plane_thickness;
+
+			Box box;
+			box.center = transform_point(model, center);
+			box.extents = extents;
+			box.orientation = move_tool.orientation;
+
+			Vector3 intersection;
+			bool intersected = intersect_ray_box(ray, box, &intersection);
+			if(intersected)
+			{
+				float distance = squared_distance(ray.origin, intersection);
+				if(distance < closest)
+				{
+					closest = distance;
+					hovered_plane = i;
+				}
+			}
 		}
-		if(mouse.drag && mouse.button == input::MouseButton::Left)
+		move_tool.hovered_plane = hovered_plane;
+		if(hovered_plane != invalid_index)
+		{
+			move_tool.hovered_axis = invalid_index;
+		}
+
+		if(input::get_mouse_clicked(input::MouseButton::Left))
+		{
+			if(hovered_axis != invalid_index)
+			{
+				move_tool.selected_axis = hovered_axis;
+				begin_move(ray);
+				action_perform(Action::Move);
+			}
+			else if(hovered_plane != invalid_index)
+			{
+				move_tool.selected_plane = hovered_plane;
+				begin_move(ray);
+				action_perform(Action::Move);
+			}
+		}
+		if(mouse.drag && mouse.button == input::MouseButton::Left && (move_tool.selected_axis != invalid_index || move_tool.selected_plane != invalid_index))
 		{
 			move(ray);
 		}
 		else
 		{
 			move_tool.selected_axis = invalid_index;
+			move_tool.selected_plane = invalid_index;
 			action_stop(Action::Move);
 		}
 	}
@@ -2130,7 +2243,7 @@ void system_update(Platform* platform)
 	// move tool
 	if(selected_object_index != invalid_index)
 	{
-		Matrix4 model = compose_transform(move_tool.position, move_tool.orientation, broadcast_vector3(move_tool.scale));
+		Matrix4 model = compose_transform(move_tool.position, move_tool.orientation, set_all_vector3(move_tool.scale));
 		Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
 		immediate::set_matrices(view * model, projection);
 

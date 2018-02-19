@@ -257,7 +257,7 @@ float length(Vector3 v)
 
 float squared_distance(Vector3 v0, Vector3 v1)
 {
-	return squared_length(v1 - v1);
+	return squared_length(v1 - v0);
 }
 
 float distance(Vector3 v0, Vector3 v1)
@@ -378,7 +378,7 @@ Vector4 make_vector4(Vector3 v)
 	return {v.x, v.y, v.z, 0.0f};
 }
 
-Vector3 broadcast_vector3(float x)
+Vector3 set_all_vector3(float x)
 {
 	return {x, x, x};
 }
