@@ -1459,6 +1459,76 @@ static void draw_move_tool(MoveTool* tool, bool silhouetted)
 	immediate::draw();
 }
 
+static void draw_arrow(Vector3 start, Vector3 end, float shaft_radius, float head_height, float head_radius)
+{
+	Vector4 colour = {0.9f, 0.9f, 0.9f, 1.0f};
+	Vector4 shadow_colour = {0.5f, 0.5f, 0.5f, 1.0f};
+	Vector3 arrow = end - start;
+	float distance = length(arrow);
+	if(distance > 0.0f)
+	{
+		Vector3 direction = arrow / distance;
+		Vector3 shaft = (distance - head_height) * direction + start;
+		Vector3 head_axis = head_height * direction;
+		immediate::add_cone(shaft, head_axis, head_radius, colour, shadow_colour);
+		immediate::add_cylinder(start, shaft, shaft_radius, colour);
+	}
+}
+
+static Vector3 project_onto_plane(Vector3 v, Vector3 normal)
+{
+	ASSERT(is_normalised(normal));
+    float d = -dot(normal, v);
+    return (d * normal) + v;
+}
+
+static void draw_move_tool_vectors(MoveTool* tool)
+{
+	const float scale = 0.25f;
+	float shaft_radius = scale * tool->shaft_radius;
+	float head_height = scale * tool->head_height;
+	float head_radius = scale * tool->head_radius;
+
+	Vector3 reference = tool->reference_position;
+
+	if(tool->selected_axis != invalid_index)
+	{
+		draw_arrow(reference, tool->position, shaft_radius, head_height, head_radius);
+	}
+	else if(tool->selected_plane != invalid_index)
+	{
+		draw_arrow(reference, tool->position, shaft_radius, head_height, head_radius);
+
+		Vector3 move = reference - tool->position;
+
+		Vector3 normal;
+		switch(tool->selected_plane)
+		{
+			case 0:
+			{
+				normal = vector3_unit_y;
+				break;
+			}
+			case 1:
+			{
+				normal = vector3_unit_x;
+				break;
+			}
+			case 2:
+			{
+				normal = vector3_unit_x;
+				break;
+			}
+		}
+		normal = tool->orientation * normal;
+		Vector3 corner = project_onto_plane(move, normal) + tool->position;
+		draw_arrow(reference, corner, shaft_radius, head_height, head_radius);
+		draw_arrow(corner, tool->position, shaft_radius, head_height, head_radius);
+	}
+
+	immediate::draw();
+}
+
 void draw_rotate_tool(bool silhouetted)
 {
 	const float radius = 2.0f;
@@ -2245,18 +2315,23 @@ void system_update(Platform* platform)
 	{
 		Matrix4 model = compose_transform(move_tool.position, move_tool.orientation, set_all_vector3(move_tool.scale));
 		Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
-		immediate::set_matrices(view * model, projection);
 
 		glDisable(GL_DEPTH_TEST);
 		immediate::set_shader(shader_screen_pattern.program);
 		glActiveTexture(GL_TEXTURE0 + 0);
 		glBindTexture(GL_TEXTURE_2D, hatch_pattern);
 		glBindSampler(0, linear_repeat);
+		immediate::set_matrices(view * model, projection);
 		draw_move_tool(&move_tool, true);
+		immediate::set_matrices(view, projection);
+		draw_move_tool_vectors(&move_tool);
 
 		glEnable(GL_DEPTH_TEST);
 		immediate::set_shader(shader_vertex_colour.program);
+		immediate::set_matrices(view * model, projection);
 		draw_move_tool(&move_tool, false);
+		immediate::set_matrices(view, projection);
+		draw_move_tool_vectors(&move_tool);
 	}
 
 	// Draw the sky behind everything else.
