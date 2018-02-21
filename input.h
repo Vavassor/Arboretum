@@ -19,6 +19,7 @@ enum class Key
 	Space,
 	F,
 	G,
+	Z,
 };
 
 enum class MouseButton

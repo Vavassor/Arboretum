@@ -96,6 +96,8 @@ static input::Key translate_key_sym(KeySym key_sym)
 		case XK_F:     return input::Key::F;
 		case XK_g:
 		case XK_G:     return input::Key::G;
+		case XK_z:
+		case XK_Z:     return input::Key::Z;
 		default:       return input::Key::Unknown;
 	}
 }
