@@ -5,10 +5,10 @@
 
 struct Vector2
 {
-	float x, y;
+    float x, y;
 
-	float& operator [] (int index) {return reinterpret_cast<float*>(this)[index];}
-	const float& operator [] (int index) const {return reinterpret_cast<const float*>(this)[index];}
+    float& operator [] (int index) {return reinterpret_cast<float*>(this)[index];}
+    const float& operator [] (int index) const {return reinterpret_cast<const float*>(this)[index];}
 };
 
 extern const Vector2 vector2_zero;
@@ -39,10 +39,10 @@ Vector2 max2(Vector2 a, Vector2 b);
 
 struct Vector3
 {
-	float x, y, z;
+    float x, y, z;
 
-	float& operator [] (int index) {return reinterpret_cast<float*>(this)[index];}
-	const float& operator [] (int index) const {return reinterpret_cast<const float*>(this)[index];}
+    float& operator [] (int index) {return reinterpret_cast<float*>(this)[index];}
+    const float& operator [] (int index) const {return reinterpret_cast<const float*>(this)[index];}
 };
 
 extern const Vector3 vector3_zero;
@@ -86,10 +86,10 @@ Vector3 set_all_vector3(float x);
 
 struct Vector4
 {
-	float x, y, z, w;
+    float x, y, z, w;
 
-	float& operator [] (int index) {return reinterpret_cast<float*>(this)[index];}
-	const float& operator [] (int index) const {return reinterpret_cast<const float*>(this)[index];}
+    float& operator [] (int index) {return reinterpret_cast<float*>(this)[index];}
+    const float& operator [] (int index) const {return reinterpret_cast<const float*>(this)[index];}
 };
 
 Vector4 make_vector4(Vector3 v);
@@ -99,7 +99,7 @@ Vector3 extract_vector3(Vector4 v);
 
 struct Quaternion
 {
-	float w, x, y, z;
+    float w, x, y, z;
 };
 
 extern const Quaternion quaternion_identity;
@@ -116,10 +116,10 @@ Quaternion axis_angle_rotation(Vector3 axis, float angle);
 
 struct Matrix3
 {
-	float elements[9]; // in row-major order
+    float elements[9]; // in row-major order
 
-	float& operator [] (int index) {return elements[index];}
-	const float& operator [] (int index) const {return elements[index];}
+    float& operator [] (int index) {return elements[index];}
+    const float& operator [] (int index) const {return elements[index];}
 };
 
 extern const Matrix3 matrix3_identity;
@@ -131,10 +131,10 @@ Matrix3 orthogonal_basis(Vector3 v);
 
 struct Matrix4
 {
-	float elements[16]; // in row-major order
+    float elements[16]; // in row-major order
 
-	float& operator [] (int index) {return elements[index];}
-	const float& operator [] (int index) const {return elements[index];}
+    float& operator [] (int index) {return elements[index];}
+    const float& operator [] (int index) const {return elements[index];}
 };
 
 extern const Matrix4 matrix4_identity;

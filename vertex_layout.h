@@ -6,21 +6,21 @@
 
 struct VertexPNC
 {
-	Vector3 position;
-	Vector3 normal;
-	u32 colour;
+    Vector3 position;
+    Vector3 normal;
+    u32 colour;
 };
 
 struct VertexPC
 {
-	Vector3 position;
-	u32 colour;
+    Vector3 position;
+    u32 colour;
 };
 
 struct VertexPT
 {
-	Vector3 position;
-	u32 texcoord;
+    Vector3 position;
+    u32 texcoord;
 };
 
 u32 rgb_to_u32(Vector3 c);

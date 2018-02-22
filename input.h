@@ -5,28 +5,28 @@ namespace input {
 
 struct Modifier
 {
-	bool shift : 1;
-	bool control : 1;
-	bool alt : 1;
-	bool super : 1;
-	bool caps_lock : 1;
-	bool num_lock : 1;
+    bool shift : 1;
+    bool control : 1;
+    bool alt : 1;
+    bool super : 1;
+    bool caps_lock : 1;
+    bool num_lock : 1;
 };
 
 enum class Key
 {
-	Unknown,
-	Space,
-	F,
-	G,
-	Z,
+    Unknown,
+    Space,
+    F,
+    G,
+    Z,
 };
 
 enum class MouseButton
 {
-	Left,
-	Middle,
-	Right,
+    Left,
+    Middle,
+    Right,
 };
 
 void key_press(Key key, bool pressed, Modifier modifier);

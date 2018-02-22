@@ -3,7 +3,7 @@
 
 struct Complex
 {
-	float r, i;
+    float r, i;
 };
 
 Complex operator - (Complex c0);

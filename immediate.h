@@ -11,9 +11,9 @@ namespace immediate {
 
 enum class BlendMode
 {
-	None,
-	Opaque,
-	Transparent,
+    None,
+    Opaque,
+    Transparent,
 };
 
 void context_create(Heap* heap);

@@ -11,7 +11,7 @@ bool save_whole_file(const char* path, const void* contents, u64 bytes);
 
 enum class FileOpenMode
 {
-	Write_Temporary,
+    Write_Temporary,
 };
 
 struct File;
@@ -26,22 +26,22 @@ void write_to_standard_output(const char* text, bool error);
 
 enum class DirectoryRecordType
 {
-	Unknown,
-	File,
-	Directory,
+    Unknown,
+    File,
+    Directory,
 };
 
 struct DirectoryRecord
 {
-	char* name;
-	DirectoryRecordType type;
-	bool hidden;
+    char* name;
+    DirectoryRecordType type;
+    bool hidden;
 };
 
 struct Directory
 {
-	DirectoryRecord* records;
-	int records_count;
+    DirectoryRecord* records;
+    int records_count;
 };
 
 void destroy_directory(Directory* directory, Heap* heap);

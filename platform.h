@@ -3,13 +3,13 @@
 
 enum class CursorType
 {
-	Arrow,
-	Hand_Pointing,
+    Arrow,
+    Hand_Pointing,
 };
 
 struct Platform
 {
-	int placeholder;
+    int placeholder;
 };
 
 void change_cursor(Platform* platform, CursorType type);

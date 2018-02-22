@@ -14,70 +14,70 @@ struct Face;
 
 struct Vertex
 {
-	Vector3 position;
-	Vector3 normal;
-	Edge* any_edge;
+    Vector3 position;
+    Vector3 normal;
+    Edge* any_edge;
 };
 
 // Spokes are for navigating edges that all meet at the same vertex "hub".
 struct Spoke
 {
-	Edge* next;
-	Edge* prior;
+    Edge* next;
+    Edge* prior;
 };
 
 struct Edge
 {
-	Spoke spokes[2];
-	Vertex* vertices[2];
-	Link* any_link;
-	bool sharp;
+    Spoke spokes[2];
+    Vertex* vertices[2];
+    Link* any_link;
+    bool sharp;
 };
 
 // Links are also known as half-edges. These have the additional responsibility
 // of storing vertex attributes that are specific to a face.
 struct Link
 {
-	Vector3 colour;
-	Link* next;
-	Link* prior;
-	Link* twin;
-	Vertex* vertex;
-	Edge* edge;
-	Face* face;
+    Vector3 colour;
+    Link* next;
+    Link* prior;
+    Link* twin;
+    Vertex* vertex;
+    Edge* edge;
+    Face* face;
 };
 
 struct Face
 {
-	Link* link;
-	Vector3 normal;
-	int edges;
+    Link* link;
+    Vector3 normal;
+    int edges;
 };
 
 struct Mesh
 {
-	Pool face_pool;
-	Pool edge_pool;
-	Pool vertex_pool;
-	Pool link_pool;
-	int faces_count;
-	int edges_count;
-	int vertices_count;
+    Pool face_pool;
+    Pool edge_pool;
+    Pool vertex_pool;
+    Pool link_pool;
+    int faces_count;
+    int edges_count;
+    int vertices_count;
 };
 
 struct Selection
 {
-	enum class Type
-	{
-		Vertex,
-		Edge,
-		Face,
-	};
+    enum class Type
+    {
+        Vertex,
+        Edge,
+        Face,
+    };
 
-	Heap* heap;
-	void** parts;
-	int parts_count;
-	Type type;
+    Heap* heap;
+    void** parts;
+    int parts_count;
+    Type type;
 };
 
 void create_mesh(Mesh* mesh);

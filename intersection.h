@@ -5,43 +5,43 @@
 
 struct Box
 {
-	Quaternion orientation;
-	Vector3 center;
-	Vector3 extents;
+    Quaternion orientation;
+    Vector3 center;
+    Vector3 extents;
 };
 
 struct Cone
 {
-	Vector3 base_center;
-	Vector3 axis;
-	float radius;
+    Vector3 base_center;
+    Vector3 axis;
+    float radius;
 };
 
 struct Cylinder
 {
-	Vector3 start;
-	Vector3 end;
-	float radius;
+    Vector3 start;
+    Vector3 end;
+    float radius;
 };
 
 struct Ray
 {
-	Vector3 origin;
-	Vector3 direction;
+    Vector3 origin;
+    Vector3 direction;
 };
 
 struct Sphere
 {
-	Vector3 center;
-	float radius;
+    Vector3 center;
+    float radius;
 };
 
 struct Torus
 {
-	Vector3 center;
-	Vector3 axis;
-	float major_radius;
-	float minor_radius;
+    Vector3 center;
+    Vector3 axis;
+    float major_radius;
+    float minor_radius;
 };
 
 namespace jan {

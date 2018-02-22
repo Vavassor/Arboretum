@@ -1919,8 +1919,6 @@ static void undo()
     history_step(&history, -1);
     Change* past = history_find_past_change(&history);
     apply_change(past);
-
-    history_log(&history);
 }
 
 static void redo(History* history)
@@ -1933,8 +1931,6 @@ static void redo(History* history)
     Change* change = history_get(history, history->index);
     apply_change(change);
     history_step(history, +1);
-
-    history_log(history);
 }
 
 static void update_object_mode(Platform* platform)

@@ -11,521 +11,521 @@ namespace immediate {
 
 enum class DrawMode
 {
-	None,
-	Lines,
-	Triangles,
+    None,
+    Lines,
+    Triangles,
 };
 
 enum class VertexType
 {
-	None,
-	Colour,
-	Texture,
+    None,
+    Colour,
+    Texture,
 };
 
 struct Context;
 
 namespace
 {
-	const int context_vertices_cap = 8192;
-	const int context_vertex_type_count = 2;
-	Context* context;
+    const int context_vertices_cap = 8192;
+    const int context_vertex_type_count = 2;
+    Context* context;
 }
 
 struct Context
 {
-	union
-	{
-		VertexPC vertices[context_vertices_cap];
-		VertexPT vertices_textured[context_vertices_cap];
-	};
-	Matrix4 view_projection;
-	GLuint vertex_arrays[context_vertex_type_count];
-	GLuint buffers[context_vertex_type_count];
-	GLuint shaders[context_vertex_type_count];
-	int filled;
-	DrawMode draw_mode;
-	BlendMode blend_mode;
-	VertexType vertex_type;
-	bool blend_mode_changed;
+    union
+    {
+        VertexPC vertices[context_vertices_cap];
+        VertexPT vertices_textured[context_vertices_cap];
+    };
+    Matrix4 view_projection;
+    GLuint vertex_arrays[context_vertex_type_count];
+    GLuint buffers[context_vertex_type_count];
+    GLuint shaders[context_vertex_type_count];
+    int filled;
+    DrawMode draw_mode;
+    BlendMode blend_mode;
+    VertexType vertex_type;
+    bool blend_mode_changed;
 };
 
 void context_create(Heap* heap)
 {
-	context = HEAP_ALLOCATE(heap, Context, 1);
-	Context* c = context;
+    context = HEAP_ALLOCATE(heap, Context, 1);
+    Context* c = context;
 
-	glGenVertexArrays(context_vertex_type_count, c->vertex_arrays);
-	glGenBuffers(context_vertex_type_count, c->buffers);
+    glGenVertexArrays(context_vertex_type_count, c->vertex_arrays);
+    glGenBuffers(context_vertex_type_count, c->buffers);
 
-	glBindVertexArray(c->vertex_arrays[0]);
-	glBindBuffer(GL_ARRAY_BUFFER, c->buffers[0]);
+    glBindVertexArray(c->vertex_arrays[0]);
+    glBindBuffer(GL_ARRAY_BUFFER, c->buffers[0]);
 
-	glBufferData(GL_ARRAY_BUFFER, sizeof(c->vertices), nullptr, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(c->vertices), nullptr, GL_DYNAMIC_DRAW);
 
-	GLvoid* offset0 = reinterpret_cast<GLvoid*>(offsetof(VertexPC, position));
-	GLvoid* offset1 = reinterpret_cast<GLvoid*>(offsetof(VertexPC, colour));
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(VertexPC), offset0);
-	glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(VertexPC), offset1);
-	glEnableVertexAttribArray(0);
-	glEnableVertexAttribArray(2);
+    GLvoid* offset0 = reinterpret_cast<GLvoid*>(offsetof(VertexPC, position));
+    GLvoid* offset1 = reinterpret_cast<GLvoid*>(offsetof(VertexPC, colour));
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(VertexPC), offset0);
+    glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(VertexPC), offset1);
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(2);
 
-	glBindVertexArray(c->vertex_arrays[1]);
-	glBindBuffer(GL_ARRAY_BUFFER, c->buffers[1]);
+    glBindVertexArray(c->vertex_arrays[1]);
+    glBindBuffer(GL_ARRAY_BUFFER, c->buffers[1]);
 
-	glBufferData(GL_ARRAY_BUFFER, sizeof(c->vertices_textured), nullptr, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(c->vertices_textured), nullptr, GL_DYNAMIC_DRAW);
 
-	offset0 = reinterpret_cast<GLvoid*>(offsetof(VertexPT, position));
-	offset1 = reinterpret_cast<GLvoid*>(offsetof(VertexPT, texcoord));
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(VertexPT), offset0);
-	glVertexAttribPointer(3, 2, GL_UNSIGNED_SHORT, GL_TRUE, sizeof(VertexPT), offset1);
-	glEnableVertexAttribArray(0);
-	glEnableVertexAttribArray(3);
+    offset0 = reinterpret_cast<GLvoid*>(offsetof(VertexPT, position));
+    offset1 = reinterpret_cast<GLvoid*>(offsetof(VertexPT, texcoord));
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(VertexPT), offset0);
+    glVertexAttribPointer(3, 2, GL_UNSIGNED_SHORT, GL_TRUE, sizeof(VertexPT), offset1);
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(3);
 
-	glBindVertexArray(0);
+    glBindVertexArray(0);
 }
 
 void context_destroy(Heap* heap)
 {
-	if(context)
-	{
-		glDeleteBuffers(context_vertex_type_count, context->buffers);
-		glDeleteVertexArrays(context_vertex_type_count, context->vertex_arrays);
-		HEAP_DEALLOCATE(heap, context);
-	}
+    if(context)
+    {
+        glDeleteBuffers(context_vertex_type_count, context->buffers);
+        glDeleteVertexArrays(context_vertex_type_count, context->vertex_arrays);
+        HEAP_DEALLOCATE(heap, context);
+    }
 }
 
 void set_matrices(Matrix4 view, Matrix4 projection)
 {
-	context->view_projection = projection * view;
+    context->view_projection = projection * view;
 }
 
 void set_shader(GLuint program)
 {
-	context->shaders[0] = program;
+    context->shaders[0] = program;
 }
 
 void set_textured_shader(GLuint program)
 {
-	context->shaders[1] = program;
+    context->shaders[1] = program;
 }
 
 void set_blend_mode(BlendMode mode)
 {
-	if(context->blend_mode != mode)
-	{
-		context->blend_mode = mode;
-		context->blend_mode_changed = true;
-	}
+    if(context->blend_mode != mode)
+    {
+        context->blend_mode = mode;
+        context->blend_mode_changed = true;
+    }
 }
 
 void set_clip_area(Rect rect, int viewport_width, int viewport_height)
 {
-	glEnable(GL_SCISSOR_TEST);
-	int x = rect.bottom_left.x + (viewport_width / 2);
-	int y = rect.bottom_left.y + (viewport_height / 2);
-	glScissor(x, y, rect.dimensions.x, rect.dimensions.y);
+    glEnable(GL_SCISSOR_TEST);
+    int x = rect.bottom_left.x + (viewport_width / 2);
+    int y = rect.bottom_left.y + (viewport_height / 2);
+    glScissor(x, y, rect.dimensions.x, rect.dimensions.y);
 }
 
 void stop_clip_area()
 {
-	glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_SCISSOR_TEST);
 }
 
 static GLenum get_mode(DrawMode draw_mode)
 {
-	switch(draw_mode)
-	{
-		default:
-		case DrawMode::Lines:     return GL_LINES;
-		case DrawMode::Triangles: return GL_TRIANGLES;
-	}
+    switch(draw_mode)
+    {
+        default:
+        case DrawMode::Lines:     return GL_LINES;
+        case DrawMode::Triangles: return GL_TRIANGLES;
+    }
 }
 
 void draw()
 {
-	Context* c = context;
-	if(c->filled == 0 || c->draw_mode == DrawMode::None || c->vertex_type == VertexType::None)
-	{
-		return;
-	}
+    Context* c = context;
+    if(c->filled == 0 || c->draw_mode == DrawMode::None || c->vertex_type == VertexType::None)
+    {
+        return;
+    }
 
-	if(c->blend_mode_changed)
-	{
-		switch(c->blend_mode)
-		{
-			case BlendMode::None:
-			case BlendMode::Opaque:
-			{
-				glDisable(GL_BLEND);
-				glDepthMask(GL_TRUE);
-				glEnable(GL_CULL_FACE);
-				break;
-			}
-			case BlendMode::Transparent:
-			{
-				glEnable(GL_BLEND);
-				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				glDepthMask(GL_FALSE);
-				glDisable(GL_CULL_FACE);
-				break;
-			}
-		}
-		c->blend_mode_changed = false;
-	}
+    if(c->blend_mode_changed)
+    {
+        switch(c->blend_mode)
+        {
+            case BlendMode::None:
+            case BlendMode::Opaque:
+            {
+                glDisable(GL_BLEND);
+                glDepthMask(GL_TRUE);
+                glEnable(GL_CULL_FACE);
+                break;
+            }
+            case BlendMode::Transparent:
+            {
+                glEnable(GL_BLEND);
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                glDepthMask(GL_FALSE);
+                glDisable(GL_CULL_FACE);
+                break;
+            }
+        }
+        c->blend_mode_changed = false;
+    }
 
-	GLuint shader;
-	switch(c->vertex_type)
-	{
-		case VertexType::None:
-		case VertexType::Colour:
-		{
-			glBindBuffer(GL_ARRAY_BUFFER, c->buffers[0]);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(VertexPC) * c->filled, c->vertices, GL_DYNAMIC_DRAW);
-			glBindVertexArray(c->vertex_arrays[0]);
-			shader = c->shaders[0];
-			break;
-		}
-		case VertexType::Texture:
-		{
-			glBindBuffer(GL_ARRAY_BUFFER, c->buffers[1]);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(VertexPT) * c->filled, c->vertices_textured, GL_DYNAMIC_DRAW);
-			glBindVertexArray(c->vertex_arrays[1]);
-			shader = c->shaders[1];
-			break;
-		}
-	}
+    GLuint shader;
+    switch(c->vertex_type)
+    {
+        case VertexType::None:
+        case VertexType::Colour:
+        {
+            glBindBuffer(GL_ARRAY_BUFFER, c->buffers[0]);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(VertexPC) * c->filled, c->vertices, GL_DYNAMIC_DRAW);
+            glBindVertexArray(c->vertex_arrays[0]);
+            shader = c->shaders[0];
+            break;
+        }
+        case VertexType::Texture:
+        {
+            glBindBuffer(GL_ARRAY_BUFFER, c->buffers[1]);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(VertexPT) * c->filled, c->vertices_textured, GL_DYNAMIC_DRAW);
+            glBindVertexArray(c->vertex_arrays[1]);
+            shader = c->shaders[1];
+            break;
+        }
+    }
 
-	glUseProgram(shader);
-	GLint location = glGetUniformLocation(shader, "model_view_projection");
-	glUniformMatrix4fv(location, 1, GL_TRUE, c->view_projection.elements);
+    glUseProgram(shader);
+    GLint location = glGetUniformLocation(shader, "model_view_projection");
+    glUniformMatrix4fv(location, 1, GL_TRUE, c->view_projection.elements);
 
-	glDrawArrays(get_mode(c->draw_mode), 0, c->filled);
+    glDrawArrays(get_mode(c->draw_mode), 0, c->filled);
 
-	c->draw_mode = DrawMode::None;
-	set_blend_mode(BlendMode::None);
-	c->vertex_type = VertexType::None;
-	c->filled = 0;
+    c->draw_mode = DrawMode::None;
+    set_blend_mode(BlendMode::None);
+    c->vertex_type = VertexType::None;
+    c->filled = 0;
 }
 
 void add_line(Vector3 start, Vector3 end, Vector4 colour)
 {
-	Context* c = context;
-	ASSERT(c->draw_mode == DrawMode::Lines || c->draw_mode == DrawMode::None);
-	ASSERT(c->vertex_type == VertexType::Colour || c->vertex_type == VertexType::None);
-	ASSERT(c->filled + 2 < context_vertices_cap);
-	u32 colour_u32 = rgba_to_u32(colour);
-	c->vertices[c->filled + 0] = {start, colour_u32};
-	c->vertices[c->filled + 1] = {end, colour_u32};
-	c->filled += 2;
-	c->draw_mode = DrawMode::Lines;
-	c->vertex_type = VertexType::Colour;
+    Context* c = context;
+    ASSERT(c->draw_mode == DrawMode::Lines || c->draw_mode == DrawMode::None);
+    ASSERT(c->vertex_type == VertexType::Colour || c->vertex_type == VertexType::None);
+    ASSERT(c->filled + 2 < context_vertices_cap);
+    u32 colour_u32 = rgba_to_u32(colour);
+    c->vertices[c->filled + 0] = {start, colour_u32};
+    c->vertices[c->filled + 1] = {end, colour_u32};
+    c->filled += 2;
+    c->draw_mode = DrawMode::Lines;
+    c->vertex_type = VertexType::Colour;
 }
 
 void add_triangle(Triangle* triangle, Vector4 colour)
 {
-	Context* c = context;
-	ASSERT(c->draw_mode == DrawMode::Triangles || c->draw_mode == DrawMode::None);
-	ASSERT(c->vertex_type == VertexType::Colour || c->vertex_type == VertexType::None);
-	ASSERT(c->filled + 3 < context_vertices_cap);
-	for(int i = 0; i < 3; ++i)
-	{
-		c->vertices[c->filled + i].position = triangle->vertices[i];
-		c->vertices[c->filled + i].colour = rgba_to_u32(colour);
-	}
-	c->filled += 3;
-	c->draw_mode = DrawMode::Triangles;
-	c->vertex_type = VertexType::Colour;
+    Context* c = context;
+    ASSERT(c->draw_mode == DrawMode::Triangles || c->draw_mode == DrawMode::None);
+    ASSERT(c->vertex_type == VertexType::Colour || c->vertex_type == VertexType::None);
+    ASSERT(c->filled + 3 < context_vertices_cap);
+    for(int i = 0; i < 3; ++i)
+    {
+        c->vertices[c->filled + i].position = triangle->vertices[i];
+        c->vertices[c->filled + i].colour = rgba_to_u32(colour);
+    }
+    c->filled += 3;
+    c->draw_mode = DrawMode::Triangles;
+    c->vertex_type = VertexType::Colour;
 }
 
 void add_rect(Rect rect, Vector4 colour)
 {
-	Quad quad = rect_to_quad(rect);
-	add_quad(&quad, colour);
+    Quad quad = rect_to_quad(rect);
+    add_quad(&quad, colour);
 }
 
 void add_wire_rect(Rect rect, Vector4 colour)
 {
-	Quad quad = rect_to_quad(rect);
-	add_wire_quad(&quad, colour);
+    Quad quad = rect_to_quad(rect);
+    add_wire_quad(&quad, colour);
 }
 
 void add_quad(Quad* quad, Vector4 colour)
 {
-	Context* c = context;
-	ASSERT(c->draw_mode == DrawMode::Triangles || c->draw_mode == DrawMode::None);
-	ASSERT(c->vertex_type == VertexType::Colour || c->vertex_type == VertexType::None);
-	ASSERT(c->filled + 6 < context_vertices_cap);
-	c->vertices[c->filled + 0].position = quad->vertices[0];
-	c->vertices[c->filled + 1].position = quad->vertices[1];
-	c->vertices[c->filled + 2].position = quad->vertices[2];
-	c->vertices[c->filled + 3].position = quad->vertices[0];
-	c->vertices[c->filled + 4].position = quad->vertices[2];
-	c->vertices[c->filled + 5].position = quad->vertices[3];
-	for(int i = 0; i < 6; ++i)
-	{
-		c->vertices[c->filled + i].colour = rgba_to_u32(colour);
-	}
-	c->filled += 6;
-	c->draw_mode = DrawMode::Triangles;
-	c->vertex_type = VertexType::Colour;
+    Context* c = context;
+    ASSERT(c->draw_mode == DrawMode::Triangles || c->draw_mode == DrawMode::None);
+    ASSERT(c->vertex_type == VertexType::Colour || c->vertex_type == VertexType::None);
+    ASSERT(c->filled + 6 < context_vertices_cap);
+    c->vertices[c->filled + 0].position = quad->vertices[0];
+    c->vertices[c->filled + 1].position = quad->vertices[1];
+    c->vertices[c->filled + 2].position = quad->vertices[2];
+    c->vertices[c->filled + 3].position = quad->vertices[0];
+    c->vertices[c->filled + 4].position = quad->vertices[2];
+    c->vertices[c->filled + 5].position = quad->vertices[3];
+    for(int i = 0; i < 6; ++i)
+    {
+        c->vertices[c->filled + i].colour = rgba_to_u32(colour);
+    }
+    c->filled += 6;
+    c->draw_mode = DrawMode::Triangles;
+    c->vertex_type = VertexType::Colour;
 }
 
 void add_quad_textured(Quad* quad, Rect texture_rect)
 {
-	Context* c = context;
-	ASSERT(c->draw_mode == DrawMode::Triangles || c->draw_mode == DrawMode::None);
-	ASSERT(c->vertex_type == VertexType::Texture || c->vertex_type == VertexType::None);
-	ASSERT(c->filled + 6 < context_vertices_cap);
-	c->vertices_textured[c->filled + 0].position = quad->vertices[0];
-	c->vertices_textured[c->filled + 1].position = quad->vertices[1];
-	c->vertices_textured[c->filled + 2].position = quad->vertices[2];
-	c->vertices_textured[c->filled + 3].position = quad->vertices[0];
-	c->vertices_textured[c->filled + 4].position = quad->vertices[2];
-	c->vertices_textured[c->filled + 5].position = quad->vertices[3];
-	const Vector2 texcoords[4] =
-	{
-		{texture_rect.bottom_left.x, texture_rect.bottom_left.y + texture_rect.dimensions.y},
-		texture_rect.bottom_left + texture_rect.dimensions,
-		{texture_rect.bottom_left.x + texture_rect.dimensions.x, texture_rect.bottom_left.y},
-		texture_rect.bottom_left,
-	};
-	c->vertices_textured[c->filled + 0].texcoord = texcoord_to_u32(texcoords[0]);
-	c->vertices_textured[c->filled + 1].texcoord = texcoord_to_u32(texcoords[1]);
-	c->vertices_textured[c->filled + 2].texcoord = texcoord_to_u32(texcoords[2]);
-	c->vertices_textured[c->filled + 3].texcoord = texcoord_to_u32(texcoords[0]);
-	c->vertices_textured[c->filled + 4].texcoord = texcoord_to_u32(texcoords[2]);
-	c->vertices_textured[c->filled + 5].texcoord = texcoord_to_u32(texcoords[3]);
-	c->filled += 6;
-	c->draw_mode = DrawMode::Triangles;
-	c->vertex_type = VertexType::Texture;
+    Context* c = context;
+    ASSERT(c->draw_mode == DrawMode::Triangles || c->draw_mode == DrawMode::None);
+    ASSERT(c->vertex_type == VertexType::Texture || c->vertex_type == VertexType::None);
+    ASSERT(c->filled + 6 < context_vertices_cap);
+    c->vertices_textured[c->filled + 0].position = quad->vertices[0];
+    c->vertices_textured[c->filled + 1].position = quad->vertices[1];
+    c->vertices_textured[c->filled + 2].position = quad->vertices[2];
+    c->vertices_textured[c->filled + 3].position = quad->vertices[0];
+    c->vertices_textured[c->filled + 4].position = quad->vertices[2];
+    c->vertices_textured[c->filled + 5].position = quad->vertices[3];
+    const Vector2 texcoords[4] =
+    {
+        {texture_rect.bottom_left.x, texture_rect.bottom_left.y + texture_rect.dimensions.y},
+        texture_rect.bottom_left + texture_rect.dimensions,
+        {texture_rect.bottom_left.x + texture_rect.dimensions.x, texture_rect.bottom_left.y},
+        texture_rect.bottom_left,
+    };
+    c->vertices_textured[c->filled + 0].texcoord = texcoord_to_u32(texcoords[0]);
+    c->vertices_textured[c->filled + 1].texcoord = texcoord_to_u32(texcoords[1]);
+    c->vertices_textured[c->filled + 2].texcoord = texcoord_to_u32(texcoords[2]);
+    c->vertices_textured[c->filled + 3].texcoord = texcoord_to_u32(texcoords[0]);
+    c->vertices_textured[c->filled + 4].texcoord = texcoord_to_u32(texcoords[2]);
+    c->vertices_textured[c->filled + 5].texcoord = texcoord_to_u32(texcoords[3]);
+    c->filled += 6;
+    c->draw_mode = DrawMode::Triangles;
+    c->vertex_type = VertexType::Texture;
 }
 
 void add_wire_quad(Quad* quad, Vector4 colour)
 {
-	add_line(quad->vertices[0], quad->vertices[1], colour);
-	add_line(quad->vertices[1], quad->vertices[2], colour);
-	add_line(quad->vertices[2], quad->vertices[3], colour);
-	add_line(quad->vertices[3], quad->vertices[0], colour);
+    add_line(quad->vertices[0], quad->vertices[1], colour);
+    add_line(quad->vertices[1], quad->vertices[2], colour);
+    add_line(quad->vertices[2], quad->vertices[3], colour);
+    add_line(quad->vertices[3], quad->vertices[0], colour);
 }
 
 void add_circle(Vector3 center, Vector3 axis, float radius, Vector4 colour)
 {
-	const int segments = 16;
-	Quaternion orientation = axis_angle_rotation(axis, 0.0f);
-	Vector3 arm = radius * normalise(perp(axis));
-	Vector3 position = (orientation * arm) + center;
+    const int segments = 16;
+    Quaternion orientation = axis_angle_rotation(axis, 0.0f);
+    Vector3 arm = radius * normalise(perp(axis));
+    Vector3 position = (orientation * arm) + center;
 
-	for(int i = 1; i <= segments; i += 1)
-	{
-		Vector3 prior = position;
-		float t = (static_cast<float>(i) / segments) * tau;
-		orientation = axis_angle_rotation(axis, t);
-		position = (orientation * arm) + center;
+    for(int i = 1; i <= segments; i += 1)
+    {
+        Vector3 prior = position;
+        float t = (static_cast<float>(i) / segments) * tau;
+        orientation = axis_angle_rotation(axis, t);
+        position = (orientation * arm) + center;
 
-		Triangle triangle;
-		triangle.vertices[0] = position;
-		triangle.vertices[1] = prior;
-		triangle.vertices[2] = center;
-		add_triangle(&triangle, colour);
-	}
+        Triangle triangle;
+        triangle.vertices[0] = position;
+        triangle.vertices[1] = prior;
+        triangle.vertices[2] = center;
+        add_triangle(&triangle, colour);
+    }
 }
 
 void add_cone(Vector3 base_center, Vector3 axis, float radius, Vector4 side_colour, Vector4 base_colour)
 {
-	const int segments = 16;
-	Quaternion orientation = axis_angle_rotation(axis, 0.0f);
-	Vector3 arm = radius * normalise(perp(axis));
-	Vector3 position = (orientation * arm) + base_center;
-	Vector3 apex = axis + base_center;
+    const int segments = 16;
+    Quaternion orientation = axis_angle_rotation(axis, 0.0f);
+    Vector3 arm = radius * normalise(perp(axis));
+    Vector3 position = (orientation * arm) + base_center;
+    Vector3 apex = axis + base_center;
 
-	for(int i = 1; i <= segments; i += 1)
-	{
-		Vector3 prior = position;
-		float t = (static_cast<float>(i) / segments) * tau;
-		orientation = axis_angle_rotation(axis, t);
-		position = (orientation * arm) + base_center;
+    for(int i = 1; i <= segments; i += 1)
+    {
+        Vector3 prior = position;
+        float t = (static_cast<float>(i) / segments) * tau;
+        orientation = axis_angle_rotation(axis, t);
+        position = (orientation * arm) + base_center;
 
-		Triangle triangle;
-		triangle.vertices[0] = prior;
-		triangle.vertices[1] = position;
-		triangle.vertices[2] = apex;
-		add_triangle(&triangle, side_colour);
-	}
+        Triangle triangle;
+        triangle.vertices[0] = prior;
+        triangle.vertices[1] = position;
+        triangle.vertices[2] = apex;
+        add_triangle(&triangle, side_colour);
+    }
 
-	add_circle(base_center, axis, radius, base_colour);
+    add_circle(base_center, axis, radius, base_colour);
 }
 
 void add_cylinder(Vector3 start, Vector3 end, float radius, Vector4 colour)
 {
-	const int segments = 16;
-	Vector3 axis = end - start;
-	Quaternion orientation = axis_angle_rotation(axis, 0.0f);
-	Vector3 arm = radius * normalise(perp(axis));
-	Vector3 next_top = (orientation * arm) + start;
-	Vector3 next_bottom = (orientation * arm) + end;
+    const int segments = 16;
+    Vector3 axis = end - start;
+    Quaternion orientation = axis_angle_rotation(axis, 0.0f);
+    Vector3 arm = radius * normalise(perp(axis));
+    Vector3 next_top = (orientation * arm) + start;
+    Vector3 next_bottom = (orientation * arm) + end;
 
-	for(int i = 1; i <= segments; i += 1)
-	{
-		Vector3 prior_top = next_top;
-		Vector3 prior_bottom = next_bottom;
-		float t = (static_cast<float>(i) / segments) * tau;
-		orientation = axis_angle_rotation(axis, t);
-		next_top = (orientation * arm) + start;
-		next_bottom = (orientation * arm) + end;
+    for(int i = 1; i <= segments; i += 1)
+    {
+        Vector3 prior_top = next_top;
+        Vector3 prior_bottom = next_bottom;
+        float t = (static_cast<float>(i) / segments) * tau;
+        orientation = axis_angle_rotation(axis, t);
+        next_top = (orientation * arm) + start;
+        next_bottom = (orientation * arm) + end;
 
-		Quad quad;
-		quad.vertices[0] = prior_top;
-		quad.vertices[1] = next_top;
-		quad.vertices[2] = next_bottom;
-		quad.vertices[3] = prior_bottom;
-		add_quad(&quad, colour);
-	}
+        Quad quad;
+        quad.vertices[0] = prior_top;
+        quad.vertices[1] = next_top;
+        quad.vertices[2] = next_bottom;
+        quad.vertices[3] = prior_bottom;
+        add_quad(&quad, colour);
+    }
 
-	add_circle(start, axis, radius, colour);
-	add_circle(end, -axis, radius, colour);
+    add_circle(start, axis, radius, colour);
+    add_circle(end, -axis, radius, colour);
 }
 
 void add_box(Vector3 center, Vector3 extents, Vector4 colour)
 {
-	// corners
-	Vector3 c[8] =
-	{
-		{+extents.x, +extents.y, +extents.z},
-		{+extents.x, +extents.y, -extents.z},
-		{+extents.x, -extents.y, +extents.z},
-		{+extents.x, -extents.y, -extents.z},
-		{-extents.x, +extents.y, +extents.z},
-		{-extents.x, +extents.y, -extents.z},
-		{-extents.x, -extents.y, +extents.z},
-		{-extents.x, -extents.y, -extents.z},
-	};
-	for(int i = 0; i < 8; i += 1)
-	{
-		c[i] += center;
-	}
+    // corners
+    Vector3 c[8] =
+    {
+        {+extents.x, +extents.y, +extents.z},
+        {+extents.x, +extents.y, -extents.z},
+        {+extents.x, -extents.y, +extents.z},
+        {+extents.x, -extents.y, -extents.z},
+        {-extents.x, +extents.y, +extents.z},
+        {-extents.x, +extents.y, -extents.z},
+        {-extents.x, -extents.y, +extents.z},
+        {-extents.x, -extents.y, -extents.z},
+    };
+    for(int i = 0; i < 8; i += 1)
+    {
+        c[i] += center;
+    }
 
-	Quad sides[6] =
-	{
-		{c[1], c[0], c[2], c[3]},
-		{c[4], c[5], c[7], c[6]},
-		{c[0], c[1], c[5], c[4]},
-		{c[3], c[2], c[6], c[7]},
-		{c[2], c[0], c[4], c[6]},
-		{c[1], c[3], c[7], c[5]},
-	};
+    Quad sides[6] =
+    {
+        {c[1], c[0], c[2], c[3]},
+        {c[4], c[5], c[7], c[6]},
+        {c[0], c[1], c[5], c[4]},
+        {c[3], c[2], c[6], c[7]},
+        {c[2], c[0], c[4], c[6]},
+        {c[1], c[3], c[7], c[5]},
+    };
 
-	add_quad(&sides[0], colour);
-	add_quad(&sides[1], colour);
-	add_quad(&sides[2], colour);
-	add_quad(&sides[3], colour);
-	add_quad(&sides[4], colour);
-	add_quad(&sides[5], colour);
+    add_quad(&sides[0], colour);
+    add_quad(&sides[1], colour);
+    add_quad(&sides[2], colour);
+    add_quad(&sides[3], colour);
+    add_quad(&sides[4], colour);
+    add_quad(&sides[5], colour);
 }
 
 static Vector3 polar_to_cartesian(float theta, float phi, float radius)
 {
-	Vector3 point;
-	point.x = radius * sin(theta) * cos(phi);
-	point.y = radius * sin(theta) * sin(phi);
-	point.z = radius * cos(theta);
-	return point;
+    Vector3 point;
+    point.x = radius * sin(theta) * cos(phi);
+    point.y = radius * sin(theta) * sin(phi);
+    point.z = radius * cos(theta);
+    return point;
 }
 
 void add_sphere(Vector3 center, float radius, Vector4 colour)
 {
-	const int meridians = 9;
-	const int parallels = 7;
-	const int rings = parallels + 1;
+    const int meridians = 9;
+    const int parallels = 7;
+    const int rings = parallels + 1;
 
-	Vector3 top = {0.0f, 0.0f, radius};
-	for(int i = 0; i < meridians; i += 1)
-	{
-		float theta = 1.0f / static_cast<float>(rings) * pi;
-		float phi0 = (i    ) / static_cast<float>(meridians) * tau;
-		float phi1 = (i + 1) / static_cast<float>(meridians) * tau;
+    Vector3 top = {0.0f, 0.0f, radius};
+    for(int i = 0; i < meridians; i += 1)
+    {
+        float theta = 1.0f / static_cast<float>(rings) * pi;
+        float phi0 = (i    ) / static_cast<float>(meridians) * tau;
+        float phi1 = (i + 1) / static_cast<float>(meridians) * tau;
 
-		Triangle triangle;
-		triangle.vertices[0] = polar_to_cartesian(theta, phi0, radius) + center;
-		triangle.vertices[1] = polar_to_cartesian(theta, phi1, radius) + center;
-		triangle.vertices[2] = top + center;
-		add_triangle(&triangle, colour);
-	}
+        Triangle triangle;
+        triangle.vertices[0] = polar_to_cartesian(theta, phi0, radius) + center;
+        triangle.vertices[1] = polar_to_cartesian(theta, phi1, radius) + center;
+        triangle.vertices[2] = top + center;
+        add_triangle(&triangle, colour);
+    }
 
-	Vector3 bottom = {0.0f, 0.0f, -radius};
-	for(int i = 0; i < meridians; i += 1)
-	{
-		float theta = (parallels) / static_cast<float>(rings) * pi;
-		float phi0 = (i + 1) / static_cast<float>(meridians) * tau;
-		float phi1 = (i    ) / static_cast<float>(meridians) * tau;
+    Vector3 bottom = {0.0f, 0.0f, -radius};
+    for(int i = 0; i < meridians; i += 1)
+    {
+        float theta = (parallels) / static_cast<float>(rings) * pi;
+        float phi0 = (i + 1) / static_cast<float>(meridians) * tau;
+        float phi1 = (i    ) / static_cast<float>(meridians) * tau;
 
-		Triangle triangle;
-		triangle.vertices[0] = polar_to_cartesian(theta, phi0, radius) + center;
-		triangle.vertices[1] = polar_to_cartesian(theta, phi1, radius) + center;
-		triangle.vertices[2] = bottom + center;
-		add_triangle(&triangle, colour);
-	}
+        Triangle triangle;
+        triangle.vertices[0] = polar_to_cartesian(theta, phi0, radius) + center;
+        triangle.vertices[1] = polar_to_cartesian(theta, phi1, radius) + center;
+        triangle.vertices[2] = bottom + center;
+        add_triangle(&triangle, colour);
+    }
 
-	for(int i = 1; i < parallels; i += 1)
-	{
-		float theta0 = (i    ) / static_cast<float>(rings) * pi;
-		float theta1 = (i + 1) / static_cast<float>(rings) * pi;
-		for(int j = 0; j < meridians; j += 1)
-		{
-			float phi0 = (j    ) / static_cast<float>(meridians) * tau;
-			float phi1 = (j + 1) / static_cast<float>(meridians) * tau;
+    for(int i = 1; i < parallels; i += 1)
+    {
+        float theta0 = (i    ) / static_cast<float>(rings) * pi;
+        float theta1 = (i + 1) / static_cast<float>(rings) * pi;
+        for(int j = 0; j < meridians; j += 1)
+        {
+            float phi0 = (j    ) / static_cast<float>(meridians) * tau;
+            float phi1 = (j + 1) / static_cast<float>(meridians) * tau;
 
-			Quad quad;
-			quad.vertices[0] = polar_to_cartesian(theta0, phi0, radius) + center;
-			quad.vertices[1] = polar_to_cartesian(theta1, phi0, radius) + center;
-			quad.vertices[2] = polar_to_cartesian(theta1, phi1, radius) + center;
-			quad.vertices[3] = polar_to_cartesian(theta0, phi1, radius) + center;
-			add_quad(&quad, colour);
-		}
-	}
+            Quad quad;
+            quad.vertices[0] = polar_to_cartesian(theta0, phi0, radius) + center;
+            quad.vertices[1] = polar_to_cartesian(theta1, phi0, radius) + center;
+            quad.vertices[2] = polar_to_cartesian(theta1, phi1, radius) + center;
+            quad.vertices[3] = polar_to_cartesian(theta0, phi1, radius) + center;
+            add_quad(&quad, colour);
+        }
+    }
 }
 
 void add_arc(Vector3 center, Vector3 axis, float angle, float start_angle, float radius, float width, Vector4 colour)
 {
-	const int segments = 11;
+    const int segments = 11;
 
-	Vector3 arm = radius * normalise(perp(axis));
-	float half_width = width / 2.0f;
-	Quaternion orientation = axis_angle_rotation(axis, start_angle);
-	Vector3 medial = orientation * arm;
-	Vector3 direction = normalise(medial);
+    Vector3 arm = radius * normalise(perp(axis));
+    float half_width = width / 2.0f;
+    Quaternion orientation = axis_angle_rotation(axis, start_angle);
+    Vector3 medial = orientation * arm;
+    Vector3 direction = normalise(medial);
 
-	Quad quad;
-	quad.vertices[0] = (half_width * -direction) + medial + center;
-	quad.vertices[1] = (half_width * direction) + medial + center;
+    Quad quad;
+    quad.vertices[0] = (half_width * -direction) + medial + center;
+    quad.vertices[1] = (half_width * direction) + medial + center;
 
-	for(int i = 1; i <= segments; i += 1)
-	{
-		float theta = (i / static_cast<float>(segments) * angle) + start_angle;
-		orientation = axis_angle_rotation(axis, theta);
-		medial = orientation * arm;
-		direction = normalise(medial);
+    for(int i = 1; i <= segments; i += 1)
+    {
+        float theta = (i / static_cast<float>(segments) * angle) + start_angle;
+        orientation = axis_angle_rotation(axis, theta);
+        medial = orientation * arm;
+        direction = normalise(medial);
 
-		quad.vertices[2] = (half_width * direction) + medial + center;
-		quad.vertices[3] = (half_width * -direction) + medial + center;
-		add_quad(&quad, colour);
+        quad.vertices[2] = (half_width * direction) + medial + center;
+        quad.vertices[3] = (half_width * -direction) + medial + center;
+        add_quad(&quad, colour);
 
-		quad.vertices[0] = quad.vertices[3];
-		quad.vertices[1] = quad.vertices[2];
-	}
+        quad.vertices[0] = quad.vertices[3];
+        quad.vertices[1] = quad.vertices[2];
+    }
 }
 
 void draw_opaque_rect(Rect rect, Vector4 colour)
 {
-	add_rect(rect, colour);
-	draw();
+    add_rect(rect, colour);
+    draw();
 }
 
 void draw_transparent_rect(Rect rect, Vector4 colour)
 {
-	set_blend_mode(immediate::BlendMode::Transparent);
-	add_rect(rect, colour);
-	draw();
+    set_blend_mode(immediate::BlendMode::Transparent);
+    add_rect(rect, colour);
+    draw();
 }
 
 } // namespace immediate

@@ -13,31 +13,31 @@ extern const float pi_over_2 = 1.57079632679489661923f;
 
 float clamp(float a, float min, float max)
 {
-	return fmin(fmax(a, min), max);
+    return fmin(fmax(a, min), max);
 }
 
 float lerp(float v0, float v1, float t)
 {
-	return (1.0f - t) * v0 + t * v1;
+    return (1.0f - t) * v0 + t * v1;
 }
 
 float unlerp(float v0, float v1, float t)
 {
-	ASSERT(v0 != v1);
-	return (t - v0) / (v1 - v0);
+    ASSERT(v0 != v1);
+    return (t - v0) / (v1 - v0);
 }
 
 bool almost_zero(float x)
 {
-	return x > -1e-6f && x < 1e-6f;
+    return x > -1e-6f && x < 1e-6f;
 }
 
 bool almost_one(float x)
 {
-	return abs(x - 1.0f) <= 0.5e-5f;
+    return abs(x - 1.0f) <= 0.5e-5f;
 }
 
 bool almost_equals(float x, float y)
 {
-	return abs(x - y) < 1e-6f;
+    return abs(x - y) < 1e-6f;
 }

@@ -5,21 +5,21 @@
 
 struct Rect
 {
-	Vector2 bottom_left;
-	Vector2 dimensions;
+    Vector2 bottom_left;
+    Vector2 dimensions;
 };
 
 struct Triangle
 {
-	// assumes counter-clockwise winding for the front face
-	Vector3 vertices[3];
+    // assumes counter-clockwise winding for the front face
+    Vector3 vertices[3];
 };
 
 struct Quad
 {
-	// assumes counter-clockwise winding for the front face
-	// also, there's nothing guaranteeing these are coplanar
-	Vector3 vertices[4];
+    // assumes counter-clockwise winding for the front face
+    // also, there's nothing guaranteeing these are coplanar
+    Vector3 vertices[4];
 };
 
 Quad rect_to_quad(Rect r);
