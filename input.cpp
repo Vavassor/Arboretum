@@ -1,6 +1,7 @@
 #include "input.h"
 
 #include "logging.h"
+#include "loop_macros.h"
 
 namespace input {
 
@@ -21,9 +22,13 @@ namespace
     const int keys_count = 256;
     struct
     {
+        Modifier modifiers[keys_count];
         bool keys_pressed[keys_count];
         int edge_counts[keys_count];
     } keyboard;
+
+    const int hotkeys_count = 128;
+    Hotkey hotkeys[hotkeys_count][2];
 }
 
 void key_press(Key key, bool pressed, Modifier modifier)
@@ -31,6 +36,7 @@ void key_press(Key key, bool pressed, Modifier modifier)
     int index = static_cast<int>(key);
     keyboard.keys_pressed[index] = pressed;
     keyboard.edge_counts[index] = 0;
+    keyboard.modifiers[index] = modifier;
 }
 
 bool get_key_pressed(Key key)
@@ -43,6 +49,24 @@ bool get_key_tapped(Key key)
 {
     int index = static_cast<int>(key);
     return keyboard.keys_pressed[index] && keyboard.edge_counts[index] == 0;
+}
+
+bool get_key_modified_by_control(Key key)
+{
+    int index = static_cast<int>(key);
+    return keyboard.modifiers[index].control;
+}
+
+bool get_key_modified_by_shift(Key key)
+{
+    int index = static_cast<int>(key);
+    return keyboard.modifiers[index].shift;
+}
+
+bool get_key_modified_by_alt(Key key)
+{
+    int index = static_cast<int>(key);
+    return keyboard.modifiers[index].alt;
 }
 
 void mouse_click(MouseButton button, bool pressed, Modifier modifier)
@@ -96,9 +120,127 @@ bool get_mouse_clicked(MouseButton button)
     return mouse.buttons_pressed[index] && mouse.edge_counts[index] == 0;
 }
 
+void set_primary_hotkey(Function function, Hotkey hotkey)
+{
+    int index = static_cast<int>(function);
+    hotkeys[index][0] = hotkey;
+}
+
+void set_secondary_hotkey(Function function, Hotkey hotkey)
+{
+    int index = static_cast<int>(function);
+    hotkeys[index][1] = hotkey;
+}
+
+bool get_hotkey_pressed(Function function)
+{
+    int index = static_cast<int>(function);
+    bool result = false;
+    FOR_N(i, 2)
+    {
+        Hotkey hotkey = hotkeys[index][i];
+        if(hotkey.key == Key::Unknown)
+        {
+            continue;
+        }
+
+        result |= get_key_pressed(hotkey.key);
+
+        int key_index = static_cast<int>(hotkey.key);
+        Modifier modifier = keyboard.modifiers[key_index];
+        switch(hotkey.modifier)
+        {
+            default:
+            case ModifierCombo::None:
+            {
+                break;
+            }
+            case ModifierCombo::Alt:
+            {
+                result &= modifier.alt && !modifier.control && !modifier.shift;
+                break;
+            }
+            case ModifierCombo::Alt_Shift:
+            {
+                result &= modifier.alt && !modifier.control && modifier.shift;
+                break;
+            }
+            case ModifierCombo::Control:
+            {
+                result &= !modifier.alt && modifier.control && !modifier.shift;
+                break;
+            }
+            case ModifierCombo::Control_Shift:
+            {
+                result &= !modifier.alt && modifier.control && modifier.shift;
+                break;
+            }
+            case ModifierCombo::Shift:
+            {
+                result &= !modifier.alt && !modifier.control && modifier.shift;
+                break;
+            }
+        }
+    }
+    return result;
+}
+
+bool get_hotkey_tapped(Function function)
+{
+    int index = static_cast<int>(function);
+    bool result = false;
+    FOR_N(i, 2)
+    {
+        Hotkey hotkey = hotkeys[index][i];
+        if(hotkey.key == Key::Unknown)
+        {
+            continue;
+        }
+
+        result |= get_key_tapped(hotkey.key);
+
+        int key_index = static_cast<int>(hotkey.key);
+        Modifier modifier = keyboard.modifiers[key_index];
+        switch(hotkey.modifier)
+        {
+            default:
+            case ModifierCombo::None:
+            {
+                break;
+            }
+            case ModifierCombo::Alt:
+            {
+                result &= modifier.alt && !modifier.control && !modifier.shift;
+                break;
+            }
+            case ModifierCombo::Alt_Shift:
+            {
+                result &= modifier.alt && !modifier.control && modifier.shift;
+                break;
+            }
+            case ModifierCombo::Control:
+            {
+                result &= !modifier.alt && modifier.control && !modifier.shift;
+                break;
+            }
+            case ModifierCombo::Control_Shift:
+            {
+                result &= !modifier.alt && modifier.control && modifier.shift;
+                break;
+            }
+            case ModifierCombo::Shift:
+            {
+                result &= !modifier.alt && !modifier.control && modifier.shift;
+                break;
+            }
+        }
+    }
+    return result;
+}
+
 static void update_button_change_counts()
 {
-    for(int i = 0; i < 3; ++i)
+    FOR_N(i, 3)
     {
         mouse.edge_counts[i] += 1;
     }
@@ -110,7 +252,7 @@ static void update_button_change_counts()
 
 static void update_key_change_counts()
 {
-    for(int i = 0; i < keys_count; ++i)
+    FOR_N(i, keys_count)
     {
         keyboard.edge_counts[i] += 1;
     }

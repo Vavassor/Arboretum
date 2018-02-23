@@ -3,6 +3,11 @@
 #include <X11/Xresource.h>
 #include <X11/Xcursor/Xcursor.h>
 
+#ifdef None
+#undef None
+#define X11_NONE 0L /* universal null resource or null atom */
+#endif
+
 #include "gl_core_3_3.h"
 #include "glx_extensions.h"
 #include "video.h"
@@ -91,14 +96,124 @@ static input::Key translate_key_sym(KeySym key_sym)
 {
     switch(key_sym)
     {
-        case XK_space: return input::Key::Space;
+        case XK_a:
+        case XK_A:            return input::Key::A;
+        case XK_apostrophe:   return input::Key::Apostrophe;
+        case XK_b:
+        case XK_B:            return input::Key::B;
+        case XK_backslash:    return input::Key::Backslash;
+        case XK_BackSpace:    return input::Key::Backspace;
+        case XK_c:
+        case XK_C:            return input::Key::C;
+        case XK_comma:        return input::Key::Comma;
+        case XK_d:
+        case XK_D:            return input::Key::D;
+        case XK_Delete:       return input::Key::Delete;
+        case XK_Down:         return input::Key::Down_Arrow;
+        case XK_e:
+        case XK_E:            return input::Key::E;
+        case XK_8:            return input::Key::Eight;
+        case XK_End:          return input::Key::End;
+        case XK_Return:       return input::Key::Enter;
+        case XK_equal:        return input::Key::Equals_Sign;
+        case XK_Escape:       return input::Key::Escape;
         case XK_f:
-        case XK_F:     return input::Key::F;
+        case XK_F:            return input::Key::F;
+        case XK_F1:           return input::Key::F1;
+        case XK_F2:           return input::Key::F2;
+        case XK_F3:           return input::Key::F3;
+        case XK_F4:           return input::Key::F4;
+        case XK_F5:           return input::Key::F5;
+        case XK_F6:           return input::Key::F6;
+        case XK_F7:           return input::Key::F7;
+        case XK_F8:           return input::Key::F8;
+        case XK_F9:           return input::Key::F9;
+        case XK_F10:          return input::Key::F10;
+        case XK_F11:          return input::Key::F11;
+        case XK_F12:          return input::Key::F12;
+        case XK_5:            return input::Key::Five;
+        case XK_4:            return input::Key::Four;
         case XK_g:
-        case XK_G:     return input::Key::G;
+        case XK_G:            return input::Key::G;
+        case XK_grave:        return input::Key::Grave_Accent;
+        case XK_h:
+        case XK_H:            return input::Key::H;
+        case XK_Home:         return input::Key::Home;
+        case XK_i:
+        case XK_I:            return input::Key::I;
+        case XK_Insert:       return input::Key::Insert;
+        case XK_j:
+        case XK_J:            return input::Key::J;
+        case XK_k:
+        case XK_K:            return input::Key::K;
+        case XK_l:
+        case XK_L:            return input::Key::L;
+        case XK_Left:         return input::Key::Left_Arrow;
+        case XK_bracketleft:  return input::Key::Left_Bracket;
+        case XK_m:
+        case XK_M:            return input::Key::M;
+        case XK_minus:        return input::Key::Minus;
+        case XK_n:
+        case XK_N:            return input::Key::N;
+        case XK_9:            return input::Key::Nine;
+        case XK_KP_0:         return input::Key::Numpad_0;
+        case XK_KP_1:         return input::Key::Numpad_1;
+        case XK_KP_2:         return input::Key::Numpad_2;
+        case XK_KP_3:         return input::Key::Numpad_3;
+        case XK_KP_4:         return input::Key::Numpad_4;
+        case XK_KP_5:         return input::Key::Numpad_5;
+        case XK_KP_6:         return input::Key::Numpad_6;
+        case XK_KP_7:         return input::Key::Numpad_7;
+        case XK_KP_8:         return input::Key::Numpad_8;
+        case XK_KP_9:         return input::Key::Numpad_9;
+        case XK_KP_Decimal:   return input::Key::Numpad_Decimal;
+        case XK_KP_Divide:    return input::Key::Numpad_Divide;
+        case XK_KP_Enter:     return input::Key::Numpad_Enter;
+        case XK_KP_Subtract:  return input::Key::Numpad_Subtract;
+        case XK_KP_Multiply:  return input::Key::Numpad_Multiply;
+        case XK_KP_Add:       return input::Key::Numpad_Add;
+        case XK_o:
+        case XK_O:            return input::Key::O;
+        case XK_1:            return input::Key::One;
+        case XK_p:
+        case XK_P:            return input::Key::P;
+        case XK_Next:         return input::Key::Page_Down;
+        case XK_Prior:        return input::Key::Page_Up;
+        case XK_Pause:        return input::Key::Pause;
+        case XK_period:       return input::Key::Period;
+        case XK_q:
+        case XK_Q:            return input::Key::Q;
+        case XK_r:
+        case XK_R:            return input::Key::R;
+        case XK_Right:        return input::Key::Right_Arrow;
+        case XK_bracketright: return input::Key::Right_Bracket;
+        case XK_s:
+        case XK_S:            return input::Key::S;
+        case XK_semicolon:    return input::Key::Semicolon;
+        case XK_7:            return input::Key::Seven;
+        case XK_6:            return input::Key::Six;
+        case XK_slash:        return input::Key::Slash;
+        case XK_space:        return input::Key::Space;
+        case XK_t:
+        case XK_T:            return input::Key::T;
+        case XK_Tab:          return input::Key::Tab;
+        case XK_3:            return input::Key::Three;
+        case XK_2:            return input::Key::Two;
+        case XK_u:
+        case XK_U:            return input::Key::U;
+        case XK_Up:           return input::Key::Up_Arrow;
+        case XK_v:
+        case XK_V:            return input::Key::V;
+        case XK_w:
+        case XK_W:            return input::Key::W;
+        case XK_x:
+        case XK_X:            return input::Key::X;
+        case XK_y:
+        case XK_Y:            return input::Key::Y;
         case XK_z:
-        case XK_Z:     return input::Key::Z;
-        default:       return input::Key::Unknown;
+        case XK_Z:            return input::Key::Z;
+        case XK_0:            return input::Key::Zero;
+        default:              return input::Key::Unknown;
     }
 }
 
@@ -131,7 +246,7 @@ bool main_startup()
 
     // Choose the abstract "Visual" type that will be used to describe both the
     // window and the OpenGL rendering context.
-    GLint visual_attributes[] = {GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_STENCIL_SIZE, 8, GLX_DOUBLEBUFFER, None};
+    GLint visual_attributes[] = {GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_STENCIL_SIZE, 8, GLX_DOUBLEBUFFER, X11_NONE};
     platform.visual_info = glXChooseVisual(platform.display, platform.screen, visual_attributes);
     if(!platform.visual_info)
     {
@@ -216,7 +331,7 @@ void main_shutdown()
         {
             glXDestroyContext(platform.display, rendering_context);
         }
-        if(platform.colormap != None)
+        if(platform.colormap != X11_NONE)
         {
             XFreeColormap(platform.display, platform.colormap);
         }

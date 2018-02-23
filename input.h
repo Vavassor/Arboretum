@@ -16,10 +16,97 @@ struct Modifier
 enum class Key
 {
     Unknown,
-    Space,
+    A,
+    Apostrophe,
+    B,
+    Backslash,
+    Backspace,
+    C,
+    Comma,
+    D,
+    Delete,
+    Down_Arrow,
+    E,
+    Eight,
+    End,
+    Enter,
+    Equals_Sign,
+    Escape,
     F,
+    F1,
+    F2,
+    F3,
+    F4,
+    F5,
+    F6,
+    F7,
+    F8,
+    F9,
+    F10,
+    F11,
+    F12,
+    Five,
+    Four,
     G,
+    Grave_Accent,
+    H,
+    Home,
+    I,
+    Insert,
+    J,
+    K,
+    L,
+    Left_Arrow,
+    Left_Bracket,
+    M,
+    Minus,
+    N,
+    Nine,
+    Numpad_0,
+    Numpad_1,
+    Numpad_2,
+    Numpad_3,
+    Numpad_4,
+    Numpad_5,
+    Numpad_6,
+    Numpad_7,
+    Numpad_8,
+    Numpad_9,
+    Numpad_Decimal,
+    Numpad_Divide,
+    Numpad_Enter,
+    Numpad_Subtract,
+    Numpad_Multiply,
+    Numpad_Add,
+    O,
+    One,
+    P,
+    Page_Down,
+    Page_Up,
+    Pause,
+    Period,
+    Q,
+    R,
+    Right_Arrow,
+    Right_Bracket,
+    S,
+    Semicolon,
+    Seven,
+    Six,
+    Slash,
+    Space,
+    T,
+    Tab,
+    Three,
+    Two,
+    U,
+    Up_Arrow,
+    V,
+    W,
+    X,
+    Y,
     Z,
+    Zero,
 };
 
 enum class MouseButton
@@ -29,9 +116,34 @@ enum class MouseButton
     Right,
 };
 
+enum class Function
+{
+    Undo,
+    Redo,
+};
+
+enum class ModifierCombo
+{
+    None,
+    Alt,
+    Alt_Shift,
+    Control,
+    Control_Shift,
+    Shift,
+};
+
+struct Hotkey
+{
+    ModifierCombo modifier;
+    Key key;
+};
+
 void key_press(Key key, bool pressed, Modifier modifier);
 bool get_key_pressed(Key key);
 bool get_key_tapped(Key key);
+bool get_key_modified_by_control(Key key);
+bool get_key_modified_by_shift(Key key);
+bool get_key_modified_by_alt(Key key);
 
 void mouse_click(MouseButton button, bool pressed, Modifier modifier);
 void mouse_scroll(int x, int y);
@@ -41,6 +153,11 @@ void get_mouse_velocity(int* x, int* y);
 void get_mouse_scroll_velocity(int* x, int* y);
 bool get_mouse_pressed(MouseButton button);
 bool get_mouse_clicked(MouseButton button);
+
+void set_primary_hotkey(Function function, Hotkey hotkey);
+void set_secondary_hotkey(Function function, Hotkey hotkey);
+bool get_hotkey_pressed(Function function);
+bool get_hotkey_tapped(Function function);
 
 void system_update();
 

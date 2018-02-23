@@ -1283,6 +1283,19 @@ bool system_startup()
         move_tool.selected_plane = invalid_index;
     }
 
+    // Set up hotkeys.
+    {
+        input::Hotkey undo;
+        undo.key = input::Key::Z;
+        undo.modifier = input::ModifierCombo::Control;
+        input::set_primary_hotkey(input::Function::Undo, undo);
+
+        input::Hotkey redo;
+        redo.key = input::Key::Z;
+        redo.modifier = input::ModifierCombo::Control_Shift;
+        input::set_primary_hotkey(input::Function::Redo, redo);
+    }
+
     return true;
 }
 
@@ -2114,11 +2127,11 @@ static void update_object_mode(Platform* platform)
 
     if(action_in_progress == Action::None)
     {
-        if(input::get_key_tapped(input::Key::Z))
+        if(input::get_hotkey_tapped(input::Function::Undo))
         {
             undo();
         }
-        if(input::get_key_tapped(input::Key::F))
+        if(input::get_hotkey_tapped(input::Function::Redo))
         {
             redo(&history);
         }
