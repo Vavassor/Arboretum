@@ -120,6 +120,7 @@ enum class Function
 {
     Undo,
     Redo,
+    Delete,
 };
 
 enum class ModifierCombo

@@ -10,12 +10,16 @@ void history_create(History* history, Heap* heap)
 {
     const int base_states_cap = 2;
     const int changes_cap = 200;
+    const int cleanup_cap = 200;
 
     history->base_states = HEAP_ALLOCATE(heap, Change, base_states_cap);
     history->changes = HEAP_ALLOCATE(heap, Change, changes_cap);
+    history->changes_to_clean_up = HEAP_ALLOCATE(heap, Change, cleanup_cap);
     history->base_states_cap = base_states_cap;
     history->base_states_count = 0;
     history->changes_cap = changes_cap;
+    history->changes_to_clean_up_cap = cleanup_cap;
+    history->changes_to_clean_up_count = 0;
     history->head = 0;
     history->tail = 0;
     history->index = 0;
@@ -48,20 +52,37 @@ bool history_is_at_end(History* history)
 void history_add(History* history, Change change)
 {
     history->head = history->index;
+
+    Change save = history->changes[history->head];
     history->changes[history->head] = change;
     history->head = (history->head + 1) % history->changes_cap;
 
     if(history->head == history->tail)
     {
+        history->changes_to_clean_up[history->changes_to_clean_up_count] = save;
+        history->changes_to_clean_up_count += 1;
+
         history->tail = (history->tail + 1) % history->changes_cap;
     }
 }
 
-void history_add_base_state(History* history, Change change)
+void history_add_base_state(History* history, Change change, Heap* heap)
 {
     history->base_states[history->base_states_count] = change;
     history->base_states_count += 1;
-    ASSERT(history->base_states_count <= history->base_states_cap);
+
+    // Reserve more space for a future add.
+    int space = history->base_states_count;
+    while(space >= history->base_states_cap)
+    {
+        history->base_states_cap *= 2;
+        Change* base_states = HEAP_REALLOCATE(heap, Change, history->base_states, history->base_states_cap);
+        if(!base_states)
+        {
+            break;
+        }
+        history->base_states = base_states;
+    }
 }
 
 static bool in_cyclic_interval(int x, int first, int second)
@@ -108,6 +129,11 @@ Change* history_find_past_change(History* history)
 
     switch(change.type)
     {
+        case ChangeType::Create_Object:
+        case ChangeType::Delete_Object:
+        {
+            return &history->changes[history->index];
+        }
         case ChangeType::Move:
         {
             ObjectId object_id = change.move.object_id;
@@ -130,7 +156,7 @@ Change* history_find_past_change(History* history)
                 }
             }
 
-            FOR_N(i, history->base_states_cap)
+            FOR_N(i, history->base_states_count)
             {
                 Change* base = &history->base_states[i];
                 if(base->type == change.type && base->move.object_id == object_id)
@@ -146,3 +172,34 @@ Change* history_find_past_change(History* history)
     return nullptr;
 }
 
+void history_log(History* history)
+{
+    for(int i = history->tail; i != history->head; i = (i + 1) % history->changes_cap)
+    {
+        Change change = history->changes[i];
+        const char* pointer = "";
+        if(i == history->index)
+        {
+            pointer = " <----";
+        }
+        switch(change.type)
+        {
+            case ChangeType::Create_Object:
+            {
+                LOG_DEBUG("Create_Object object = %u%s", change.create_object.object_id, pointer);
+                break;
+            }
+            case ChangeType::Delete_Object:
+            {
+                LOG_DEBUG("Delete_Object object = %u%s", change.delete_object.object_id, pointer);
+                break;
+            }
+            case ChangeType::Move:
+            {
+                LOG_DEBUG("Move object = %u position = <%f, %f, %f>%s", change.move.object_id, change.move.position.x, change.move.position.y, change.move.position.z, pointer);
+                break;
+            }
+        }
+    }
+    LOG_DEBUG("");
+}

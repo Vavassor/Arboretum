@@ -844,8 +844,11 @@ struct MoveTool
 struct ObjectLady
 {
     Object* objects;
+    Object* storage;
     int objects_cap;
     int objects_count;
+    int storage_cap;
+    int storage_count;
     ObjectId seed;
 };
 
@@ -854,8 +857,11 @@ static void create_object_lady(ObjectLady* lady, Heap* heap)
     const int cap = 10;
 
     lady->objects = HEAP_ALLOCATE(heap, Object, cap);
+    lady->storage = HEAP_ALLOCATE(heap, Object, cap);
     lady->objects_cap = cap;
     lady->objects_count = 0;
+    lady->storage_cap = cap;
+    lady->storage_count = 0;
     lady->seed = 1;
 }
 
@@ -867,7 +873,12 @@ static void destroy_object_lady(ObjectLady* lady, Heap* heap)
         {
             object_destroy(&lady->objects[i]);
         }
+        FOR_N(i, lady->storage_count)
+        {
+            object_destroy(&lady->storage[i]);
+        }
         SAFE_HEAP_DEALLOCATE(heap, lady->objects);
+        SAFE_HEAP_DEALLOCATE(heap, lady->storage);
     }
 }
 
@@ -886,6 +897,21 @@ static bool reserve(ObjectLady* lady, int space, Heap* heap)
     return true;
 }
 
+static bool reserve_storage_space(ObjectLady* lady, int space, Heap* heap)
+{
+    while(space >= lady->storage_cap)
+    {
+        lady->storage_cap *= 2;
+        Object* storage = HEAP_REALLOCATE(heap, Object, lady->storage, lady->storage_cap);
+        if(!storage)
+        {
+            return false;
+        }
+        lady->storage = storage;
+    }
+    return true;
+}
+
 static ObjectId generate_object_id(ObjectLady* lady)
 {
     ObjectId id = lady->seed;
@@ -893,7 +919,7 @@ static ObjectId generate_object_id(ObjectLady* lady)
     return id;
 }
 
-static Object* add_object(ObjectLady* lady, Heap* heap)
+static Object* add_object(ObjectLady* lady, History* history, Heap* heap)
 {
     Object* object = &lady->objects[lady->objects_count];
     object->id = generate_object_id(lady);
@@ -903,6 +929,24 @@ static Object* add_object(ObjectLady* lady, Heap* heap)
     lady->objects_count += 1;
 
     return object;
+}
+
+static void add_object_to_history(History* history, Object* object, Heap* heap)
+{
+    Change state;
+    state.type = ChangeType::Move;
+    state.move.object_id = object->id;
+    state.move.position = object->position;
+    history_add_base_state(history, state, heap);
+}
+
+static void add_to_storage(ObjectLady* lady, Object* object, Heap* heap)
+{
+    Object* slot = &lady->storage[lady->storage_count];
+    *slot = *object;
+
+    reserve_storage_space(lady, lady->storage_count + 1, heap);
+    lady->storage_count += 1;
 }
 
 static Object* get_object_by_id(ObjectLady* lady, ObjectId id)
@@ -918,17 +962,63 @@ static Object* get_object_by_id(ObjectLady* lady, ObjectId id)
     return nullptr;
 }
 
-static void remove_object(ObjectLady* lady, ObjectId id)
+static void store_object(ObjectLady* lady, ObjectId id, Heap* heap)
 {
     Object* object = get_object_by_id(lady, id);
     if(object)
     {
-        object_destroy(object);
+        add_to_storage(lady, object, heap);
         if(lady->objects_count > 1)
         {
             *object = lady->objects[lady->objects_count - 1];
         }
         lady->objects_count -= 1;
+    }
+}
+
+static Object* get_object_in_storage_by_id(ObjectLady* lady, ObjectId id)
+{
+    FOR_N(i, lady->storage_count)
+    {
+        Object* object = &lady->storage[i];
+        if(object->id == id)
+        {
+            return object;
+        }
+    }
+    return nullptr;
+}
+
+static void take_out_of_storage(ObjectLady* lady, ObjectId id, Heap* heap)
+{
+    Object* object = get_object_in_storage_by_id(lady, id);
+    if(object)
+    {
+        // Copy from the storage slot back into the objects array.
+        lady->objects[lady->objects_count] = *object;
+        reserve(lady, lady->objects_count + 1, heap);
+        lady->objects_count += 1;
+
+        // Overwrite the slot in storage.
+        if(lady->storage_count > 1)
+        {
+            *object = lady->storage[lady->storage_count - 1];
+        }
+        lady->storage_count -= 1;
+    }
+}
+
+static void remove_from_storage(ObjectLady* lady, ObjectId id)
+{
+    Object* object = get_object_in_storage_by_id(lady, id);
+    if(object)
+    {
+        object_destroy(object);
+        if(lady->storage_count > 1)
+        {
+            *object = lady->storage[lady->storage_count - 1];
+        }
+        lady->storage_count -= 1;
     }
 }
 
@@ -1189,6 +1279,7 @@ bool system_start_up()
     hovered_object_index = invalid_index;
     selected_object_index = invalid_index;
 
+    history_create(&history, &heap);
     create_object_lady(&lady, &heap);
 
     // Sky
@@ -1197,7 +1288,7 @@ bool system_start_up()
 
     // Dodecahedron
     {
-        Object* dodecahedron = add_object(&lady, &heap);
+        Object* dodecahedron = add_object(&lady, &history, &heap);
         jan::Mesh* mesh = &dodecahedron->mesh;
 
         jan::make_a_weird_face(mesh);
@@ -1224,11 +1315,13 @@ bool system_start_up()
         dodecahedron->position = position;
         dodecahedron->orientation = orientation;
         dodecahedron->model = compose_transform(position, orientation, vector3_one);
+
+        add_object_to_history(&history, dodecahedron, &heap);
     }
 
     // Test Model
     {
-        Object* test_model = add_object(&lady, &heap);
+        Object* test_model = add_object(&lady, &history, &heap);
         jan::Mesh* mesh = &test_model->mesh;
 
         obj::load_file("test.obj", mesh, &heap, &scratch);
@@ -1246,6 +1339,8 @@ bool system_start_up()
         object_set_surface(test_model, vertices, vertices_count, indices, indices_count);
         HEAP_DEALLOCATE(&heap, vertices);
         HEAP_DEALLOCATE(&heap, indices);
+
+        add_object_to_history(&history, test_model, &heap);
     }
 
     // Camera
@@ -1283,23 +1378,6 @@ bool system_start_up()
     immediate::set_textured_shader(shader_font.program);
 
     ui::create_context(&ui_context, &heap);
-
-    // Initialise the undo history.
-    {
-        history_create(&history, &heap);
-
-        FOR_N(i, lady.objects_count)
-        {
-            Object object = lady.objects[i];
-
-            Change state;
-            state.type = ChangeType::Move;
-            state.move.object_id = object.id;
-            state.move.position = object.position;
-
-            history_add_base_state(&history, state);
-        }
-    }
 
     // Setup the main menu.
     {
@@ -1962,10 +2040,15 @@ static void move(Ray mouse_ray)
     object_set_position(object, point + move_tool.reference_offset);
 }
 
-static void apply_change(Change* change)
+static void apply_symmetric_change(Change* change)
 {
     switch(change->type)
     {
+        case ChangeType::Create_Object:
+        case ChangeType::Delete_Object:
+        {
+            break;
+        }
         case ChangeType::Move:
         {
             ObjectId id = change->move.object_id;
@@ -1984,8 +2067,28 @@ static void undo()
     }
 
     history_step(&history, -1);
-    Change* past = history_find_past_change(&history);
-    apply_change(past);
+
+    Change* change = history_find_past_change(&history);
+    switch(change->type)
+    {
+        case ChangeType::Create_Object:
+        {
+            store_object(&lady, change->create_object.object_id, &heap);
+            break;
+        }
+        case ChangeType::Delete_Object:
+        {
+            take_out_of_storage(&lady, change->delete_object.object_id, &heap);
+            break;
+        }
+        case ChangeType::Move:
+        {
+            apply_symmetric_change(change);
+            break;
+        }
+    }
+
+    history_log(&history);
 }
 
 static void redo(History* history)
@@ -1996,8 +2099,49 @@ static void redo(History* history)
     }
 
     Change* change = history_get(history, history->index);
-    apply_change(change);
+    switch(change->type)
+    {
+        case ChangeType::Create_Object:
+        {
+            take_out_of_storage(&lady, change->create_object.object_id, &heap);
+            break;
+        }
+        case ChangeType::Delete_Object:
+        {
+            store_object(&lady, change->delete_object.object_id, &heap);
+            break;
+        }
+        case ChangeType::Move:
+        {
+            apply_symmetric_change(change);
+            break;
+        }
+    }
+
     history_step(history, +1);
+
+    history_log(history);
+}
+
+static void delete_object(Platform* platform)
+{
+    Object* object = &lady.objects[selected_object_index];
+
+    if(hovered_object_index == selected_object_index)
+    {
+        change_cursor(platform, CursorType::Arrow);
+    }
+    hovered_object_index = invalid_index;
+
+    select_mesh(invalid_index);
+
+    Change change;
+    change.type = ChangeType::Delete_Object;
+    change.delete_object.object_id = object->id;
+    history_add(&history, change);
+    history_step(&history, +1);
+
+    store_object(&lady, object->id, &heap);
 }
 
 static void update_object_mode(Platform* platform)
@@ -2188,6 +2332,10 @@ static void update_object_mode(Platform* platform)
         if(input::get_hotkey_tapped(input::Function::Redo))
         {
             redo(&history);
+        }
+        if(selected_object_index != invalid_index && input::get_hotkey_tapped(input::Function::Delete))
+        {
+            delete_object(platform);
         }
     }
 }
@@ -2412,6 +2560,29 @@ void system_update(Platform* platform)
         }
     }
 
+    // Clean up the history.
+    {
+        FOR_N(i, history.changes_to_clean_up_count)
+        {
+            Change change = history.changes_to_clean_up[i];
+            switch(change.type)
+            {
+                case ChangeType::Create_Object:
+                case ChangeType::Move:
+                {
+                    break;
+                }
+                case ChangeType::Delete_Object:
+                {
+                    ObjectId id = change.delete_object.object_id;
+                    remove_from_storage(&lady, id);
+                    // TODO: history_remove_base_state(&history, id);
+                    break;
+                }
+            }
+        }
+    }
+
     // Update matrices.
     {
         Vector3 direction = normalise(camera.target - camera.position);
@@ -2615,7 +2786,7 @@ void pick_file(FilePickDialog* dialog, const char* name, ui::Context* context, H
     }
     else
     {
-        Object* imported_model = add_object(&lady, heap);
+        Object* imported_model = add_object(&lady, &history, heap);
         imported_model->mesh = mesh;
         imported_model->model = compose_transform({-2.0f, 0.0f, 0.0f}, quaternion_identity, vector3_one);
 
@@ -2628,6 +2799,8 @@ void pick_file(FilePickDialog* dialog, const char* name, ui::Context* context, H
         object_set_surface(imported_model, vertices, vertices_count, indices, indices_count);
         HEAP_DEALLOCATE(heap, vertices);
         HEAP_DEALLOCATE(heap, indices);
+
+        add_object_to_history(&history, imported_model, heap);
 
         close_dialog(dialog, context, heap);
         dialog->panel->unfocusable = true;

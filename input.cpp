@@ -249,6 +249,11 @@ void system_start_up()
     redo.key = Key::Z;
     redo.modifier = ModifierCombo::Control_Shift;
     set_primary_hotkey(Function::Redo, redo);
+
+    Hotkey delete_hotkey;
+    delete_hotkey.key = Key::Delete;
+    delete_hotkey.modifier = ModifierCombo::None;
+    set_primary_hotkey(Function::Delete, delete_hotkey);
 }
 
 static void update_button_change_counts()
