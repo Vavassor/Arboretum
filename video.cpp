@@ -250,27 +250,36 @@ void main()
 
 struct Object
 {
+    jan::Mesh mesh;
+
     Matrix4 model;
     Matrix4 model_view_projection;
     Matrix4 normal;
     Vector3 position;
     Quaternion orientation;
+
     GLuint buffers[2];
     GLuint vertex_array;
     int indices_count;
+
+    ObjectId id;
 };
 
 static void object_create(Object* object)
 {
-    glGenVertexArrays(1, &object->vertex_array);
-    glGenBuffers(2, object->buffers);
+    jan::create_mesh(&object->mesh);
 
     object->model = matrix4_identity;
     object->orientation = quaternion_identity;
+
+    glGenVertexArrays(1, &object->vertex_array);
+    glGenBuffers(2, object->buffers);
 }
 
 static void object_destroy(Object* object)
 {
+    jan::destroy_mesh(&object->mesh);
+
     glDeleteVertexArrays(1, &object->vertex_array);
     glDeleteBuffers(2, object->buffers);
 }
@@ -832,6 +841,97 @@ struct MoveTool
     int selected_plane;
 };
 
+struct ObjectLady
+{
+    Object* objects;
+    int objects_cap;
+    int objects_count;
+    ObjectId seed;
+};
+
+static void create_object_lady(ObjectLady* lady, Heap* heap)
+{
+    const int cap = 10;
+
+    lady->objects = HEAP_ALLOCATE(heap, Object, cap);
+    lady->objects_cap = cap;
+    lady->objects_count = 0;
+    lady->seed = 1;
+}
+
+static void destroy_object_lady(ObjectLady* lady, Heap* heap)
+{
+    if(lady)
+    {
+        FOR_N(i, lady->objects_count)
+        {
+            object_destroy(&lady->objects[i]);
+        }
+        SAFE_HEAP_DEALLOCATE(heap, lady->objects);
+    }
+}
+
+static bool reserve(ObjectLady* lady, int space, Heap* heap)
+{
+    while(space >= lady->objects_cap)
+    {
+        lady->objects_cap *= 2;
+        Object* objects = HEAP_REALLOCATE(heap, Object, lady->objects, lady->objects_cap);
+        if(!objects)
+        {
+            return false;
+        }
+        lady->objects = objects;
+    }
+    return true;
+}
+
+static ObjectId generate_object_id(ObjectLady* lady)
+{
+    ObjectId id = lady->seed;
+    lady->seed += 1;
+    return id;
+}
+
+static Object* add_object(ObjectLady* lady, Heap* heap)
+{
+    Object* object = &lady->objects[lady->objects_count];
+    object->id = generate_object_id(lady);
+    object_create(object);
+
+    reserve(lady, lady->objects_count + 1, heap);
+    lady->objects_count += 1;
+
+    return object;
+}
+
+static Object* get_object_by_id(ObjectLady* lady, ObjectId id)
+{
+    FOR_N(i, lady->objects_count)
+    {
+        Object* object = &lady->objects[i];
+        if(object->id == id)
+        {
+            return object;
+        }
+    }
+    return nullptr;
+}
+
+static void remove_object(ObjectLady* lady, ObjectId id)
+{
+    Object* object = get_object_by_id(lady, id);
+    if(object)
+    {
+        object_destroy(object);
+        if(lady->objects_count > 1)
+        {
+            *object = lady->objects[lady->objects_count - 1];
+        }
+        lady->objects_count -= 1;
+    }
+}
+
 namespace
 {
     const float near_plane = 0.001f;
@@ -888,11 +988,7 @@ namespace
     } shader_halo;
 
     Object sky;
-    Object* objects;
-    int objects_count;
-
-    jan::Mesh* meshes;
-    int meshes_count;
+    ObjectLady lady;
 
     int hovered_object_index;
     int selected_object_index;
@@ -959,28 +1055,6 @@ namespace
     ui::Id face_mode_button_id;
 }
 
-static Object* add_object(Heap* heap)
-{
-    objects = HEAP_REALLOCATE(heap, Object, objects, objects_count + 1);
-
-    Object* object = &objects[objects_count];
-    objects_count += 1;
-    object_create(object);
-
-    return object;
-}
-
-static jan::Mesh* add_mesh(Heap* heap)
-{
-    meshes = HEAP_REALLOCATE(heap, jan::Mesh, meshes, meshes_count + 1);
-
-    jan::Mesh* mesh = &meshes[meshes_count];
-    meshes_count += 1;
-    jan::create_mesh(mesh);
-
-    return mesh;
-}
-
 static void select_mesh(int index)
 {
     jan::destroy_selection(&selection);
@@ -994,7 +1068,7 @@ static void select_mesh(int index)
     selected_object_index = index;
 }
 
-bool system_startup()
+bool system_start_up()
 {
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
@@ -1115,14 +1189,16 @@ bool system_startup()
     hovered_object_index = invalid_index;
     selected_object_index = invalid_index;
 
+    create_object_lady(&lady, &heap);
+
     // Sky
     object_create(&sky);
     object_generate_sky(&sky, &scratch);
 
     // Dodecahedron
     {
-        Object* dodecahedron = add_object(&heap);
-        jan::Mesh* mesh = add_mesh(&heap);
+        Object* dodecahedron = add_object(&lady, &heap);
+        jan::Mesh* mesh = &dodecahedron->mesh;
 
         jan::make_a_weird_face(mesh);
 
@@ -1152,12 +1228,11 @@ bool system_startup()
 
     // Test Model
     {
-        jan::Mesh* mesh = add_mesh(&heap);
+        Object* test_model = add_object(&lady, &heap);
+        jan::Mesh* mesh = &test_model->mesh;
 
         obj::load_file("test.obj", mesh, &heap, &scratch);
         jan::colour_all_faces(mesh, vector3_yellow);
-
-        Object* test_model = add_object(&heap);
 
         Vector3 position = {-2.0f, 0.0f, 0.0f};
         test_model->position = position;
@@ -1213,13 +1288,13 @@ bool system_startup()
     {
         history_create(&history, &heap);
 
-        FOR_N(i, objects_count)
+        FOR_N(i, lady.objects_count)
         {
-            Object object = objects[i];
+            Object object = lady.objects[i];
 
             Change state;
             state.type = ChangeType::Move;
-            state.move.object_index = i;
+            state.move.object_id = object.id;
             state.move.position = object.position;
 
             history_add_base_state(&history, state);
@@ -1283,23 +1358,12 @@ bool system_startup()
         move_tool.selected_plane = invalid_index;
     }
 
-    // Set up hotkeys.
-    {
-        input::Hotkey undo;
-        undo.key = input::Key::Z;
-        undo.modifier = input::ModifierCombo::Control;
-        input::set_primary_hotkey(input::Function::Undo, undo);
-
-        input::Hotkey redo;
-        redo.key = input::Key::Z;
-        redo.modifier = input::ModifierCombo::Control_Shift;
-        input::set_primary_hotkey(input::Function::Redo, redo);
-    }
+    input::system_start_up();
 
     return true;
 }
 
-void system_shutdown(bool functions_loaded)
+void system_shut_down(bool functions_loaded)
 {
     if(functions_loaded)
     {
@@ -1320,17 +1384,7 @@ void system_shutdown(bool functions_loaded)
         glDeleteTextures(1, &hatch_pattern);
 
         object_destroy(&sky);
-        FOR_N(i, objects_count)
-        {
-            object_destroy(&objects[i]);
-        }
-        SAFE_HEAP_DEALLOCATE(&heap, objects);
-
-        FOR_N(i, meshes_count)
-        {
-            jan::destroy_mesh(&meshes[i]);
-        }
-        SAFE_HEAP_DEALLOCATE(&heap, meshes);
+        destroy_object_lady(&lady, &heap);
 
         jan::destroy_selection(&selection);
 
@@ -1640,9 +1694,9 @@ void draw_scale_tool(bool silhouetted)
 static void draw_object_with_halo(int index, Vector4 colour)
 {
     ASSERT(index != invalid_index);
-    ASSERT(index >= 0 && index < objects_count);
+    ASSERT(index >= 0 && index < lady.objects_count);
 
-    Object object = objects[index];
+    Object object = lady.objects[index];
 
     // Draw the object.
     glUseProgram(shader_lit.program);
@@ -1848,7 +1902,7 @@ static Vector3 closest_ray_point(Ray ray, Vector3 point)
 static void begin_move(Ray mouse_ray)
 {
     ASSERT(selected_object_index != invalid_index);
-    Object object = objects[selected_object_index];
+    Object object = lady.objects[selected_object_index];
     move_tool.reference_position = object.position;
 
     Vector3 point = closest_ray_point(mouse_ray, object.position);
@@ -1859,11 +1913,11 @@ static void end_move()
 {
     ASSERT(selected_object_index != invalid_index);
     int index = selected_object_index;
-    Object object = objects[index];
+    Object object = lady.objects[index];
 
     Change change;
     change.type = ChangeType::Move;
-    change.move.object_index = index;
+    change.move.object_id = object.id;
     change.move.position = object.position;
     history_add(&history, change);
     history_step(&history, +1);
@@ -1874,7 +1928,7 @@ static void move(Ray mouse_ray)
     ASSERT(selected_object_index != invalid_index);
     ASSERT(move_tool.selected_axis != invalid_index || move_tool.selected_plane != invalid_index);
 
-    Object* object = &objects[selected_object_index];
+    Object* object = &lady.objects[selected_object_index];
 
     Vector3 point;
     if(move_tool.selected_axis != invalid_index)
@@ -1914,8 +1968,8 @@ static void apply_change(Change* change)
     {
         case ChangeType::Move:
         {
-            int index = change->move.object_index;
-            Object* object = &objects[index];
+            ObjectId id = change->move.object_id;
+            Object* object = get_object_by_id(&lady, id);
             object_set_position(object, change->move.position);
             break;
         }
@@ -2065,10 +2119,10 @@ static void update_object_mode(Platform* platform)
         float closest = infinity;
         int prior_hovered_index = hovered_object_index;
         hovered_object_index = invalid_index;
-        FOR_N(i, objects_count)
+        FOR_N(i, lady.objects_count)
         {
-            Object* object = &objects[i];
-            jan::Mesh* mesh = &meshes[i];
+            Object* object = &lady.objects[i];
+            jan::Mesh* mesh = &object->mesh;
 
             Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
             Ray ray = ray_from_viewport_point(mouse.position, viewport.width, viewport.height, view, projection, false);
@@ -2114,7 +2168,7 @@ static void update_object_mode(Platform* platform)
     // Center the move tool in the selected object, if needed.
     if(selected_object_index != invalid_index)
     {
-        Object object = objects[selected_object_index];
+        Object object = lady.objects[selected_object_index];
         Vector3 position = object.position;
         Vector3 normal = normalise(camera.target - camera.position);
         float scale = 0.05f * distance_point_plane(position, camera.position, normal);
@@ -2141,11 +2195,10 @@ static void update_object_mode(Platform* platform)
 static void update_face_mode()
 {
     ASSERT(selected_object_index != invalid_index);
-    ASSERT(selected_object_index >= 0 && selected_object_index < objects_count);
-    ASSERT(selected_object_index >= 0 && selected_object_index < meshes_count);
+    ASSERT(selected_object_index >= 0 && selected_object_index < lady.objects_count);
 
-    Object* object = &objects[selected_object_index];
-    jan::Mesh* mesh = &meshes[selected_object_index];
+    Object* object = &lady.objects[selected_object_index];
+    jan::Mesh* mesh = &object->mesh;
 
     if(input::get_key_tapped(input::Key::G))
     {
@@ -2203,8 +2256,8 @@ static void update_face_mode()
 
 static void exit_face_mode()
 {
-    jan::Mesh* mesh = &meshes[selected_object_index];
-    Object* object = &objects[selected_object_index];
+    Object* object = &lady.objects[selected_object_index];
+    jan::Mesh* mesh = &object->mesh;
 
     jan::colour_all_faces(mesh, vector3_yellow);
     object_update_mesh(object, mesh, &heap);
@@ -2367,9 +2420,9 @@ void system_update(Platform* platform)
 
         view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
 
-        FOR_N(i, objects_count)
+        FOR_N(i, lady.objects_count)
         {
-            object_set_matrices(&objects[i], view, projection);
+            object_set_matrices(&lady.objects[i], view, projection);
         }
 
         immediate::set_matrices(view, projection);
@@ -2386,13 +2439,13 @@ void system_update(Platform* platform)
     glUseProgram(shader_lit.program);
 
     // Draw all unselected models.
-    FOR_N(i, objects_count)
+    FOR_N(i, lady.objects_count)
     {
         if(i == selected_object_index || i == hovered_object_index)
         {
             continue;
         }
-        Object object = objects[i];
+        Object object = lady.objects[i];
         glUniformMatrix4fv(shader_lit.model_view_projection, 1, GL_TRUE, object.model_view_projection.elements);
         glUniformMatrix4fv(shader_lit.normal_matrix, 1, GL_TRUE, object.normal.elements);
         glBindVertexArray(object.vertex_array);
@@ -2551,8 +2604,8 @@ void system_update(Platform* platform)
 void pick_file(FilePickDialog* dialog, const char* name, ui::Context* context, Heap* heap, Stack* stack)
 {
     char* path = append_to_path(dialog->path, name, heap);
-    jan::Mesh* mesh = add_mesh(heap);
-    bool loaded = obj::load_file(path, mesh, heap, stack);
+    jan::Mesh mesh;
+    bool loaded = obj::load_file(path, &mesh, heap, stack);
     HEAP_DEALLOCATE(heap, path);
 
     if(!loaded)
@@ -2562,15 +2615,16 @@ void pick_file(FilePickDialog* dialog, const char* name, ui::Context* context, H
     }
     else
     {
-        Object* imported_model = add_object(heap);
+        Object* imported_model = add_object(&lady, heap);
+        imported_model->mesh = mesh;
         imported_model->model = compose_transform({-2.0f, 0.0f, 0.0f}, quaternion_identity, vector3_one);
 
-        jan::colour_all_faces(mesh, vector3_magenta);
+        jan::colour_all_faces(&imported_model->mesh, vector3_magenta);
         VertexPNC* vertices;
         int vertices_count;
         u16* indices;
         int indices_count;
-        jan::triangulate(mesh, heap, &vertices, &vertices_count, &indices, &indices_count);
+        jan::triangulate(&imported_model->mesh, heap, &vertices, &vertices_count, &indices, &indices_count);
         object_set_surface(imported_model, vertices, vertices_count, indices, indices_count);
         HEAP_DEALLOCATE(heap, vertices);
         HEAP_DEALLOCATE(heap, indices);

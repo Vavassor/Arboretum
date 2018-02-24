@@ -238,6 +238,19 @@ bool get_hotkey_tapped(Function function)
     return result;
 }
 
+void system_start_up()
+{
+    Hotkey undo;
+    undo.key = Key::Z;
+    undo.modifier = ModifierCombo::Control;
+    set_primary_hotkey(Function::Undo, undo);
+
+    Hotkey redo;
+    redo.key = Key::Z;
+    redo.modifier = ModifierCombo::Control_Shift;
+    set_primary_hotkey(Function::Redo, redo);
+}
+
 static void update_button_change_counts()
 {
     FOR_N(i, 3)

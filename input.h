@@ -159,6 +159,7 @@ void set_secondary_hotkey(Function function, Hotkey hotkey);
 bool get_hotkey_pressed(Function function);
 bool get_hotkey_tapped(Function function);
 
+void system_start_up();
 void system_update();
 
 } // namespace input

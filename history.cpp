@@ -110,7 +110,7 @@ Change* history_find_past_change(History* history)
     {
         case ChangeType::Move:
         {
-            int object_index = change.move.object_index;
+            ObjectId object_id = change.move.object_id;
 
             if(history->index != history->tail)
             {
@@ -118,7 +118,7 @@ Change* history_find_past_change(History* history)
                 for(;;)
                 {
                     Change* candidate = &history->changes[i];
-                    if(candidate->type == change.type && candidate->move.object_index == object_index)
+                    if(candidate->type == change.type && candidate->move.object_id == object_id)
                     {
                         return candidate;
                     }
@@ -133,7 +133,7 @@ Change* history_find_past_change(History* history)
             FOR_N(i, history->base_states_cap)
             {
                 Change* base = &history->base_states[i];
-                if(base->type == change.type && base->move.object_index == object_index)
+                if(base->type == change.type && base->move.object_id == object_id)
                 {
                     return base;
                 }
@@ -146,17 +146,3 @@ Change* history_find_past_change(History* history)
     return nullptr;
 }
 
-void history_log(History* history)
-{
-    for(int i = history->tail; i != history->head; i = (i + 1) % history->changes_cap)
-    {
-        Change change = history->changes[i];
-        const char* pointer = "";
-        if(i == history->index)
-        {
-            pointer = " <----";
-        }
-        LOG_DEBUG("object = %d position = <%f, %f, %f>%s", change.move.object_index, change.move.position.x, change.move.position.y, change.move.position.z, pointer);
-    }
-    LOG_DEBUG("");
-}

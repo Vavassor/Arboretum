@@ -303,7 +303,7 @@ bool main_startup()
         LOG_ERROR("OpenGL functions could not be loaded!");
         return false;
     }
-    bool started = video::system_startup();
+    bool started = video::system_start_up();
     if(!started)
     {
         LOG_ERROR("Video system failed startup.");
@@ -319,7 +319,7 @@ bool main_startup()
 
 void main_shutdown()
 {
-    video::system_shutdown(functions_loaded);
+    video::system_shut_down(functions_loaded);
 
     if(platform.visual_info)
     {

@@ -2,6 +2,7 @@
 #define HISTORY_H_
 
 #include "vector_math.h"
+#include "object.h"
 
 enum class ChangeType
 {
@@ -15,7 +16,7 @@ struct Change
         struct
         {
             Vector3 position;
-            int object_index;
+            ObjectId object_id;
         } move;
     };
     ChangeType type;
@@ -46,6 +47,5 @@ Change* history_get(History* history, int index);
 void history_set_index(History* history, int index);
 void history_step(History* history, int step);
 Change* history_find_past_change(History* history);
-void history_log(History* history);
 
 #endif // HISTORY_H_

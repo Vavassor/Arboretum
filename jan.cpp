@@ -4,9 +4,7 @@
 #include "array.h"
 #include "assert.h"
 #include "math_basics.h"
-
-#define FOR_N(i, count)\
-    for(int i = 0; i < static_cast<int>(count); ++i)
+#include "loop_macros.h"
 
 namespace jan {
 
