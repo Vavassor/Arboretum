@@ -59,9 +59,11 @@ void history_add(History* history, Change change)
 
     if(history->head == history->tail)
     {
-        history->changes_to_clean_up[history->changes_to_clean_up_count] = save;
-        history->changes_to_clean_up_count += 1;
-
+        if(save.type != ChangeType::Invalid)
+        {
+            history->changes_to_clean_up[history->changes_to_clean_up_count] = save;
+            history->changes_to_clean_up_count += 1;
+        }
         history->tail = (history->tail + 1) % history->changes_cap;
     }
 
@@ -84,6 +86,25 @@ void history_add_base_state(History* history, Change change, Heap* heap)
             break;
         }
         history->base_states = base_states;
+    }
+}
+
+void history_remove_base_state(History* history, ObjectId object_id)
+{
+    FOR_N(i, history->base_states_count)
+    {
+        Change* change = &history->base_states[i];
+        ASSERT(change->type == ChangeType::Move);
+        if(change->move.object_id == object_id)
+        {
+            if(history->base_states_count > 1)
+            {
+                Change* last = &history->base_states[history->base_states_count - 1];
+                *change = *last;
+            }
+            history->base_states_count -= 1;
+            break;
+        }
     }
 }
 
@@ -131,6 +152,11 @@ Change* history_find_past_change(History* history)
 
     switch(change.type)
     {
+        case ChangeType::Invalid:
+        {
+            ASSERT(false);
+            break;
+        }
         case ChangeType::Create_Object:
         case ChangeType::Delete_Object:
         {
@@ -186,6 +212,11 @@ void history_log(History* history)
         }
         switch(change.type)
         {
+            case ChangeType::Invalid:
+            {
+                ASSERT(false);
+                break;
+            }
             case ChangeType::Create_Object:
             {
                 LOG_DEBUG("Create_Object object = %u%s", change.create_object.object_id, pointer);

@@ -2067,6 +2067,11 @@ static void undo(Platform* platform)
     Change* change = history_find_past_change(&history);
     switch(change->type)
     {
+        case ChangeType::Invalid:
+        {
+            ASSERT(false);
+            break;
+        }
         case ChangeType::Create_Object:
         {
             ObjectId id = change->create_object.object_id;
@@ -2087,8 +2092,6 @@ static void undo(Platform* platform)
             break;
         }
     }
-
-    history_log(&history);
 }
 
 static void redo(History* history)
@@ -2101,6 +2104,11 @@ static void redo(History* history)
     Change* change = history_get(history, history->index);
     switch(change->type)
     {
+        case ChangeType::Invalid:
+        {
+            ASSERT(false);
+            break;
+        }
         case ChangeType::Create_Object:
         {
             take_out_of_storage(&lady, change->create_object.object_id, &heap);
@@ -2121,8 +2129,6 @@ static void redo(History* history)
     }
 
     history_step(history, +1);
-
-    history_log(history);
 }
 
 static void delete_object(Platform* platform)
@@ -2562,6 +2568,11 @@ void system_update(Platform* platform)
             Change change = history.changes_to_clean_up[i];
             switch(change.type)
             {
+                case ChangeType::Invalid:
+                {
+                    ASSERT(false);
+                    break;
+                }
                 case ChangeType::Create_Object:
                 case ChangeType::Move:
                 {
@@ -2571,7 +2582,7 @@ void system_update(Platform* platform)
                 {
                     ObjectId id = change.delete_object.object_id;
                     remove_from_storage(&lady, id);
-                    // TODO: history_remove_base_state(&history, id);
+                    history_remove_base_state(&history, id);
                     break;
                 }
             }

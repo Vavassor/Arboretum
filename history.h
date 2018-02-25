@@ -59,6 +59,7 @@ bool history_is_at_start(History* history);
 bool history_is_at_end(History* history);
 void history_add(History* history, Change change);
 void history_add_base_state(History* history, Change change, Heap* heap);
+void history_remove_base_state(History* history, ObjectId object_id);
 Change* history_get(History* history, int index);
 void history_set_index(History* history, int index);
 void history_step(History* history, int step);
