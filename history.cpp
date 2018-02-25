@@ -64,6 +64,8 @@ void history_add(History* history, Change change)
 
         history->tail = (history->tail + 1) % history->changes_cap;
     }
+
+    history_step(history, +1);
 }
 
 void history_add_base_state(History* history, Change change, Heap* heap)

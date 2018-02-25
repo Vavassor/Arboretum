@@ -6,6 +6,7 @@
 
 enum class ChangeType
 {
+    Invalid,
     Create_Object,
     Delete_Object,
     Move,

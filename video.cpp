@@ -1998,7 +1998,6 @@ static void end_move()
     change.move.object_id = object.id;
     change.move.position = object.position;
     history_add(&history, change);
-    history_step(&history, +1);
 }
 
 static void move(Ray mouse_ray)
@@ -2040,26 +2039,23 @@ static void move(Ray mouse_ray)
     object_set_position(object, point + move_tool.reference_offset);
 }
 
-static void apply_symmetric_change(Change* change)
+static void clear_object_from_hover_and_selection(ObjectId id, Platform* platform)
 {
-    switch(change->type)
+    Object* object = &lady.objects[selected_object_index];
+    if(object->id == id)
     {
-        case ChangeType::Create_Object:
-        case ChangeType::Delete_Object:
-        {
-            break;
-        }
-        case ChangeType::Move:
-        {
-            ObjectId id = change->move.object_id;
-            Object* object = get_object_by_id(&lady, id);
-            object_set_position(object, change->move.position);
-            break;
-        }
+        select_mesh(invalid_index);
+    }
+
+    object = &lady.objects[hovered_object_index];
+    if(object->id == id)
+    {
+        change_cursor(platform, CursorType::Arrow);
+        hovered_object_index = invalid_index;
     }
 }
 
-static void undo()
+static void undo(Platform* platform)
 {
     if(history_is_at_start(&history) || history_is_empty(&history))
     {
@@ -2073,7 +2069,9 @@ static void undo()
     {
         case ChangeType::Create_Object:
         {
-            store_object(&lady, change->create_object.object_id, &heap);
+            ObjectId id = change->create_object.object_id;
+            clear_object_from_hover_and_selection(id, platform);
+            store_object(&lady, id, &heap);
             break;
         }
         case ChangeType::Delete_Object:
@@ -2083,7 +2081,9 @@ static void undo()
         }
         case ChangeType::Move:
         {
-            apply_symmetric_change(change);
+            ObjectId id = change->move.object_id;
+            Object* object = get_object_by_id(&lady, id);
+            object_set_position(object, change->move.position);
             break;
         }
     }
@@ -2113,7 +2113,9 @@ static void redo(History* history)
         }
         case ChangeType::Move:
         {
-            apply_symmetric_change(change);
+            ObjectId id = change->move.object_id;
+            Object* object = get_object_by_id(&lady, id);
+            object_set_position(object, change->move.position);
             break;
         }
     }
@@ -2127,19 +2129,12 @@ static void delete_object(Platform* platform)
 {
     Object* object = &lady.objects[selected_object_index];
 
-    if(hovered_object_index == selected_object_index)
-    {
-        change_cursor(platform, CursorType::Arrow);
-    }
-    hovered_object_index = invalid_index;
-
-    select_mesh(invalid_index);
-
     Change change;
     change.type = ChangeType::Delete_Object;
     change.delete_object.object_id = object->id;
     history_add(&history, change);
-    history_step(&history, +1);
+
+    clear_object_from_hover_and_selection(object->id, platform);
 
     store_object(&lady, object->id, &heap);
 }
@@ -2327,7 +2322,7 @@ static void update_object_mode(Platform* platform)
     {
         if(input::get_hotkey_tapped(input::Function::Undo))
         {
-            undo();
+            undo(platform);
         }
         if(input::get_hotkey_tapped(input::Function::Redo))
         {
@@ -2801,6 +2796,11 @@ void pick_file(FilePickDialog* dialog, const char* name, ui::Context* context, H
         HEAP_DEALLOCATE(heap, indices);
 
         add_object_to_history(&history, imported_model, heap);
+
+        Change change;
+        change.type = ChangeType::Create_Object;
+        change.create_object.object_id = imported_model->id;
+        history_add(&history, change);
 
         close_dialog(dialog, context, heap);
         dialog->panel->unfocusable = true;
