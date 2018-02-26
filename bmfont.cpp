@@ -160,10 +160,11 @@ bool load_font(Font* font, const char* path, Heap* heap, Stack* stack)
     output_font.missing_glyph_index = 0;
     int glyphs_index = 0;
     int kerning_pairs_index = 0;
+    bool error = false;
 
     Stream stream = {};
     stream.buffer = static_cast<const char*>(contents);
-    for(; stream_has_more(&stream); next_line(&stream))
+    for(; stream_has_more(&stream) && !error; next_line(&stream))
     {
         char* keyword = next_token(&stream, stack);
 
@@ -173,7 +174,12 @@ bool load_font(Font* font, const char* path, Heap* heap, Stack* stack)
             {
                 if(strings_match(pair.key, "size"))
                 {
-                    output_font.size = string_to_int(pair.value);
+                    bool success = string_to_int(pair.value, &output_font.size);
+                    if(!success)
+                    {
+                        error = true;
+                        break;
+                    }
                 }
             }
         }
@@ -183,23 +189,52 @@ bool load_font(Font* font, const char* path, Heap* heap, Stack* stack)
             {
                 if(strings_match(pair.key, "lineHeight"))
                 {
-                    output_font.line_height = string_to_int(pair.value);
+                    int line_height;
+                    bool success = string_to_int(pair.value, &line_height);
+                    if(!success)
+                    {
+                        error = true;
+                        break;
+                    }
+                    output_font.line_height = line_height;
                 }
                 else if(strings_match(pair.key, "base"))
                 {
-                    output_font.baseline = string_to_int(pair.value);
+                    int baseline;
+                    bool success = string_to_int(pair.value, &baseline);
+                    if(!success)
+                    {
+                        error = true;
+                        break;
+                    }
+                    output_font.baseline = baseline;
                 }
                 else if(strings_match(pair.key, "scaleW"))
                 {
-                    output_font.image_width = string_to_int(pair.value);
+                    bool success = string_to_int(pair.value, &output_font.image_width);
+                    if(!success)
+                    {
+                        error = true;
+                        break;
+                    }
                 }
                 else if(strings_match(pair.key, "scaleH"))
                 {
-                    output_font.image_height = string_to_int(pair.value);
+                    bool success = string_to_int(pair.value, &output_font.image_height);
+                    if(!success)
+                    {
+                        error = true;
+                        break;
+                    }
                 }
                 else if(strings_match(pair.key, "pages"))
                 {
-                    output_font.pages_count = string_to_int(pair.value);
+                    bool success = string_to_int(pair.value, &output_font.pages_count);
+                    if(!success)
+                    {
+                        error = true;
+                        break;
+                    }
                     output_font.pages = HEAP_ALLOCATE(heap, Page, output_font.pages_count);
                 }
             }
@@ -210,16 +245,31 @@ bool load_font(Font* font, const char* path, Heap* heap, Stack* stack)
             Pair filename = next_pair(&stream, stack);
             int filename_size = string_size(filename.value) + 1;
 
-            int page_index = string_to_int(id.value);
-            Page* page = &output_font.pages[page_index];
-            page->bitmap_filename = HEAP_ALLOCATE(heap, char, filename_size);
-            copy_string(page->bitmap_filename, filename_size, filename.value);
+            int page_index;
+            bool success = string_to_int(id.value, &page_index);
+            if(!success)
+            {
+                error = true;
+            }
+            else
+            {
+                Page* page = &output_font.pages[page_index];
+                page->bitmap_filename = HEAP_ALLOCATE(heap, char, filename_size);
+                copy_string(page->bitmap_filename, filename_size, filename.value);
+            }
         }
         else if(strings_match(keyword, "chars"))
         {
             Pair pair = next_pair(&stream, stack);
-            output_font.glyphs_count = string_to_int(pair.value);
-            output_font.glyphs = HEAP_ALLOCATE(heap, Glyph, output_font.glyphs_count);
+            bool success = string_to_int(pair.value, &output_font.glyphs_count);
+            if(!success)
+            {
+                error = true;
+            }
+            else
+            {
+                output_font.glyphs = HEAP_ALLOCATE(heap, Glyph, output_font.glyphs_count);
+            }
         }
         else if(strings_match(keyword, "char"))
         {
@@ -229,39 +279,100 @@ bool load_font(Font* font, const char* path, Heap* heap, Stack* stack)
             {
                 if(strings_match(pair.key, "id"))
                 {
-                    glyph->codepoint = string_to_int(pair.value);
+                    int codepoint;
+                    bool success = string_to_int(pair.value, &codepoint);
+                    if(!success)
+                    {
+                        error = true;
+                        break;
+                    }
+                    glyph->codepoint = codepoint;
                 }
                 else if(strings_match(pair.key, "x"))
                 {
-                    glyph->rect.bottom_left.x = string_to_int(pair.value);
+                    int x;
+                    bool success = string_to_int(pair.value, &x);
+                    if(!success)
+                    {
+                        error = true;
+                        break;
+                    }
+                    glyph->rect.bottom_left.x = x;
                 }
                 else if(strings_match(pair.key, "y"))
                 {
-                    glyph->rect.bottom_left.y = string_to_int(pair.value);
+                    int y;
+                    bool success = string_to_int(pair.value, &y);
+                    if(!success)
+                    {
+                        error = true;
+                        break;
+                    }
+                    glyph->rect.bottom_left.y = y;
                 }
                 else if(strings_match(pair.key, "width"))
                 {
-                    glyph->rect.dimensions.x = string_to_int(pair.value);
+                    int width;
+                    bool success = string_to_int(pair.value, &width);
+                    if(!success)
+                    {
+                        error = true;
+                        break;
+                    }
+                    glyph->rect.dimensions.x = width;
                 }
                 else if(strings_match(pair.key, "height"))
                 {
-                    glyph->rect.dimensions.y = string_to_int(pair.value);
+                    int height;
+                    bool success = string_to_int(pair.value, &height);
+                    if(!success)
+                    {
+                        error = true;
+                        break;
+                    }
+                    glyph->rect.dimensions.y = height;
                 }
                 else if(strings_match(pair.key, "xoffset"))
                 {
-                    glyph->offset.x = string_to_int(pair.value);
+                    int x_offset;
+                    bool success = string_to_int(pair.value, &x_offset);
+                    if(!success)
+                    {
+                        error = true;
+                        break;
+                    }
+                    glyph->offset.x = x_offset;
                 }
                 else if(strings_match(pair.key, "yoffset"))
                 {
-                    glyph->offset.y = string_to_int(pair.value);
+                    int y_offset;
+                    bool success = string_to_int(pair.value, &y_offset);
+                    if(!success)
+                    {
+                        error = true;
+                        break;
+                    }
+                    glyph->offset.y = y_offset;
                 }
                 else if(strings_match(pair.key, "xadvance"))
                 {
-                    glyph->x_advance = string_to_int(pair.value);
+                    int x_advance;
+                    bool success = string_to_int(pair.value, &x_advance);
+                    if(!success)
+                    {
+                        error = true;
+                        break;
+                    }
+                    glyph->x_advance = x_advance;
                 }
                 else if(strings_match(pair.key, "page"))
                 {
-                    glyph->page = string_to_int(pair.value);
+                    bool success = string_to_int(pair.value, &glyph->page);
+                    if(!success)
+                    {
+                        error = true;
+                        break;
+                    }
                 }
             }
 
@@ -270,8 +381,15 @@ bool load_font(Font* font, const char* path, Heap* heap, Stack* stack)
         else if(strings_match(keyword, "kernings"))
         {
             Pair pair = next_pair(&stream, stack);
-            output_font.kerning_pairs_count = string_to_int(pair.value);
-            output_font.kerning_pairs = HEAP_ALLOCATE(heap, KerningPair, output_font.kerning_pairs_count);
+            bool success = string_to_int(pair.value, &output_font.kerning_pairs_count);
+            if(!success)
+            {
+                error = true;
+            }
+            else
+            {
+                output_font.kerning_pairs = HEAP_ALLOCATE(heap, KerningPair, output_font.kerning_pairs_count);
+            }
         }
         else if(strings_match(keyword, "kerning"))
         {
@@ -281,15 +399,36 @@ bool load_font(Font* font, const char* path, Heap* heap, Stack* stack)
             {
                 if(strings_match(pair.key, "first"))
                 {
-                    kerning_pair->first = string_to_int(pair.value);
+                    int first;
+                    bool success = string_to_int(pair.value, &first);
+                    if(!success)
+                    {
+                        error = true;
+                        break;
+                    }
+                    kerning_pair->first = first;
                 }
                 else if(strings_match(pair.key, "second"))
                 {
-                    kerning_pair->second = string_to_int(pair.value);
+                    int second;
+                    bool success = string_to_int(pair.value, &second);
+                    if(!success)
+                    {
+                        error = true;
+                        break;
+                    }
+                    kerning_pair->second = second;
                 }
                 else if(strings_match(pair.key, "amount"))
                 {
-                    kerning_pair->kerning = string_to_int(pair.value);
+                    int kerning;
+                    bool success = string_to_int(pair.value, &kerning);
+                    if(!success)
+                    {
+                        error = true;
+                        break;
+                    }
+                    kerning_pair->kerning = kerning;
                 }
             }
 
@@ -301,9 +440,16 @@ bool load_font(Font* font, const char* path, Heap* heap, Stack* stack)
 
     STACK_DEALLOCATE(stack, contents);
 
-    *font = output_font;
-
-    return true;
+    if(error)
+    {
+        destroy_font(&output_font, heap);
+        return false;
+    }
+    else
+    {
+        *font = output_font;
+        return true;
+    }
 }
 
 Glyph* find_glyph(Font* font, char32_t c)

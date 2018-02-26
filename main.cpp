@@ -50,7 +50,12 @@ static double get_dots_per_millimeter(PlatformX11* platform)
         {
             if(value.addr)
             {
-                dots_per_millimeter = string_to_double(value.addr) / 25.4;
+                double dots_per_inch;
+                bool success = string_to_double(value.addr, &dots_per_inch);
+                if(success)
+                {
+                    dots_per_millimeter = dots_per_inch / 25.4;
+                }
             }
         }
     }

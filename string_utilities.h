@@ -15,9 +15,9 @@ int count_char_occurrences(const char* string, char c);
 
 int compare_alphabetic_ascii(const char* RESTRICT a, const char* RESTRICT b);
 
-int string_to_int(const char* string);
-float string_to_float(const char* string);
-double string_to_double(const char* string);
+bool string_to_int(const char* string, int* value);
+bool string_to_float(const char* string, float* value);
+bool string_to_double(const char* string, double* value);
 
 const char* bool_to_string(bool b);
 int int_to_string(char* string, int size, int value);

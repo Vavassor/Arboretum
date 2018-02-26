@@ -199,7 +199,7 @@ static int char_to_integer(char c)
     return 36;
 }
 
-static u64 string_to_u64(const char* string, char** after, int base)
+static bool string_to_u64(const char* string, char** after, int base, u64* value)
 {
     ASSERT(string);
     ASSERT(base >= 0 && base != 1 && base <= 36);
@@ -234,7 +234,7 @@ static u64 string_to_u64(const char* string, char** after, int base)
         {
             *after = const_cast<char*>(string);
         }
-        return 0;
+        return false;
     }
     else if(base == 0)
     {
@@ -290,19 +290,23 @@ static u64 string_to_u64(const char* string, char** after, int base)
     }
     if(out_of_range)
     {
-        return U64_MAX;
+        return false;
     }
     if(negative)
     {
         result = -result;
     }
 
-    return result;
+    *value = result;
+    return true;
 }
 
-int string_to_int(const char* string)
+bool string_to_int(const char* string, int* value)
 {
-    return string_to_u64(string, nullptr, 0);
+    u64 u;
+    bool success = string_to_u64(string, nullptr, 0, &u);
+    *value = u;
+    return success;
 }
 
 static bool is_decimal_digit(char c)
@@ -310,7 +314,7 @@ static bool is_decimal_digit(char c)
     return c >= '0' && c <= '9';
 }
 
-double string_to_double(const char* string)
+bool string_to_double(const char* string, double* result)
 {
     const char* s = string;
 
@@ -397,12 +401,16 @@ double string_to_double(const char* string)
         }
     }
 
-    return sign * value;
+    *result = sign * value;
+    return true;
 }
 
-float string_to_float(const char* string)
+bool string_to_float(const char* string, float* value)
 {
-    return string_to_double(string);
+    double d;
+    bool success = string_to_double(string, &d);
+    *value = d;
+    return success;
 }
 
 // Value To String..............................................................
@@ -686,7 +694,7 @@ static void add_digit(FormatContext* context, char digit)
     }
 }
 
-static int parse_digits(FormatContext* context)
+static bool parse_digits(FormatContext* context, int* value)
 {
     // Null-terminate the digit buffer.
     int index = context->digits_count;
@@ -699,7 +707,7 @@ static int parse_digits(FormatContext* context)
     // Reset the counter.
     context->digits_count = 0;
 
-    return string_to_int(context->digits);
+    return string_to_int(context->digits, value);
 }
 
 static void find_flags(FormatContext* context)
@@ -764,7 +772,7 @@ static void find_width(FormatContext* context, va_list arguments)
             // Anything other than a width means this step is done.
             if(context->digits_count > 0)
             {
-                context->width = parse_digits(context);
+                bool success = parse_digits(context, &context->width);
             }
             return;
         }
@@ -803,7 +811,7 @@ static void find_precision(FormatContext* context, va_list arguments)
             // Anything other than the precision means this step is done.
             if(context->digits_count > 0)
             {
-                context->precision = parse_digits(context);
+                bool success = parse_digits(context, &context->precision);
             }
             return;
         }

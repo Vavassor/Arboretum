@@ -182,7 +182,7 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
     char* material_library = nullptr;
     int smoothing_group = 0;
 
-    for(; stream_has_more(&stream); next_line(&stream))
+    for(; stream_has_more(&stream) && !error_occurred; next_line(&stream))
     {
         char* keyword = next_token(&stream, stack);
 
@@ -199,13 +199,14 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
             char* w = next_token(&stream, stack);
 
             Vector4 position;
-            position.x = string_to_float(x);
-            position.y = string_to_float(y);
-            position.z = string_to_float(z);
+            bool success_x = string_to_float(x, &position.x);
+            bool success_y = string_to_float(y, &position.y);
+            bool success_z = string_to_float(z, &position.z);
             position.w = 1.0f;
+            bool success_w = true;
             if(w)
             {
-                position.w = string_to_float(w);
+                success_w = string_to_float(w, &position.w);
             }
 
             if(w)
@@ -216,7 +217,14 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
             STACK_DEALLOCATE(stack, y);
             STACK_DEALLOCATE(stack, x);
 
-            add_and_expand(&positions, position);
+            if(!success_x || !success_y || !success_z || !success_w)
+            {
+                error_occurred = true;
+            }
+            else
+            {
+                add_and_expand(&positions, position);
+            }
         }
         else if(strings_match(keyword, "vn"))
         {
@@ -225,15 +233,22 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
             char* z = next_token(&stream, stack);
 
             Vector3 normal;
-            normal.x = string_to_float(x);
-            normal.y = string_to_float(y);
-            normal.z = string_to_float(z);
+            bool success_x = string_to_float(x, &normal.x);
+            bool success_y = string_to_float(y, &normal.y);
+            bool success_z = string_to_float(z, &normal.z);
 
             STACK_DEALLOCATE(stack, z);
             STACK_DEALLOCATE(stack, y);
             STACK_DEALLOCATE(stack, x);
 
-            add_and_expand(&normals, normal);
+            if(!success_x || !success_y || !success_z)
+            {
+                error_occurred = true;
+            }
+            else
+            {
+                add_and_expand(&normals, normal);
+            }
         }
         else if(strings_match(keyword, "vt"))
         {
@@ -242,16 +257,18 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
             char* z = next_token(&stream, stack);
 
             Vector3 texcoord;
-            texcoord.x = string_to_float(x);
+            bool success_x = string_to_float(x, &texcoord.x);
             texcoord.y = 0.0f;
             texcoord.z = 0.0f;
+            bool success_y = true;
+            bool success_z = true;
             if(y)
             {
-                texcoord.y = string_to_float(y);
+                success_y = string_to_float(y, &texcoord.y);
             }
             if(z)
             {
-                texcoord.z = string_to_float(z);
+                success_z = string_to_float(z, &texcoord.z);
             }
 
             if(z)
@@ -264,7 +281,14 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
             }
             STACK_DEALLOCATE(stack, x);
 
-            add_and_expand(&texcoords, texcoord);
+            if(!success_x || !success_y || !success_z)
+            {
+                error_occurred = true;
+            }
+            else
+            {
+                add_and_expand(&texcoords, texcoord);
+            }
         }
         else if(strings_match(keyword, "f"))
         {
@@ -281,19 +305,21 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
                 char* normal_index = next_index(&token_stream, stack);
 
                 MultiIndex index;
-                index.position = string_to_int(position_index);
+                bool success_position = string_to_int(position_index, &index.position);
                 index.texcoord = index.position;
                 index.normal = index.position;
 
                 index.position = fix_index(index.position, positions.count);
+                bool success_texcoord = true;
+                bool success_normal = true;
                 if(texcoord_index)
                 {
-                    index.texcoord = string_to_int(texcoord_index);
+                    success_texcoord = string_to_int(texcoord_index, &index.texcoord);
                     index.texcoord = fix_index(index.texcoord, texcoords.count);
                 }
                 if(normal_index)
                 {
-                    index.normal = string_to_int(normal_index);
+                    success_normal = string_to_int(normal_index, &index.normal);
                     index.normal = fix_index(index.normal, normals.count);
                 }
                 add_and_expand(&multi_indices, index);
@@ -310,14 +336,24 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
 
                 indices_in_face += 1;
                 STACK_DEALLOCATE(stack, token);
+
+                if(!success_position || !success_texcoord || !success_normal)
+                {
+                    error_occurred = true;
+                    break;
+                }
+
                 token = next_token(&stream, stack);
             }
 
-            Face face;
-            face.base_index = base_index;
-            face.sides = indices_in_face;
-            face.material_index = materials.count - 1;
-            add_and_expand(&faces, face);
+            if(!error_occurred)
+            {
+                Face face;
+                face.base_index = base_index;
+                face.sides = indices_in_face;
+                face.material_index = materials.count - 1;
+                add_and_expand(&faces, face);
+            }
         }
         else if(strings_match(keyword, "usemtl"))
         {
@@ -340,19 +376,25 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
         {
             char* token = next_token(&stream, stack);
             int group;
+            bool success_group = true;
             if(strings_match(token, "off"))
             {
                 group = 0;
             }
             else
             {
-                group = string_to_int(token);
+                success_group = string_to_int(token, &group);
             }
             if(group >= 0)
             {
                 smoothing_group = group;
             }
             STACK_DEALLOCATE(stack, token);
+
+            if(!success_group)
+            {
+                error_occurred = true;
+            }
         }
 
         STACK_DEALLOCATE(stack, keyword);
