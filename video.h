@@ -2,11 +2,14 @@
 #define VIDEO_H_
 
 #include "camera.h"
+#include "sized_types.h"
 
 struct Heap;
 struct MoveTool;
 struct ObjectLady;
 struct Platform;
+
+typedef u32 DenseMapId;
 
 namespace bmfont {
 
@@ -55,8 +58,9 @@ void object_destroy(Object* object);
 void object_update_mesh(Object* object, jan::Mesh* mesh, Heap* heap);
 void object_set_model(Object* object, Matrix4 model);
 
-Object* add_object();
-void remove_object(Object* object);
+DenseMapId add_object();
+void remove_object(DenseMapId id);
+Object* get_object(DenseMapId id);
 void set_up_font(bmfont::Font* font);
 
 } // namespace video

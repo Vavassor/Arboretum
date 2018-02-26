@@ -14,7 +14,7 @@ struct Object
     Vector3 position;
     Quaternion orientation;
 
-    video::Object* video_object;
+    DenseMapId video_object;
 
     ObjectId id;
 };

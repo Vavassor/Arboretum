@@ -181,7 +181,8 @@ bool editor_start_up()
 
         jan::colour_all_faces(mesh, vector3_cyan);
 
-        video::object_update_mesh(dodecahedron->video_object, mesh, &heap);
+        video::Object* video_object = video::get_object(dodecahedron->video_object);
+        video::object_update_mesh(video_object, mesh, &heap);
 
         obj::save_file("weird.obj", mesh, &heap);
 
@@ -204,7 +205,8 @@ bool editor_start_up()
         Vector3 position = {-2.0f, 0.0f, 0.0f};
         object_set_position(test_model, position);
 
-        video::object_update_mesh(test_model->video_object, mesh, &heap);
+        video::Object* video_object = video::get_object(test_model->video_object);
+        video::object_update_mesh(video_object, mesh, &heap);
 
         add_object_to_history(&history, test_model, &heap);
     }
@@ -726,7 +728,8 @@ static void update_face_mode()
                 jan::colour_just_the_one_face(face, vector3_red);
             }
         }
-        video::object_update_mesh(object->video_object, mesh, &heap);
+        video::Object* video_object = video::get_object(object->video_object);
+        video::object_update_mesh(video_object, mesh, &heap);
     }
 }
 
@@ -736,7 +739,8 @@ static void exit_face_mode()
     jan::Mesh* mesh = &object->mesh;
 
     jan::colour_all_faces(mesh, vector3_yellow);
-    video::object_update_mesh(object->video_object, mesh, &heap);
+    video::Object* video_object = video::get_object(object->video_object);
+    video::object_update_mesh(video_object, mesh, &heap);
     destroy_selection(&selection);
 }
 

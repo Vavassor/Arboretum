@@ -33,6 +33,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+static const int invalid_index = -1;
+
 namespace video {
 
 const char* lit_vertex_source = R"(
@@ -505,10 +507,181 @@ GLuint upload_bitmap(Bitmap* bitmap)
 
 DEFINE_ARRAY(Object);
 
+struct DenseMap
+{
+    ArrayObject array;
+    int* id_table_keys;
+    DenseMapId* id_table_values;
+    DenseMapId* index_table_keys;
+    int* index_table_values;
+    DenseMapId seed;
+    int table_size;
+    int table_filled;
+};
+
+static void create(DenseMap* map, Heap* heap)
+{
+    const int table_size = 1024;
+
+    create(&map->array, heap);
+    map->id_table_keys = HEAP_ALLOCATE(heap, int, table_size);
+    map->id_table_values = HEAP_ALLOCATE(heap, DenseMapId, table_size);
+    map->index_table_keys = HEAP_ALLOCATE(heap, DenseMapId, table_size);
+    map->index_table_values = HEAP_ALLOCATE(heap, int, table_size);
+    set_memory(map->id_table_keys, 0xff, sizeof(int) * table_size);
+    set_memory(map->index_table_values, 0xff, sizeof(int) * table_size);
+    map->seed = 1;
+    map->table_size = table_size;
+    map->table_filled = 0;
+}
+
+static void destroy(DenseMap* map, Heap* heap)
+{
+    if(map)
+    {
+        destroy(&map->array);
+        SAFE_HEAP_DEALLOCATE(heap, map->id_table_keys);
+        SAFE_HEAP_DEALLOCATE(heap, map->id_table_values);
+        SAFE_HEAP_DEALLOCATE(heap, map->index_table_keys);
+        SAFE_HEAP_DEALLOCATE(heap, map->index_table_values);
+    }
+}
+
+static DenseMapId generate_id(DenseMap* map)
+{
+    DenseMapId id = map->seed;
+    map->seed += 1;
+    return id;
+}
+
+// a public domain 4-byte hash function by Bob Jenkins, adapted from a
+// multiplicative method by Thomas Wang, to do it 6-shifts
+// http://burtleburtle.net/bob/hash/integer.html
+static u32 hash_bj6(u32 a)
+{
+    a = (a + 0x7ed55d16) + (a << 12);
+    a = (a ^ 0xc761c23c) ^ (a >> 19);
+    a = (a + 0x165667b1) + (a << 5);
+    a = (a + 0xd3a2646c) ^ (a << 9);
+    a = (a + 0xfd7046c5) + (a << 3);
+    a = (a ^ 0xb55a4f09) ^ (a >> 16);
+    return a;
+}
+
+static int hash_id(DenseMapId id, int n)
+{
+    return hash_bj6(id) & (n - 1);
+}
+
+static int hash_index(int index, int n)
+{
+    return hash_bj6(index) & (n - 1);
+}
+
+static void add_pair(DenseMap* map, DenseMapId id, int index)
+{
+    // Insert the ID into the ID table.
+    ASSERT(can_use_bitwise_and_to_cycle(map->table_size));
+    int probe = hash_index(index, map->table_size);
+    while(map->id_table_keys[probe] != invalid_index)
+    {
+        probe = (probe + 1) & (map->table_size - 1);
+    }
+    map->id_table_keys[probe] = index;
+    map->id_table_values[probe] = id;
+
+    // Insert the index into the index table.
+    probe = hash_id(id, map->table_size);
+    while(map->index_table_keys[probe])
+    {
+        probe = (probe + 1) & (map->table_size - 1);
+    }
+    map->index_table_keys[probe] = id;
+    map->index_table_values[probe] = index;
+}
+
+static DenseMapId add(DenseMap* map)
+{
+    reserve(&map->array, 1);
+    int index = map->array.count;
+    map->array.count += 1;
+
+    DenseMapId id = generate_id(map);
+    add_pair(map, id, index);
+
+    map->table_filled += 1;
+    if(map->table_filled >= map->table_size)
+    {
+        ASSERT(false);
+        // TODO: resize
+    }
+
+    return id;
+}
+
+static int look_up_index(DenseMap* map, DenseMapId id)
+{
+    int probe = hash_id(id, map->table_size);
+    while(map->index_table_keys[probe] != id && map->index_table_keys[probe])
+    {
+        probe = (probe + 1) & (map->table_size - 1);
+    }
+    int index = map->index_table_values[probe];
+    return index;
+}
+
+static DenseMapId look_up_id(DenseMap* map, int index)
+{
+    int probe = hash_index(index, map->table_size);
+    while(map->id_table_keys[probe] != index && map->id_table_keys[probe] != invalid_index)
+    {
+        probe = (probe + 1) & (map->table_size - 1);
+    }
+    DenseMapId id = map->id_table_values[probe];
+    return id;
+}
+
+static Object* look_up(DenseMap* map, DenseMapId id)
+{
+    int index = look_up_index(map, id);
+    return &map->array[index];
+}
+
+static void remove_pair(DenseMap* map, DenseMapId id, int index)
+{
+    int probe = hash_index(index, map->table_size);
+    while(map->id_table_keys[probe] != index && map->id_table_keys[probe] != invalid_index)
+    {
+        probe = (probe + 1) & (map->table_size - 1);
+    }
+    map->id_table_keys[probe] = invalid_index;
+    map->id_table_values[probe] = 0;
+
+    probe = hash_id(id, map->table_size);
+    while(map->index_table_keys[probe] != id && map->index_table_keys[probe])
+    {
+        probe = (probe + 1) & (map->table_size - 1);
+    }
+    map->index_table_keys[probe] = 0;
+    map->index_table_values[probe] = invalid_index;
+}
+
+static void remove(DenseMap* map, DenseMapId id)
+{
+    int index = look_up_index(map, id);
+    Object* object = &map->array[index];
+    remove(&map->array, object);
+
+    remove_pair(map, id, index);
+
+    int moved_index = map->array.count;
+    DenseMapId moved_id = look_up_id(map, moved_index);
+    remove_pair(map, moved_id, moved_index);
+    add_pair(map, moved_id, index);
+}
+
 namespace
 {
-    const int invalid_index = -1;
-
     GLuint nearest_repeat;
     GLuint linear_repeat;
 
@@ -559,7 +732,7 @@ namespace
     } shader_halo;
 
     Object sky;
-    ArrayObject objects;
+    DenseMap objects;
 
     Matrix4 sky_projection;
     Matrix4 screen_projection;
@@ -738,7 +911,7 @@ void system_shut_down(bool functions_loaded)
         immediate::context_destroy(&heap);
     }
 
-    destroy(&objects);
+    destroy(&objects, &heap);
 
     stack_destroy(&scratch);
     heap_destroy(&heap);
@@ -1001,7 +1174,7 @@ static void draw_object_with_halo(ObjectLady* lady, int index, Vector4 colour)
     ASSERT(index != invalid_index);
     ASSERT(index >= 0 && index < lady->objects_count);
 
-    Object object = *lady->objects[index].video_object;
+    Object object = *get_object(lady->objects[index].video_object);
 
     // Draw the object.
     glUseProgram(shader_lit.program);
@@ -1064,10 +1237,10 @@ void system_update(UpdateState* update, Platform* platform)
 
         view = look_at_matrix(camera->position, camera->target, vector3_unit_z);
 
-        FOR_N(i, lady->objects_count)
+        FOR_N(i, objects.array.count)
         {
-            auto* object = &lady->objects[i];
-            object_set_matrices(object->video_object, view, projection);
+            Object* object = &objects.array[i];
+            object_set_matrices(object, view, projection);
         }
 
         immediate::set_matrices(view, projection);
@@ -1092,7 +1265,7 @@ void system_update(UpdateState* update, Platform* platform)
         {
             continue;
         }
-        Object object = *lady->objects[i].video_object;
+        Object object = *get_object(lady->objects[i].video_object);
         glUniformMatrix4fv(shader_lit.model_view_projection, 1, GL_TRUE, object.model_view_projection.elements);
         glUniformMatrix4fv(shader_lit.normal_matrix, 1, GL_TRUE, object.normal.elements);
         glBindVertexArray(object.vertex_array);
@@ -1258,17 +1431,24 @@ void resize_viewport(int width, int height, double dots_per_millimeter, float fo
     glUniform2f(shader_screen_pattern.viewport_dimensions, width, height);
 }
 
-Object* add_object()
+DenseMapId add_object()
 {
-    reserve(&objects, 1);
-    Object* object = &objects[objects.count];
-    objects.count += 1;
-    return object;
+    DenseMapId id = add(&objects);
+    Object* object = look_up(&objects, id);
+    object_create(object);
+    return id;
 }
 
-void remove_object(Object* object)
+void remove_object(DenseMapId id)
 {
-    remove(&objects, object);
+    Object* object = look_up(&objects, id);
+    object_destroy(object);
+    remove(&objects, id);
+}
+
+Object* get_object(DenseMapId id)
+{
+    return look_up(&objects, id);
 }
 
 void set_up_font(bmfont::Font* font)
