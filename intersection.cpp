@@ -454,6 +454,48 @@ static bool intersect_ray_plane_one_sided(Vector3 start, Vector3 direction, Vect
     return false;
 }
 
+Vector3 project_onto_plane(Vector3 v, Vector3 normal)
+{
+    ASSERT(is_normalised(normal));
+    float d = -dot(normal, v);
+    return (d * normal) + v;
+}
+
+Vector3 closest_point_on_line(Ray ray, Vector3 start, Vector3 end)
+{
+    Vector3 line = end - start;
+    float a = squared_length(ray.direction);
+    float b = dot(ray.direction, line);
+    float e = squared_length(line);
+    float d = (a * e) - (b * b);
+
+    if(d == 0.0f)
+    {
+        return start;
+    }
+    else
+    {
+        Vector3 r = ray.origin - start;
+        float c = dot(ray.direction, r);
+        float f = dot(line, r);
+        float t = ((a * f) - (c * b)) / d;
+        return (t * line) + start;
+    }
+}
+
+Vector3 closest_ray_point(Ray ray, Vector3 point)
+{
+    double d = dot(point - ray.origin, ray.direction);
+    if(d <= 0.0f)
+    {
+        return ray.origin;
+    }
+    else
+    {
+        return (d * ray.direction) + ray.origin;
+    }
+}
+
 namespace jan {
 
 static void project_face_onto_plane(Face* face, Vector2* vertices)

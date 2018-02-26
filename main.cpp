@@ -8,6 +8,7 @@
 #define X11_NONE 0L /* universal null resource or null atom */
 #endif
 
+#include "editor.h"
 #include "gl_core_3_3.h"
 #include "glx_extensions.h"
 #include "video.h"
@@ -303,14 +304,24 @@ bool main_startup()
         LOG_ERROR("OpenGL functions could not be loaded!");
         return false;
     }
+
+    input::system_start_up();
+
     bool started = video::system_start_up();
     if(!started)
     {
         LOG_ERROR("Video system failed startup.");
         return false;
     }
+
+    started = editor_start_up();
+    if(!started)
+    {
+        LOG_ERROR("Editor failed startup.");
+        return false;
+    }
     double dpmm = get_dots_per_millimeter(&platform);
-    video::resize_viewport(window_width, window_height, dpmm);
+    resize_viewport(window_width, window_height, dpmm);
 
     build_key_table(&platform);
 
@@ -319,6 +330,7 @@ bool main_startup()
 
 void main_shutdown()
 {
+    editor_shut_down();
     video::system_shut_down(functions_loaded);
 
     if(platform.visual_info)
@@ -381,7 +393,7 @@ static void handle_event(XEvent event)
         {
             XConfigureRequestEvent configure = event.xconfigurerequest;
             double dpmm = get_dots_per_millimeter(&platform);
-            video::resize_viewport(configure.width, configure.height, dpmm);
+            resize_viewport(configure.width, configure.height, dpmm);
             break;
         }
         case KeyPress:
@@ -508,7 +520,7 @@ void main_loop()
     {
         double frame_start_time = get_time(clock_frequency);
 
-        video::system_update(&platform.base);
+        editor_update(&platform.base);
         input::system_update();
 
         glXSwapBuffers(platform.display, platform.window);

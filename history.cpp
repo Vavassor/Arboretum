@@ -1,10 +1,12 @@
 #include "history.h"
 
-#include "memory.h"
+#include "assert.h"
+#include "editor.h"
 #include "int_utilities.h"
 #include "logging.h"
-#include "assert.h"
 #include "loop_macros.h"
+#include "memory.h"
+#include "object_lady.h"
 
 void history_create(History* history, Heap* heap)
 {
@@ -235,4 +237,89 @@ void history_log(History* history)
         }
     }
     LOG_DEBUG("");
+}
+
+void add_object_to_history(History* history, Object* object, Heap* heap)
+{
+    Change state;
+    state.type = ChangeType::Move;
+    state.move.object_id = object->id;
+    state.move.position = object->position;
+    history_add_base_state(history, state, heap);
+}
+
+void undo(History* history, ObjectLady* lady, Heap* heap, Platform* platform)
+{
+    if(history_is_at_start(history) || history_is_empty(history))
+    {
+        return;
+    }
+
+    history_step(history, -1);
+
+    Change* change = history_find_past_change(history);
+    switch(change->type)
+    {
+        case ChangeType::Invalid:
+        {
+            ASSERT(false);
+            break;
+        }
+        case ChangeType::Create_Object:
+        {
+            ObjectId id = change->create_object.object_id;
+            clear_object_from_hover_and_selection(id, platform);
+            store_object(lady, id, heap);
+            break;
+        }
+        case ChangeType::Delete_Object:
+        {
+            take_out_of_storage(lady, change->delete_object.object_id, heap);
+            break;
+        }
+        case ChangeType::Move:
+        {
+            ObjectId id = change->move.object_id;
+            Object* object = get_object_by_id(lady, id);
+            object_set_position(object, change->move.position);
+            break;
+        }
+    }
+}
+
+void redo(History* history, ObjectLady* lady, Heap* heap)
+{
+    if(history_is_at_end(history))
+    {
+        return;
+    }
+
+    Change* change = history_get(history, history->index);
+    switch(change->type)
+    {
+        case ChangeType::Invalid:
+        {
+            ASSERT(false);
+            break;
+        }
+        case ChangeType::Create_Object:
+        {
+            take_out_of_storage(lady, change->create_object.object_id, heap);
+            break;
+        }
+        case ChangeType::Delete_Object:
+        {
+            store_object(lady, change->delete_object.object_id, heap);
+            break;
+        }
+        case ChangeType::Move:
+        {
+            ObjectId id = change->move.object_id;
+            Object* object = get_object_by_id(lady, id);
+            object_set_position(object, change->move.position);
+            break;
+        }
+    }
+
+    history_step(history, +1);
 }

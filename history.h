@@ -51,6 +51,8 @@ struct History
 };
 
 struct Heap;
+struct Object;
+struct ObjectLady;
 
 void history_create(History* history, Heap* heap);
 void history_destroy(History* history, Heap* heap);
@@ -65,5 +67,9 @@ void history_set_index(History* history, int index);
 void history_step(History* history, int step);
 Change* history_find_past_change(History* history);
 void history_log(History* history);
+
+void add_object_to_history(History* history, Object* object, Heap* heap);
+void undo(History* history, ObjectLady* lady, Heap* heap, Platform* platform);
+void redo(History* history, ObjectLady* lady, Heap* heap);
 
 #endif // HISTORY_H_

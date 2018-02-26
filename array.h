@@ -61,6 +61,14 @@
     {\
         add(array, item);\
         reserve(array, 1);\
+    }\
+    void remove(Array##suffix* array, type* item)\
+    {\
+        if(array->count > 1)\
+        {\
+            *item = (*array)[array->count - 1];\
+        }\
+        array->count -= 1;\
     }
 
 #define DEFINE_ARRAY(type)\
