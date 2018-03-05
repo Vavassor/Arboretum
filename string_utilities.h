@@ -14,6 +14,7 @@ bool string_ends_with(const char* RESTRICT a, const char* RESTRICT b);
 int count_char_occurrences(const char* string, char c);
 
 int compare_alphabetic_ascii(const char* RESTRICT a, const char* RESTRICT b);
+bool only_control_characters(const char* string);
 
 bool string_to_int(const char* string, int* value);
 bool string_to_float(const char* string, float* value);

@@ -1,5 +1,6 @@
 #include "string_build.h"
 
+#include "assert.h"
 #include "memory.h"
 #include "string_utilities.h"
 
@@ -29,4 +30,43 @@ char* append_to_path(const char* path, const char* segment, Heap* heap)
     char* extended = HEAP_ALLOCATE(heap, char, size);
     format_string(extended, size, "%s/%s", path, segment);
     return extended;
+}
+
+char* insert_string(const char* string, const char* insert, int index, Heap* heap)
+{
+    int outer_size = string_size(string);
+    int size = outer_size + string_size(insert) + 1;
+    char* result = HEAP_ALLOCATE(heap, char, size);
+    int so_far = 0;
+    if(index > 0)
+    {
+        so_far += copy_string(&result[so_far], index + 1, string);
+    }
+    so_far += copy_string(&result[so_far], size - so_far, insert);
+    if(index < size - 1)
+    {
+        so_far += copy_string(&result[so_far], size - so_far, &string[index]);
+    }
+    return result;
+}
+
+void remove_substring(char* string, int start, int end)
+{
+    if(end < start)
+    {
+        int temp = end;
+        end = start;
+        start = temp;
+    }
+    int size = string_size(string);
+    if(start >= 0 && end <= size)
+    {
+        int after_size = size - end;
+        if(after_size > 0)
+        {
+            move_memory(&string[start], &string[end], after_size);
+        }
+        int new_end = size - (end - start);
+        string[new_end] = '\0';
+    }
 }

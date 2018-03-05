@@ -1,17 +1,18 @@
 #include "ui.h"
 
-#include "memory.h"
-#include "math_basics.h"
-#include "vector_math.h"
-#include "string_utilities.h"
-#include "string_build.h"
+#include "assert.h"
+#include "colours.h"
+#include "float_utilities.h"
 #include "immediate.h"
 #include "input.h"
-#include "logging.h"
 #include "int_utilities.h"
-#include "float_utilities.h"
-#include "assert.h"
+#include "logging.h"
 #include "loop_macros.h"
+#include "memory.h"
+#include "math_basics.h"
+#include "string_build.h"
+#include "string_utilities.h"
+#include "vector_math.h"
 
 namespace ui {
 
@@ -89,6 +90,11 @@ static void destroy_container(Container* container, Heap* heap)
                 case ItemType::Text_Block:
                 {
                     destroy_text_block(&item->text_block, heap);
+                    break;
+                }
+                case ItemType::Text_Input:
+                {
+                    destroy_text_block(&item->text_input.text_block, heap);
                     break;
                 }
             }
@@ -334,9 +340,19 @@ static Vector2 measure_ideal_dimensions(Container* container)
         Vector2 item_ideal;
         switch(item->type)
         {
+            case ItemType::Button:
+            {
+                item_ideal = measure_ideal_dimensions(&item->button.text_block);
+                break;
+            }
             case ItemType::Container:
             {
                 item_ideal = measure_ideal_dimensions(&item->container);
+                break;
+            }
+            case ItemType::List:
+            {
+                item_ideal = vector2_max;
                 break;
             }
             case ItemType::Text_Block:
@@ -344,14 +360,9 @@ static Vector2 measure_ideal_dimensions(Container* container)
                 item_ideal = measure_ideal_dimensions(&item->text_block);
                 break;
             }
-            case ItemType::Button:
+            case ItemType::Text_Input:
             {
-                item_ideal = measure_ideal_dimensions(&item->button.text_block);
-                break;
-            }
-            case ItemType::List:
-            {
-                item_ideal = vector2_max;
+                item_ideal = measure_ideal_dimensions(&item->text_input.text_block);
                 break;
             }
         }
@@ -458,6 +469,11 @@ static Vector2 measure_bound_dimensions(Container* container, Vector2 container_
             case ItemType::Text_Block:
             {
                 dimensions = measure_bound_dimensions(&item->text_block, space);
+                break;
+            }
+            case ItemType::Text_Input:
+            {
+                dimensions = measure_bound_dimensions(&item->text_input.text_block, space);
                 break;
             }
         }
@@ -610,6 +626,7 @@ static void grow_or_commit_ideal_dimensions(Item* item, Vector2 container_space)
             case ItemType::Button:
             case ItemType::List:
             case ItemType::Text_Block:
+            case ItemType::Text_Input:
             {
                 next->bounds.dimensions = space;
                 break;
@@ -1104,6 +1121,88 @@ static void draw_list(Item* item, Context* context)
     immediate::stop_clip_area();
 }
 
+static Vector2 compute_cursor_position(TextBlock* text_block, Vector2 dimensions, int index)
+{
+    bmfont::Font* font = text_block->font;
+    Padding padding = text_block->padding;
+
+    float right = dimensions.x - padding.end;
+
+    char32_t prior_char = '\0';
+    int stop = MIN(index, string_size(text_block->text));
+    Vector2 pen = {padding.start, padding.top + font->line_height};
+    FOR_N(i, stop)
+    {
+        char32_t current = text_block->text[i];
+        if(current == '\r')
+        {
+            pen.x = padding.start;
+        }
+        else if(current == '\n')
+        {
+            pen.x = padding.start;
+            pen.y += font->line_height;
+        }
+        else
+        {
+            bmfont::Glyph* glyph = bmfont::find_glyph(font, current);
+            if(pen.x + glyph->x_advance > right)
+            {
+                pen.x = padding.start;
+                pen.y += font->line_height;
+            }
+            else
+            {
+                float kerning = bmfont::lookup_kerning(font, prior_char, current);
+                pen.x += kerning;
+            }
+            pen.x += glyph->x_advance;
+        }
+        prior_char = current;
+    }
+
+    return pen;
+}
+
+void draw_text_input(Item* item)
+{
+    ASSERT(item->type == ItemType::Text_Input);
+
+    const Vector4 selection_colour = {1.0f, 1.0f, 1.0f, 0.4f};
+
+    draw_text_block(&item->text_input.text_block, item->bounds);
+
+    // Draw the cursor.
+    TextInput* text_input = &item->text_input;
+    TextBlock* text_block = &text_input->text_block;
+    bmfont::Font* font = text_block->font;
+
+    Vector2 cursor = compute_cursor_position(text_block, item->bounds.dimensions, text_input->cursor_position);
+    cursor += item->bounds.bottom_left;
+
+    Rect rect;
+    rect.dimensions = {1.0f, font->line_height};
+    rect.bottom_left = cursor;
+    rect.bottom_left.y -= rect.dimensions.y;
+    immediate::draw_opaque_rect(rect, vector4_white);
+
+    // Draw the selection highlight.
+    if(text_input->cursor_position != text_input->selection_start)
+    {
+        Vector2 start = compute_cursor_position(text_block, item->bounds.dimensions, text_input->selection_start);
+        start += item->bounds.bottom_left;
+
+         Vector2 left = min2(cursor, start);
+         Vector2 right = max2(cursor, start);
+
+         rect.dimensions.x = right.x - left.x;
+         rect.dimensions.y = font->line_height;
+         rect.bottom_left.x = left.x;
+         rect.bottom_left.y = left.y - rect.dimensions.y;
+         immediate::draw_transparent_rect(rect, selection_colour);
+    }
+}
+
 void draw(Item* item, Context* context)
 {
     switch(item->type)
@@ -1126,6 +1225,11 @@ void draw(Item* item, Context* context)
         case ItemType::Text_Block:
         {
             draw_text_block(&item->text_block, item->bounds);
+            break;
+        }
+        case ItemType::Text_Input:
+        {
+            draw_text_input(item);
             break;
         }
     }
@@ -1169,6 +1273,7 @@ static void detect_hover(Item* item, Vector2 pointer_position)
             break;
         }
         case ItemType::Text_Block:
+        case ItemType::Text_Input:
         {
             break;
         }
@@ -1257,6 +1362,7 @@ void update_input(Item* item, Context* context)
             break;
         }
         case ItemType::Text_Block:
+        case ItemType::Text_Input:
         {
             break;
         }

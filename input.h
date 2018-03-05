@@ -145,6 +145,7 @@ bool get_key_tapped(Key key);
 bool get_key_modified_by_control(Key key);
 bool get_key_modified_by_shift(Key key);
 bool get_key_modified_by_alt(Key key);
+bool get_key_auto_repeated(Key key);
 
 void mouse_click(MouseButton button, bool pressed, Modifier modifier);
 void mouse_scroll(int x, int y);
@@ -159,6 +160,9 @@ void set_primary_hotkey(Function function, Hotkey hotkey);
 void set_secondary_hotkey(Function function, Hotkey hotkey);
 bool get_hotkey_pressed(Function function);
 bool get_hotkey_tapped(Function function);
+
+void composed_text_entered(char* text);
+char* get_composed_text();
 
 void system_start_up();
 void system_update();

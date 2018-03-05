@@ -15,4 +15,7 @@ unsigned int next_multiple(unsigned int x, unsigned int n);
 #define MIN(a, b)\
     (((a) < (b)) ? (a) : (b))
 
+#define CLAMP(x, min, max)\
+    MIN(MAX(x, min), max)
+
 #endif // INT_UTILITIES_H_

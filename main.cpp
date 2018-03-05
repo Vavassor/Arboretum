@@ -20,6 +20,7 @@
 #include "platform.h"
 
 #include <ctime>
+#include <clocale>
 
 struct PlatformX11
 {
@@ -31,6 +32,9 @@ struct PlatformX11
     Window window;
     Atom wm_delete_window;
     int screen;
+    XFontSet font_set;
+    XIM input_method;
+    XIC input_context;
     bool close_window_requested;
 };
 
@@ -74,6 +78,7 @@ static const char* translate_cursor_type(CursorType type)
 {
     switch(type)
     {
+        default:
         case CursorType::Arrow:         return "left_ptr";
         case CursorType::Hand_Pointing: return "hand1";
     }
@@ -85,6 +90,18 @@ void change_cursor(Platform* base, CursorType type)
     const char* name = translate_cursor_type(type);
     Cursor cursor = XcursorLibraryLoadCursor(platform->display, name);
     XDefineCursor(platform->display, platform->window, cursor);
+}
+
+void begin_composed_text(Platform* base)
+{
+    PlatformX11* platform = reinterpret_cast<PlatformX11*>(base);
+    XSetICFocus(platform->input_context);
+}
+
+void end_composed_text(Platform* base)
+{
+    PlatformX11* platform = reinterpret_cast<PlatformX11*>(base);
+    XUnsetICFocus(platform->input_context);
 }
 
 namespace
@@ -239,8 +256,74 @@ static void build_key_table(PlatformX11* platform)
     }
 }
 
-bool main_startup()
+static XIMStyle choose_better_style(XIMStyle style1, XIMStyle style2)
 {
+    XIMStyle preedit = XIMPreeditArea | XIMPreeditCallbacks | XIMPreeditPosition | XIMPreeditNothing | XIMPreeditNone;
+    XIMStyle status = XIMStatusArea | XIMStatusCallbacks | XIMStatusNothing | XIMStatusNone;
+    if(style1 == 0)
+    {
+        return style2;
+    }
+    if(style2 == 0)
+    {
+        return style1;
+    }
+    if((style1 & (preedit | status)) == (style2 & (preedit | status)))
+    {
+        return style1;
+    }
+    XIMStyle s = style1 & preedit;
+    XIMStyle t = style2 & preedit;
+    if(s != t)
+    {
+        if(s | t | XIMPreeditCallbacks)
+        {
+            return (s == XIMPreeditCallbacks) ? style1 : style2;
+        }
+        else if(s | t | XIMPreeditPosition)
+        {
+            return (s == XIMPreeditPosition) ? style1 : style2;
+        }
+        else if(s | t | XIMPreeditArea)
+        {
+            return (s == XIMPreeditArea) ? style1 : style2;
+        }
+        else if(s | t | XIMPreeditNothing)
+        {
+            return (s == XIMPreeditNothing) ? style1 : style2;
+        }
+    }
+    else
+    {
+        // if preedit flags are the same, compare status flags
+        s = style1 & status;
+        t = style2 & status;
+        if(s | t | XIMStatusCallbacks)
+        {
+            return (s == XIMStatusCallbacks) ? style1 : style2;
+        }
+        else if(s | t | XIMStatusArea)
+        {
+           return (s == XIMStatusArea) ? style1 : style2;
+        }
+        else if(s | t | XIMStatusNothing)
+        {
+            return (s == XIMStatusNothing) ? style1 : style2;
+        }
+    }
+    return style2;
+}
+
+bool main_start_up()
+{
+    // Set the locale.
+    char* locale = setlocale(LC_ALL, "");
+    if(!locale)
+    {
+        LOG_ERROR("Failed to set the locale.");
+        return false;
+    }
+
     // Connect to the X server, which is used for display and input services.
     platform.display = XOpenDisplay(nullptr);
     if(!platform.display)
@@ -249,6 +332,20 @@ bool main_startup()
         return false;
     }
     platform.screen = DefaultScreen(platform.display);
+
+    // Check if the X server is okay with the locale.
+    Bool locale_supported = XSupportsLocale();
+    if(!locale_supported)
+    {
+        LOG_ERROR("X does not support locale %s.", locale);
+        return false;
+    }
+    char* locale_modifiers = XSetLocaleModifiers("");
+    if(!locale_modifiers)
+    {
+        LOG_ERROR("Failed to set locale modifiers.");
+        return false;
+    }
 
     // Choose the abstract "Visual" type that will be used to describe both the
     // window and the OpenGL rendering context.
@@ -260,7 +357,8 @@ bool main_startup()
         return false;
     }
 
-    // Create the platform.
+    // Create the window.
+    long event_mask = StructureNotifyMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
     {
         int screen = platform.screen;
         Window root = RootWindow(platform.display, screen);
@@ -273,7 +371,7 @@ bool main_startup()
 
         XSetWindowAttributes attributes = {};
         attributes.colormap = platform.colormap;
-        attributes.event_mask = StructureNotifyMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
+        attributes.event_mask = event_mask;
         unsigned long mask = CWColormap | CWEventMask;
         platform.window = XCreateWindow(platform.display, root, 0, 0, width, height, 0, depth, InputOutput, visual, mask, &attributes);
     }
@@ -284,6 +382,68 @@ bool main_startup()
 
     XStoreName(platform.display, platform.window, app_name);
     XSetIconName(platform.display, platform.window, app_name);
+
+    // Create the input method context.
+    {
+        // input method
+        platform.input_method = XOpenIM(platform.display, nullptr, nullptr, nullptr);
+        if(!platform.input_method)
+        {
+            LOG_ERROR("X Input Method failed to open.");
+            return false;
+        }
+
+        // font set
+        int num_missing_charsets;
+        char** missing_charsets;
+        char* default_string;
+        const char* font_names = "-adobe-helvetica-*-r-*-*-*-120-*-*-*-*-*-*,-misc-fixed-*-r-*-*-*-130-*-*-*-*-*-*";
+        platform.font_set = XCreateFontSet(platform.display, font_names, &missing_charsets, &num_missing_charsets, &default_string);
+        if(!platform.font_set)
+        {
+            LOG_ERROR("Failed to make a font set.");
+            return false;
+        }
+
+        // Negotiate input method styles.
+        XIMStyles* input_method_styles;
+        XGetIMValues(platform.input_method, XNQueryInputStyle, &input_method_styles, NULL);
+        XIMStyle supported_styles = XIMPreeditNothing | XIMStatusNothing;
+        XIMStyle best_style = 0;
+        for(int i = 0; i < input_method_styles->count_styles; i += 1)
+        {
+            XIMStyle style = input_method_styles->supported_styles[i];
+            if((style & supported_styles) == style)
+            {
+                best_style = choose_better_style(style, best_style);
+            }
+        }
+        XFree(input_method_styles);
+        if(!best_style)
+        {
+            LOG_DEBUG("None of the input styles were supported.");
+            return false;
+        }
+
+        // input context
+        XVaNestedList list = XVaCreateNestedList(0, XNFontSet, platform.font_set, nullptr);
+        platform.input_context = XCreateIC(platform.input_method, XNInputStyle, best_style, XNClientWindow, platform.window, XNPreeditAttributes, list, XNStatusAttributes, list, nullptr);
+        XFree(list);
+        if(!platform.input_context)
+        {
+            LOG_ERROR("X Input Context failed to open.");
+            return false;
+        }
+
+        // Add input events to the event mask for the current window.
+        long input_method_event_mask;
+        XGetICValues(platform.input_context, XNFilterEvents, &input_method_event_mask, nullptr);
+        XSelectInput(platform.display, platform.window, event_mask | input_method_event_mask);
+
+        // By default, it seems to be in focus and will pop up the input method
+        // editor when the app first opens, so purposefully "unset" it.
+        XUnsetICFocus(platform.input_context);
+    }
 
     // Create the rendering context for OpenGL. The rendering context can only
     // be "made current" after the window is mapped (with XMapWindow).
@@ -333,7 +493,7 @@ bool main_startup()
     return true;
 }
 
-void main_shutdown()
+void main_shut_down()
 {
     editor_shut_down();
     video::system_shut_down(functions_loaded);
@@ -352,6 +512,9 @@ void main_shutdown()
         {
             XFreeColormap(platform.display, platform.colormap);
         }
+        XCloseIM(platform.input_method);
+        XDestroyIC(platform.input_context);
+        XFreeFontSet(platform.display, platform.font_set);
         XCloseDisplay(platform.display);
     }
 }
@@ -404,9 +567,43 @@ static void handle_event(XEvent event)
         case KeyPress:
         {
             XKeyEvent press = event.xkey;
+
+            // Process key presses that are used for controls and hotkeys.
             input::Key key = translate_key(press.keycode);
             input::Modifier modifier = translate_modifiers(press.state);
             input::key_press(key, true, modifier);
+
+            // Process key presses that are for typing text.
+            Status status;
+            KeySym key_sym;
+            const int buffer_size = 16;
+            char buffer[buffer_size];
+            int length = Xutf8LookupString(platform.input_context, &press, buffer, buffer_size, &key_sym, &status);
+            ASSERT(status != XBufferOverflow || length >= buffer_size);
+            switch(status)
+            {
+                case XLookupNone:
+                case XLookupKeySym:
+                {
+                    break;
+                }
+                case XLookupBoth:
+                {
+                    if(key_sym == XK_BackSpace || key_sym == XK_Delete || key_sym == XK_Return)
+                    {
+                        break;
+                    }
+                    // fall-through on purpose
+                }
+                case XLookupChars:
+                {
+                    if(!only_control_characters(buffer))
+                    {
+                        input::composed_text_entered(buffer);
+                    }
+                    break;
+                }
+            }
             break;
         }
         case KeyRelease:
@@ -535,6 +732,10 @@ void main_loop()
         {
             XEvent event = {};
             XNextEvent(platform.display, &event);
+            if(XFilterEvent(&event, X11_NONE))
+            {
+                continue;
+            }
             handle_event(event);
             if(platform.close_window_requested)
             {
@@ -557,13 +758,13 @@ int main(int argc, char** argv)
     static_cast<void>(argc);
     static_cast<void>(argv);
 
-    if(!main_startup())
+    if(!main_start_up())
     {
-        main_shutdown();
+        main_shut_down();
         return 1;
     }
     main_loop();
-    main_shutdown();
+    main_shut_down();
 
     return 0;
 }

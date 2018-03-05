@@ -7,6 +7,8 @@
 #include "float_utilities.h"
 #include "history.h"
 #include "input.h"
+#include "int_utilities.h"
+#include "logging.h"
 #include "loop_macros.h"
 #include "math_basics.h"
 #include "move_tool.h"
@@ -14,7 +16,10 @@
 #include "object_lady.h"
 #include "platform.h"
 #include "string_build.h"
+#include "string_utilities.h"
 #include "ui.h"
+#include "unicode_grapheme_cluster_break.h"
+#include "unicode_word_break.h"
 #include "vector_math.h"
 
 enum class Mode
@@ -60,6 +65,7 @@ namespace
 
     ui::Context ui_context;
     ui::Item* main_menu;
+    ui::Item* test_anime;
     ui::Id import_button_id;
     ui::Id export_button_id;
     ui::Id object_mode_button_id;
@@ -256,6 +262,25 @@ bool editor_start_up()
         main_menu->container.items[3].button.text_block.text = copy_string_onto_heap("Face Mode", &heap);
         main_menu->container.items[3].button.text_block.font = &font;
         face_mode_button_id = main_menu->container.items[3].id;
+    }
+
+    // Set up the test anime.
+    {
+        test_anime = ui::create_toplevel_container(&ui_context, &heap);
+        test_anime->type = ui::ItemType::Container;
+        test_anime->growable = true;
+        test_anime->container.background_colour = {0.145f, 0.145f, 0.145f, 1.0f};
+        test_anime->container.padding = {1.0f, 1.0f, 1.0f, 1.0f};
+        test_anime->container.direction = ui::Direction::Left_To_Right;
+        test_anime->container.alignment = ui::Alignment::Start;
+        test_anime->container.justification = ui::Justification::Start;
+
+        ui::add_row(&test_anime->container, 1, &ui_context, &heap);
+
+        test_anime->container.items[0].type = ui::ItemType::Text_Input;
+        test_anime->container.items[0].text_input.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+        test_anime->container.items[0].text_input.text_block.text = copy_string_onto_heap("-", &heap);
+        test_anime->container.items[0].text_input.text_block.font = &font;
     }
 
     // Move tool
@@ -890,6 +915,142 @@ void editor_update(Platform* platform)
         }
     }
 
+    // test anime
+    {
+        ui::TextInput* text_input = &test_anime->container.items[0].text_input;
+        ui::TextBlock* text_block = &text_input->text_block;
+
+        // Type out any new text.
+        char* text_to_add = input::get_composed_text();
+        int text_to_add_size = string_size(text_to_add);
+        if(text_to_add_size > 0)
+        {
+            int insert_index = text_input->cursor_position;
+            char* text = insert_string(text_block->text, text_to_add, insert_index, &heap);
+            HEAP_DEALLOCATE(&heap, text_block->text);
+            text_block->text = text;
+
+            // Advance the cursor past the inserted text.
+            int text_end = string_size(text_block->text);
+            text_input->cursor_position = MIN(text_input->cursor_position + text_to_add_size, text_end);
+            text_input->selection_start = text_input->cursor_position;
+        }
+
+        int text_end = string_size(text_block->text);
+
+        if(input::get_key_auto_repeated(input::Key::Left_Arrow))
+        {
+            if(input::get_key_modified_by_control(input::Key::Left_Arrow))
+            {
+                text_input->cursor_position = find_prior_beginning_of_word(text_block->text, text_input->cursor_position, &heap);
+            }
+            else
+            {
+                text_input->cursor_position = find_prior_beginning_of_grapheme_cluster(text_block->text, text_input->cursor_position, &scratch);
+            }
+
+            if(!input::get_key_modified_by_shift(input::Key::Left_Arrow))
+            {
+                text_input->selection_start = text_input->cursor_position;
+            }
+        }
+
+        if(input::get_key_auto_repeated(input::Key::Right_Arrow))
+        {
+            if(input::get_key_modified_by_control(input::Key::Right_Arrow))
+            {
+                text_input->cursor_position = find_next_end_of_word(text_block->text, text_input->cursor_position, &heap);
+            }
+            else
+            {
+                text_input->cursor_position = find_next_end_of_grapheme_cluster(text_block->text, text_input->cursor_position, &scratch);
+            }
+
+            if(!input::get_key_modified_by_shift(input::Key::Right_Arrow))
+            {
+                text_input->selection_start = text_input->cursor_position;
+            }
+        }
+
+        if(input::get_key_tapped(input::Key::Home))
+        {
+            text_input->cursor_position = 0;
+            if(!input::get_key_modified_by_shift(input::Key::Home))
+            {
+                text_input->selection_start = text_input->cursor_position;
+            }
+        }
+
+        if(input::get_key_tapped(input::Key::End))
+        {
+            text_input->cursor_position = text_end;
+            if(!input::get_key_modified_by_shift(input::Key::End))
+            {
+                text_input->selection_start = text_input->cursor_position;
+            }
+        }
+
+        if(input::get_key_auto_repeated(input::Key::Delete))
+        {
+            int start;
+            int end;
+            if(text_input->cursor_position == text_input->selection_start)
+            {
+                end = text_input->cursor_position;
+                start = end + 1;
+            }
+            else
+            {
+                start = text_input->selection_start;
+                end = text_input->cursor_position;
+            }
+            remove_substring(text_input->text_block.text, start, end);
+
+            // Set the cursor to the beginning of the selection.
+            int new_position;
+            if(start < end)
+            {
+                new_position = start;
+            }
+            else
+            {
+                new_position = end;
+            }
+            text_input->cursor_position = new_position;
+            text_input->selection_start = new_position;
+        }
+
+        if(input::get_key_auto_repeated(input::Key::Backspace))
+        {
+            int start;
+            int end;
+            if(text_input->cursor_position == text_input->selection_start)
+            {
+                end = text_input->cursor_position;
+                start = MAX(end - 1, 0);
+            }
+            else
+            {
+                start = text_input->selection_start;
+                end = text_input->cursor_position;
+            }
+            remove_substring(text_input->text_block.text, start, end);
+
+            // Retreat the cursor or set it to the beginning of the selection.
+            int new_position;
+            if(start < end)
+            {
+                new_position = start;
+            }
+            else
+            {
+                new_position = end;
+            }
+            text_input->cursor_position = new_position;
+            text_input->selection_start = new_position;
+        }
+    }
+
     // Clean up the history.
     {
         FOR_N(i, history.changes_to_clean_up_count)
@@ -926,6 +1087,7 @@ void editor_update(Platform* platform)
     update.main_menu = main_menu;
     update.dialog_panel = dialog.panel;
     update.dialog_enabled = dialog.enabled;
+    update.test_anime = test_anime;
     update.lady = &lady;
     update.hovered_object_index = hovered_object_index;
     update.selected_object_index = selected_object_index;

@@ -1,7 +1,7 @@
 #include "input.h"
 
-#include "logging.h"
 #include "loop_macros.h"
+#include "string_utilities.h"
 
 namespace input {
 
@@ -27,8 +27,16 @@ namespace
         int edge_counts[keys_count];
     } keyboard;
 
+    const int composed_text_buffer_size = 16;
+    struct
+    {
+        char buffer[composed_text_buffer_size];
+    } composed_text;
+
     const int hotkeys_count = 128;
     Hotkey hotkeys[hotkeys_count][2];
+
+    const int auto_repeat_frames = 30;
 }
 
 void key_press(Key key, bool pressed, Modifier modifier)
@@ -67,6 +75,12 @@ bool get_key_modified_by_alt(Key key)
 {
     int index = static_cast<int>(key);
     return keyboard.modifiers[index].alt;
+}
+
+bool get_key_auto_repeated(Key key)
+{
+    int index = static_cast<int>(key);
+    return keyboard.keys_pressed[index] && (keyboard.edge_counts[index] == 0 || keyboard.edge_counts[index] >= auto_repeat_frames);
 }
 
 void mouse_click(MouseButton button, bool pressed, Modifier modifier)
@@ -238,6 +252,16 @@ bool get_hotkey_tapped(Function function)
     return result;
 }
 
+void composed_text_entered(char* text)
+{
+    copy_string(composed_text.buffer, composed_text_buffer_size, text);
+}
+
+char* get_composed_text()
+{
+    return composed_text.buffer;
+}
+
 void system_start_up()
 {
     Hotkey undo;
@@ -276,10 +300,16 @@ static void update_key_change_counts()
     }
 }
 
+static void update_composed_text()
+{
+    composed_text.buffer[0] = '\0';
+}
+
 void system_update()
 {
     update_button_change_counts();
     update_key_change_counts();
+    update_composed_text();
 }
 
 } // namespace input

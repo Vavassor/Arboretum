@@ -1407,8 +1407,22 @@ void system_update(UpdateState* update, Platform* platform)
         ui::draw(main_menu, ui_context);
     }
 
+    // test anime
+    {
+        glActiveTexture(GL_TEXTURE0 + 0);
+        glBindTexture(GL_TEXTURE_2D, font_textures[0]);
+        glBindSampler(0, nearest_repeat);
+
+        Rect space;
+        space.bottom_left = {0.0f, -250.0f};
+        space.dimensions = {300.0f, 500.0f};
+        ui::lay_out(update->test_anime, space);
+        ui::draw(update->test_anime, ui_context);
+    }
+
     glDepthMask(GL_TRUE);
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
 
     // Output a test screenshot.
     if(input::get_key_tapped(input::Key::Space))

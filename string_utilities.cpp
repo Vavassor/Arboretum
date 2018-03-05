@@ -172,6 +172,11 @@ static void to_upper_case(char* string)
     }
 }
 
+static bool is_control_character(char c)
+{
+    return c <= 0x1f || (c >= 0x7f && c <= 0x9f);
+}
+
 int compare_alphabetic_ascii(const char* RESTRICT a, const char* RESTRICT b)
 {
     while(*a && (*a == *b))
@@ -182,6 +187,18 @@ int compare_alphabetic_ascii(const char* RESTRICT a, const char* RESTRICT b)
     char c0 = to_upper_case_char(*a);
     char c1 = to_upper_case_char(*b);
     return c0 - c1;
+}
+
+bool only_control_characters(const char* string)
+{
+    for(; *string; string += 1)
+    {
+        if(!is_control_character(*string))
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 // String To Value..............................................................

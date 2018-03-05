@@ -13,5 +13,7 @@ struct Platform
 };
 
 void change_cursor(Platform* platform, CursorType type);
+void begin_composed_text(Platform* platform);
+void end_composed_text(Platform* platform);
 
 #endif // PLATFORM_H_

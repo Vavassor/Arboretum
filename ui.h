@@ -86,12 +86,20 @@ struct List
     int selected_item_index;
 };
 
+struct TextInput
+{
+    TextBlock text_block;
+    int cursor_position;
+    int selection_start;
+};
+
 enum class ItemType
 {
-    Container,
-    Text_Block,
     Button,
+    Container,
     List,
+    Text_Block,
+    Text_Input,
 };
 
 // A UI-Id, User Interface Identifier, not to be confused with a UUID, a
@@ -103,10 +111,11 @@ struct Item
 {
     union
     {
-        Container container;
-        TextBlock text_block;
         Button button;
+        Container container;
         List list;
+        TextBlock text_block;
+        TextInput text_input;
     };
     Rect bounds;
     Vector2 ideal_dimensions;

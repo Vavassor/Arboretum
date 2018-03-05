@@ -64,6 +64,28 @@ void copy_memory(void* RESTRICT to, const void* RESTRICT from, u64 bytes)
     }
 }
 
+void move_memory(void* RESTRICT to, const void* RESTRICT from, u64 bytes)
+{
+    const u8* p0 = static_cast<const u8*>(from);
+    u8* p1 = static_cast<u8*>(to);
+    if(p0 < p1)
+    {
+        for(p0 += bytes, p1 += bytes; bytes; bytes -= 1)
+        {
+            p0 -= 1;
+            p1 -= 1;
+            *p1 = *p0;
+        }
+    }
+    else
+    {
+        for(; bytes; bytes -= 1, p0 +=1, p1 += 1)
+        {
+            *p1 = *p0;
+        }
+    }
+}
+
 static bool is_aligned(const void* memory, u16 alignment)
 {
     upointer address = reinterpret_cast<upointer>(memory);
