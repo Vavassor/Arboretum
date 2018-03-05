@@ -1,4 +1,5 @@
 #include <X11/X.h>
+#include <X11/Xatom.h>
 #include <X11/Xlib.h>
 #include <X11/Xresource.h>
 #include <X11/Xcursor/Xcursor.h>
@@ -19,12 +20,14 @@
 #include "string_utilities.h"
 #include "platform.h"
 
-#include <ctime>
+#include <climits>
 #include <clocale>
+#include <ctime>
 
 struct PlatformX11
 {
     Platform base;
+
     input::Key key_table[256];
     Display* display;
     XVisualInfo* visual_info;
@@ -32,9 +35,24 @@ struct PlatformX11
     Window window;
     Atom wm_delete_window;
     int screen;
+
     XFontSet font_set;
     XIM input_method;
     XIC input_context;
+
+    Atom selection_clipboard;
+    Atom selection_primary;
+    Atom paste_code;
+    Atom save_code;
+    Atom utf8_string;
+    Atom atom_pair;
+    Atom targets;
+    Atom multiple;
+    Atom clipboard_manager;
+    Atom save_targets;
+    char* clipboard;
+    int clipboard_size;
+
     bool close_window_requested;
 };
 
@@ -102,6 +120,43 @@ void end_composed_text(Platform* base)
 {
     PlatformX11* platform = reinterpret_cast<PlatformX11*>(base);
     XUnsetICFocus(platform->input_context);
+}
+
+bool copy_to_clipboard(Platform* base, char* clipboard)
+{
+    PlatformX11* platform = reinterpret_cast<PlatformX11*>(base);
+
+    XSetSelectionOwner(platform->display, platform->selection_clipboard, platform->window, CurrentTime);
+
+    bool is_owner = XGetSelectionOwner(platform->display, platform->selection_clipboard) == platform->window;
+    if(is_owner)
+    {
+        platform->clipboard = clipboard;
+        platform->clipboard_size = string_size(clipboard);
+
+        Window owner = XGetSelectionOwner(platform->display, platform->clipboard_manager);
+        if(owner == X11_NONE)
+        {
+            LOG_ERROR("There's no clipboard manager.");
+            return true;
+        }
+
+        const int count = 1;
+        Atom target_types[count] = {platform->utf8_string};
+        unsigned char* property = reinterpret_cast<unsigned char*>(target_types);
+        XChangeProperty(platform->display, platform->window, platform->save_code, XA_ATOM, 32, PropModeReplace, property, count);
+
+        XConvertSelection(platform->display, platform->clipboard_manager, platform->save_targets, platform->save_code, platform->window, CurrentTime);
+    }
+
+    return is_owner;
+}
+
+void request_paste_from_clipboard(Platform* base)
+{
+    PlatformX11* platform = reinterpret_cast<PlatformX11*>(base);
+
+    XConvertSelection(platform->display, platform->selection_clipboard, platform->utf8_string, platform->paste_code, platform->window, CurrentTime);
 }
 
 namespace
@@ -358,7 +413,7 @@ bool main_start_up()
     }
 
     // Create the window.
-    long event_mask = StructureNotifyMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
+    long event_mask = StructureNotifyMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask | PropertyChangeMask;
     {
         int screen = platform.screen;
         Window root = RootWindow(platform.display, screen);
@@ -445,6 +500,24 @@ bool main_start_up()
         XUnsetICFocus(platform.input_context);
     }
 
+    // Set up the clipboard.
+    {
+        platform.selection_primary = XInternAtom(platform.display, "PRIMARY", False);
+        platform.selection_clipboard = XInternAtom(platform.display, "CLIPBOARD", False);
+        platform.utf8_string = XInternAtom(platform.display, "UTF8_STRING", False);
+        platform.atom_pair = XInternAtom(platform.display, "ATOM_PAIR", False);
+        platform.targets = XInternAtom(platform.display, "TARGETS", False);
+        platform.multiple = XInternAtom(platform.display, "MULTIPLE", False);
+
+        platform.clipboard_manager = XInternAtom(platform.display, "CLIPBOARD_MANAGER", False);
+        platform.save_targets = XInternAtom(platform.display, "SAVE_TARGETS", False);
+
+        // There are arbitrarily-named atom chosen which will be used to
+        // identify properties in selection requests we make.
+        platform.paste_code = XInternAtom(platform.display, "ARBORETUM_PASTE", False);
+        platform.save_code = XInternAtom(platform.display, "ARBORETUM_SAVE_TARGETS", False);
+    }
+
     // Create the rendering context for OpenGL. The rendering context can only
     // be "made current" after the window is mapped (with XMapWindow).
     rendering_context = glXCreateContext(platform.display, platform.visual_info, nullptr, True);
@@ -512,8 +585,8 @@ void main_shut_down()
         {
             XFreeColormap(platform.display, platform.colormap);
         }
-        XCloseIM(platform.input_method);
         XDestroyIC(platform.input_context);
+        XCloseIM(platform.input_method);
         XFreeFontSet(platform.display, platform.font_set);
         XCloseDisplay(platform.display);
     }
@@ -540,6 +613,135 @@ static input::Key translate_key(unsigned int scancode)
     else
     {
         return platform.key_table[scancode];
+    }
+}
+
+static void handle_selection_clear()
+{
+    // Another application overwrote our clipboard contents, so they can
+    // be deallocated now.
+    editor_destroy_clipboard_copy(platform.clipboard);
+    platform.clipboard = nullptr;
+    platform.clipboard_size = 0;
+}
+
+static void handle_selection_notify(XEvent* event)
+{
+    XSelectionEvent notification = event->xselection;
+    if(notification.target != platform.save_targets && notification.property != X11_NONE)
+    {
+        Atom type;
+        int format;
+        unsigned long count;
+        unsigned long size;
+        unsigned char* property = nullptr;
+        XGetWindowProperty(platform.display, platform.window, notification.property, 0, 0, False, AnyPropertyType, &type, &format, &count, &size, &property);
+        XFree(property);
+
+        Atom incr = XInternAtom(platform.display, "INCR", False);
+        if(type == incr)
+        {
+            LOG_ERROR("Clipboard does not support incremental transfers (INCR).");
+        }
+        else
+        {
+            XGetWindowProperty(platform.display, platform.window, notification.property, 0, size, False, AnyPropertyType, &type, &format, &count, &size, &property);
+            char* paste = reinterpret_cast<char*>(property);
+            editor_paste_from_clipboard(paste);
+
+            XFree(property);
+        }
+
+        XDeleteProperty(notification.display, notification.requestor, notification.property);
+    }
+}
+
+static void handle_selection_request(XEvent* event)
+{
+    XSelectionRequestEvent request = event->xselectionrequest;
+    if(request.target == platform.utf8_string && request.property != X11_NONE)
+    {
+        unsigned char* contents = reinterpret_cast<unsigned char*>(platform.clipboard);
+        XChangeProperty(request.display, request.requestor, request.property, platform.utf8_string, 8, PropModeReplace, contents, platform.clipboard_size);
+
+        XEvent response = {};
+        response.xselection.type = SelectionNotify;
+        response.xselection.requestor = request.requestor;
+        response.xselection.selection = request.selection;
+        response.xselection.target = request.target;
+        response.xselection.property = request.property;
+        response.xselection.time = request.time;
+        XSendEvent(request.display, request.requestor, False, NoEventMask, &response);
+    }
+    else if(request.target == platform.multiple && request.property != X11_NONE)
+    {
+        Atom type;
+        int format;
+        unsigned long count;
+        unsigned long bytes_after;
+        unsigned char* property;
+        XGetWindowProperty(request.display, request.requestor, request.property, 0, LONG_MAX, False, platform.atom_pair, &type, &format, &count, &bytes_after, &property);
+
+        Atom* targets = reinterpret_cast<Atom*>(property);
+        for(unsigned long i = 0; i < count; i += 2)
+        {
+            char* name = XGetAtomName(platform.display, targets[i]);
+            XFree(name);
+            if(targets[i] == platform.utf8_string)
+            {
+                unsigned char* contents = reinterpret_cast<unsigned char*>(platform.clipboard);
+                XChangeProperty(request.display, request.requestor, targets[i + 1], targets[i], 8, PropModeReplace, contents, platform.clipboard_size);
+            }
+            else
+            {
+                targets[i + 1] = X11_NONE;
+            }
+        }
+
+        XChangeProperty(request.display, request.requestor, request.property, platform.atom_pair, 32, PropModeReplace, property, count);
+        XFree(property);
+
+        XEvent response = {};
+        response.xselection.type = SelectionNotify;
+        response.xselection.requestor = request.requestor;
+        response.xselection.selection = request.selection;
+        response.xselection.target = request.target;
+        response.xselection.property = request.property;
+        response.xselection.time = request.time;
+        XSendEvent(request.display, request.requestor, False, NoEventMask, &response);
+    }
+    else if(request.target == platform.targets)
+    {
+        const int count = 4;
+        Atom target_types[count] =
+        {
+            platform.targets,
+            platform.multiple,
+            platform.save_targets,
+            platform.utf8_string,
+        };
+        unsigned char* targets = reinterpret_cast<unsigned char*>(target_types);
+        XChangeProperty(request.display, request.requestor, request.property, XA_ATOM, 32, PropModeReplace, targets, count);
+
+        XEvent response = {};
+        response.xselection.type = SelectionNotify;
+        response.xselection.requestor = request.requestor;
+        response.xselection.selection = request.selection;
+        response.xselection.target = request.target;
+        response.xselection.property = request.property;
+        response.xselection.time = request.time;
+        XSendEvent(request.display, request.requestor, False, NoEventMask, &response);
+    }
+    else
+    {
+        XEvent denial;
+        denial.xselection.type = SelectionNotify;
+        denial.xselection.requestor = request.requestor;
+        denial.xselection.selection = request.selection;
+        denial.xselection.target = request.target;
+        denial.xselection.property = X11_NONE;
+        denial.xselection.time = request.time;
+        XSendEvent(request.display, request.requestor, False, NoEventMask, &denial);
     }
 }
 
@@ -684,6 +886,21 @@ static void handle_event(XEvent event)
         {
             XMotionEvent motion = event.xmotion;
             input::mouse_move(motion.x, motion.y);
+            break;
+        }
+        case SelectionClear:
+        {
+            handle_selection_clear();
+            break;
+        }
+        case SelectionNotify:
+        {
+            handle_selection_notify(&event);
+            break;
+        }
+        case SelectionRequest:
+        {
+            handle_selection_request(&event);
             break;
         }
     }

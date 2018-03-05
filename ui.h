@@ -4,6 +4,10 @@
 #include "geometry.h"
 #include "bmfont.h"
 
+struct Platform;
+struct Heap;
+struct Stack;
+
 namespace ui {
 
 struct Padding
@@ -168,6 +172,8 @@ struct Context
 {
     EventQueue queue;
     Vector2 viewport;
+    Heap* heap;
+    Stack* scratch;
     Item* focused_container;
     Item** toplevel_containers;
     int toplevel_containers_count;
@@ -175,7 +181,7 @@ struct Context
 };
 
 bool dequeue(EventQueue* queue, Event* event);
-void create_context(Context* context, Heap* heap);
+void create_context(Context* context, Heap* heap, Stack* stack);
 void destroy_context(Context* context, Heap* heap);
 bool focused_on(Context* context, Item* item);
 void focus_on_container(Context* context, Item* item);
@@ -183,11 +189,12 @@ Item* create_toplevel_container(Context* context, Heap* heap);
 void destroy_toplevel_container(Context* context, Item* item, Heap* heap);
 void add_row(Container* container, int count, Context* context, Heap* heap);
 void add_column(Container* container, int count, Context* context, Heap* heap);
+void insert_text(TextInput* text_input, const char* text_to_add, Heap* heap);
 void create_items(Item* item, int lines_count, Heap* heap);
 void lay_out(Item* item, Rect space);
 void draw(Item* item, Context* context);
 
-void update(Context* context);
+void update(Context* context, Platform* platform);
 
 } // namespace ui
 

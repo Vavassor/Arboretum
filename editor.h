@@ -8,6 +8,8 @@ struct Platform;
 bool editor_start_up();
 void editor_shut_down();
 void editor_update(Platform* platform);
+void editor_destroy_clipboard_copy(char* clipboard);
+void editor_paste_from_clipboard(char* clipboard);
 void resize_viewport(int width, int height, double dots_per_millimeter);
 void clear_object_from_hover_and_selection(ObjectId object_id, Platform* platform);
 

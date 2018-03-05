@@ -18,8 +18,6 @@
 #include "string_build.h"
 #include "string_utilities.h"
 #include "ui.h"
-#include "unicode_grapheme_cluster_break.h"
-#include "unicode_word_break.h"
 #include "vector_math.h"
 
 enum class Mode
@@ -217,7 +215,7 @@ bool editor_start_up()
         add_object_to_history(&history, test_model, &heap);
     }
 
-    ui::create_context(&ui_context, &heap);
+    ui::create_context(&ui_context, &heap, &scratch);
 
     // Fonts
     {
@@ -805,6 +803,8 @@ static void request_mode_change(Mode requested_mode)
     }
 }
 
+
+
 void editor_update(Platform* platform)
 {
     // Interpret user input.
@@ -851,7 +851,7 @@ void editor_update(Platform* platform)
 
     // Update the UI system and respond to any events that occurred.
     {
-        ui::update(&ui_context);
+        ui::update(&ui_context, platform);
         ui::Event event;
         while(ui::dequeue(&ui_context.queue, &event))
         {
@@ -915,142 +915,6 @@ void editor_update(Platform* platform)
         }
     }
 
-    // test anime
-    {
-        ui::TextInput* text_input = &test_anime->container.items[0].text_input;
-        ui::TextBlock* text_block = &text_input->text_block;
-
-        // Type out any new text.
-        char* text_to_add = input::get_composed_text();
-        int text_to_add_size = string_size(text_to_add);
-        if(text_to_add_size > 0)
-        {
-            int insert_index = text_input->cursor_position;
-            char* text = insert_string(text_block->text, text_to_add, insert_index, &heap);
-            HEAP_DEALLOCATE(&heap, text_block->text);
-            text_block->text = text;
-
-            // Advance the cursor past the inserted text.
-            int text_end = string_size(text_block->text);
-            text_input->cursor_position = MIN(text_input->cursor_position + text_to_add_size, text_end);
-            text_input->selection_start = text_input->cursor_position;
-        }
-
-        int text_end = string_size(text_block->text);
-
-        if(input::get_key_auto_repeated(input::Key::Left_Arrow))
-        {
-            if(input::get_key_modified_by_control(input::Key::Left_Arrow))
-            {
-                text_input->cursor_position = find_prior_beginning_of_word(text_block->text, text_input->cursor_position, &heap);
-            }
-            else
-            {
-                text_input->cursor_position = find_prior_beginning_of_grapheme_cluster(text_block->text, text_input->cursor_position, &scratch);
-            }
-
-            if(!input::get_key_modified_by_shift(input::Key::Left_Arrow))
-            {
-                text_input->selection_start = text_input->cursor_position;
-            }
-        }
-
-        if(input::get_key_auto_repeated(input::Key::Right_Arrow))
-        {
-            if(input::get_key_modified_by_control(input::Key::Right_Arrow))
-            {
-                text_input->cursor_position = find_next_end_of_word(text_block->text, text_input->cursor_position, &heap);
-            }
-            else
-            {
-                text_input->cursor_position = find_next_end_of_grapheme_cluster(text_block->text, text_input->cursor_position, &scratch);
-            }
-
-            if(!input::get_key_modified_by_shift(input::Key::Right_Arrow))
-            {
-                text_input->selection_start = text_input->cursor_position;
-            }
-        }
-
-        if(input::get_key_tapped(input::Key::Home))
-        {
-            text_input->cursor_position = 0;
-            if(!input::get_key_modified_by_shift(input::Key::Home))
-            {
-                text_input->selection_start = text_input->cursor_position;
-            }
-        }
-
-        if(input::get_key_tapped(input::Key::End))
-        {
-            text_input->cursor_position = text_end;
-            if(!input::get_key_modified_by_shift(input::Key::End))
-            {
-                text_input->selection_start = text_input->cursor_position;
-            }
-        }
-
-        if(input::get_key_auto_repeated(input::Key::Delete))
-        {
-            int start;
-            int end;
-            if(text_input->cursor_position == text_input->selection_start)
-            {
-                end = text_input->cursor_position;
-                start = end + 1;
-            }
-            else
-            {
-                start = text_input->selection_start;
-                end = text_input->cursor_position;
-            }
-            remove_substring(text_input->text_block.text, start, end);
-
-            // Set the cursor to the beginning of the selection.
-            int new_position;
-            if(start < end)
-            {
-                new_position = start;
-            }
-            else
-            {
-                new_position = end;
-            }
-            text_input->cursor_position = new_position;
-            text_input->selection_start = new_position;
-        }
-
-        if(input::get_key_auto_repeated(input::Key::Backspace))
-        {
-            int start;
-            int end;
-            if(text_input->cursor_position == text_input->selection_start)
-            {
-                end = text_input->cursor_position;
-                start = MAX(end - 1, 0);
-            }
-            else
-            {
-                start = text_input->selection_start;
-                end = text_input->cursor_position;
-            }
-            remove_substring(text_input->text_block.text, start, end);
-
-            // Retreat the cursor or set it to the beginning of the selection.
-            int new_position;
-            if(start < end)
-            {
-                new_position = start;
-            }
-            else
-            {
-                new_position = end;
-            }
-            text_input->cursor_position = new_position;
-            text_input->selection_start = new_position;
-        }
-    }
-
     // Clean up the history.
     {
         FOR_N(i, history.changes_to_clean_up_count)
@@ -1093,6 +957,17 @@ void editor_update(Platform* platform)
     update.selected_object_index = selected_object_index;
 
     video::system_update(&update, platform);
+}
+
+void editor_destroy_clipboard_copy(char* clipboard)
+{
+    HEAP_DEALLOCATE(&heap, clipboard);
+}
+
+void editor_paste_from_clipboard(char* clipboard)
+{
+    ui::TextInput* text_input = &test_anime->container.items[0].text_input;
+    ui::insert_text(text_input, clipboard, &heap);
 }
 
 void resize_viewport(int width, int height, double dots_per_millimeter)

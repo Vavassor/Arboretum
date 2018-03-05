@@ -10,8 +10,11 @@
 #include "loop_macros.h"
 #include "memory.h"
 #include "math_basics.h"
+#include "platform.h"
 #include "string_build.h"
 #include "string_utilities.h"
+#include "unicode_grapheme_cluster_break.h"
+#include "unicode_word_break.h"
 #include "vector_math.h"
 
 namespace ui {
@@ -47,10 +50,12 @@ bool dequeue(EventQueue* queue, Event* event)
     }
 }
 
-void create_context(Context* context, Heap* heap)
+void create_context(Context* context, Heap* heap, Stack* scratch)
 {
     create_event_queue(&context->queue, heap);
     context->seed = 1;
+    context->heap = heap;
+    context->scratch = scratch;
 }
 
 static void destroy_list(List* list, Heap* heap)
@@ -1315,7 +1320,57 @@ void detect_focus_changes_for_toplevel_containers(Context* context)
     }
 }
 
-void update_input(Item* item, Context* context)
+static void remove_selected_text(ui::TextInput* text_input)
+{
+    if(text_input->cursor_position != text_input->selection_start)
+    {
+        remove_substring(text_input->text_block.text, text_input->selection_start, text_input->cursor_position);
+        int collapsed = MIN(text_input->selection_start, text_input->cursor_position);
+        text_input->cursor_position = collapsed;
+        text_input->selection_start = collapsed;
+    }
+}
+
+void insert_text(TextInput* text_input, const char* text_to_add, Heap* heap)
+{
+    TextBlock* text_block = &text_input->text_block;
+
+    int text_to_add_size = string_size(text_to_add);
+    if(text_to_add_size > 0)
+    {
+        remove_selected_text(text_input);
+
+        int insert_index = text_input->cursor_position;
+        char* text = insert_string(text_block->text, text_to_add, insert_index, heap);
+        HEAP_DEALLOCATE(heap, text_block->text);
+        text_block->text = text;
+
+        // Advance the cursor past the inserted text.
+        int text_end = string_size(text_block->text);
+        text_input->cursor_position = MIN(text_input->cursor_position + text_to_add_size, text_end);
+        text_input->selection_start = text_input->cursor_position;
+    }
+}
+
+static bool copy_selected_text(ui::TextInput* text_input, Platform* platform, Heap* heap)
+{
+    ui::TextBlock* text_block = &text_input->text_block;
+
+    int start = MIN(text_input->cursor_position, text_input->selection_start);
+    int end = MAX(text_input->cursor_position, text_input->selection_start);
+    int size = end - start;
+
+    char* clipboard = copy_string_to_heap(&text_block->text[start], size, heap);
+    bool copied = copy_to_clipboard(platform, clipboard);
+    if(!copied)
+    {
+        HEAP_DEALLOCATE(heap, clipboard);
+    }
+
+    return copied;
+}
+
+void update_input(Item* item, Context* context, Platform* platform)
 {
     switch(item->type)
     {
@@ -1336,7 +1391,7 @@ void update_input(Item* item, Context* context)
             Container* container = &item->container;
             FOR_N(i, container->items_count)
             {
-                update_input(&container->items[i], context);
+                update_input(&container->items[i], context, platform);
             }
             break;
         }
@@ -1362,19 +1417,159 @@ void update_input(Item* item, Context* context)
             break;
         }
         case ItemType::Text_Block:
+        {
+            break;
+        }
         case ItemType::Text_Input:
         {
+            TextInput* text_input = &item->text_input;
+            TextBlock* text_block = &text_input->text_block;
+
+            // Type out any new text.
+            char* text_to_add = input::get_composed_text();
+            insert_text(text_input, text_to_add, context->heap);
+
+            if(input::get_key_auto_repeated(input::Key::Left_Arrow))
+            {
+                if(input::get_key_modified_by_control(input::Key::Left_Arrow))
+                {
+                    text_input->cursor_position = find_prior_beginning_of_word(text_block->text, text_input->cursor_position, context->heap);
+                }
+                else
+                {
+                    text_input->cursor_position = find_prior_beginning_of_grapheme_cluster(text_block->text, text_input->cursor_position, context->scratch);
+                }
+
+                if(!input::get_key_modified_by_shift(input::Key::Left_Arrow))
+                {
+                    text_input->selection_start = text_input->cursor_position;
+                }
+            }
+
+            if(input::get_key_auto_repeated(input::Key::Right_Arrow))
+            {
+                if(input::get_key_modified_by_control(input::Key::Right_Arrow))
+                {
+                    text_input->cursor_position = find_next_end_of_word(text_block->text, text_input->cursor_position, context->heap);
+                }
+                else
+                {
+                    text_input->cursor_position = find_next_end_of_grapheme_cluster(text_block->text, text_input->cursor_position, context->scratch);
+                }
+
+                if(!input::get_key_modified_by_shift(input::Key::Right_Arrow))
+                {
+                    text_input->selection_start = text_input->cursor_position;
+                }
+            }
+
+            if(input::get_key_tapped(input::Key::Home))
+            {
+                text_input->cursor_position = 0;
+                if(!input::get_key_modified_by_shift(input::Key::Home))
+                {
+                    text_input->selection_start = text_input->cursor_position;
+                }
+            }
+
+            if(input::get_key_tapped(input::Key::End))
+            {
+                text_input->cursor_position = string_size(text_block->text);
+                if(!input::get_key_modified_by_shift(input::Key::End))
+                {
+                    text_input->selection_start = text_input->cursor_position;
+                }
+            }
+
+            if(input::get_key_auto_repeated(input::Key::Delete))
+            {
+                int start;
+                int end;
+                if(text_input->cursor_position == text_input->selection_start)
+                {
+                    end = text_input->cursor_position;
+                    start = end + 1;
+                }
+                else
+                {
+                    start = text_input->selection_start;
+                    end = text_input->cursor_position;
+                }
+                remove_substring(text_input->text_block.text, start, end);
+
+                // Set the cursor to the beginning of the selection.
+                int new_position;
+                if(start < end)
+                {
+                    new_position = start;
+                }
+                else
+                {
+                    new_position = end;
+                }
+                text_input->cursor_position = new_position;
+                text_input->selection_start = new_position;
+            }
+
+            if(input::get_key_auto_repeated(input::Key::Backspace))
+            {
+                int start;
+                int end;
+                if(text_input->cursor_position == text_input->selection_start)
+                {
+                    end = text_input->cursor_position;
+                    start = MAX(end - 1, 0);
+                }
+                else
+                {
+                    start = text_input->selection_start;
+                    end = text_input->cursor_position;
+                }
+                remove_substring(text_input->text_block.text, start, end);
+
+                // Retreat the cursor or set it to the beginning of the selection.
+                int new_position;
+                if(start < end)
+                {
+                    new_position = start;
+                }
+                else
+                {
+                    new_position = end;
+                }
+                text_input->cursor_position = new_position;
+                text_input->selection_start = new_position;
+            }
+
+            if(input::get_key_tapped(input::Key::C) && input::get_key_modified_by_control(input::Key::C))
+            {
+                copy_selected_text(text_input, platform, context->heap);
+            }
+
+            if(input::get_key_tapped(input::Key::X) && input::get_key_modified_by_control(input::Key::X))
+            {
+                bool copied = copy_selected_text(text_input, platform, context->heap);
+                if(copied)
+                {
+                    remove_selected_text(text_input);
+                }
+            }
+
+            if(input::get_key_tapped(input::Key::V) && input::get_key_modified_by_control(input::Key::V))
+            {
+                request_paste_from_clipboard(platform);
+            }
             break;
         }
     }
 }
 
-void update(Context* context)
+void update(Context* context, Platform* platform)
 {
     detect_focus_changes_for_toplevel_containers(context);
     if(context->focused_container)
     {
-        update_input(context->focused_container, context);
+        update_input(context->focused_container, context, platform);
     }
 }
 
