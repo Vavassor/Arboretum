@@ -1183,28 +1183,71 @@ void draw_text_input(Item* item)
     bmfont::Font* font = text_block->font;
 
     Vector2 cursor = compute_cursor_position(text_block, item->bounds.dimensions, text_input->cursor_position);
-    cursor += item->bounds.bottom_left;
+    Vector2 top_left = rect_top_left(item->bounds);
+    cursor.x += top_left.x;
+    cursor.y = top_left.y - cursor.y;
 
     Rect rect;
     rect.dimensions = {1.0f, font->line_height};
     rect.bottom_left = cursor;
-    rect.bottom_left.y -= rect.dimensions.y;
     immediate::draw_opaque_rect(rect, vector4_white);
 
     // Draw the selection highlight.
     if(text_input->cursor_position != text_input->selection_start)
     {
         Vector2 start = compute_cursor_position(text_block, item->bounds.dimensions, text_input->selection_start);
-        start += item->bounds.bottom_left;
+        start.x += top_left.x;
+        start.y = top_left.y - start.y;
 
-         Vector2 left = min2(cursor, start);
-         Vector2 right = max2(cursor, start);
+        Vector2 first, second;
+        if(text_input->selection_start < text_input->cursor_position)
+        {
+            first = start;
+            second = cursor;
+        }
+        else
+        {
+            first = cursor;
+            second = start;
+        }
 
-         rect.dimensions.x = right.x - left.x;
-         rect.dimensions.y = font->line_height;
-         rect.bottom_left.x = left.x;
-         rect.bottom_left.y = left.y - rect.dimensions.y;
-         immediate::draw_transparent_rect(rect, selection_colour);
+        if(almost_equals(cursor.y, start.y))
+        {
+            // The selection endpoints are on the same line.
+            rect.bottom_left = first;
+            rect.dimensions.x = second.x - first.x;
+            rect.dimensions.y = font->line_height;
+            immediate::draw_transparent_rect(rect, selection_colour);
+        }
+        else
+        {
+            // The selection endpoints are on different lines.
+            Padding padding = text_block->padding;
+            float left = item->bounds.bottom_left.x + padding.start;
+            float right = left + item->bounds.dimensions.x - padding.end;
+
+            rect.bottom_left = first;
+            rect.dimensions.x = right - first.x;
+            rect.dimensions.y = font->line_height;
+            immediate::add_rect(rect, selection_colour);
+
+            int between_lines = (first.y - second.y) / font->line_height - 1;
+            FOR_N(i, between_lines)
+            {
+                rect.dimensions.x = right - left;
+                rect.bottom_left.x = left;
+                rect.bottom_left.y = first.y - (font->line_height * (i + 1));
+                immediate::add_rect(rect, selection_colour);
+            }
+
+            rect.dimensions.x = second.x - left;
+            rect.bottom_left.x = left;
+            rect.bottom_left.y = second.y;
+            immediate::add_rect(rect, selection_colour);
+
+            immediate::set_blend_mode(immediate::BlendMode::Transparent);
+            immediate::draw();
+        }
     }
 }
 
@@ -1287,10 +1330,9 @@ static void detect_hover(Item* item, Vector2 pointer_position)
 
 void detect_focus_changes_for_toplevel_containers(Context* context)
 {
-    bool clicked =
-        input::get_mouse_clicked(input::MouseButton::Left) ||
-        input::get_mouse_clicked(input::MouseButton::Middle) ||
-        input::get_mouse_clicked(input::MouseButton::Right);
+    bool clicked = input::get_mouse_clicked(input::MouseButton::Left)
+        || input::get_mouse_clicked(input::MouseButton::Middle)
+        || input::get_mouse_clicked(input::MouseButton::Right);
 
     Vector2 mouse_position;
     int position_x;
@@ -1320,7 +1362,7 @@ void detect_focus_changes_for_toplevel_containers(Context* context)
     }
 }
 
-static void remove_selected_text(ui::TextInput* text_input)
+static void remove_selected_text(TextInput* text_input)
 {
     if(text_input->cursor_position != text_input->selection_start)
     {
@@ -1352,9 +1394,9 @@ void insert_text(TextInput* text_input, const char* text_to_add, Heap* heap)
     }
 }
 
-static bool copy_selected_text(ui::TextInput* text_input, Platform* platform, Heap* heap)
+static bool copy_selected_text(TextInput* text_input, Platform* platform, Heap* heap)
 {
-    ui::TextBlock* text_block = &text_input->text_block;
+    TextBlock* text_block = &text_input->text_block;
 
     int start = MIN(text_input->cursor_position, text_input->selection_start);
     int end = MAX(text_input->cursor_position, text_input->selection_start);
