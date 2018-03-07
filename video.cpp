@@ -1414,7 +1414,7 @@ void system_update(UpdateState* update, Platform* platform)
         glBindSampler(0, nearest_repeat);
 
         Rect space;
-        space.bottom_left = {0.0f, -250.0f};
+        space.bottom_left = {-200.0f, -250.0f};
         space.dimensions = {300.0f, 500.0f};
         ui::lay_out(update->test_anime, space);
         ui::draw(update->test_anime, ui_context);
@@ -1425,7 +1425,7 @@ void system_update(UpdateState* update, Platform* platform)
     glEnable(GL_CULL_FACE);
 
     // Output a test screenshot.
-    if(input::get_key_tapped(input::Key::Space))
+    if(input::get_key_tapped(input::Key::F12))
     {
         int pixels_count = viewport.width * viewport.height;
         Pixel24* pixels = STACK_ALLOCATE(&scratch, Pixel24, pixels_count);

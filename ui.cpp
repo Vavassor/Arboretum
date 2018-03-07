@@ -1169,6 +1169,77 @@ static Vector2 compute_cursor_position(TextBlock* text_block, Vector2 dimensions
     return pen;
 }
 
+static int find_index_at_position(TextBlock* text_block, Vector2 dimensions, Vector2 position)
+{
+    int index = invalid_index;
+
+    bmfont::Font* font = text_block->font;
+    Padding padding = text_block->padding;
+
+    float right = dimensions.x - padding.end;
+
+    char32_t prior_char = '\0';
+    float closest = infinity;
+    int count = string_size(text_block->text);
+    Vector2 pen = {padding.start, padding.top + font->line_height};
+    FOR_N(i, count)
+    {
+        char32_t current = text_block->text[i];
+
+        if(position.y <= pen.y - font->line_height)
+        {
+            break;
+        }
+        else if(position.y <= pen.y)
+        {
+            float distance = abs(pen.x - position.x);
+            if(distance < closest)
+            {
+                closest = distance;
+                index = i;
+            }
+        }
+
+        if(current == '\r')
+        {
+            pen.x = padding.start;
+        }
+        else if(current == '\n')
+        {
+            pen.x = padding.start;
+            pen.y += font->line_height;
+        }
+        else
+        {
+            bmfont::Glyph* glyph = bmfont::find_glyph(font, current);
+            if(pen.x + glyph->x_advance > right)
+            {
+                pen.x = padding.start;
+                pen.y += font->line_height;
+            }
+            else
+            {
+                float kerning = bmfont::lookup_kerning(font, prior_char, current);
+                pen.x += kerning;
+            }
+            pen.x += glyph->x_advance;
+        }
+        prior_char = current;
+    }
+
+    if(position.y <= pen.y && position.y > pen.y - font->line_height)
+    {
+        float distance = abs(pen.x - position.x);
+        if(distance < closest)
+        {
+            closest = distance;
+            index = count;
+        }
+    }
+
+    return index;
+}
+
 void draw_text_input(Item* item)
 {
     ASSERT(item->type == ItemType::Text_Input);
@@ -1505,6 +1576,40 @@ void update_input(Item* item, Context* context, Platform* platform)
                 }
             }
 
+            if(input::get_key_auto_repeated(input::Key::Up_Arrow))
+            {
+                Vector2 position = compute_cursor_position(text_block, item->bounds.dimensions, text_input->cursor_position);
+                position.y -= text_block->font->line_height;
+                int index = find_index_at_position(text_block, item->bounds.dimensions, position);
+
+                if(index != invalid_index)
+                {
+                    text_input->cursor_position = index;
+
+                    if(!input::get_key_modified_by_shift(input::Key::Up_Arrow))
+                    {
+                        text_input->selection_start = text_input->cursor_position;
+                    }
+                }
+            }
+
+            if(input::get_key_auto_repeated(input::Key::Down_Arrow))
+            {
+                Vector2 position = compute_cursor_position(text_block, item->bounds.dimensions, text_input->cursor_position);
+                position.y += text_block->font->line_height;
+                int index = find_index_at_position(text_block, item->bounds.dimensions, position);
+
+                if(index != invalid_index)
+                {
+                    text_input->cursor_position = index;
+
+                    if(!input::get_key_modified_by_shift(input::Key::Down_Arrow))
+                    {
+                        text_input->selection_start = text_input->cursor_position;
+                    }
+                }
+            }
+
             if(input::get_key_tapped(input::Key::Home))
             {
                 text_input->cursor_position = 0;
@@ -1600,6 +1705,33 @@ void update_input(Item* item, Context* context, Platform* platform)
             if(input::get_key_tapped(input::Key::V) && input::get_key_modified_by_control(input::Key::V))
             {
                 request_paste_from_clipboard(platform);
+            }
+
+            // mouse controls
+
+            bool clicked = input::get_mouse_clicked(input::MouseButton::Left);
+            bool dragged = !clicked && input::get_mouse_pressed(input::MouseButton::Left);
+            if(clicked || dragged)
+            {
+                int x, y;
+                input::get_mouse_position(&x, &y);
+                Vector2 position;
+                position.x = x - context->viewport.x / 2.0f;
+                position.y = -(y - context->viewport.y / 2.0f);
+
+                Vector2 top_left = rect_top_left(item->bounds);
+                position.x = position.x - top_left.x;
+                position.y = -(position.y - top_left.y);
+
+                int index = find_index_at_position(text_block, item->bounds.dimensions, position);
+                if(index != invalid_index)
+                {
+                    text_input->cursor_position = index;
+                    if(clicked)
+                    {
+                        text_input->selection_start = index;
+                    }
+                }
             }
             break;
         }

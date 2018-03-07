@@ -803,8 +803,6 @@ static void request_mode_change(Mode requested_mode)
     }
 }
 
-
-
 void editor_update(Platform* platform)
 {
     // Interpret user input.
