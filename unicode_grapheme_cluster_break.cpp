@@ -1911,7 +1911,7 @@ bool allow_grapheme_cluster_break(Basket* basket, int index)
     right = b == GraphemeClusterBreak::Regional_Indicator;
     if(left && right)
     {
-        int count = 0;
+        int count = 1;
         for(int i = index - 2; i >= 0; i -= 1)
         {
             GraphemeClusterBreak value;
@@ -1922,7 +1922,7 @@ bool allow_grapheme_cluster_break(Basket* basket, int index)
             }
             count += 1;
         }
-        if((count + 1) & 1)
+        if(count & 1)
         {
             return false;
         }

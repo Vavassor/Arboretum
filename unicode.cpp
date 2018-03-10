@@ -59,7 +59,21 @@ int utf8_get_prior_codepoint(const char* string, int start, char32_t* result)
             return i;
         }
     }
-    return -1;
+    return invalid_index;
+}
+
+int utf8_get_next_codepoint(const char* string, int size, int start, char32_t* result)
+{
+    for(int i = start; i < size; i += 1)
+    {
+        if(is_heading_byte(string[i]))
+        {
+            int bytes_read;
+            *result = utf8_get_codepoint(string, &bytes_read);
+            return i;
+        }
+    }
+    return invalid_index;
 }
 
 int utf8_to_utf32(const char* from, int from_size, char32_t* to, int to_size)

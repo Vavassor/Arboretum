@@ -1688,6 +1688,12 @@ void update_input(Item* item, Context* context, Platform* platform)
                 text_input->selection_start = new_position;
             }
 
+            if(input::get_key_tapped(input::Key::A) && input::get_key_modified_by_control(input::Key::A))
+            {
+                text_input->cursor_position = 0;
+                text_input->selection_start = string_size(text_block->text);
+            }
+
             if(input::get_key_tapped(input::Key::C) && input::get_key_modified_by_control(input::Key::C))
             {
                 copy_selected_text(text_input, platform, context->heap);

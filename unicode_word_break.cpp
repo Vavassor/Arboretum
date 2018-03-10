@@ -2449,7 +2449,7 @@ bool allow_word_break(WordBreak* values, int count, int index)
     right = b == WordBreak::Regional_Indicator;
     if(left && right)
     {
-        int count = 0;
+        int count = 1;
         for(int i = index - 2; i >= 0; i -= 1)
         {
             if(values[i] != WordBreak::Regional_Indicator)
@@ -2458,7 +2458,7 @@ bool allow_word_break(WordBreak* values, int count, int index)
             }
             count += 1;
         }
-        if((count + 1) & 1)
+        if(count & 1)
         {
             return false;
         }
