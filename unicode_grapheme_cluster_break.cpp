@@ -1,7 +1,6 @@
 #include "unicode_grapheme_cluster_break.h"
 
 #include "assert.h"
-#include "int_utilities.h"
 #include "memory.h"
 #include "sized_types.h"
 #include "string_utilities.h"
@@ -1760,64 +1759,118 @@ GraphemeClusterBreak get_grapheme_cluster_break(char32_t c)
     return static_cast<GraphemeClusterBreak>(value);
 }
 
-struct Basket
+struct GraphemeClusterBreakContext
 {
-    Stack* stack;
     const char* text;
     GraphemeClusterBreak* breaks;
-    int count;
-    int cap;
-    int breaks_base;
-    int text_base;
+
     int text_size;
+    int lowest_in_text;
+    int highest_in_text;
+
+    int breaks_cap;
+    int head;
+    int tail;
 };
 
-static bool get_break_at(Basket* basket, int start_index, GraphemeClusterBreak* result)
+static bool is_empty(GraphemeClusterBreakContext* context)
 {
-    int breaks_index = start_index - basket->text_base;
-    int breaks_furthest = basket->breaks_base + basket->count;
-
-    if(breaks_index >= basket->breaks_base && breaks_index <= breaks_furthest)
-    {
-        *result = basket->breaks[breaks_index];
-        return true;
-    }
-
-    char32_t codepoint;
-    int index = utf8_get_prior_codepoint(basket->text, start_index, &codepoint);
-    if(index < 0)
-    {
-        return false;
-    }
-
-    if(basket->count + 1 >= basket->cap)
-    {
-        int cap = 2 * basket->cap;
-        basket->breaks = STACK_REALLOCATE(basket->stack, GraphemeClusterBreak, basket->breaks, cap);
-        basket->cap = cap;
-    }
-
-    GraphemeClusterBreak b = get_grapheme_cluster_break(codepoint);
-    basket->breaks[basket->count] = b;
-    basket->count += 1;
-
-    *result = b;
-    return true;
+    return context->head == context->tail;
 }
 
-bool allow_grapheme_cluster_break(Basket* basket, int index)
+static int get_break_at(GraphemeClusterBreakContext* context, int text_index, int break_index, GraphemeClusterBreak* result)
+{
+    if(text_index < 0)
+    {
+        return invalid_index;
+    }
+
+    bool first_fetch = is_empty(context);
+
+    // Retrieve the break if it's been seen already.
+    int wrap_mask = context->breaks_cap - 1;
+    if(!first_fetch && text_index >= context->lowest_in_text && text_index <= context->highest_in_text)
+    {
+        int index = (break_index) & wrap_mask;
+        GraphemeClusterBreak grapheme_break = context->breaks[index];
+        *result = grapheme_break;
+
+        char32_t dummy;
+        int back_down = utf8_get_prior_codepoint(context->text, text_index, &dummy);
+        ASSERT(back_down != invalid_index);
+        return back_down;
+    }
+
+    // Obtain the next break.
+    char32_t codepoint;
+    int index = utf8_get_prior_codepoint(context->text, text_index, &codepoint);
+    if(index == invalid_index)
+    {
+        return invalid_index;
+    }
+    GraphemeClusterBreak grapheme_break = get_grapheme_cluster_break(codepoint);
+
+    // Store the break and return it.
+    if(index < context->lowest_in_text || first_fetch)
+    {
+        context->lowest_in_text = index;
+        if(first_fetch)
+        {
+            context->highest_in_text = index;
+        }
+
+        int next = (context->tail - 1) & wrap_mask;
+        if(next == context->head)
+        {
+            // If the deque is full, evict the head so its spot can be used.
+            char32_t dummy;
+            int back_down = utf8_get_prior_codepoint(context->text, context->highest_in_text - 1, &dummy);
+            ASSERT(back_down != invalid_index);
+            context->highest_in_text = back_down;
+
+            context->head = (context->head - 1) & wrap_mask;
+        }
+
+        context->tail = next;
+        context->breaks[context->tail] = grapheme_break;
+    }
+    else if(index > context->highest_in_text)
+    {
+        context->highest_in_text = index;
+
+        int next = (context->head + 1) & wrap_mask;
+        if(next == context->tail)
+        {
+            // If the deque is full, evict the tail so its spot can be used.
+            char32_t dummy;
+            int step_up = utf8_get_next_codepoint(context->text, context->text_size, context->lowest_in_text + 1, &dummy);
+            ASSERT(step_up != invalid_index);
+            context->lowest_in_text = step_up;
+
+            context->tail = (context->tail + 1) & wrap_mask;
+        }
+
+        context->breaks[context->head] = grapheme_break;
+        context->head = next;
+    }
+
+    *result = grapheme_break;
+    return index;
+}
+
+bool allow_grapheme_cluster_break(GraphemeClusterBreakContext* context, int text_index, int break_index)
 {
     // Always break at the beginning and end of text.
-    if(index == 0 || index >= basket->text_size)
+    if(text_index == 0 || text_index >= context->text_size)
     {
         return true;
     }
 
     GraphemeClusterBreak a;
     GraphemeClusterBreak b;
-    bool got_a = get_break_at(basket, index - 1, &a);
-    bool got_b = get_break_at(basket, index, &b);
-    if(!got_a || !got_b)
+    int a_index = get_break_at(context, text_index - 1, break_index - 1, &a);
+    int b_index = get_break_at(context, text_index, break_index, &b);
+    if(a_index == invalid_index || b_index == invalid_index)
     {
         return true;
     }
@@ -1889,11 +1942,28 @@ bool allow_grapheme_cluster_break(Basket* basket, int index)
     }
 
     // Do not break within emoji modifier sequences.
-    left = a == GraphemeClusterBreak::Extend;
-    right = b == GraphemeClusterBreak::Emoji_Modifier;
-    if(left && right)
+    if(b == GraphemeClusterBreak::Emoji_Modifier)
     {
-        return false;
+        for(int i = a_index, j = break_index - 1; i >= 0; j -= 1)
+        {
+            GraphemeClusterBreak value;
+            int index = get_break_at(context, i, j, &value);
+            if(index == invalid_index)
+            {
+                break;
+            }
+            i = index - 1;
+            bool next = value == GraphemeClusterBreak::Emoji_Base
+                || value == GraphemeClusterBreak::Emoji_Base_GAZ;
+            if(next)
+            {
+                return false;
+            }
+            else if(value != GraphemeClusterBreak::Extend)
+            {
+                break;
+            }
+        }
     }
 
     // Do not break within emoji zero-width joiner sequences.
@@ -1911,15 +1981,16 @@ bool allow_grapheme_cluster_break(Basket* basket, int index)
     right = b == GraphemeClusterBreak::Regional_Indicator;
     if(left && right)
     {
-        int count = 1;
-        for(int i = index - 2; i >= 0; i -= 1)
+        int count = 0;
+        for(int i = a_index, j = break_index - 1; i >= 0; j -= 1)
         {
             GraphemeClusterBreak value;
-            bool got = get_break_at(basket, i, &value);
-            if(!got || value != GraphemeClusterBreak::Regional_Indicator)
+            int index = get_break_at(context, i, j, &value);
+            if(index == invalid_index || value != GraphemeClusterBreak::Regional_Indicator)
             {
                 break;
             }
+            i = index - 1;
             count += 1;
         }
         if(count & 1)
@@ -1933,52 +2004,101 @@ bool allow_grapheme_cluster_break(Basket* basket, int index)
 
 int find_prior_beginning_of_grapheme_cluster(const char* text, int start_index, Stack* stack)
 {
-    Basket basket = {};
-    basket.stack = stack;
-    basket.text = text;
-    basket.cap = 32;
-    basket.breaks = STACK_ALLOCATE(stack, GraphemeClusterBreak, basket.cap);
-    basket.text_size = string_size(text);
-    basket.text_base = start_index;
+    const int breaks_cap = 64;
 
-    while(basket.text_base >= 0)
+    GraphemeClusterBreakContext context = {};
+    context.text = text;
+    context.breaks = STACK_ALLOCATE(stack, GraphemeClusterBreak, breaks_cap);
+    context.lowest_in_text = start_index;
+    context.highest_in_text = start_index;
+    context.text_size = string_size(text);
+    context.breaks_cap = breaks_cap;
+    context.head = 0;
+    context.tail = 0;
+
+    char32_t dummy;
+    int adjusted_start = utf8_get_prior_codepoint(context.text, start_index - 1, &dummy);
+
+    int found = invalid_index;
+    for(int i = adjusted_start, j = 0; i != invalid_index; j -= 1)
     {
-        bool allowed = allow_grapheme_cluster_break(&basket, basket.text_base);
-        basket.breaks_base += 1;
-        basket.text_base -= 1;
+        bool allowed = allow_grapheme_cluster_break(&context, i, j);
         if(allowed)
         {
+            found = i;
             break;
         }
+
+        i = utf8_get_prior_codepoint(context.text, i - 1, &dummy);
     }
 
-    STACK_DEALLOCATE(stack, basket.breaks);
+    STACK_DEALLOCATE(stack, context.breaks);
 
-    return basket.text_base;
+    if(found == invalid_index)
+    {
+        return 0;
+    }
+
+    return found;
 }
 
 int find_next_end_of_grapheme_cluster(const char* text, int start_index, Stack* stack)
 {
-    Basket basket = {};
-    basket.stack = stack;
-    basket.text = text;
-    basket.cap = 32;
-    basket.breaks = STACK_ALLOCATE(stack, GraphemeClusterBreak, basket.cap);
-    basket.text_size = string_size(text);
-    basket.text_base = MIN(start_index + 1, basket.text_size);
+    const int breaks_cap = 64;
 
-    while(basket.text_base < basket.text_size)
+    GraphemeClusterBreakContext context = {};
+    context.text = text;
+    context.breaks = STACK_ALLOCATE(stack, GraphemeClusterBreak, breaks_cap);
+    context.lowest_in_text = start_index;
+    context.highest_in_text = start_index;
+    context.text_size = string_size(text);
+    context.breaks_cap = breaks_cap;
+    context.head = 0;
+    context.tail = 0;
+
+    char32_t dummy;
+    int adjusted_start = utf8_get_next_codepoint(context.text, context.text_size, start_index + 1, &dummy);
+
+    int found = invalid_index;
+    for(int i = adjusted_start, j = 0; i != invalid_index; j += 1)
     {
-        bool allowed = allow_grapheme_cluster_break(&basket, basket.text_base);
+        bool allowed = allow_grapheme_cluster_break(&context, i, j);
         if(allowed)
         {
+            found = i;
             break;
         }
-        basket.breaks_base += 1;
-        basket.text_base += 1;
+
+        i = utf8_get_next_codepoint(context.text, context.text_size, i + 1, &dummy);
     }
 
-    STACK_DEALLOCATE(stack, basket.breaks);
+    STACK_DEALLOCATE(stack, context.breaks);
 
-    return basket.text_base;
+    if(found == invalid_index)
+    {
+        return context.text_size;
+    }
+
+    return found;
+}
+
+bool test_grapheme_cluster_break(const char* text, int text_index, Stack* stack)
+{
+    const int breaks_cap = 64;
+
+    GraphemeClusterBreakContext context = {};
+    context.text = text;
+    context.breaks = STACK_ALLOCATE(stack, GraphemeClusterBreak, breaks_cap);
+    context.lowest_in_text = text_index;
+    context.highest_in_text = text_index;
+    context.text_size = string_size(text);
+    context.breaks_cap = breaks_cap;
+    context.head = 0;
+    context.tail = 0;
+
+    bool allowed = allow_grapheme_cluster_break(&context, text_index, 0);
+
+    STACK_DEALLOCATE(stack, context.breaks);
+
+    return allowed;
 }

@@ -55,7 +55,7 @@ int utf8_get_prior_codepoint(const char* string, int start, char32_t* result)
         if(is_heading_byte(string[i]))
         {
             int bytes_read;
-            *result = utf8_get_codepoint(string, &bytes_read);
+            *result = utf8_get_codepoint(&string[i], &bytes_read);
             return i;
         }
     }
@@ -69,7 +69,7 @@ int utf8_get_next_codepoint(const char* string, int size, int start, char32_t* r
         if(is_heading_byte(string[i]))
         {
             int bytes_read;
-            *result = utf8_get_codepoint(string, &bytes_read);
+            *result = utf8_get_codepoint(&string[i], &bytes_read);
             return i;
         }
     }

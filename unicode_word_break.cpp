@@ -2,9 +2,9 @@
 
 #include "assert.h"
 #include "logging.h"
-#include "loop_macros.h"
 #include "memory.h"
 #include "sized_types.h"
+#include "string_utilities.h"
 #include "unicode.h"
 
 // The rules and tables in this file are based on the default word boundary
@@ -2228,54 +2228,203 @@ WordBreak get_word_break(char32_t c)
     return static_cast<WordBreak>(word_break);
 }
 
-int find_word_breaks(const char* string, WordBreak** result, int** result_offsets, Heap* heap)
+struct WordBreakContext
 {
-    int count = utf8_codepoint_count(string);
-    if(count > 0)
-    {
-        WordBreak* values = HEAP_ALLOCATE(heap, WordBreak, count);
-        int* offsets = HEAP_ALLOCATE(heap, int, count);
+    const char* text;
+    WordBreak* breaks;
 
-        int offset = 0;
-        FOR_N(i, count)
+    int lowest_in_text;
+    int highest_in_text;
+    int text_size;
+
+    int breaks_cap;
+    int head;
+    int tail;
+};
+
+static bool is_empty(WordBreakContext* context)
+{
+    return context->head == context->tail;
+}
+
+static int get_break_at(WordBreakContext* context, int start_index, int break_index, WordBreak* result)
+{
+    if(start_index < 0)
+    {
+        return invalid_index;
+    }
+
+    bool first_fetch = is_empty(context);
+
+    // Retrieve the break if it's been seen already.
+    int wrap_mask = context->breaks_cap - 1;
+    if(!first_fetch && start_index >= context->lowest_in_text && start_index <= context->highest_in_text)
+    {
+        int index = (break_index) & wrap_mask;
+        WordBreak word_break = context->breaks[index];
+        *result = word_break;
+
+        char32_t dummy;
+        int back_down = utf8_get_prior_codepoint(context->text, start_index, &dummy);
+        ASSERT(back_down != invalid_index);
+        return back_down;
+    }
+
+    // Obtain the next break.
+    char32_t codepoint;
+    int index = utf8_get_prior_codepoint(context->text, start_index, &codepoint);
+    if(index == invalid_index)
+    {
+        return invalid_index;
+    }
+    WordBreak word_break = get_word_break(codepoint);
+
+    // Store the break and return it.
+    if(index < context->lowest_in_text || first_fetch)
+    {
+        context->lowest_in_text = index;
+        if(first_fetch)
         {
-            int bytes_read;
-            char32_t c = utf8_get_codepoint(&string[offset], &bytes_read);
-            values[i] = get_word_break(c);
-            offsets[i] = offset;
-            offset += bytes_read;
+            context->highest_in_text = index;
         }
 
-        *result = values;
-        *result_offsets = offsets;
+        int next = (context->tail - 1) & wrap_mask;
+        if(next == context->head)
+        {
+            // If the deque is full, evict the head so its spot can be used.
+            char32_t dummy;
+            int back_down = utf8_get_prior_codepoint(context->text, context->highest_in_text - 1, &dummy);
+            ASSERT(back_down != invalid_index);
+            context->highest_in_text = back_down;
+
+            context->head = (context->head - 1) & wrap_mask;
+        }
+
+        context->tail = next;
+        context->breaks[context->tail] = word_break;
     }
-    return count;
+    else if(index > context->highest_in_text)
+    {
+        context->highest_in_text = index;
+
+        int next = (context->head + 1) & wrap_mask;
+        if(next == context->tail)
+        {
+            // If the deque is full, evict the tail so its spot can be used.
+            char32_t dummy;
+            int step_up = utf8_get_next_codepoint(context->text, context->text_size, context->lowest_in_text + 1, &dummy);
+            ASSERT(step_up != invalid_index);
+            context->lowest_in_text = step_up;
+
+            context->tail = (context->tail + 1) & wrap_mask;
+        }
+
+        context->breaks[context->head] = word_break;
+        context->head = next;
+    }
+
+    *result = word_break;
+    return index;
 }
 
-static bool is_ah_letter(WordBreak a)
+static WordBreak resolve_ignore_sequence_before(WordBreakContext* context, WordBreak word_break, int text_index, int break_index, int* result_text = nullptr, int* result_break = nullptr)
 {
-    return a == WordBreak::A_Letter
-        || a == WordBreak::Hebrew_Letter;
+    bool check = word_break != WordBreak::Extend
+        && word_break != WordBreak::Format
+        && word_break != WordBreak::Zero_Width_Joiner;
+    if(check)
+    {
+        return word_break;
+    }
+
+    for(int i = text_index - 1, j = break_index - 1; i >= 0; j -= 1)
+    {
+        WordBreak value;
+        int index = get_break_at(context, i, j, &value);
+        if(index == invalid_index)
+        {
+            break;
+        }
+        check = value != WordBreak::Extend
+            && value != WordBreak::Format
+            && value != WordBreak::Zero_Width_Joiner;
+        if(check)
+        {
+            if(result_text)
+            {
+                *result_text = index;
+            }
+            if(result_break)
+            {
+                *result_break = j;
+            }
+            return value;
+        }
+        i = index - 1;
+    }
+
+    // Return the break unresolved.
+    return word_break;
 }
 
-static bool is_mnl_or_q(WordBreak a)
+static WordBreak resolve_ignore_sequence_after(WordBreakContext* context, WordBreak word_break, int text_index, int break_index)
 {
-    return a == WordBreak::Mid_Number_Letter
-        || a == WordBreak::Single_Quote;
+    bool check = word_break != WordBreak::Extend
+        && word_break != WordBreak::Format
+        && word_break != WordBreak::Zero_Width_Joiner;
+    if(check)
+    {
+        return word_break;
+    }
+
+    char32_t dummy;
+    int start = utf8_get_next_codepoint(context->text, context->text_size, text_index + 1, &dummy);
+    if(start == invalid_index)
+    {
+        return word_break;
+    }
+
+    for(int i = start, j = break_index + 1; i != invalid_index; j += 1)
+    {
+        WordBreak value;
+        int index = get_break_at(context, i, j, &value);
+        if(index == invalid_index)
+        {
+            break;
+        }
+
+        check = value != WordBreak::Extend
+            && value != WordBreak::Format
+            && value != WordBreak::Zero_Width_Joiner;
+        if(check)
+        {
+            return value;
+        }
+
+        char32_t dummy;
+        i = utf8_get_next_codepoint(context->text, context->text_size, index + 1, &dummy);
+    }
+
+    // Return the break unresolved.
+    return word_break;
 }
 
-bool allow_word_break(WordBreak* values, int count, int index)
+static bool allow_word_break(WordBreakContext* context, int text_index, int break_index)
 {
-    ASSERT(count > 0);
-
     // Always break at the beginning and end of text.
-    if(index == 0 || index >= count)
+    if(text_index == 0 || text_index >= context->text_size)
     {
         return true;
     }
 
-    WordBreak a = values[index - 1];
-    WordBreak b = values[index];
+    WordBreak a;
+    WordBreak b;
+    int a_index = get_break_at(context, text_index - 1, break_index - 1, &a);
+    int b_index = get_break_at(context, text_index, break_index, &b);
+    if(a_index == invalid_index || b_index == invalid_index)
+    {
+        return true;
+    }
 
     // Do not break between a carriage return and line feed.
     bool left = a == WordBreak::Carriage_Return;
@@ -2315,31 +2464,64 @@ bool allow_word_break(WordBreak* values, int count, int index)
     {
         return false;
     }
+    int a_break_index;
+    a = resolve_ignore_sequence_before(context, a, a_index, break_index - 1, &a_index, &a_break_index);
 
     // Do not break between most letters.
-    if(is_ah_letter(a) && is_ah_letter(b))
+    left = a == WordBreak::A_Letter
+        || a == WordBreak::Hebrew_Letter;
+    right = b == WordBreak::A_Letter
+        || b == WordBreak::Hebrew_Letter;
+    if(left && right)
     {
         return false;
     }
 
     // Do not break letters across certain punctuation.
-    if(index + 1 < count)
+    left = a == WordBreak::A_Letter
+        || a == WordBreak::Hebrew_Letter;
+    bool center = b == WordBreak::Mid_Letter
+        || b == WordBreak::Mid_Number_Letter
+        || b == WordBreak::Single_Quote;
+    if(left && center)
     {
-        WordBreak c = values[index + 1];
-        bool center = b == WordBreak::Mid_Letter || is_mnl_or_q(b);
-        if(is_ah_letter(a) && center && is_ah_letter(c))
+        char32_t dummy;
+        int c_index = utf8_get_next_codepoint(context->text, context->text_size, b_index + 1, &dummy);
+        if(c_index != invalid_index)
         {
-            return false;
+            WordBreak c;
+            c_index = get_break_at(context, c_index, break_index + 1, &c);
+            if(c_index != invalid_index)
+            {
+                c = resolve_ignore_sequence_after(context, c, c_index, break_index + 1);
+                right = c == WordBreak::A_Letter
+                    || c == WordBreak::Hebrew_Letter;
+                if(right)
+                {
+                    return false;
+                }
+            }
         }
     }
 
-    if(index - 2 >= 0)
+    center = a == WordBreak::Mid_Letter
+        || a == WordBreak::Mid_Number_Letter
+        || a == WordBreak::Single_Quote;
+    right = b == WordBreak::A_Letter
+        || b == WordBreak::Hebrew_Letter;
+    if(center && right)
     {
-        WordBreak c = values[index - 2];
-        bool center = b == WordBreak::Mid_Letter || is_mnl_or_q(b);
-        if(is_ah_letter(a) && center && is_ah_letter(c))
+        WordBreak c;
+        int c_index = get_break_at(context, a_index - 1, a_break_index - 1, &c);
+        if(c_index != invalid_index)
         {
-            return false;
+            c = resolve_ignore_sequence_before(context, c, c_index, a_break_index - 1);
+            bool left = c == WordBreak::A_Letter
+                || c == WordBreak::Hebrew_Letter;
+            if(left)
+            {
+                return false;
+            }
         }
     }
 
@@ -2350,22 +2532,37 @@ bool allow_word_break(WordBreak* values, int count, int index)
             return false;
         }
 
-        if(index + 1 < count)
+        if(b == WordBreak::Double_Quote)
         {
-            WordBreak c = values[index + 1];
-            if(b == WordBreak::Double_Quote && c == WordBreak::Hebrew_Letter)
+            char32_t dummy;
+            int c_index = utf8_get_next_codepoint(context->text, context->text_size, b_index + 1, &dummy);
+            if(c_index != invalid_index)
             {
-                return false;
+                WordBreak c;
+                c_index = get_break_at(context, c_index, break_index + 1, &c);
+                if(c_index != invalid_index)
+                {
+                    c = resolve_ignore_sequence_after(context, c, c_index, break_index + 1);
+                    if(c == WordBreak::Hebrew_Letter)
+                    {
+                        return false;
+                    }
+                }
             }
         }
     }
 
-    if(b == WordBreak::Hebrew_Letter && index - 2 >= 0)
+    if(a == WordBreak::Double_Quote && b == WordBreak::Hebrew_Letter)
     {
-        WordBreak c = values[index - 2];
-        if(a == WordBreak::Double_Quote && c == WordBreak::Hebrew_Letter)
+        WordBreak c;
+        int c_index = get_break_at(context, a_index - 1, a_break_index - 1, &c);
+        if(c_index != invalid_index)
         {
-            return false;
+            c = resolve_ignore_sequence_before(context, c, c_index, a_break_index - 1, &c_index);
+            if(c == WordBreak::Hebrew_Letter)
+            {
+                return false;
+            }
         }
     }
 
@@ -2374,36 +2571,59 @@ bool allow_word_break(WordBreak* values, int count, int index)
     {
         return false;
     }
-    if(a == WordBreak::Numeric && is_ah_letter(b))
+    left = a == WordBreak::Numeric;
+    right = b == WordBreak::A_Letter || b == WordBreak::Hebrew_Letter;
+    if(left && right)
     {
         return false;
     }
-    if(is_ah_letter(a) && b == WordBreak::Numeric)
+    left = a == WordBreak::A_Letter || a == WordBreak::Hebrew_Letter;
+    right = b == WordBreak::Numeric;
+    if(left && right)
     {
         return false;
     }
 
     // Do not break within number sequences that contain punctuation such as
     // decimals and thousands separators.
-    if(index - 2 >= 0)
+    center = a == WordBreak::Mid_Number
+        || a == WordBreak::Mid_Number_Letter
+        || a == WordBreak::Single_Quote;
+    right = b == WordBreak::Numeric;
+    if(center && right)
     {
-        WordBreak c = values[index - 2];
-        bool center = a == WordBreak::Mid_Number
-            || is_mnl_or_q(a);
-        if(c == WordBreak::Numeric && center && b == WordBreak::Numeric)
+        WordBreak c;
+        int c_index = get_break_at(context, a_index - 1, a_break_index - 1, &c);
+        if(c_index != invalid_index)
         {
-            return false;
+            c = resolve_ignore_sequence_before(context, c, c_index, a_break_index - 1, &c_index);
+            if(c == WordBreak::Numeric)
+            {
+                return false;
+            }
         }
     }
 
-    if(index + 1 < count)
+    left = a == WordBreak::Numeric;
+    center = b == WordBreak::Mid_Number
+        || b == WordBreak::Mid_Number_Letter
+        || b == WordBreak::Single_Quote;
+    if(left && center)
     {
-        WordBreak c = values[index + 1];
-        bool center = b == WordBreak::Mid_Number
-            || is_mnl_or_q(b);
-        if(a == WordBreak::Numeric && center && c == WordBreak::Numeric)
+        char32_t dummy;
+        int c_index = utf8_get_next_codepoint(context->text, context->text_size, b_index + 1, &dummy);
+        if(c_index != invalid_index)
         {
-            return false;
+            WordBreak c;
+            c_index = get_break_at(context, c_index, break_index + 1, &c);
+            if(c_index != invalid_index)
+            {
+                c = resolve_ignore_sequence_after(context, c, c_index, break_index + 1);
+                if(c == WordBreak::Numeric)
+                {
+                    return false;
+                }
+            }
         }
     }
 
@@ -2414,7 +2634,8 @@ bool allow_word_break(WordBreak* values, int count, int index)
     }
 
     // Do not break from extenders.
-    left = is_ah_letter(a)
+    left = a == WordBreak::A_Letter
+        || a == WordBreak::Hebrew_Letter
         || a == WordBreak::Numeric
         || a == WordBreak::Katakana
         || a == WordBreak::Extend_Number_Letter;
@@ -2425,7 +2646,8 @@ bool allow_word_break(WordBreak* values, int count, int index)
     }
 
     left = a == WordBreak::Extend_Number_Letter;
-    right = is_ah_letter(b)
+    right = b == WordBreak::A_Letter
+        || b == WordBreak::Hebrew_Letter
         || b == WordBreak::Numeric
         || b == WordBreak::Katakana
         || b == WordBreak::Extend_Number_Letter;
@@ -2450,12 +2672,20 @@ bool allow_word_break(WordBreak* values, int count, int index)
     if(left && right)
     {
         int count = 1;
-        for(int i = index - 2; i >= 0; i -= 1)
+        for(int i = a_index - 1, j = a_break_index - 1; i >= 0; j -= 1)
         {
-            if(values[i] != WordBreak::Regional_Indicator)
+            WordBreak value;
+            int index = get_break_at(context, i, j, &value);
+            if(index == invalid_index)
             {
                 break;
             }
+            value = resolve_ignore_sequence_before(context, value, index, j, &index, &j);
+            if(value != WordBreak::Regional_Indicator)
+            {
+                break;
+            }
+            i = index - 1;
             count += 1;
         }
         if(count & 1)
@@ -2469,100 +2699,133 @@ bool allow_word_break(WordBreak* values, int count, int index)
 
 // This is an arbitrary choice of word break types that are used to determine
 // whether a codepoint is part of a word or spacing between words.
-static bool is_considered_spacing(WordBreak b)
+static bool is_considered_spacing(WordBreak word_break)
 {
-    return b == WordBreak::Other
-        || b == WordBreak::Carriage_Return
-        || b == WordBreak::Line_Feed
-        || b == WordBreak::Newline;
+    return word_break == WordBreak::Other
+        || word_break == WordBreak::Carriage_Return
+        || word_break == WordBreak::Line_Feed
+        || word_break == WordBreak::Newline;
 }
 
-int find_prior_beginning_of_word(const char* text, int position, Heap* heap)
+int find_prior_beginning_of_word(const char* text, int start_index, Stack* stack)
 {
-    int result = 0;
+    const int breaks_cap = 64;
 
-    WordBreak* breaks;
-    int* offsets;
-    int count = find_word_breaks(text, &breaks, &offsets, heap);
-    if(count > 0)
+    WordBreakContext context = {};
+    context.text = text;
+    context.breaks = STACK_ALLOCATE(stack, WordBreak, breaks_cap);
+    context.lowest_in_text = start_index;
+    context.highest_in_text = start_index;
+    context.text_size = string_size(text);
+    context.breaks_cap = breaks_cap;
+    context.head = 0;
+    context.tail = 0;
+
+    char32_t dummy;
+    int adjusted_start = utf8_get_prior_codepoint(context.text, start_index - 1, &dummy);
+
+    int found = invalid_index;
+    for(int i = adjusted_start, j = 0; i != invalid_index; j -= 1)
     {
-        int index = 0;
-        FOR_N(i, count)
+        bool allowed = allow_word_break(&context, i, j);
+        if(allowed)
         {
-            if(offsets[i] >= position)
+            WordBreak left;
+            WordBreak right;
+            int left_index = get_break_at(&context, i - 1, j - 1, &left);
+            int right_index = get_break_at(&context, i, j, &right);
+            bool check = left_index != invalid_index
+                && is_considered_spacing(left)
+                && right_index != invalid_index
+                && !is_considered_spacing(right);
+            if(check)
             {
-                break;
-            }
-            else
-            {
-                index = i;
-            }
-        }
-        for(; index > 0; index -= 1)
-        {
-            bool allowed = allow_word_break(breaks, count, index);
-            if(allowed)
-            {
-                WordBreak a = breaks[index - 1];
-                WordBreak b = breaks[index];
-                if(is_considered_spacing(a) && !is_considered_spacing(b))
-                {
-                    break;
-                }
-            }
-        }
-        result = offsets[index];
-
-        HEAP_DEALLOCATE(heap, breaks);
-        HEAP_DEALLOCATE(heap, offsets);
-    }
-
-    return result;
-}
-
-int find_next_end_of_word(const char* text, int position, Heap* heap)
-{
-    int result = 0;
-
-    WordBreak* breaks;
-    int* offsets;
-    int count = find_word_breaks(text, &breaks, &offsets, heap);
-    if(count > 0)
-    {
-        int index = count - 1;
-        FOR_N(i, count)
-        {
-            if(offsets[i] > position)
-            {
-                index = i;
+                found = i;
                 break;
             }
         }
-        for(; index < count - 1 && index > 0; index += 1)
-        {
-            bool allowed = allow_word_break(breaks, count, index);
-            if(allowed)
-            {
-                WordBreak a = breaks[index - 1];
-                WordBreak b = breaks[index];
-                if(!is_considered_spacing(a) && is_considered_spacing(b))
-                {
-                    break;
-                }
-            }
-        }
-        if(index == count - 1)
-        {
-            result = offsets[index] + 1;
-        }
-        else
-        {
-            result = offsets[index];
-        }
 
-        HEAP_DEALLOCATE(heap, breaks);
-        HEAP_DEALLOCATE(heap, offsets);
+        i = utf8_get_prior_codepoint(context.text, i - 1, &dummy);
     }
 
-    return result;
+    STACK_DEALLOCATE(stack, context.breaks);
+
+    if(found == invalid_index)
+    {
+        return 0;
+    }
+
+    return found;
+}
+
+int find_next_end_of_word(const char* text, int start_index, Stack* stack)
+{
+    const int breaks_cap = 64;
+
+    WordBreakContext context = {};
+    context.text = text;
+    context.breaks = STACK_ALLOCATE(stack, WordBreak, breaks_cap);
+    context.lowest_in_text = start_index;
+    context.highest_in_text = start_index;
+    context.text_size = string_size(text);
+    context.breaks_cap = breaks_cap;
+    context.head = 0;
+    context.tail = 0;
+
+    char32_t dummy;
+    int adjusted_start = utf8_get_next_codepoint(context.text, context.text_size, start_index + 1, &dummy);
+
+    int found = invalid_index;
+    for(int i = adjusted_start, j = 0; i != invalid_index; j += 1)
+    {
+        bool allowed = allow_word_break(&context, i, j);
+        if(allowed)
+        {
+            WordBreak left;
+            WordBreak right;
+            int left_index = get_break_at(&context, i - 1, j - 1, &left);
+            int right_index = get_break_at(&context, i, j, &right);
+            bool check = left_index != invalid_index
+                && !is_considered_spacing(left)
+                && right_index != invalid_index
+                && is_considered_spacing(right);
+            if(check)
+            {
+                found = i;
+                break;
+            }
+        }
+
+        i = utf8_get_next_codepoint(context.text, context.text_size, i + 1, &dummy);
+    }
+
+    STACK_DEALLOCATE(stack, context.breaks);
+
+    if(found == invalid_index)
+    {
+        return context.text_size;
+    }
+
+    return found;
+}
+
+bool test_word_break(const char* text, int text_index, Stack* stack)
+{
+    const int breaks_cap = 64;
+
+    WordBreakContext context = {};
+    context.text = text;
+    context.breaks = STACK_ALLOCATE(stack, WordBreak, breaks_cap);
+    context.lowest_in_text = text_index;
+    context.highest_in_text = text_index;
+    context.text_size = string_size(text);
+    context.breaks_cap = breaks_cap;
+    context.head = 0;
+    context.tail = 0;
+
+    bool allowed = allow_word_break(&context, text_index, 0);
+
+    STACK_DEALLOCATE(stack, context.breaks);
+
+    return allowed;
 }

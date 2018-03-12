@@ -28,12 +28,11 @@ enum class WordBreak
     Emoji_Base_GAZ = 21, // Emoji Base Glue After Zero-Width Joiner
 };
 
-struct Heap;
+struct Stack;
 
 WordBreak get_word_break(char32_t c);
-int find_word_breaks(const char* string, WordBreak** result, int** result_offsets, Heap* heap);
-bool allow_word_break(WordBreak* values, int count, int index);
-int find_prior_beginning_of_word(const char* text, int position, Heap* heap);
-int find_next_end_of_word(const char* text, int position, Heap* heap);
+int find_prior_beginning_of_word(const char* text, int start_index, Stack* stack);
+int find_next_end_of_word(const char* text, int start_index, Stack* stack);
+bool test_word_break(const char* text, int text_index, Stack* stack);
 
 #endif // UNICODE_WORD_BREAK_H_

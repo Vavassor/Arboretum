@@ -1546,7 +1546,7 @@ void update_input(Item* item, Context* context, Platform* platform)
             {
                 if(input::get_key_modified_by_control(input::Key::Left_Arrow))
                 {
-                    text_input->cursor_position = find_prior_beginning_of_word(text_block->text, text_input->cursor_position, context->heap);
+                    text_input->cursor_position = find_prior_beginning_of_word(text_block->text, text_input->cursor_position, context->scratch);
                 }
                 else
                 {
@@ -1563,7 +1563,7 @@ void update_input(Item* item, Context* context, Platform* platform)
             {
                 if(input::get_key_modified_by_control(input::Key::Right_Arrow))
                 {
-                    text_input->cursor_position = find_next_end_of_word(text_block->text, text_input->cursor_position, context->heap);
+                    text_input->cursor_position = find_next_end_of_word(text_block->text, text_input->cursor_position, context->scratch);
                 }
                 else
                 {

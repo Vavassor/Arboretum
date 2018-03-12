@@ -30,5 +30,6 @@ struct Stack;
 GraphemeClusterBreak get_grapheme_cluster_break(char32_t c);
 int find_prior_beginning_of_grapheme_cluster(const char* text, int start_index, Stack* stack);
 int find_next_end_of_grapheme_cluster(const char* text, int start_index, Stack* stack);
+bool test_grapheme_cluster_break(const char* text, int text_index, Stack* stack);
 
 #endif // UNICODE_GRAPHEME_CLUSTER_BREAK_H_
