@@ -14,6 +14,7 @@
 #include "string_build.h"
 #include "string_utilities.h"
 #include "unicode_grapheme_cluster_break.h"
+#include "unicode_line_break.h"
 #include "unicode_word_break.h"
 #include "vector_math.h"
 
@@ -306,7 +307,7 @@ void create_items(Item* item, int lines_count, Heap* heap)
     list->selected_item_index = invalid_index;
 }
 
-static Vector2 measure_ideal_dimensions(TextBlock* text_block)
+static Vector2 measure_ideal_dimensions(TextBlock* text_block, Stack* stack)
 {
     Vector2 bounds = vector2_zero;
 
@@ -319,6 +320,7 @@ static Vector2 measure_ideal_dimensions(TextBlock* text_block)
 
     char32_t prior_char = '\0';
     int size = string_size(text_block->text);
+    int next_break = find_next_mandatory_line_break(text_block->text, 0, stack);
     Vector2 pen = {padding.start, -padding.top - font->line_height};
     FOR_N(i, size)
     {
@@ -326,43 +328,40 @@ static Vector2 measure_ideal_dimensions(TextBlock* text_block)
         // glyphs. Add a lookup to glyph given the next sequence of text.
         char32_t current = text_block->text[i];
 
-        if(current == '\r')
+        if(i == next_break)
         {
-            bounds.x = fmax(bounds.x, pen.x);
-            pen.x = padding.start;
-        }
-        else if(current == '\n')
-        {
+            int prior_break = next_break;
+            next_break = find_next_mandatory_line_break(text_block->text, prior_break, stack);
+
             bounds.x = fmax(bounds.x, pen.x);
             pen.x = padding.start;
             pen.y -= font->line_height;
         }
-        else
-        {
-            bmfont::Glyph* glyph = bmfont::find_glyph(font, current);
-            float kerning = bmfont::lookup_kerning(font, prior_char, current);
 
-            Vector2 top_left = pen;
-            top_left.x += glyph->offset.x;
-            top_left.y -= glyph->offset.y;
+        bmfont::Glyph* glyph = bmfont::find_glyph(font, current);
+        float kerning = bmfont::lookup_kerning(font, prior_char, current);
 
-            Rect viewport_rect;
-            viewport_rect.dimensions = glyph->rect.dimensions;
-            viewport_rect.bottom_left.x = top_left.x;
-            viewport_rect.bottom_left.y = top_left.y + font->line_height - viewport_rect.dimensions.y;
+        Vector2 top_left = pen;
+        top_left.x += glyph->offset.x;
+        top_left.y -= glyph->offset.y;
 
-            Rect texture_rect = glyph->rect;
-            texture_rect.bottom_left = pointwise_divide(texture_rect.bottom_left, texture_dimensions);
-            texture_rect.dimensions = pointwise_divide(texture_rect.dimensions, texture_dimensions);
+        Rect viewport_rect;
+        viewport_rect.dimensions = glyph->rect.dimensions;
+        viewport_rect.bottom_left.x = top_left.x;
+        viewport_rect.bottom_left.y = top_left.y + font->line_height - viewport_rect.dimensions.y;
 
-            Glyph* typeset_glyph = &text_block->glyphs[i];
-            typeset_glyph->rect = viewport_rect;
-            typeset_glyph->texture_rect = texture_rect;
-            typeset_glyph->baseline_start = pen;
-            typeset_glyph->x_advance = glyph->x_advance;
+        Rect texture_rect = glyph->rect;
+        texture_rect.bottom_left = pointwise_divide(texture_rect.bottom_left, texture_dimensions);
+        texture_rect.dimensions = pointwise_divide(texture_rect.dimensions, texture_dimensions);
 
-            pen.x += glyph->x_advance + kerning;
-        }
+        Glyph* typeset_glyph = &text_block->glyphs[i];
+        typeset_glyph->rect = viewport_rect;
+        typeset_glyph->texture_rect = texture_rect;
+        typeset_glyph->baseline_start = pen;
+        typeset_glyph->x_advance = glyph->x_advance;
+
+        pen.x += glyph->x_advance + kerning;
+
         prior_char = current;
     }
 
@@ -374,7 +373,7 @@ static Vector2 measure_ideal_dimensions(TextBlock* text_block)
     return bounds;
 }
 
-static Vector2 measure_ideal_dimensions(Container* container)
+static Vector2 measure_ideal_dimensions(Container* container, Stack* stack)
 {
     Vector2 bounds = vector2_zero;
     int main_axis = get_main_axis_index(container->axis);
@@ -388,12 +387,12 @@ static Vector2 measure_ideal_dimensions(Container* container)
         {
             case ItemType::Button:
             {
-                item_ideal = measure_ideal_dimensions(&item->button.text_block);
+                item_ideal = measure_ideal_dimensions(&item->button.text_block, stack);
                 break;
             }
             case ItemType::Container:
             {
-                item_ideal = measure_ideal_dimensions(&item->container);
+                item_ideal = measure_ideal_dimensions(&item->container, stack);
                 break;
             }
             case ItemType::List:
@@ -403,12 +402,12 @@ static Vector2 measure_ideal_dimensions(Container* container)
             }
             case ItemType::Text_Block:
             {
-                item_ideal = measure_ideal_dimensions(&item->text_block);
+                item_ideal = measure_ideal_dimensions(&item->text_block, stack);
                 break;
             }
             case ItemType::Text_Input:
             {
-                item_ideal = measure_ideal_dimensions(&item->text_input.text_block);
+                item_ideal = measure_ideal_dimensions(&item->text_input.text_block, stack);
                 break;
             }
         }
@@ -425,7 +424,22 @@ static Vector2 measure_ideal_dimensions(Container* container)
     return bounds;
 }
 
-static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimensions)
+static float compute_run_length(const char* text, int start, int end, bmfont::Font* font)
+{
+    float length = 0.0f;
+    for(int i = start; i < end; i += 1)
+    {
+        // @Incomplete: There isn't a one-to-one mapping between chars and
+        // glyphs. Add a lookup to glyph given the next sequence of text.
+        char32_t current = text[i];
+
+        bmfont::Glyph* glyph = bmfont::find_glyph(font, current);
+        length += glyph->x_advance;
+    }
+    return length;
+}
+
+static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimensions, Stack* stack)
 {
     Vector2 bounds = vector2_zero;
 
@@ -433,6 +447,7 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
     Padding padding = text_block->padding;
 
     float right = dimensions.x - padding.end;
+    float whole_width = dimensions.x - padding.start - padding.end;
 
     Vector2 texture_dimensions;
     texture_dimensions.x = font->image_width;
@@ -440,6 +455,9 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
 
     char32_t prior_char = '\0';
     int size = string_size(text_block->text);
+    bool mandatory_break;
+    int next_break = find_next_line_break(text_block->text, 0, &mandatory_break, stack);
+    float run_length = compute_run_length(text_block->text, 0, next_break, font);
     Vector2 pen = {padding.start, -padding.top - font->line_height};
     FOR_N(i, size)
     {
@@ -447,53 +465,56 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
         // glyphs. Add a lookup to glyph given the next sequence of text.
         char32_t current = text_block->text[i];
 
-        if(current == '\r')
+        if(i == next_break)
         {
-            bounds.x = fmax(bounds.x, pen.x);
-            pen.x = padding.start;
-        }
-        else if(current == '\n')
-        {
-            bounds.x = fmax(bounds.x, pen.x);
-            pen.x = padding.start;
-            pen.y -= font->line_height;
-        }
-        else
-        {
-            bmfont::Glyph* glyph = bmfont::find_glyph(font, current);
-            if(pen.x + glyph->x_advance > right)
+            bool prior_mandatory = mandatory_break;
+            int prior_break = next_break;
+            next_break = find_next_line_break(text_block->text, prior_break, &mandatory_break, stack);
+            run_length = compute_run_length(text_block->text, prior_break, next_break, font);
+
+            if(pen.x + run_length > right || prior_mandatory)
             {
                 bounds.x = fmax(bounds.x, pen.x);
                 pen.x = padding.start;
                 pen.y -= font->line_height;
             }
-            else
-            {
-                float kerning = bmfont::lookup_kerning(font, prior_char, current);
-                pen.x += kerning;
-            }
-
-            Vector2 top_left = pen;
-            top_left.x += glyph->offset.x;
-            top_left.y -= glyph->offset.y;
-
-            Rect viewport_rect;
-            viewport_rect.dimensions = glyph->rect.dimensions;
-            viewport_rect.bottom_left.x = top_left.x;
-            viewport_rect.bottom_left.y = top_left.y + font->line_height - viewport_rect.dimensions.y;
-
-            Rect texture_rect = glyph->rect;
-            texture_rect.bottom_left = pointwise_divide(texture_rect.bottom_left, texture_dimensions);
-            texture_rect.dimensions = pointwise_divide(texture_rect.dimensions, texture_dimensions);
-
-            Glyph* typeset_glyph = &text_block->glyphs[i];
-            typeset_glyph->rect = viewport_rect;
-            typeset_glyph->texture_rect = texture_rect;
-            typeset_glyph->baseline_start = pen;
-            typeset_glyph->x_advance = glyph->x_advance;
-
-            pen.x += glyph->x_advance;
         }
+
+        bmfont::Glyph* glyph = bmfont::find_glyph(font, current);
+
+        if(run_length > whole_width && pen.x + glyph->x_advance > right)
+        {
+            // If there is a long section of text with no break opportunities
+            // make an emergency break so it doesn't overflow the text box.
+            bounds.x = fmax(bounds.x, pen.x);
+            pen.x = padding.start;
+            pen.y -= font->line_height;
+        }
+
+        float kerning = bmfont::lookup_kerning(font, prior_char, current);
+        pen.x += kerning;
+
+        Vector2 top_left = pen;
+        top_left.x += glyph->offset.x;
+        top_left.y -= glyph->offset.y;
+
+        Rect viewport_rect;
+        viewport_rect.dimensions = glyph->rect.dimensions;
+        viewport_rect.bottom_left.x = top_left.x;
+        viewport_rect.bottom_left.y = top_left.y + font->line_height - viewport_rect.dimensions.y;
+
+        Rect texture_rect = glyph->rect;
+        texture_rect.bottom_left = pointwise_divide(texture_rect.bottom_left, texture_dimensions);
+        texture_rect.dimensions = pointwise_divide(texture_rect.dimensions, texture_dimensions);
+
+        Glyph* typeset_glyph = &text_block->glyphs[i];
+        typeset_glyph->rect = viewport_rect;
+        typeset_glyph->texture_rect = texture_rect;
+        typeset_glyph->baseline_start = pen;
+        typeset_glyph->x_advance = glyph->x_advance;
+
+        pen.x += glyph->x_advance;
+
         prior_char = current;
     }
 
@@ -505,7 +526,7 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
     return bounds;
 }
 
-static Vector2 measure_bound_dimensions(Container* container, Vector2 container_space, float shrink, Axis shrink_along)
+static Vector2 measure_bound_dimensions(Container* container, Vector2 container_space, float shrink, Axis shrink_along, Stack* stack)
 {
     Vector2 result = vector2_zero;
     int main_axis = get_main_axis_index(container->axis);
@@ -527,12 +548,12 @@ static Vector2 measure_bound_dimensions(Container* container, Vector2 container_
         {
             case ItemType::Button:
             {
-                dimensions = measure_bound_dimensions(&item->button.text_block, space);
+                dimensions = measure_bound_dimensions(&item->button.text_block, space, stack);
                 break;
             }
             case ItemType::Container:
             {
-                dimensions = measure_bound_dimensions(&item->container, space, shrink, shrink_along);
+                dimensions = measure_bound_dimensions(&item->container, space, shrink, shrink_along, stack);
                 break;
             }
             case ItemType::List:
@@ -542,12 +563,12 @@ static Vector2 measure_bound_dimensions(Container* container, Vector2 container_
             }
             case ItemType::Text_Block:
             {
-                dimensions = measure_bound_dimensions(&item->text_block, space);
+                dimensions = measure_bound_dimensions(&item->text_block, space, stack);
                 break;
             }
             case ItemType::Text_Input:
             {
-                dimensions = measure_bound_dimensions(&item->text_input.text_block, space);
+                dimensions = measure_bound_dimensions(&item->text_input.text_block, space, stack);
                 break;
             }
         }
@@ -977,13 +998,13 @@ static void place_items_along_cross_axis(Item* item, Rect space)
     }
 }
 
-void lay_out(Item* item, Rect space)
+void lay_out(Item* item, Rect space, Stack* stack)
 {
     Container* container = &item->container;
     int main_axis = get_main_axis_index(container->axis);
 
     // Compute the ideal dimensions of the container and its contents.
-    Vector2 ideal = measure_ideal_dimensions(container);
+    Vector2 ideal = measure_ideal_dimensions(container, stack);
     item->ideal_dimensions = max2(item->min_dimensions, ideal);
     float ideal_length = 0.0f;
     FOR_N(i, container->items_count)
@@ -1005,7 +1026,7 @@ void lay_out(Item* item, Rect space)
         // fit in the container.
         float shrink = compute_shrink_factor(container, space, ideal_length);
 
-        Vector2 bound = measure_bound_dimensions(container, space.dimensions, shrink, container->axis);
+        Vector2 bound = measure_bound_dimensions(container, space.dimensions, shrink, container->axis, stack);
         if(item->growable)
         {
             bound[main_axis] = space.dimensions[main_axis];
@@ -1066,12 +1087,12 @@ static void draw_container(Item* item, Context* context)
     }
 }
 
-static void place_glyphs(TextBlock* text_block, Vector2 bounds)
+static void place_glyphs(TextBlock* text_block, Vector2 bounds, Stack* stack)
 {
-    measure_bound_dimensions(text_block, bounds);
+    measure_bound_dimensions(text_block, bounds, stack);
 }
 
-static void place_list_items(Item* item)
+static void place_list_items(Item* item, Stack* stack)
 {
     List* list = &item->list;
 
@@ -1090,7 +1111,7 @@ static void place_list_items(Item* item)
         {
             list->items_bounds[i] = place;
             place.bottom_left.y -= place.dimensions.y + list->item_spacing;
-            place_glyphs(&list->items[i], list->items_bounds[i].dimensions);
+            place_glyphs(&list->items[i], list->items_bounds[i].dimensions, stack);
         }
     }
 }
@@ -1099,7 +1120,7 @@ static void draw_list(Item* item, Context* context)
 {
     ASSERT(item->type == ItemType::List);
 
-    place_list_items(item);
+    place_list_items(item, context->scratch);
 
     immediate::set_clip_area(item->bounds, context->viewport.x, context->viewport.y);
 
@@ -1409,17 +1430,17 @@ void detect_focus_changes_for_toplevel_containers(Context* context)
     }
 }
 
-static void update_removed_glyphs(TextBlock* text_block, Vector2 dimensions)
+static void update_removed_glyphs(TextBlock* text_block, Vector2 dimensions, Stack* stack)
 {
     // @Incomplete: There isn't a one-to-one mapping between chars and
     // glyphs. Glyph count should be based on the mapping of the given text
     // in a particular font instead of the size in bytes.
     text_block->glyphs_count = string_size(text_block->text);
 
-    place_glyphs(text_block, dimensions);
+    place_glyphs(text_block, dimensions, stack);
 }
 
-static void update_added_glyphs(TextBlock* text_block, Vector2 dimensions, Heap* heap)
+static void update_added_glyphs(TextBlock* text_block, Vector2 dimensions, Heap* heap, Stack* stack)
 {
     // @Incomplete: There isn't a one-to-one mapping between chars and glyphs.
     // Glyph count should be based on the mapping of the given text in a
@@ -1428,22 +1449,22 @@ static void update_added_glyphs(TextBlock* text_block, Vector2 dimensions, Heap*
     text_block->glyphs = HEAP_REALLOCATE(heap, Glyph, text_block->glyphs, glyphs_count);
     text_block->glyphs_count = glyphs_count;
 
-    place_glyphs(text_block, dimensions);
+    place_glyphs(text_block, dimensions, stack);
 }
 
-static void remove_selected_text(TextInput* text_input, Vector2 dimensions)
+static void remove_selected_text(TextInput* text_input, Vector2 dimensions, Stack* stack)
 {
     if(text_input->cursor_position != text_input->selection_start)
     {
         remove_substring(text_input->text_block.text, text_input->selection_start, text_input->cursor_position);
-        update_removed_glyphs(&text_input->text_block, dimensions);
+        update_removed_glyphs(&text_input->text_block, dimensions, stack);
         int collapsed = MIN(text_input->selection_start, text_input->cursor_position);
         text_input->cursor_position = collapsed;
         text_input->selection_start = collapsed;
     }
 }
 
-void insert_text(Item* item, const char* text_to_add, Heap* heap)
+void insert_text(Item* item, const char* text_to_add, Heap* heap, Stack* stack)
 {
     TextInput* text_input = &item->text_input;
     TextBlock* text_block = &text_input->text_block;
@@ -1452,14 +1473,14 @@ void insert_text(Item* item, const char* text_to_add, Heap* heap)
     int text_to_add_size = string_size(text_to_add);
     if(text_to_add_size > 0)
     {
-        remove_selected_text(text_input, dimensions);
+        remove_selected_text(text_input, dimensions, stack);
 
         int insert_index = text_input->cursor_position;
         char* text = insert_string(text_block->text, text_to_add, insert_index, heap);
         HEAP_DEALLOCATE(heap, text_block->text);
         text_block->text = text;
 
-        update_added_glyphs(text_block, dimensions, heap);
+        update_added_glyphs(text_block, dimensions, heap, stack);
 
         // Advance the cursor past the inserted text.
         int text_end = string_size(text_block->text);
@@ -1543,7 +1564,7 @@ void update_input(Item* item, Context* context, Platform* platform)
 
             // Type out any new text.
             char* text_to_add = input::get_composed_text();
-            insert_text(item, text_to_add, context->heap);
+            insert_text(item, text_to_add, context->heap, context->scratch);
 
             if(input::get_key_auto_repeated(input::Key::Left_Arrow))
             {
@@ -1646,7 +1667,7 @@ void update_input(Item* item, Context* context, Platform* platform)
                     end = text_input->cursor_position;
                 }
                 remove_substring(text_block->text, start, end);
-                update_removed_glyphs(text_block, item->bounds.dimensions);
+                update_removed_glyphs(text_block, item->bounds.dimensions, context->scratch);
 
                 // Set the cursor to the beginning of the selection.
                 int new_position;
@@ -1677,7 +1698,7 @@ void update_input(Item* item, Context* context, Platform* platform)
                     end = text_input->cursor_position;
                 }
                 remove_substring(text_block->text, start, end);
-                update_removed_glyphs(text_block, item->bounds.dimensions);
+                update_removed_glyphs(text_block, item->bounds.dimensions, context->scratch);
 
                 // Retreat the cursor or set it to the beginning of the selection.
                 int new_position;
@@ -1709,7 +1730,7 @@ void update_input(Item* item, Context* context, Platform* platform)
                 bool copied = copy_selected_text(text_input, platform, context->heap);
                 if(copied)
                 {
-                    remove_selected_text(text_input, item->bounds.dimensions);
+                    remove_selected_text(text_input, item->bounds.dimensions, context->scratch);
                 }
             }
 

@@ -965,7 +965,7 @@ void editor_destroy_clipboard_copy(char* clipboard)
 void editor_paste_from_clipboard(char* clipboard)
 {
     ui::Item* item = &test_anime->container.items[0];
-    ui::insert_text(item, clipboard, &heap);
+    ui::insert_text(item, clipboard, &heap, &scratch);
 }
 
 void resize_viewport(int width, int height, double dots_per_millimeter)

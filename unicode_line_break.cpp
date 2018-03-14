@@ -3506,8 +3506,11 @@ int find_next_line_break(const char* text, int start_index, bool* mandatory, Sta
     context.head = 0;
     context.tail = 0;
 
+    char32_t dummy;
+    int adjusted_start = utf8_get_next_codepoint(context.text, context.text_size, start_index + 1, &dummy);
+
     int found = invalid_index;
-    for(int i = start_index, j = 0; i != invalid_index; j += 1)
+    for(int i = adjusted_start, j = 0; i != invalid_index; j += 1)
     {
         LineBreakCategory category = categorise_line_break(&context, i, j);
         if(category != LineBreakCategory::Prohibited)
@@ -3517,11 +3520,30 @@ int find_next_line_break(const char* text, int start_index, bool* mandatory, Sta
             break;
         }
 
-        char32_t dummy;
         i = utf8_get_next_codepoint(context.text, context.text_size, i + 1, &dummy);
     }
 
     STACK_DEALLOCATE(stack, context.breaks);
 
+    if(found == invalid_index)
+    {
+        return context.text_size;
+    }
+
     return found;
+}
+
+int find_next_mandatory_line_break(const char* text, int start_index, Stack* stack)
+{
+    int end = string_size(text);
+    for(int i = start_index; i < end; i += 1)
+    {
+        bool mandatory;
+        i = find_next_line_break(text, i, &mandatory, stack);
+        if(mandatory)
+        {
+            return i;
+        }
+    }
+    return end;
 }

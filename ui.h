@@ -200,9 +200,9 @@ void destroy_toplevel_container(Context* context, Item* item, Heap* heap);
 void add_row(Container* container, int count, Context* context, Heap* heap);
 void add_column(Container* container, int count, Context* context, Heap* heap);
 void set_text(TextBlock* text_block, const char* text, Heap* heap);
-void insert_text(Item* item, const char* text_to_add, Heap* heap);
+void insert_text(Item* item, const char* text_to_add, Heap* heap, Stack* stack);
 void create_items(Item* item, int lines_count, Heap* heap);
-void lay_out(Item* item, Rect space);
+void lay_out(Item* item, Rect space, Stack* stack);
 void draw(Item* item, Context* context);
 
 void update(Context* context, Platform* platform);
