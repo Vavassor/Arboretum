@@ -105,17 +105,19 @@ static void open_directory(FilePickDialog* dialog, const char* directory, bmfont
         {
             // root directory
             const char* name = "Filesystem";
-            button->text_block.text = copy_string_to_heap(name, string_size(name), heap);
+            ui::set_text(&button->text_block, name, heap);
         }
         else if(found_index == -1)
         {
             // final path segment
-            button->text_block.text = copy_string_to_heap(path, string_size(path), heap);
+            ui::set_text(&button->text_block, path, heap);
             break;
         }
         else
         {
-            button->text_block.text = copy_string_to_heap(path, found_index, heap);
+            char* temp = copy_string_to_heap(path, found_index, heap);
+            ui::set_text(&button->text_block, temp, heap);
+            HEAP_DEALLOCATE(heap, temp);
         }
         path += found_index + 1;
     }
@@ -150,9 +152,9 @@ static void open_directory(FilePickDialog* dialog, const char* directory, bmfont
         {
             DirectoryRecord record = dialog->directory.records[i];
             ui::TextBlock* text_block = &list->items[i];
-            text_block->text = copy_string_onto_heap(record.name, heap);
             text_block->padding = {1.0f, 1.0f, 1.0f, 1.0f};
             text_block->font = font;
+            ui::set_text(text_block, record.name, heap);
         }
     }
 
@@ -167,15 +169,15 @@ static void open_directory(FilePickDialog* dialog, const char* directory, bmfont
     ui::Item* file_readout = &footer->container.items[0];
     file_readout->type = ui::ItemType::Text_Block;
     file_readout->text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-    file_readout->text_block.text = copy_string_onto_heap("", heap);
     file_readout->text_block.font = font;
+    ui::set_text(&file_readout->text_block, " ", heap);
     dialog->file_readout = &file_readout->text_block;
 
     ui::Item* pick = &footer->container.items[1];
     pick->type = ui::ItemType::Button;
     pick->button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-    pick->button.text_block.text = copy_string_onto_heap("Import", heap);
     pick->button.text_block.font = font;
+    ui::set_text(&pick->button.text_block, "Import", heap);
     dialog->pick_button = pick->id;
     dialog->pick = &pick->button;
 

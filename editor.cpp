@@ -239,26 +239,26 @@ bool editor_start_up()
 
         main_menu->container.items[0].type = ui::ItemType::Button;
         main_menu->container.items[0].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-        main_menu->container.items[0].button.text_block.text = copy_string_onto_heap("Import .obj", &heap);
         main_menu->container.items[0].button.text_block.font = &font;
+        ui::set_text(&main_menu->container.items[0].button.text_block, "Import .obj", &heap);
         import_button_id = main_menu->container.items[0].id;
 
         main_menu->container.items[1].type = ui::ItemType::Button;
         main_menu->container.items[1].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-        main_menu->container.items[1].button.text_block.text = copy_string_onto_heap("Export .obj", &heap);
         main_menu->container.items[1].button.text_block.font = &font;
+        ui::set_text(&main_menu->container.items[1].button.text_block, "Export .obj", &heap);
         export_button_id = main_menu->container.items[1].id;
 
         main_menu->container.items[2].type = ui::ItemType::Button;
         main_menu->container.items[2].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-        main_menu->container.items[2].button.text_block.text = copy_string_onto_heap("Object Mode", &heap);
         main_menu->container.items[2].button.text_block.font = &font;
+        ui::set_text(&main_menu->container.items[2].button.text_block, "Object Mode", &heap);
         object_mode_button_id = main_menu->container.items[2].id;
 
         main_menu->container.items[3].type = ui::ItemType::Button;
         main_menu->container.items[3].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-        main_menu->container.items[3].button.text_block.text = copy_string_onto_heap("Face Mode", &heap);
         main_menu->container.items[3].button.text_block.font = &font;
+        ui::set_text(&main_menu->container.items[3].button.text_block, "Face Mode", &heap);
         face_mode_button_id = main_menu->container.items[3].id;
     }
 
@@ -277,8 +277,8 @@ bool editor_start_up()
 
         test_anime->container.items[0].type = ui::ItemType::Text_Input;
         test_anime->container.items[0].text_input.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-        test_anime->container.items[0].text_input.text_block.text = copy_string_onto_heap("-", &heap);
         test_anime->container.items[0].text_input.text_block.font = &font;
+        ui::set_text(&test_anime->container.items[0].text_input.text_block, "-", &heap);
     }
 
     // Move tool
@@ -964,8 +964,8 @@ void editor_destroy_clipboard_copy(char* clipboard)
 
 void editor_paste_from_clipboard(char* clipboard)
 {
-    ui::TextInput* text_input = &test_anime->container.items[0].text_input;
-    ui::insert_text(text_input, clipboard, &heap);
+    ui::Item* item = &test_anime->container.items[0];
+    ui::insert_text(item, clipboard, &heap);
 }
 
 void resize_viewport(int width, int height, double dots_per_millimeter)

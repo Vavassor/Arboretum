@@ -52,11 +52,21 @@ enum class Alignment
 
 struct Item;
 
+struct Glyph
+{
+    Rect rect;
+    Rect texture_rect;
+    Vector2 baseline_start;
+    float x_advance;
+};
+
 struct TextBlock
 {
     Padding padding;
     char* text;
     bmfont::Font* font;
+    Glyph* glyphs;
+    int glyphs_count;
 };
 
 struct Button
@@ -189,7 +199,8 @@ Item* create_toplevel_container(Context* context, Heap* heap);
 void destroy_toplevel_container(Context* context, Item* item, Heap* heap);
 void add_row(Container* container, int count, Context* context, Heap* heap);
 void add_column(Container* container, int count, Context* context, Heap* heap);
-void insert_text(TextInput* text_input, const char* text_to_add, Heap* heap);
+void set_text(TextBlock* text_block, const char* text, Heap* heap);
+void insert_text(Item* item, const char* text_to_add, Heap* heap);
 void create_items(Item* item, int lines_count, Heap* heap);
 void lay_out(Item* item, Rect space);
 void draw(Item* item, Context* context);
