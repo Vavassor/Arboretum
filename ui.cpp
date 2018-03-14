@@ -1226,7 +1226,7 @@ static int find_index_at_position(TextBlock* text_block, Vector2 dimensions, Vec
     Vector2 point;
     point.x = last.baseline_start.x + last.x_advance;
     point.y = last.baseline_start.y;
-    if(position.y <= point.y + font->line_height && position.y > point.y)
+    if(position.y < point.y + font->line_height && position.y > point.y)
     {
         float distance = abs(point.x - position.x);
         if(distance < closest)
@@ -1507,6 +1507,38 @@ static bool copy_selected_text(TextInput* text_input, Platform* platform, Heap* 
     return copied;
 }
 
+static int find_beginning_of_line(TextBlock* text_block, int start_index)
+{
+    start_index = MIN(start_index, text_block->glyphs_count - 1);
+    Glyph first = text_block->glyphs[start_index];
+    float first_y = first.baseline_start.y;
+    for(int i = start_index - 1; i >= 0; i -= 1)
+    {
+        Glyph glyph = text_block->glyphs[i];
+        if(glyph.baseline_start.y > first_y)
+        {
+            return i + 1;
+        }
+    }
+    return 0;
+}
+
+static int find_end_of_line(TextBlock* text_block, int start_index)
+{
+    start_index = MIN(start_index, text_block->glyphs_count - 1);
+    Glyph first = text_block->glyphs[start_index];
+    float first_y = first.baseline_start.y;
+    for(int i = start_index + 1; i < text_block->glyphs_count; i += 1)
+    {
+        Glyph glyph = text_block->glyphs[i];
+        if(glyph.baseline_start.y < first_y)
+        {
+            return i - 1;
+        }
+    }
+    return text_block->glyphs_count;
+}
+
 void update_input(Item* item, Context* context, Platform* platform)
 {
     switch(item->type)
@@ -1603,7 +1635,7 @@ void update_input(Item* item, Context* context, Platform* platform)
             if(input::get_key_auto_repeated(input::Key::Up_Arrow))
             {
                 Vector2 position = compute_cursor_position(text_block, item->bounds.dimensions, text_input->cursor_position);
-                position.y -= text_block->font->line_height;
+                position.y += text_block->font->line_height;
                 int index = find_index_at_position(text_block, item->bounds.dimensions, position);
 
                 if(index != invalid_index)
@@ -1620,7 +1652,7 @@ void update_input(Item* item, Context* context, Platform* platform)
             if(input::get_key_auto_repeated(input::Key::Down_Arrow))
             {
                 Vector2 position = compute_cursor_position(text_block, item->bounds.dimensions, text_input->cursor_position);
-                position.y += text_block->font->line_height;
+                position.y -= text_block->font->line_height;
                 int index = find_index_at_position(text_block, item->bounds.dimensions, position);
 
                 if(index != invalid_index)
@@ -1636,7 +1668,14 @@ void update_input(Item* item, Context* context, Platform* platform)
 
             if(input::get_key_tapped(input::Key::Home))
             {
-                text_input->cursor_position = 0;
+                if(input::get_key_modified_by_control(input::Key::Home))
+                {
+                    text_input->cursor_position = 0;
+                }
+                else
+                {
+                    text_input->cursor_position = find_beginning_of_line(text_block, text_input->cursor_position);
+                }
                 if(!input::get_key_modified_by_shift(input::Key::Home))
                 {
                     text_input->selection_start = text_input->cursor_position;
@@ -1645,7 +1684,14 @@ void update_input(Item* item, Context* context, Platform* platform)
 
             if(input::get_key_tapped(input::Key::End))
             {
-                text_input->cursor_position = string_size(text_block->text);
+                if(input::get_key_modified_by_control(input::Key::End))
+                {
+                    text_input->cursor_position = string_size(text_block->text);
+                }
+                else
+                {
+                    text_input->cursor_position = find_end_of_line(text_block, text_input->cursor_position);
+                }
                 if(!input::get_key_modified_by_shift(input::Key::End))
                 {
                     text_input->selection_start = text_input->cursor_position;
