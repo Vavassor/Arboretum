@@ -9,4 +9,8 @@ int utf8_get_prior_codepoint(const char* string, int start, char32_t* result);
 int utf8_get_next_codepoint(const char* string, int size, int start, char32_t* result);
 int utf8_to_utf32(const char* from, int from_size, char32_t* to, int to_size);
 
+bool is_whitespace(char32_t codepoint);
+bool is_newline(char32_t codepoint);
+bool is_default_ignorable(char32_t codepoint);
+
 #endif // UNICODE_H_

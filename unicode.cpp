@@ -91,3 +91,61 @@ int utf8_to_utf32(const char* from, int from_size, char32_t* to, int to_size)
 
     return i;
 }
+
+// This is based on the White_Space property in Unicode Standard Annex #44
+// revision 20 for Unicode version 10.0.0.
+// http://www.unicode.org/reports/tr44/tr44-20.html
+//
+// The codepoint ranges are pulled directly from the data file:
+// https://unicode.org/Public/UNIDATA/PropList.txt
+bool is_whitespace(char32_t codepoint)
+{
+    return (codepoint >= U'\u0009' && codepoint <= U'\u000d') // <control-0009>..<control-000D>
+        || codepoint == U'\u0020'                             // SPACE
+        || codepoint == U'\u0085'                             // <control-0085>
+        || codepoint == U'\u00a0'                             // NO-BREAK SPACE
+        || codepoint == U'\u1680'                             // OGHAM SPACE MARK
+        || (codepoint >= U'\u2000' && codepoint <= U'\u200a') // EN QUAD..HAIR SPACE
+        || codepoint == U'\u2028'                             // LINE SEPARATOR
+        || codepoint == U'\u2029'                             // PARAGRAPH SEPARATOR
+        || codepoint == U'\u202f'                             // NARROW NO-BREAK SPACE
+        || codepoint == U'\u205f'                             // MEDIUM MATHEMATICAL SPACE
+        || codepoint == U'\u3000';                            // IDEOGRAPHIC SPACE
+}
+
+bool is_newline(char32_t codepoint)
+{
+    return (codepoint >= U'\u000a' && codepoint <= U'\u000d') // <control-000a>..<control-000d>
+        || codepoint == U'\u0085'                             // <control-0085>
+        || codepoint == U'\u2028'                             // LINE SEPARATOR
+        || codepoint == U'\u2029';                            // PARAGRAPH SEPARATOR
+}
+
+// This is based on the Default_Ignorable_Code_Point property in Unicode
+// Standard Annex #44 revision 20 for Unicode version 10.0.0.
+// http://www.unicode.org/reports/tr44/tr44-20.html
+//
+// The codepoint ranges are pulled directly from the data file:
+// https://unicode.org/Public/UNIDATA/DerivedCoreProperties.txt
+bool is_default_ignorable(char32_t codepoint)
+{
+    return codepoint == U'\u00ad'                                      // SOFT HYPHEN
+        || codepoint == U'\u034f'                                      // COMBINING GRAPHEME JOINER
+        || codepoint == U'\u061c'                                      // ARABIC LETTER MARK
+        || (codepoint >= U'\u115f' && codepoint <= U'\u1160')          // HANGUL CHOSEONG FILLER..HANGUL JUNGSEONG FILLER
+        || (codepoint >= U'\u17b4' && codepoint <= U'\u17b5')          // KHMER VOWEL INHERENT AQ..KHMER VOWEL INHERENT AA
+        || (codepoint >= U'\u180b' && codepoint <= U'\u180d')          // MONGOLIAN FREE VARIATION SELECTOR ONE..MONGOLIAN FREE VARIATION SELECTOR THREE
+        || codepoint == U'\u180e'                                      // MONGOLIAN VOWEL SEPARATOR
+        || (codepoint >= U'\u200b' && codepoint <= U'\u200f')          // ZERO WIDTH SPACE..RIGHT-TO-LEFT MARK
+        || (codepoint >= U'\u202a' && codepoint <= U'\u202e')          // LEFT-TO-RIGHT EMBEDDING..RIGHT-TO-LEFT OVERRIDE
+        || (codepoint >= U'\u2060' && codepoint <= U'\u2064')          // WORD JOINER..INVISIBLE PLUS
+        || codepoint == U'\u2065'                                      // <reserved-2065>
+        || (codepoint >= U'\u2066' && codepoint <= U'\u206f')          // LEFT-TO-RIGHT ISOLATE..NOMINAL DIGIT SHAPES
+        || codepoint == U'\u3164'                                      // HANGUL FILLER
+        || (codepoint >= U'\ufe00' && codepoint <= U'\ufe0f')          // VARIATION SELECTOR-1..VARIATION SELECTOR-16
+        || codepoint == U'\ufeff'                                      // ZERO WIDTH NO-BREAK SPACE
+        || codepoint == U'\uffa0'                                      // HALFWIDTH HANGUL FILLER
+        || (codepoint >= U'\ufff0' && codepoint <= U'\ufff8')          // <reserved-FFF0>..<reserved-FFF8>
+        || (codepoint >= U'\U0001bca0' && codepoint <= U'\U0001bca3')  // SHORTHAND FORMAT LETTER OVERLAP..SHORTHAND FORMAT UP STEP
+        || (codepoint >= U'\U000e0000' && codepoint <= U'\U000e0fff'); // a bunch of stuff, mostly reserved
+}

@@ -264,20 +264,40 @@ char* get_composed_text()
 
 void system_start_up()
 {
-    Hotkey undo;
-    undo.key = Key::Z;
-    undo.modifier = ModifierCombo::Control;
-    set_primary_hotkey(Function::Undo, undo);
+    Hotkey copy;
+    copy.key = Key::C;
+    copy.modifier = ModifierCombo::Control;
+    set_primary_hotkey(Function::Copy, copy);
+
+    Hotkey cut;
+    cut.key = Key::X;
+    cut.modifier = ModifierCombo::Control;
+    set_primary_hotkey(Function::Cut, cut);
+
+    Hotkey delete_hotkey;
+    delete_hotkey.key = Key::Delete;
+    delete_hotkey.modifier = ModifierCombo::None;
+    set_primary_hotkey(Function::Delete, delete_hotkey);
+
+    Hotkey paste;
+    paste.key = Key::V;
+    paste.modifier = ModifierCombo::Control;
+    set_primary_hotkey(Function::Paste, paste);
 
     Hotkey redo;
     redo.key = Key::Z;
     redo.modifier = ModifierCombo::Control_Shift;
     set_primary_hotkey(Function::Redo, redo);
 
-    Hotkey delete_hotkey;
-    delete_hotkey.key = Key::Delete;
-    delete_hotkey.modifier = ModifierCombo::None;
-    set_primary_hotkey(Function::Delete, delete_hotkey);
+    Hotkey select_all;
+    select_all.key = Key::A;
+    select_all.modifier = ModifierCombo::Control;
+    set_primary_hotkey(Function::Select_All, select_all);
+
+    Hotkey undo;
+    undo.key = Key::Z;
+    undo.modifier = ModifierCombo::Control;
+    set_primary_hotkey(Function::Undo, undo);
 }
 
 static void update_button_change_counts()

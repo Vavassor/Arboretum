@@ -1,8 +1,9 @@
 #ifndef UI_H_
 #define UI_H_
 
-#include "geometry.h"
 #include "bmfont.h"
+#include "geometry.h"
+#include "u32_map.h"
 
 struct Platform;
 struct Heap;
@@ -58,14 +59,17 @@ struct Glyph
     Rect texture_rect;
     Vector2 baseline_start;
     float x_advance;
+    int text_index;
 };
 
 struct TextBlock
 {
+    U32Map glyph_map;
     Padding padding;
     char* text;
     bmfont::Font* font;
     Glyph* glyphs;
+    int glyphs_cap;
     int glyphs_count;
 };
 

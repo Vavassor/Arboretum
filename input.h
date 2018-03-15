@@ -118,9 +118,13 @@ enum class MouseButton
 
 enum class Function
 {
-    Undo,
-    Redo,
+    Copy,
+    Cut,
     Delete,
+    Paste,
+    Redo,
+    Select_All,
+    Undo,
 };
 
 enum class ModifierCombo
