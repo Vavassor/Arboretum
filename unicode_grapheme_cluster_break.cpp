@@ -1795,8 +1795,7 @@ static int get_break_at(GraphemeClusterBreakContext* context, int text_index, in
         GraphemeClusterBreak grapheme_break = context->breaks[index];
         *result = grapheme_break;
 
-        char32_t dummy;
-        int back_down = utf8_get_prior_codepoint(context->text, text_index, &dummy);
+        int back_down = utf8_skip_to_prior_codepoint(context->text, text_index);
         ASSERT(back_down != invalid_index);
         return back_down;
     }
@@ -1823,8 +1822,7 @@ static int get_break_at(GraphemeClusterBreakContext* context, int text_index, in
         if(next == context->head)
         {
             // If the deque is full, evict the head so its spot can be used.
-            char32_t dummy;
-            int back_down = utf8_get_prior_codepoint(context->text, context->highest_in_text - 1, &dummy);
+            int back_down = utf8_skip_to_prior_codepoint(context->text, context->highest_in_text - 1);
             ASSERT(back_down != invalid_index);
             context->highest_in_text = back_down;
 
@@ -1842,8 +1840,7 @@ static int get_break_at(GraphemeClusterBreakContext* context, int text_index, in
         if(next == context->tail)
         {
             // If the deque is full, evict the tail so its spot can be used.
-            char32_t dummy;
-            int step_up = utf8_get_next_codepoint(context->text, context->text_size, context->lowest_in_text + 1, &dummy);
+            int step_up = utf8_skip_to_next_codepoint(context->text, context->text_size, context->lowest_in_text + 1);
             ASSERT(step_up != invalid_index);
             context->lowest_in_text = step_up;
 
@@ -2016,8 +2013,7 @@ int find_prior_beginning_of_grapheme_cluster(const char* text, int start_index, 
     context.head = 0;
     context.tail = 0;
 
-    char32_t dummy;
-    int adjusted_start = utf8_get_prior_codepoint(context.text, start_index - 1, &dummy);
+    int adjusted_start = utf8_skip_to_prior_codepoint(context.text, start_index - 1);
 
     int found = invalid_index;
     for(int i = adjusted_start, j = 0; i != invalid_index; j -= 1)
@@ -2029,7 +2025,7 @@ int find_prior_beginning_of_grapheme_cluster(const char* text, int start_index, 
             break;
         }
 
-        i = utf8_get_prior_codepoint(context.text, i - 1, &dummy);
+        i = utf8_skip_to_prior_codepoint(context.text, i - 1);
     }
 
     STACK_DEALLOCATE(stack, context.breaks);

@@ -2264,8 +2264,7 @@ static int get_break_at(WordBreakContext* context, int start_index, int break_in
         WordBreak word_break = context->breaks[index];
         *result = word_break;
 
-        char32_t dummy;
-        int back_down = utf8_get_prior_codepoint(context->text, start_index, &dummy);
+        int back_down = utf8_skip_to_prior_codepoint(context->text, start_index);
         ASSERT(back_down != invalid_index);
         return back_down;
     }
@@ -2292,8 +2291,7 @@ static int get_break_at(WordBreakContext* context, int start_index, int break_in
         if(next == context->head)
         {
             // If the deque is full, evict the head so its spot can be used.
-            char32_t dummy;
-            int back_down = utf8_get_prior_codepoint(context->text, context->highest_in_text - 1, &dummy);
+            int back_down = utf8_skip_to_prior_codepoint(context->text, context->highest_in_text - 1);
             ASSERT(back_down != invalid_index);
             context->highest_in_text = back_down;
 
@@ -2311,8 +2309,7 @@ static int get_break_at(WordBreakContext* context, int start_index, int break_in
         if(next == context->tail)
         {
             // If the deque is full, evict the tail so its spot can be used.
-            char32_t dummy;
-            int step_up = utf8_get_next_codepoint(context->text, context->text_size, context->lowest_in_text + 1, &dummy);
+            int step_up = utf8_skip_to_next_codepoint(context->text, context->text_size, context->lowest_in_text + 1);
             ASSERT(step_up != invalid_index);
             context->lowest_in_text = step_up;
 
@@ -2377,8 +2374,7 @@ static WordBreak resolve_ignore_sequence_after(WordBreakContext* context, WordBr
         return word_break;
     }
 
-    char32_t dummy;
-    int start = utf8_get_next_codepoint(context->text, context->text_size, text_index + 1, &dummy);
+    int start = utf8_skip_to_next_codepoint(context->text, context->text_size, text_index + 1);
     if(start == invalid_index)
     {
         return word_break;
@@ -2401,8 +2397,7 @@ static WordBreak resolve_ignore_sequence_after(WordBreakContext* context, WordBr
             return value;
         }
 
-        char32_t dummy;
-        i = utf8_get_next_codepoint(context->text, context->text_size, index + 1, &dummy);
+        i = utf8_skip_to_next_codepoint(context->text, context->text_size, index + 1);
     }
 
     // Return the break unresolved.
@@ -2485,8 +2480,7 @@ static bool allow_word_break(WordBreakContext* context, int text_index, int brea
         || b == WordBreak::Single_Quote;
     if(left && center)
     {
-        char32_t dummy;
-        int c_index = utf8_get_next_codepoint(context->text, context->text_size, b_index + 1, &dummy);
+        int c_index = utf8_skip_to_next_codepoint(context->text, context->text_size, b_index + 1);
         if(c_index != invalid_index)
         {
             WordBreak c;
@@ -2534,8 +2528,7 @@ static bool allow_word_break(WordBreakContext* context, int text_index, int brea
 
         if(b == WordBreak::Double_Quote)
         {
-            char32_t dummy;
-            int c_index = utf8_get_next_codepoint(context->text, context->text_size, b_index + 1, &dummy);
+            int c_index = utf8_skip_to_next_codepoint(context->text, context->text_size, b_index + 1);
             if(c_index != invalid_index)
             {
                 WordBreak c;
@@ -2610,8 +2603,7 @@ static bool allow_word_break(WordBreakContext* context, int text_index, int brea
         || b == WordBreak::Single_Quote;
     if(left && center)
     {
-        char32_t dummy;
-        int c_index = utf8_get_next_codepoint(context->text, context->text_size, b_index + 1, &dummy);
+        int c_index = utf8_skip_to_next_codepoint(context->text, context->text_size, b_index + 1);
         if(c_index != invalid_index)
         {
             WordBreak c;
@@ -2721,8 +2713,7 @@ int find_prior_beginning_of_word(const char* text, int start_index, Stack* stack
     context.head = 0;
     context.tail = 0;
 
-    char32_t dummy;
-    int adjusted_start = utf8_get_prior_codepoint(context.text, start_index - 1, &dummy);
+    int adjusted_start = utf8_skip_to_prior_codepoint(context.text, start_index - 1);
 
     int found = invalid_index;
     for(int i = adjusted_start, j = 0; i != invalid_index; j -= 1)
@@ -2745,7 +2736,7 @@ int find_prior_beginning_of_word(const char* text, int start_index, Stack* stack
             }
         }
 
-        i = utf8_get_prior_codepoint(context.text, i - 1, &dummy);
+        i = utf8_skip_to_prior_codepoint(context.text, i - 1);
     }
 
     STACK_DEALLOCATE(stack, context.breaks);
@@ -2772,8 +2763,7 @@ int find_next_end_of_word(const char* text, int start_index, Stack* stack)
     context.head = 0;
     context.tail = 0;
 
-    char32_t dummy;
-    int adjusted_start = utf8_get_next_codepoint(context.text, context.text_size, start_index + 1, &dummy);
+    int adjusted_start = utf8_skip_to_next_codepoint(context.text, context.text_size, start_index + 1);
 
     int found = invalid_index;
     for(int i = adjusted_start, j = 0; i != invalid_index; j += 1)
@@ -2796,7 +2786,7 @@ int find_next_end_of_word(const char* text, int start_index, Stack* stack)
             }
         }
 
-        i = utf8_get_next_codepoint(context.text, context.text_size, i + 1, &dummy);
+        i = utf8_skip_to_next_codepoint(context.text, context.text_size, i + 1);
     }
 
     STACK_DEALLOCATE(stack, context.breaks);

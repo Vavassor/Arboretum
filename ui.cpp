@@ -333,9 +333,14 @@ static Vector2 measure_ideal_dimensions(TextBlock* text_block, Stack* stack)
     {
         // @Incomplete: There isn't a one-to-one mapping between chars and
         // glyphs. Add a lookup to glyph given the next sequence of text.
-        char32_t current = text_block->text[i];
+        char32_t current;
+        int text_index = utf8_get_next_codepoint(text_block->text, size, i, &current);
+        if(text_index == invalid_index)
+        {
+            break;
+        }
 
-        if(i == next_break)
+        if(text_index == next_break)
         {
             next_break = find_next_mandatory_line_break(text_block->text, next_break, stack);
 
@@ -370,10 +375,10 @@ static Vector2 measure_ideal_dimensions(TextBlock* text_block, Stack* stack)
             typeset_glyph->texture_rect = texture_rect;
             typeset_glyph->baseline_start = pen;
             typeset_glyph->x_advance = glyph->x_advance;
-            typeset_glyph->text_index = i;
+            typeset_glyph->text_index = text_index;
             text_block->glyphs_count += 1;
 
-            insert(&text_block->glyph_map, i, glyph_index);
+            insert(&text_block->glyph_map, text_index, glyph_index);
 
             pen.x += glyph->x_advance + kerning;
         }
@@ -393,13 +398,14 @@ static Vector2 measure_ideal_dimensions(TextBlock* text_block, Stack* stack)
             typeset_glyph->texture_rect = {{0.0f, 0.0f}, {0.0f, 0.0f}};
             typeset_glyph->baseline_start = pen;
             typeset_glyph->x_advance = 0.0f;
-            typeset_glyph->text_index = i;
+            typeset_glyph->text_index = text_index;
             text_block->glyphs_count += 1;
 
-            insert(&text_block->glyph_map, i, glyph_index);
+            insert(&text_block->glyph_map, text_index, glyph_index);
         }
 
         prior_char = current;
+        i = text_index;
     }
 
     pen.y = abs(pen.y);
@@ -468,10 +474,16 @@ static float compute_run_length(const char* text, int start, int end, bmfont::Fo
     {
         // @Incomplete: There isn't a one-to-one mapping between chars and
         // glyphs. Add a lookup to glyph given the next sequence of text.
-        char32_t current = text[i];
+        char32_t current;
+        int text_index = utf8_get_next_codepoint(text, end, i, &current);
+        if(text_index == invalid_index)
+        {
+            break;
+        }
 
         bmfont::Glyph* glyph = bmfont::find_glyph(font, current);
         length += glyph->x_advance;
+        i = text_index;
     }
     return length;
 }
@@ -503,9 +515,14 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
     {
         // @Incomplete: There isn't a one-to-one mapping between chars and
         // glyphs. Add a lookup to glyph given the next sequence of text.
-        char32_t current = text_block->text[i];
+        char32_t current;
+        int text_index = utf8_get_next_codepoint(text_block->text, size, i, &current);
+        if(text_index == invalid_index)
+        {
+            break;
+        }
 
-        if(i == next_break)
+        if(text_index == next_break)
         {
             bool is_mandatory = mandatory_break;
             int current_break = next_break;
@@ -557,10 +574,10 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
             typeset_glyph->texture_rect = texture_rect;
             typeset_glyph->baseline_start = pen;
             typeset_glyph->x_advance = glyph->x_advance;
-            typeset_glyph->text_index = i;
+            typeset_glyph->text_index = text_index;
             text_block->glyphs_count += 1;
 
-            insert(&text_block->glyph_map, i, glyph_index);
+            insert(&text_block->glyph_map, text_index, glyph_index);
 
             pen.x += glyph->x_advance;
         }
@@ -580,13 +597,14 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
             typeset_glyph->texture_rect = {{0.0f, 0.0f}, {0.0f, 0.0f}};
             typeset_glyph->baseline_start = pen;
             typeset_glyph->x_advance = 0.0f;
-            typeset_glyph->text_index = i;
+            typeset_glyph->text_index = text_index;
             text_block->glyphs_count += 1;
 
-            insert(&text_block->glyph_map, i, glyph_index);
+            insert(&text_block->glyph_map, text_index, glyph_index);
         }
 
         prior_char = current;
+        i = text_index;
     }
 
     pen.y = abs(pen.y);
@@ -1791,7 +1809,16 @@ void update_input(Item* item, Context* context, Platform* platform)
                 if(text_input->cursor_position == text_input->selection_start)
                 {
                     end = text_input->cursor_position;
-                    start = end + 1;
+                    int size = string_size(text_block->text);
+                    int next = utf8_skip_to_next_codepoint(text_block->text, size, end + 1);
+                    if(next == invalid_index)
+                    {
+                        start = size;
+                    }
+                    else
+                    {
+                        start = next;
+                    }
                 }
                 else
                 {
@@ -1822,7 +1849,8 @@ void update_input(Item* item, Context* context, Platform* platform)
                 if(text_input->cursor_position == text_input->selection_start)
                 {
                     end = text_input->cursor_position;
-                    start = MAX(end - 1, 0);
+                    int prior = utf8_skip_to_prior_codepoint(text_block->text, end - 1);
+                    start = MAX(prior, 0);
                 }
                 else
                 {

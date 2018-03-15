@@ -62,6 +62,12 @@ int utf8_get_prior_codepoint(const char* string, int start, char32_t* result)
     return invalid_index;
 }
 
+int utf8_skip_to_prior_codepoint(const char* string, int start)
+{
+    char32_t dummy;
+    return utf8_get_prior_codepoint(string, start, &dummy);
+}
+
 int utf8_get_next_codepoint(const char* string, int size, int start, char32_t* result)
 {
     for(int i = start; i < size; i += 1)
@@ -74,6 +80,12 @@ int utf8_get_next_codepoint(const char* string, int size, int start, char32_t* r
         }
     }
     return invalid_index;
+}
+
+int utf8_skip_to_next_codepoint(const char* string, int size, int start)
+{
+    char32_t dummy;
+    return utf8_get_next_codepoint(string, size, start, &dummy);
 }
 
 int utf8_to_utf32(const char* from, int from_size, char32_t* to, int to_size)
