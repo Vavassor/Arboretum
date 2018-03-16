@@ -38,7 +38,7 @@ static bool reserve(ObjectLady* lady, int space, Heap* heap)
     while(space >= lady->objects_cap)
     {
         lady->objects_cap *= 2;
-        Object* objects = HEAP_REALLOCATE(heap, Object, lady->objects, lady->objects_cap);
+        Object* objects = HEAP_REALLOCATE(heap, lady->objects, lady->objects_cap);
         if(!objects)
         {
             return false;
@@ -53,7 +53,7 @@ static bool reserve_storage_space(ObjectLady* lady, int space, Heap* heap)
     while(space >= lady->storage_cap)
     {
         lady->storage_cap *= 2;
-        Object* storage = HEAP_REALLOCATE(heap, Object, lady->storage, lady->storage_cap);
+        Object* storage = HEAP_REALLOCATE(heap, lady->storage, lady->storage_cap);
         if(!storage)
         {
             return false;

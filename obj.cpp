@@ -6,7 +6,7 @@
 #include "memory.h"
 #include "logging.h"
 #include "string_utilities.h"
-#include "array.h"
+#include "array2.h"
 #include "math_basics.h"
 
 namespace obj {
@@ -141,12 +141,6 @@ struct Face
     int material_index;
 };
 
-DEFINE_ARRAY(Vector4);
-DEFINE_ARRAY(Vector3);
-DEFINE_ARRAY(Label);
-DEFINE_ARRAY(MultiIndex);
-DEFINE_ARRAY(Face);
-
 bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
 {
     void* contents;
@@ -160,23 +154,12 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
     Stream stream;
     stream.buffer = static_cast<char*>(contents);
 
-    ArrayVector4 positions;
-    create(&positions, heap);
-
-    ArrayVector3 normals;
-    create(&normals, heap);
-
-    ArrayVector3 texcoords;
-    create(&texcoords, heap);
-
-    ArrayLabel materials;
-    create(&materials, heap);
-
-    ArrayMultiIndex multi_indices;
-    create(&multi_indices, heap);
-
-    ArrayFace faces;
-    create(&faces, heap);
+    Vector4* positions = nullptr;
+    Vector3* normals = nullptr;
+    Vector3* texcoords = nullptr;
+    Label* materials = nullptr;
+    MultiIndex* multi_indices = nullptr;
+    Face* faces = nullptr;
 
     bool error_occurred = false;
     char* material_library = nullptr;
@@ -223,7 +206,7 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
             }
             else
             {
-                add_and_expand(&positions, position);
+                ARRAY_ADD(positions, position, heap);
             }
         }
         else if(strings_match(keyword, "vn"))
@@ -247,7 +230,7 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
             }
             else
             {
-                add_and_expand(&normals, normal);
+                ARRAY_ADD(normals, normal, heap);
             }
         }
         else if(strings_match(keyword, "vt"))
@@ -287,12 +270,12 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
             }
             else
             {
-                add_and_expand(&texcoords, texcoord);
+                ARRAY_ADD(texcoords, texcoord, heap);
             }
         }
         else if(strings_match(keyword, "f"))
         {
-            int base_index = multi_indices.count;
+            int base_index = ARRAY_COUNT(multi_indices);
             int indices_in_face = 0;
 
             char* token = next_token(&stream, stack);
@@ -309,20 +292,20 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
                 index.texcoord = index.position;
                 index.normal = index.position;
 
-                index.position = fix_index(index.position, positions.count);
+                index.position = fix_index(index.position, ARRAY_COUNT(positions));
                 bool success_texcoord = true;
                 bool success_normal = true;
                 if(texcoord_index)
                 {
                     success_texcoord = string_to_int(texcoord_index, &index.texcoord);
-                    index.texcoord = fix_index(index.texcoord, texcoords.count);
+                    index.texcoord = fix_index(index.texcoord, ARRAY_COUNT(texcoords));
                 }
                 if(normal_index)
                 {
                     success_normal = string_to_int(normal_index, &index.normal);
-                    index.normal = fix_index(index.normal, normals.count);
+                    index.normal = fix_index(index.normal, ARRAY_COUNT(normals));
                 }
-                add_and_expand(&multi_indices, index);
+                ARRAY_ADD(multi_indices, index, heap);
 
                 if(normal_index)
                 {
@@ -351,8 +334,8 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
                 Face face;
                 face.base_index = base_index;
                 face.sides = indices_in_face;
-                face.material_index = materials.count - 1;
-                add_and_expand(&faces, face);
+                face.material_index = ARRAY_COUNT(materials) - 1;
+                ARRAY_ADD(faces, face, heap);
             }
         }
         else if(strings_match(keyword, "usemtl"))
@@ -362,7 +345,7 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
             Label material;
             material.name = HEAP_ALLOCATE(heap, char, size);
             copy_string(material.name, size, name);
-            add_and_expand(&materials, material);
+            ARRAY_ADD(materials, material, heap);
         }
         else if(strings_match(keyword, "mtllib"))
         {
@@ -402,7 +385,7 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
 
     STACK_DEALLOCATE(stack, contents);
 
-    error_occurred = error_occurred || positions.count == 0;
+    error_occurred = error_occurred || ARRAY_COUNT(positions) == 0;
 
     // Now that the file is finished processing, open the material library and
     // match up its contents to the stored material data.
@@ -414,12 +397,12 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
     {
         jan::Mesh mesh;
         jan::create_mesh(&mesh);
-        jan::Vertex** seen = STACK_ALLOCATE(stack, jan::Vertex*, positions.count);
-        for(int i = 0; i < faces.count; ++i)
+        jan::Vertex** seen = STACK_ALLOCATE(stack, jan::Vertex*, ARRAY_COUNT(positions));
+        for(int i = 0; i < ARRAY_COUNT(faces); i += 1)
         {
             Face obj_face = faces[i];
             jan::Vertex* vertices[obj_face.sides];
-            for(int j = 0; j < obj_face.sides; ++j)
+            for(int j = 0; j < obj_face.sides; j += 1)
             {
                 MultiIndex index = multi_indices[obj_face.base_index + j];
                 Vector4 position = positions[index.position];
@@ -448,17 +431,17 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
 
     // Cleanup
 
-    for(int i = 0; i < materials.count; i += 1)
+    for(int i = 0; i < ARRAY_COUNT(materials); i += 1)
     {
         HEAP_DEALLOCATE(heap, materials[i].name);
     }
 
-    destroy(&positions);
-    destroy(&normals);
-    destroy(&texcoords);
-    destroy(&materials);
-    destroy(&multi_indices);
-    destroy(&faces);
+    ARRAY_DESTROY(positions, heap);
+    ARRAY_DESTROY(normals, heap);
+    ARRAY_DESTROY(texcoords, heap);
+    ARRAY_DESTROY(materials, heap);
+    ARRAY_DESTROY(multi_indices, heap);
+    ARRAY_DESTROY(faces, heap);
 
     if(material_library)
     {

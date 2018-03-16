@@ -161,7 +161,7 @@ void focus_on_container(Context* context, Item* item)
 Item* create_toplevel_container(Context* context, Heap* heap)
 {
     int count = context->toplevel_containers_count;
-    context->toplevel_containers = HEAP_REALLOCATE(heap, Item*, context->toplevel_containers, count + 1);
+    context->toplevel_containers = HEAP_REALLOCATE(heap, context->toplevel_containers, count + 1);
 
     Item* item = HEAP_ALLOCATE(heap, Item, 1);
     item->id = generate_id(context);
@@ -195,7 +195,7 @@ void destroy_toplevel_container(Context* context, Item* item, Heap* heap)
     // null and would cause it not to be found.
     SAFE_HEAP_DEALLOCATE(heap, item);
 
-    context->toplevel_containers = HEAP_REALLOCATE(heap, Item*, context->toplevel_containers, count - 1);
+    context->toplevel_containers = HEAP_REALLOCATE(heap, context->toplevel_containers, count - 1);
     context->toplevel_containers_count = count - 1;
 }
 
@@ -1603,7 +1603,7 @@ static void update_added_glyphs(TextBlock* text_block, Vector2 dimensions, Heap*
     // Glyph count should be based on the mapping of the given text in a
     // particular font instead of the size in bytes.
     int glyphs_cap = string_size(text_block->text);
-    text_block->glyphs = HEAP_REALLOCATE(heap, Glyph, text_block->glyphs, glyphs_cap);
+    text_block->glyphs = HEAP_REALLOCATE(heap, text_block->glyphs, glyphs_cap);
     text_block->glyphs_cap = glyphs_cap;
     destroy(&text_block->glyph_map, heap);
     create(&text_block->glyph_map, glyphs_cap, heap);

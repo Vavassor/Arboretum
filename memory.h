@@ -132,8 +132,8 @@ HeapInfo heap_get_info(Heap* heap);
 #define HEAP_ALLOCATE(heap, type, count)\
     static_cast<type*>(heap_allocate(heap, sizeof(type) * (count)))
 
-#define HEAP_REALLOCATE(heap, type, array, count)\
-    static_cast<type*>(heap_reallocate(heap, array, sizeof(type) * (count)))
+#define HEAP_REALLOCATE(heap, array, count)\
+    static_cast<decltype(array)>(heap_reallocate(heap, array, sizeof(*(array)) * (count)))
 
 #define HEAP_DEALLOCATE(heap, array)\
     heap_deallocate(heap, array)

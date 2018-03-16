@@ -1,6 +1,6 @@
 #include "file_pick_dialog.h"
 
-#include "array.h"
+#include "array2.h"
 #include "assert.h"
 #include "colours.h"
 #include "logging.h"
@@ -25,12 +25,9 @@ static bool record_is_before(DirectoryRecord a, DirectoryRecord b)
 
 DEFINE_QUICK_SORT(DirectoryRecord, record_is_before, by_filename);
 
-DEFINE_ARRAY(DirectoryRecord);
-
 static void filter_directory(Directory* directory, const char** extensions, int extensions_count, bool show_hidden, Heap* heap)
 {
-    ArrayDirectoryRecord filtered;
-    create(&filtered, heap);
+    DirectoryRecord* filtered = nullptr;
 
     FOR_N(i, directory->records_count)
     {
@@ -45,21 +42,21 @@ static void filter_directory(Directory* directory, const char** extensions, int 
             {
                 if(string_ends_with(record.name, extensions[j]))
                 {
-                    add_and_expand(&filtered, record);
+                    ARRAY_ADD(filtered, record, heap);
                     break;
                 }
             }
         }
         else
         {
-            add_and_expand(&filtered, record);
+            ARRAY_ADD(filtered, record, heap);
         }
     }
 
-    HEAP_DEALLOCATE(heap, directory->records);
+    ARRAY_DESTROY(directory->records, heap);
 
-    directory->records = filtered.items;
-    directory->records_count = filtered.count;
+    directory->records = filtered;
+    directory->records_count = ARRAY_COUNT(filtered);
 }
 
 static void open_directory(FilePickDialog* dialog, const char* directory, bmfont::Font* font, ui::Context* context, Heap* heap)

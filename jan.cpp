@@ -1,7 +1,7 @@
 #include "jan.h"
 
 #include "int_utilities.h"
-#include "array.h"
+#include "array2.h"
 #include "assert.h"
 #include "math_basics.h"
 #include "loop_macros.h"
@@ -497,23 +497,18 @@ static bool is_clockwise(Vector2* vertices, int vertices_count)
     return d < 0.0f;
 }
 
-DEFINE_ARRAY(VertexPNC);
-DEFINE_ARRAY_WITH_SUFFIX(u16, U16);
-
 void triangulate(Mesh* mesh, Heap* heap, VertexPNC** out_vertices, int* out_vertices_count, u16** out_indices, int* out_indices_count)
 {
-    ArrayVertexPNC vertices;
-    ArrayU16 indices;
-    create(&vertices, heap);
-    create(&indices, heap);
+    VertexPNC* vertices = nullptr;
+    u16* indices = nullptr;
 
     FOR_EACH_IN_POOL(Face, face, mesh->face_pool)
     {
         // The face is already a triangle.
         if(face->edges == 3)
         {
-            reserve(&vertices, 3);
-            reserve(&indices, 3);
+            ARRAY_RESERVE(vertices, 3, heap);
+            ARRAY_RESERVE(indices, 3, heap);
             Link* link = face->link;
             FOR_N(i, 3)
             {
@@ -521,9 +516,9 @@ void triangulate(Mesh* mesh, Heap* heap, VertexPNC** out_vertices, int* out_vert
                 vertex.position = link->vertex->position;
                 vertex.normal = face->normal;
                 vertex.colour = rgb_to_u32(link->colour);
-                int index = vertices.count;
-                add(&vertices, vertex);
-                add(&indices, index);
+                int index = ARRAY_COUNT(vertices);
+                ARRAY_ADD(vertices, vertex, heap);
+                ARRAY_ADD(indices, index, heap);
                 link = link->next;
             }
             continue;
@@ -531,10 +526,10 @@ void triangulate(Mesh* mesh, Heap* heap, VertexPNC** out_vertices, int* out_vert
 
         // Save the index before adding any vertices for this face so it can be
         // used as a base for ear indexing.
-        u16 base_index = vertices.count;
+        u16 base_index = ARRAY_COUNT(vertices);
 
         // Copy all of the vertices in the face.
-        reserve(&vertices, face->edges);
+        ARRAY_RESERVE(vertices, face->edges, heap);
         Link* link = face->link;
         FOR_N(i, face->edges)
         {
@@ -542,7 +537,7 @@ void triangulate(Mesh* mesh, Heap* heap, VertexPNC** out_vertices, int* out_vert
             vertex.position = link->vertex->position;
             vertex.normal = face->normal;
             vertex.colour = rgb_to_u32(link->colour);
-            add(&vertices, vertex);
+            ARRAY_ADD(vertices, vertex, heap);
             link = link->next;
         }
 
@@ -583,7 +578,7 @@ void triangulate(Mesh* mesh, Heap* heap, VertexPNC** out_vertices, int* out_vert
 
         // A polygon always has exactly n - 2 triangles, where n is the number
         // of edges in the polygon.
-        reserve(&indices, 3 * (face->edges - 2));
+        ARRAY_RESERVE(indices, 3 * (face->edges - 2), heap);
 
         // Walk the right loop and find ears to triangulate using each of those
         // vertices.
@@ -625,9 +620,9 @@ void triangulate(Mesh* mesh, Heap* heap, VertexPNC** out_vertices, int* out_vert
             if(!in_triangle)
             {
                 // An ear has been found.
-                add(&indices, base_index + l[j]);
-                add(&indices, base_index + j);
-                add(&indices, base_index + r[j]);
+                ARRAY_ADD(indices, base_index + l[j], heap);
+                ARRAY_ADD(indices, base_index + j, heap);
+                ARRAY_ADD(indices, base_index + r[j], heap);
                 triangles_this_face += 1;
 
                 l[r[j]] = l[j];
@@ -636,10 +631,10 @@ void triangulate(Mesh* mesh, Heap* heap, VertexPNC** out_vertices, int* out_vert
         }
     }
 
-    *out_vertices = vertices.items;
-    *out_vertices_count = vertices.count;
-    *out_indices = indices.items;
-    *out_indices_count = indices.count;
+    *out_vertices = vertices;
+    *out_vertices_count = ARRAY_COUNT(vertices);
+    *out_indices = indices;
+    *out_indices_count = ARRAY_COUNT(indices);
 }
 
 void create_selection(Selection* selection, Heap* heap)
@@ -690,7 +685,7 @@ Selection select_all(Mesh* mesh, Heap* heap)
 static void add_face_to_selection(Selection* selection, Face* face)
 {
     selection->type = Selection::Type::Face;
-    selection->parts = HEAP_REALLOCATE(selection->heap, void*, selection->parts, selection->parts_count + 1);
+    selection->parts = HEAP_REALLOCATE(selection->heap, selection->parts, selection->parts_count + 1);
     selection->parts[selection->parts_count] = face;
     selection->parts_count += 1;
 }

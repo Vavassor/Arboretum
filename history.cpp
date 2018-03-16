@@ -82,7 +82,7 @@ void history_add_base_state(History* history, Change change, Heap* heap)
     while(space >= history->base_states_cap)
     {
         history->base_states_cap *= 2;
-        Change* base_states = HEAP_REALLOCATE(heap, Change, history->base_states, history->base_states_cap);
+        Change* base_states = HEAP_REALLOCATE(heap, history->base_states, history->base_states_cap);
         if(!base_states)
         {
             break;

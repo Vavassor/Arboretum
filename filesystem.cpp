@@ -1,7 +1,8 @@
 #include "filesystem.h"
 
-#include "platform_definitions.h"
+#include "array2.h"
 #include "memory.h"
+#include "platform_definitions.h"
 #include "string_utilities.h"
 #include "string_build.h"
 
@@ -161,6 +162,7 @@ void destroy_directory(Directory* directory, Heap* heap)
     {
         HEAP_DEALLOCATE(heap, directory->records[i].name);
     }
+    ARRAY_DESTROY(directory->records, heap);
 }
 
 static DirectoryRecordType translate_directory_record_type(unsigned char type)
@@ -232,8 +234,7 @@ bool list_files_in_directory(const char* path, Directory* result, Heap* heap)
         }
         record.name = copy_string_onto_heap(entry->d_name, heap);
         record.hidden = string_starts_with(record.name, ".");
-        listing = HEAP_REALLOCATE(heap, DirectoryRecord, listing, listing_count + 1);
-        listing[listing_count] = record;
+        ARRAY_ADD(listing, record, heap);
         listing_count += 1;
     }
     closedir(directory);

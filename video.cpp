@@ -14,7 +14,7 @@
 #include "logging.h"
 #include "memory.h"
 #include "assert.h"
-#include "array.h"
+#include "array2.h"
 #include "bmp.h"
 #include "obj.h"
 #include "immediate.h"
@@ -340,8 +340,8 @@ void object_update_mesh(Object* object, jan::Mesh* mesh, Heap* heap)
 
     glBindVertexArray(0);
 
-    HEAP_DEALLOCATE(heap, vertices);
-    HEAP_DEALLOCATE(heap, indices);
+    ARRAY_DESTROY(vertices, heap);
+    ARRAY_DESTROY(indices, heap);
 }
 
 static void object_set_matrices(Object* object, Matrix4 view, Matrix4 projection)
@@ -505,11 +505,9 @@ GLuint upload_bitmap(Bitmap* bitmap)
     return texture;
 }
 
-DEFINE_ARRAY(Object);
-
 struct DenseMap
 {
-    ArrayObject array;
+    Object* array;
     int* id_table_keys;
     DenseMapId* id_table_values;
     DenseMapId* index_table_keys;
@@ -523,7 +521,7 @@ static void create(DenseMap* map, Heap* heap)
 {
     const int table_size = 1024;
 
-    create(&map->array, heap);
+    map->array = nullptr;
     map->id_table_keys = HEAP_ALLOCATE(heap, int, table_size);
     map->id_table_values = HEAP_ALLOCATE(heap, DenseMapId, table_size);
     map->index_table_keys = HEAP_ALLOCATE(heap, DenseMapId, table_size);
@@ -539,7 +537,7 @@ static void destroy(DenseMap* map, Heap* heap)
 {
     if(map)
     {
-        destroy(&map->array);
+        ARRAY_DESTROY(map->array, heap);
         SAFE_HEAP_DEALLOCATE(heap, map->id_table_keys);
         SAFE_HEAP_DEALLOCATE(heap, map->id_table_values);
         SAFE_HEAP_DEALLOCATE(heap, map->index_table_keys);
@@ -600,11 +598,11 @@ static void add_pair(DenseMap* map, DenseMapId id, int index)
     map->index_table_values[probe] = index;
 }
 
-static DenseMapId add(DenseMap* map)
+static DenseMapId add(DenseMap* map, Heap* heap)
 {
-    reserve(&map->array, 1);
-    int index = map->array.count;
-    map->array.count += 1;
+    int index = ARRAY_COUNT(map->array);
+    Object nobody = {};
+    ARRAY_ADD(map->array, nobody, heap);
 
     DenseMapId id = generate_id(map);
     add_pair(map, id, index);
@@ -670,11 +668,11 @@ static void remove(DenseMap* map, DenseMapId id)
 {
     int index = look_up_index(map, id);
     Object* object = &map->array[index];
-    remove(&map->array, object);
+    ARRAY_REMOVE(map->array, object);
 
     remove_pair(map, id, index);
 
-    int moved_index = map->array.count;
+    int moved_index = ARRAY_COUNT(map->array);
     DenseMapId moved_id = look_up_id(map, moved_index);
     remove_pair(map, moved_id, moved_index);
     add_pair(map, moved_id, index);
@@ -1237,7 +1235,7 @@ void system_update(UpdateState* update, Platform* platform)
 
         view = look_at_matrix(camera->position, camera->target, vector3_unit_z);
 
-        FOR_N(i, objects.array.count)
+        FOR_N(i, ARRAY_COUNT(objects.array))
         {
             Object* object = &objects.array[i];
             object_set_matrices(object, view, projection);
@@ -1447,7 +1445,7 @@ void resize_viewport(int width, int height, double dots_per_millimeter, float fo
 
 DenseMapId add_object()
 {
-    DenseMapId id = add(&objects);
+    DenseMapId id = add(&objects, &heap);
     Object* object = look_up(&objects, id);
     object_create(object);
     return id;
