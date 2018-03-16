@@ -51,6 +51,12 @@ enum class Alignment
     Stretch,
 };
 
+enum class TextOverflow
+{
+    Wrap,
+    Ellipsize_End,
+};
+
 struct Item;
 
 struct Glyph
@@ -71,6 +77,7 @@ struct TextBlock
     Glyph* glyphs;
     int glyphs_cap;
     int glyphs_count;
+    TextOverflow text_overflow;
 };
 
 struct Button

@@ -98,6 +98,7 @@ static void open_directory(FilePickDialog* dialog, const char* directory, bmfont
         ui::Button* button = &item->button;
         button->text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
         button->text_block.font = font;
+        button->text_block.text_overflow = ui::TextOverflow::Ellipsize_End;
         dialog->path_buttons[i] = item->id;
 
         int found_index = find_char(path, '/');
@@ -154,6 +155,7 @@ static void open_directory(FilePickDialog* dialog, const char* directory, bmfont
             ui::TextBlock* text_block = &list->items[i];
             text_block->padding = {1.0f, 1.0f, 1.0f, 1.0f};
             text_block->font = font;
+            text_block->text_overflow = ui::TextOverflow::Ellipsize_End;
             ui::set_text(text_block, record.name, heap);
         }
     }

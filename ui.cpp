@@ -253,8 +253,6 @@ static float padding_along_axis(Padding padding, int axis)
     return padding[axis] + padding[axis + 2];
 }
 
-static const int invalid_index = -1;
-
 static bool is_valid_list_index(int index)
 {
     return index != invalid_index;
@@ -488,13 +486,40 @@ static float compute_run_length(const char* text, int start, int end, bmfont::Fo
     return length;
 }
 
+static void place_glyph(TextBlock* text_block, bmfont::Glyph* glyph, bmfont::Font* font, int text_index, Vector2 pen, Vector2 texture_dimensions)
+{
+    Vector2 top_left = pen;
+    top_left.x += glyph->offset.x;
+    top_left.y -= glyph->offset.y;
+
+    Rect viewport_rect;
+    viewport_rect.dimensions = glyph->rect.dimensions;
+    viewport_rect.bottom_left.x = top_left.x;
+    viewport_rect.bottom_left.y = top_left.y + font->line_height - viewport_rect.dimensions.y;
+
+    Rect texture_rect = glyph->rect;
+    texture_rect.bottom_left = pointwise_divide(texture_rect.bottom_left, texture_dimensions);
+    texture_rect.dimensions = pointwise_divide(texture_rect.dimensions, texture_dimensions);
+
+    int glyph_index = text_block->glyphs_count;
+    Glyph* typeset_glyph = &text_block->glyphs[glyph_index];
+    typeset_glyph->rect = viewport_rect;
+    typeset_glyph->texture_rect = texture_rect;
+    typeset_glyph->baseline_start = pen;
+    typeset_glyph->x_advance = glyph->x_advance;
+    typeset_glyph->text_index = text_index;
+    text_block->glyphs_count += 1;
+
+    insert(&text_block->glyph_map, text_index, glyph_index);
+}
+
 static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimensions, Stack* stack)
 {
     Vector2 bounds = vector2_zero;
 
     bmfont::Font* font = text_block->font;
-    Padding padding = text_block->padding;
 
+    Padding padding = text_block->padding;
     float right = dimensions.x - padding.end;
     float whole_width = dimensions.x - padding.start - padding.end;
 
@@ -505,23 +530,36 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
     texture_dimensions.x = font->image_width;
     texture_dimensions.y = font->image_height;
 
-    char32_t prior_char = '\0';
-    int size = string_size(text_block->text);
+    const char* ellipsize_text = u8"…";
+    float extra_length = 0.0f;
+    if(text_block->text_overflow == TextOverflow::Ellipsize_End)
+    {
+        int size = string_size(ellipsize_text);
+        extra_length = compute_run_length(ellipsize_text, 0, size, font);
+    }
+    bool add_ellipsis_pattern = false;
+
     bool mandatory_break;
     int next_break = find_next_line_break(text_block->text, 0, &mandatory_break, stack);
     float run_length = compute_run_length(text_block->text, 0, next_break, font);
+
+    char32_t prior_char = '\0';
     Vector2 pen = {padding.start, -padding.top - font->line_height};
+    int text_index = 0;
+    int size = string_size(text_block->text);
+
     FOR_N(i, size)
     {
         // @Incomplete: There isn't a one-to-one mapping between chars and
         // glyphs. Add a lookup to glyph given the next sequence of text.
         char32_t current;
-        int text_index = utf8_get_next_codepoint(text_block->text, size, i, &current);
+        text_index = utf8_get_next_codepoint(text_block->text, size, i, &current);
         if(text_index == invalid_index)
         {
             break;
         }
 
+        // Handle the next line break opportunity found in the text.
         if(text_index == next_break)
         {
             bool is_mandatory = mandatory_break;
@@ -531,9 +569,26 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
 
             if(pen.x + run_length > right || is_mandatory)
             {
-                bounds.x = fmax(bounds.x, pen.x);
-                pen.x = padding.start;
-                pen.y -= font->line_height;
+                if(text_block->text_overflow == TextOverflow::Wrap)
+                {
+                    bounds.x = fmax(bounds.x, pen.x);
+                    pen.x = padding.start;
+                    pen.y -= font->line_height;
+                }
+                else if(text_block->text_overflow == TextOverflow::Ellipsize_End)
+                {
+                    if(is_mandatory)
+                    {
+                        // A mandatory break in an ellipsized text block should
+                        // ellipsized at the break point.
+                        add_ellipsis_pattern = true;
+                        break;
+                    }
+                    else
+                    {
+                        // ignore the break
+                    }
+                }
             }
         }
 
@@ -541,43 +596,33 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
 
         if(!is_default_ignorable(current) && !newline)
         {
+            // Place the glyph as normal.
+
             bmfont::Glyph* glyph = bmfont::find_glyph(font, current);
 
-            if(run_length > whole_width && pen.x + glyph->x_advance > right)
+            // If the right size is close, but a line break wasn't expected.
+            if(pen.x + glyph->x_advance + extra_length > right)
             {
-                // If there is a long section of text with no break opportunities
-                // make an emergency break so it doesn't overflow the text box.
-                bounds.x = fmax(bounds.x, pen.x);
-                pen.x = padding.start;
-                pen.y -= font->line_height;
+                if(text_block->text_overflow == TextOverflow::Wrap && run_length > whole_width)
+                {
+                    // If there is a long section of text with no break opportunities
+                    // make an emergency break so it doesn't overflow the text box.
+                    bounds.x = fmax(bounds.x, pen.x);
+                    pen.x = padding.start;
+                    pen.y -= font->line_height;
+                }
+                else if(text_block->text_overflow == TextOverflow::Ellipsize_End)
+                {
+                    // This is the normal end of an ellipsized text block.
+                    add_ellipsis_pattern = true;
+                    break;
+                }
             }
 
             float kerning = bmfont::lookup_kerning(font, prior_char, current);
             pen.x += kerning;
 
-            Vector2 top_left = pen;
-            top_left.x += glyph->offset.x;
-            top_left.y -= glyph->offset.y;
-
-            Rect viewport_rect;
-            viewport_rect.dimensions = glyph->rect.dimensions;
-            viewport_rect.bottom_left.x = top_left.x;
-            viewport_rect.bottom_left.y = top_left.y + font->line_height - viewport_rect.dimensions.y;
-
-            Rect texture_rect = glyph->rect;
-            texture_rect.bottom_left = pointwise_divide(texture_rect.bottom_left, texture_dimensions);
-            texture_rect.dimensions = pointwise_divide(texture_rect.dimensions, texture_dimensions);
-
-            int glyph_index = text_block->glyphs_count;
-            Glyph* typeset_glyph = &text_block->glyphs[glyph_index];
-            typeset_glyph->rect = viewport_rect;
-            typeset_glyph->texture_rect = texture_rect;
-            typeset_glyph->baseline_start = pen;
-            typeset_glyph->x_advance = glyph->x_advance;
-            typeset_glyph->text_index = text_index;
-            text_block->glyphs_count += 1;
-
-            insert(&text_block->glyph_map, text_index, glyph_index);
+            place_glyph(text_block, glyph, font, text_index, pen, texture_dimensions);
 
             pen.x += glyph->x_advance;
         }
@@ -605,6 +650,31 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
 
         prior_char = current;
         i = text_index;
+    }
+
+    if(text_block->text_overflow == TextOverflow::Ellipsize_End && add_ellipsis_pattern)
+    {
+        int size = string_size(ellipsize_text);
+        FOR_N(i, size)
+        {
+            char32_t current;
+            int index = utf8_get_next_codepoint(ellipsize_text, size, i, &current);
+            if(index == invalid_index)
+            {
+                break;
+            }
+
+            bmfont::Glyph* glyph = bmfont::find_glyph(font, current);
+            float kerning = bmfont::lookup_kerning(font, prior_char, current);
+            pen.x += kerning;
+
+            place_glyph(text_block, glyph, font, text_index, pen, texture_dimensions);
+
+            pen.x += glyph->x_advance;
+
+            prior_char = current;
+            i = index;
+        }
     }
 
     pen.y = abs(pen.y);
