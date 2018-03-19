@@ -1,0 +1,8 @@
+file_pick_dialog_import [Import]
+file_pick_dialog_filesystem [Filesystem]
+
+main_menu_enter_face_mode [Face Mode]
+main_menu_enter_object_mode [Object Mode]
+main_menu_export_file [Export .obj]
+main_menu_import_file [Import .obj]
+

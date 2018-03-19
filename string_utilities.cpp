@@ -92,7 +92,7 @@ int find_char(const char* s, char c)
             return i;
         }
     }
-    return -1;
+    return invalid_index;
 }
 
 bool string_starts_with(const char* RESTRICT a, const char* RESTRICT b)

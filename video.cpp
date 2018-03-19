@@ -33,8 +33,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-static const int invalid_index = -1;
-
 namespace video {
 
 const char* lit_vertex_source = R"(

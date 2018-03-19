@@ -36,8 +36,8 @@ void stack_deallocate(Stack* stack, void* memory);
 #define STACK_ALLOCATE(stack, type, count)\
     static_cast<type*>(stack_allocate(stack, sizeof(type) * (count)))
 
-#define STACK_REALLOCATE(stack, type, memory, count)\
-    static_cast<type*>(stack_reallocate(stack, memory, sizeof(type) * (count)))
+#define STACK_REALLOCATE(stack, memory, count)\
+    static_cast<decltype(memory)>(stack_reallocate(stack, memory, sizeof(*(memory)) * (count)))
 
 #define STACK_DEALLOCATE(stack, memory)\
     stack_deallocate(stack, memory)

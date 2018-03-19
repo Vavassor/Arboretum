@@ -9,19 +9,21 @@
 #define X11_NONE 0L /* universal null resource or null atom */
 #endif
 
+#include "assert.h"
 #include "editor.h"
 #include "gl_core_3_3.h"
 #include "glx_extensions.h"
-#include "video.h"
 #include "input.h"
+#include "int_utilities.h"
 #include "logging.h"
-#include "assert.h"
+#include "platform.h"
 #include "sized_types.h"
 #include "string_utilities.h"
-#include "platform.h"
+#include "video.h"
 
 #include <climits>
 #include <clocale>
+#include <cstdlib>
 #include <ctime>
 
 struct PlatformX11
@@ -39,6 +41,8 @@ struct PlatformX11
     XFontSet font_set;
     XIM input_method;
     XIC input_context;
+    bool input_method_connected;
+    bool input_context_focused;
 
     Atom selection_clipboard;
     Atom selection_primary;
@@ -114,12 +118,14 @@ void begin_composed_text(Platform* base)
 {
     PlatformX11* platform = reinterpret_cast<PlatformX11*>(base);
     XSetICFocus(platform->input_context);
+    platform->input_context_focused = true;
 }
 
 void end_composed_text(Platform* base)
 {
     PlatformX11* platform = reinterpret_cast<PlatformX11*>(base);
     XUnsetICFocus(platform->input_context);
+    platform->input_context_focused = false;
 }
 
 bool copy_to_clipboard(Platform* base, char* clipboard)
@@ -369,6 +375,151 @@ static XIMStyle choose_better_style(XIMStyle style1, XIMStyle style2)
     return style2;
 }
 
+static void destroy_input_method(XIM input_method, XPointer client_data, XPointer call_data)
+{
+    static_cast<void>(call_data); // always null
+
+    PlatformX11* platform = reinterpret_cast<PlatformX11*>(client_data);
+    platform->input_context = nullptr;
+    platform->input_method = nullptr;
+    platform->input_method_connected = false;
+
+    LOG_ERROR("Input method closed unexpectedly.");
+}
+
+static void instantiate_input_method(Display* display, XPointer client_data, XPointer call_data)
+{
+    static_cast<void>(call_data); // always null
+
+    PlatformX11* platform = reinterpret_cast<PlatformX11*>(client_data);
+
+    if(platform->input_method_connected)
+    {
+        XDestroyIC(platform->input_context);
+        XCloseIM(platform->input_method);
+        platform->input_method_connected = false;
+    }
+
+    // input method
+    platform->input_method = XOpenIM(display, nullptr, nullptr, nullptr);
+    if(!platform->input_method)
+    {
+        LOG_ERROR("X Input Method failed to open.");
+        return;
+    }
+
+    // font set
+    int num_missing_charsets;
+    char** missing_charsets;
+    char* default_string;
+    const char* font_names = "-adobe-helvetica-*-r-*-*-*-120-*-*-*-*-*-*,-misc-fixed-*-r-*-*-*-130-*-*-*-*-*-*";
+    platform->font_set = XCreateFontSet(display, font_names, &missing_charsets, &num_missing_charsets, &default_string);
+    if(!platform->font_set)
+    {
+        LOG_ERROR("Failed to make a font set.");
+        return;
+    }
+
+    // Negotiate input method styles.
+    XIMStyles* input_method_styles;
+    XGetIMValues(platform->input_method, XNQueryInputStyle, &input_method_styles, NULL);
+    XIMStyle supported_styles = XIMPreeditNothing | XIMStatusNothing;
+    XIMStyle best_style = 0;
+    for(int i = 0; i < input_method_styles->count_styles; i += 1)
+    {
+        XIMStyle style = input_method_styles->supported_styles[i];
+        if((style & supported_styles) == style)
+        {
+            best_style = choose_better_style(style, best_style);
+        }
+    }
+    XFree(input_method_styles);
+    if(!best_style)
+    {
+        LOG_ERROR("None of the input styles were supported.");
+        return;
+    }
+
+    // input context
+    XVaNestedList list = XVaCreateNestedList(0, XNFontSet, platform->font_set, nullptr);
+    XIMCallback destroy_callback;
+    destroy_callback.client_data = reinterpret_cast<XPointer>(platform);
+    destroy_callback.callback = destroy_input_method;
+    platform->input_context = XCreateIC(platform->input_method, XNInputStyle, best_style, XNClientWindow, platform->window, XNPreeditAttributes, list, XNStatusAttributes, list, XNDestroyCallback, &destroy_callback, nullptr);
+    XFree(list);
+    if(!platform->input_context)
+    {
+        LOG_ERROR("X Input Context failed to open.");
+        return;
+    }
+
+    // Add input events to the event mask for the current window.
+    XWindowAttributes attributes = {};
+    XGetWindowAttributes(display, platform->window, &attributes);
+    long event_mask = attributes.your_event_mask;
+    long input_method_event_mask;
+    XGetICValues(platform->input_context, XNFilterEvents, &input_method_event_mask, nullptr);
+    XSelectInput(display, platform->window, event_mask | input_method_event_mask);
+
+    // By default, it seems to be in focus and will pop up the input method
+    // editor when the app first opens, so purposefully "unset" it.
+    XUnsetICFocus(platform->input_context);
+
+    platform->input_method_connected = true;
+}
+
+// The locale parameter expects a X/Open locale identifier. These are strings
+// with the form: language[_territory][.codeset][@modifier] where brackets []
+// indicate a part of the string that is optional.
+//
+// 1. The language part is an ISO 639 language code, which can be two or three
+// letters.
+// 2. The territory is an ISO 3166 code, which is two or three letters, or
+// a three digit number.
+// 3. The codeset is a character encoding identifier, but has an unspecified and
+// non-standardized format. It's hopefully either blank or the string "UTF-8".
+// 4. The modifier can indicate script, dialect, and collation order changes,
+// and is language-specific and non-standardized. Ignored, here.
+LocaleId match_closest_locale_id(const char* locale)
+{
+    char language[4] = {};
+    char region[4] = {};
+    char encoding[16] = {};
+    char modifier[16] = {};
+
+    int end = string_size(locale);
+
+    int at = find_char(locale, '@');
+    if(at != invalid_index)
+    {
+        copy_string(modifier, 16, &locale[at + 1]);
+        end = at;
+    }
+
+    int period = find_char(locale, '.');
+    if(period != invalid_index)
+    {
+        int size = MIN(16, end - period);
+        copy_string(encoding, size, &locale[period + 1]);
+        end = period;
+    }
+
+    int underscore = find_char(locale, '_');
+    if(underscore != invalid_index)
+    {
+        int size = MIN(4, end - underscore);
+        copy_string(region, size, &locale[underscore + 1]);
+        end = underscore;
+    }
+
+    int size = MIN(4, end + 1);
+    copy_string(language, size, locale);
+
+    // LOG_DEBUG("%s, %s, %s, %s", language, region, encoding, modifier);
+
+    return LocaleId::Default;
+}
+
 bool main_start_up()
 {
     // Set the locale.
@@ -402,6 +553,31 @@ bool main_start_up()
         return false;
     }
 
+    // Retrieve the locale that will be used to localize general text.
+    const char* text_locale = getenv("LC_MESSAGES");
+    if(!text_locale)
+    {
+        text_locale = getenv("LC_ALL");
+        if(!text_locale)
+        {
+            text_locale = getenv("LANG");
+            if(!text_locale)
+            {
+                LOG_ERROR("Failed to determine the text locale.");
+                return false;
+            }
+        }
+    }
+    platform.base.locale_id = match_closest_locale_id(text_locale);
+
+    create_stack(&platform.base);
+    bool loaded = load_localized_text(&platform.base);
+    if(!loaded)
+    {
+        LOG_ERROR("Failed to load the localized text.");
+        return false;
+    }
+
     // Choose the abstract "Visual" type that will be used to describe both the
     // window and the OpenGL rendering context.
     GLint visual_attributes[] = {GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_STENCIL_SIZE, 8, GLX_DOUBLEBUFFER, X11_NONE};
@@ -413,7 +589,7 @@ bool main_start_up()
     }
 
     // Create the window.
-    long event_mask = StructureNotifyMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask | PropertyChangeMask;
+    long event_mask = StructureNotifyMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask | FocusChangeMask | PropertyChangeMask;
     {
         int screen = platform.screen;
         Window root = RootWindow(platform.display, screen);
@@ -438,67 +614,9 @@ bool main_start_up()
     XStoreName(platform.display, platform.window, app_name);
     XSetIconName(platform.display, platform.window, app_name);
 
-    // Create the input method context.
-    {
-        // input method
-        platform.input_method = XOpenIM(platform.display, nullptr, nullptr, nullptr);
-        if(!platform.input_method)
-        {
-            LOG_ERROR("X Input Method failed to open.");
-            return false;
-        }
-
-        // font set
-        int num_missing_charsets;
-        char** missing_charsets;
-        char* default_string;
-        const char* font_names = "-adobe-helvetica-*-r-*-*-*-120-*-*-*-*-*-*,-misc-fixed-*-r-*-*-*-130-*-*-*-*-*-*";
-        platform.font_set = XCreateFontSet(platform.display, font_names, &missing_charsets, &num_missing_charsets, &default_string);
-        if(!platform.font_set)
-        {
-            LOG_ERROR("Failed to make a font set.");
-            return false;
-        }
-
-        // Negotiate input method styles.
-        XIMStyles* input_method_styles;
-        XGetIMValues(platform.input_method, XNQueryInputStyle, &input_method_styles, NULL);
-        XIMStyle supported_styles = XIMPreeditNothing | XIMStatusNothing;
-        XIMStyle best_style = 0;
-        for(int i = 0; i < input_method_styles->count_styles; i += 1)
-        {
-            XIMStyle style = input_method_styles->supported_styles[i];
-            if((style & supported_styles) == style)
-            {
-                best_style = choose_better_style(style, best_style);
-            }
-        }
-        XFree(input_method_styles);
-        if(!best_style)
-        {
-            LOG_DEBUG("None of the input styles were supported.");
-            return false;
-        }
-
-        // input context
-        XVaNestedList list = XVaCreateNestedList(0, XNFontSet, platform.font_set, nullptr);
-        platform.input_context = XCreateIC(platform.input_method, XNInputStyle, best_style, XNClientWindow, platform.window, XNPreeditAttributes, list, XNStatusAttributes, list, nullptr);
-        XFree(list);
-        if(!platform.input_context)
-        {
-            LOG_ERROR("X Input Context failed to open.");
-            return false;
-        }
-
-        // Add input events to the event mask for the current window.
-        long input_method_event_mask;
-        XGetICValues(platform.input_context, XNFilterEvents, &input_method_event_mask, nullptr);
-        XSelectInput(platform.display, platform.window, event_mask | input_method_event_mask);
-
-        // By default, it seems to be in focus and will pop up the input method
-        // editor when the app first opens, so purposefully "unset" it.
-        XUnsetICFocus(platform.input_context);
-    }
+    // Register for the input method context to be created.
+    XPointer client_data = reinterpret_cast<XPointer>(&platform);
+    XRegisterIMInstantiateCallback(platform.display, nullptr, nullptr, nullptr, instantiate_input_method, client_data);
 
     // Set up the clipboard.
     {
@@ -552,7 +670,7 @@ bool main_start_up()
         return false;
     }
 
-    started = editor_start_up();
+    started = editor_start_up(&platform.base);
     if(!started)
     {
         LOG_ERROR("Editor failed startup.");
@@ -570,6 +688,7 @@ void main_shut_down()
 {
     editor_shut_down();
     video::system_shut_down(functions_loaded);
+    destroy_stack(&platform.base);
 
     if(platform.visual_info)
     {
@@ -749,6 +868,50 @@ static void handle_event(XEvent event)
 {
     switch(event.type)
     {
+        case ButtonPress:
+        {
+            XButtonEvent button = event.xbutton;
+            input::Modifier modifier = translate_modifiers(button.state);
+            if(button.button == Button1)
+            {
+                input::mouse_click(input::MouseButton::Left, true, modifier);
+            }
+            else if(button.button == Button2)
+            {
+                input::mouse_click(input::MouseButton::Middle, true, modifier);
+            }
+            else if(button.button == Button3)
+            {
+                input::mouse_click(input::MouseButton::Right, true, modifier);
+            }
+            else if(button.button == Button4)
+            {
+                input::mouse_scroll(0, +1);
+            }
+            else if(button.button == Button5)
+            {
+                input::mouse_scroll(0, -1);
+            }
+            break;
+        }
+        case ButtonRelease:
+        {
+            XButtonEvent button = event.xbutton;
+            input::Modifier modifier = translate_modifiers(button.state);
+            if(button.button == Button1)
+            {
+                input::mouse_click(input::MouseButton::Left, false, modifier);
+            }
+            else if(button.button == Button2)
+            {
+                input::mouse_click(input::MouseButton::Middle, false, modifier);
+            }
+            else if(button.button == Button3)
+            {
+                input::mouse_click(input::MouseButton::Right, false, modifier);
+            }
+            break;
+        }
         case ClientMessage:
         {
             XClientMessageEvent client_message = event.xclient;
@@ -764,6 +927,24 @@ static void handle_event(XEvent event)
             XConfigureRequestEvent configure = event.xconfigurerequest;
             double dpmm = get_dots_per_millimeter(&platform);
             resize_viewport(configure.width, configure.height, dpmm);
+            break;
+        }
+        case FocusIn:
+        {
+            XFocusInEvent focus_in = event.xfocus;
+            if(focus_in.window == platform.window && platform.input_context_focused)
+            {
+                XSetICFocus(platform.input_context);
+            }
+            break;
+        }
+        case FocusOut:
+        {
+            XFocusInEvent focus_out = event.xfocus;
+            if(focus_out.window == platform.window && platform.input_context_focused)
+            {
+                XUnsetICFocus(platform.input_context);
+            }
             break;
         }
         case KeyPress:
@@ -835,50 +1016,6 @@ static void handle_event(XEvent event)
             if(!auto_repeated)
             {
                 input::key_press(key, false, modifier);
-            }
-            break;
-        }
-        case ButtonPress:
-        {
-            XButtonEvent button = event.xbutton;
-            input::Modifier modifier = translate_modifiers(button.state);
-            if(button.button == Button1)
-            {
-                input::mouse_click(input::MouseButton::Left, true, modifier);
-            }
-            else if(button.button == Button2)
-            {
-                input::mouse_click(input::MouseButton::Middle, true, modifier);
-            }
-            else if(button.button == Button3)
-            {
-                input::mouse_click(input::MouseButton::Right, true, modifier);
-            }
-            else if(button.button == Button4)
-            {
-                input::mouse_scroll(0, +1);
-            }
-            else if(button.button == Button5)
-            {
-                input::mouse_scroll(0, -1);
-            }
-            break;
-        }
-        case ButtonRelease:
-        {
-            XButtonEvent button = event.xbutton;
-            input::Modifier modifier = translate_modifiers(button.state);
-            if(button.button == Button1)
-            {
-                input::mouse_click(input::MouseButton::Left, false, modifier);
-            }
-            else if(button.button == Button2)
-            {
-                input::mouse_click(input::MouseButton::Middle, false, modifier);
-            }
-            else if(button.button == Button3)
-            {
-                input::mouse_click(input::MouseButton::Right, false, modifier);
             }
             break;
         }

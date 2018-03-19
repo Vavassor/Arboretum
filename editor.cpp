@@ -42,8 +42,6 @@ enum class Action
 
 namespace
 {
-    const int invalid_index = -1;
-
     Heap heap;
     Stack scratch;
 
@@ -152,7 +150,7 @@ void clear_object_from_hover_and_selection(ObjectId id, Platform* platform)
 
 // Whole System.................................................................
 
-bool editor_start_up()
+bool editor_start_up(Platform* platform)
 {
     stack_create(&scratch, MEBIBYTES(16));
     heap_create(&heap, MEBIBYTES(16));
@@ -240,25 +238,25 @@ bool editor_start_up()
         main_menu->container.items[0].type = ui::ItemType::Button;
         main_menu->container.items[0].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
         main_menu->container.items[0].button.text_block.font = &font;
-        ui::set_text(&main_menu->container.items[0].button.text_block, "Import .obj", &heap);
+        ui::set_text(&main_menu->container.items[0].button.text_block, platform->localized_text.main_menu_import_file, &heap);
         import_button_id = main_menu->container.items[0].id;
 
         main_menu->container.items[1].type = ui::ItemType::Button;
         main_menu->container.items[1].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
         main_menu->container.items[1].button.text_block.font = &font;
-        ui::set_text(&main_menu->container.items[1].button.text_block, "Export .obj", &heap);
+        ui::set_text(&main_menu->container.items[1].button.text_block, platform->localized_text.main_menu_export_file, &heap);
         export_button_id = main_menu->container.items[1].id;
 
         main_menu->container.items[2].type = ui::ItemType::Button;
         main_menu->container.items[2].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
         main_menu->container.items[2].button.text_block.font = &font;
-        ui::set_text(&main_menu->container.items[2].button.text_block, "Object Mode", &heap);
+        ui::set_text(&main_menu->container.items[2].button.text_block, platform->localized_text.main_menu_enter_object_mode, &heap);
         object_mode_button_id = main_menu->container.items[2].id;
 
         main_menu->container.items[3].type = ui::ItemType::Button;
         main_menu->container.items[3].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
         main_menu->container.items[3].button.text_block.font = &font;
-        ui::set_text(&main_menu->container.items[3].button.text_block, "Face Mode", &heap);
+        ui::set_text(&main_menu->container.items[3].button.text_block, platform->localized_text.main_menu_enter_face_mode, &heap);
         face_mode_button_id = main_menu->container.items[3].id;
     }
 
@@ -855,7 +853,7 @@ void editor_update(Platform* platform)
         {
             if(dialog.enabled)
             {
-                handle_input(&dialog, event, &font, &lady, &history, &ui_context, &heap, &scratch);
+                handle_input(&dialog, event, &font, &lady, &history, &ui_context, platform, &heap, &scratch);
             }
             else
             {
@@ -866,7 +864,7 @@ void editor_update(Platform* platform)
                         ui::Id id = event.button.id;
                         if(id == import_button_id)
                         {
-                            open_dialog(&dialog, &font, &ui_context, &heap);
+                            open_dialog(&dialog, &font, &ui_context, platform, &heap);
                             dialog.panel->unfocusable = false;
                         }
                         else if(id == export_button_id)
@@ -881,6 +879,10 @@ void editor_update(Platform* platform)
                         {
                             request_mode_change(Mode::Face);
                         }
+                        break;
+                    }
+                    case ui::EventType::Focus_Change:
+                    {
                         break;
                     }
                 }

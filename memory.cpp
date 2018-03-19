@@ -150,8 +150,14 @@ void* stack_allocate(Stack* stack, u32 bytes)
 
 void* stack_reallocate(Stack* stack, void* memory, u32 bytes)
 {
+    if(!memory)
+    {
+        return stack_allocate(stack, bytes);
+    }
+
     u8* place = static_cast<u8*>(memory);
-    u32 more_bytes = stack->top - (place - stack->memory);
+    u32 present_bytes = stack->top - (place - stack->memory);
+    u32 more_bytes = bytes - present_bytes;
     if(stack->top + more_bytes > stack->bytes)
     {
         return nullptr;

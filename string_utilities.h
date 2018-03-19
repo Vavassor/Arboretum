@@ -1,6 +1,7 @@
 #ifndef STRING_UTILITES_H_
 #define STRING_UTILITES_H_
 
+#include "invalid_index.h"
 #include "restrict.h"
 #include "variable_arguments.h"
 

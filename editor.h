@@ -5,7 +5,7 @@
 
 struct Platform;
 
-bool editor_start_up();
+bool editor_start_up(Platform* platform);
 void editor_shut_down();
 void editor_update(Platform* platform);
 void editor_destroy_clipboard_copy(char* clipboard);

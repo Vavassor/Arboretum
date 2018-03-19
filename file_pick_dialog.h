@@ -23,8 +23,8 @@ struct FilePickDialog
     bool enabled;
 };
 
-void open_dialog(FilePickDialog* dialog, bmfont::Font* font, ui::Context* context, Heap* heap);
+void open_dialog(FilePickDialog* dialog, bmfont::Font* font, ui::Context* context, Platform* platform, Heap* heap);
 void close_dialog(FilePickDialog* dialog, ui::Context* context, Heap* heap);
-void handle_input(FilePickDialog* dialog, ui::Event event, bmfont::Font* font, ObjectLady* lady, History* history, ui::Context* context, Heap* heap, Stack* stack);
+void handle_input(FilePickDialog* dialog, ui::Event event, bmfont::Font* font, ObjectLady* lady, History* history, ui::Context* context, Platform* platform, Heap* heap, Stack* stack);
 
 #endif // FILE_PICK_DIALOG_H_

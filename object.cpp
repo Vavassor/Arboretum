@@ -10,7 +10,6 @@ void object_create(Object* object)
     object->orientation = quaternion_identity;
 
     object->video_object = video::add_object();
-
 }
 
 void object_destroy(Object* object)
