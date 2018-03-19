@@ -74,7 +74,7 @@ static void open_directory(FilePickDialog* dialog, const char* directory, bmfont
     ui::add_column(&panel->container, 3, context, heap);
 
     // Set up the path bar at the top of the dialog.
-    dialog->path = copy_string_onto_heap(directory, heap);
+    dialog->path = copy_string_to_heap(directory, heap);
 
     int slashes = count_char_occurrences(dialog->path, '/');
     int buttons_in_row = slashes + 1;
@@ -114,7 +114,7 @@ static void open_directory(FilePickDialog* dialog, const char* directory, bmfont
         }
         else
         {
-            char* temp = copy_string_to_heap(path, found_index, heap);
+            char* temp = copy_chars_to_heap(path, found_index, heap);
             ui::set_text(&button->text_block, temp, heap);
             HEAP_DEALLOCATE(heap, temp);
         }

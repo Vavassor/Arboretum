@@ -4,7 +4,7 @@
 #include "memory.h"
 #include "string_utilities.h"
 
-char* copy_string_to_heap(const char* original, int original_size, Heap* heap)
+char* copy_chars_to_heap(const char* original, int original_size, Heap* heap)
 {
     original_size += 1;
     char* copy = HEAP_ALLOCATE(heap, char, original_size);
@@ -12,16 +12,30 @@ char* copy_string_to_heap(const char* original, int original_size, Heap* heap)
     return copy;
 }
 
-char* copy_string_onto_heap(const char* original, Heap* heap)
+char* copy_string_to_heap(const char* original, Heap* heap)
 {
     int size = string_size(original);
-    return copy_string_to_heap(original, size, heap);
+    return copy_chars_to_heap(original, size, heap);
+}
+
+char* copy_chars_to_stack(const char* original, int original_size, Stack* stack)
+{
+    original_size += 1;
+    char* copy = STACK_ALLOCATE(stack, char, original_size);
+    copy_string(copy, original_size, original);
+    return copy;
+}
+
+char* copy_string_to_stack(const char* original, Stack* stack)
+{
+    int size = string_size(original);
+    return copy_chars_to_stack(original, size, stack);
 }
 
 void replace_string(char** original, const char* new_string, Heap* heap)
 {
     HEAP_DEALLOCATE(heap, *original);
-    *original = copy_string_onto_heap(new_string, heap);
+    *original = copy_string_to_heap(new_string, heap);
 }
 
 char* append_to_path(const char* path, const char* segment, Heap* heap)

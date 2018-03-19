@@ -232,7 +232,7 @@ bool list_files_in_directory(const char* path, Directory* result, Heap* heap)
         {
             record.type = translate_directory_record_type(entry->d_type);
         }
-        record.name = copy_string_onto_heap(entry->d_name, heap);
+        record.name = copy_string_to_heap(entry->d_name, heap);
         record.hidden = string_starts_with(record.name, ".");
         ARRAY_ADD(listing, record, heap);
         listing_count += 1;
@@ -273,7 +273,7 @@ static char* get_user_folder(const char* env_name, const char* default_relative_
     const char* folder = getenv(env_name);
     if(folder)
     {
-        return copy_string_onto_heap(folder, heap);
+        return copy_string_to_heap(folder, heap);
     }
 
     const char* home = get_home_folder();

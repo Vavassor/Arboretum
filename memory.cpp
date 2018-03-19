@@ -162,7 +162,10 @@ void* stack_reallocate(Stack* stack, void* memory, u32 bytes)
     {
         return nullptr;
     }
+
+    set_memory(&stack->memory[stack->top], 0, more_bytes);
     stack->top += more_bytes;
+
     return memory;
 }
 

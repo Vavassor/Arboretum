@@ -4,6 +4,7 @@
 #include "filesystem.h"
 #include "memory.h"
 #include "platform.h"
+#include "string_build.h"
 #include "string_utilities.h"
 
 namespace loc {
@@ -88,8 +89,7 @@ static char* get_name(Stream* stream, Stack* stack)
     for(i = 1; is_valid_in_name(stream->buffer[i]); i += 1);
     int size = i;
 
-    char* name = STACK_ALLOCATE(stack, char, size + 1);
-    copy_string(name, size + 1, stream->buffer);
+    char* name = copy_chars_to_stack(stream->buffer, size, stack);
     stream->buffer += size;
 
     return name;
@@ -235,9 +235,7 @@ static bool process_next_entry(Stream* stream, Platform* platform, Stack* stack)
 
         if(end_found)
         {
-            int size = string_size(entry) + 1;
-            char* copy = STACK_ALLOCATE(&platform->stack, char, size);
-            copy_string(copy, size, entry);
+            char* copy = copy_string_to_stack(entry, &platform->stack);
 
             added = add_localized_text(platform, name, copy);
             if(!added)

@@ -227,7 +227,7 @@ void add_column(Container* container, int count, Context* context, Heap* heap)
 void set_text(TextBlock* text_block, const char* text, Heap* heap)
 {
     int size = string_size(text);
-    text_block->text = copy_string_to_heap(text, size, heap);
+    text_block->text = copy_chars_to_heap(text, size, heap);
 
     // @Incomplete: There isn't a one-to-one mapping between chars and glyphs.
     // Glyph count should be based on the mapping of the given text in a
@@ -1659,7 +1659,7 @@ static bool copy_selected_text(TextInput* text_input, Platform* platform, Heap* 
     int end = MAX(text_input->cursor_position, text_input->selection_start);
     int size = end - start;
 
-    char* clipboard = copy_string_to_heap(&text_block->text[start], size, heap);
+    char* clipboard = copy_chars_to_heap(&text_block->text[start], size, heap);
     bool copied = copy_to_clipboard(platform, clipboard);
     if(!copied)
     {
