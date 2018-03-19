@@ -6,7 +6,7 @@ struct Platform;
 // Localized Text File (.loc)
 namespace loc {
 
-bool load_file(Platform* platform);
+bool load_file(Platform* platform, const char* path);
 
 } // namespace loc
 

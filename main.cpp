@@ -167,7 +167,6 @@ void request_paste_from_clipboard(Platform* base)
 
 namespace
 {
-    const char* app_name = "Arboretum";
     const int window_width = 800;
     const int window_height = 600;
 
@@ -611,8 +610,8 @@ bool main_start_up()
     platform.wm_delete_window = XInternAtom(platform.display, "WM_DELETE_WINDOW", False);
     XSetWMProtocols(platform.display, platform.window, &platform.wm_delete_window, 1);
 
-    XStoreName(platform.display, platform.window, app_name);
-    XSetIconName(platform.display, platform.window, app_name);
+    XStoreName(platform.display, platform.window, platform.base.nonlocalized_text.app_name);
+    XSetIconName(platform.display, platform.window, platform.base.nonlocalized_text.app_name);
 
     // Register for the input method context to be created.
     XPointer client_data = reinterpret_cast<XPointer>(&platform);
@@ -704,9 +703,18 @@ void main_shut_down()
         {
             XFreeColormap(platform.display, platform.colormap);
         }
-        XDestroyIC(platform.input_context);
-        XCloseIM(platform.input_method);
-        XFreeFontSet(platform.display, platform.font_set);
+        if(platform.input_context)
+        {
+            XDestroyIC(platform.input_context);
+        }
+        if(platform.input_method)
+        {
+            XCloseIM(platform.input_method);
+        }
+        if(platform.font_set)
+        {
+            XFreeFontSet(platform.display, platform.font_set);
+        }
         XCloseDisplay(platform.display);
     }
 }

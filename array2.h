@@ -22,6 +22,9 @@ struct ArrayHeader
 #define ARRAY_ADD(array, element, heap) \
     (ARRAY_FIT_(array, 1, heap), (array)[ARRAY_HEADER_(array)->count++] = (element))
 
+#define ARRAY_ADD_STACK(array, element, stack) \
+    (ARRAY_FIT_STACK_(array, 1, stack), (array)[ARRAY_HEADER_(array)->count++] = (element))
+
 #define ARRAY_REMOVE(array, element) \
     (*element = (array)[--ARRAY_HEADER_(array)->count])
 
@@ -29,6 +32,9 @@ struct ArrayHeader
 
 #define ARRAY_DESTROY(array, heap) \
     ((array) ? (HEAP_DEALLOCATE(heap, ARRAY_HEADER_(array)), (array) = nullptr) : 0)
+
+#define ARRAY_DESTROY_STACK(array, stack) \
+    ((array) ? (STACK_DEALLOCATE(stack, ARRAY_HEADER_(array)), (array) = nullptr) : 0)
 
 
 #define ARRAY_HEADER_(array) \
@@ -40,10 +46,17 @@ struct ArrayHeader
 #define ARRAY_RESIZE_(array, extra, heap) \
     ((array) = static_cast<decltype(array)>(resize_array(array, ARRAY_COUNT(array) + (extra), sizeof(*(array)), heap)))
 
+#define ARRAY_RESIZE_STACK_(array, extra, stack) \
+    ((array) = static_cast<decltype(array)>(resize_array(array, ARRAY_COUNT(array) + (extra), sizeof(*(array)), stack)))
+
 #define ARRAY_FIT_(array, extra, heap) \
     (ARRAY_FITS_(array, extra) ? 0 : ARRAY_RESIZE_(array, extra, heap))
 
+#define ARRAY_FIT_STACK_(array, extra, stack) \
+    (ARRAY_FITS_(array, extra) ? 0 : ARRAY_RESIZE_STACK_(array, extra, stack))
+
 
 void* resize_array(void* array, int count, int element_size, Heap* heap);
+void* resize_array(void* array, int count, int element_size, Stack* stack);
 
 #endif // ARRAY2_H_

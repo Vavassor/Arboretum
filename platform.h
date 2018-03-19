@@ -26,6 +26,11 @@ struct Platform
         const char* main_menu_import_file;
     } localized_text;
 
+    struct
+    {
+        const char* app_name;
+    } nonlocalized_text;
+
     Stack stack;
 
     LocaleId locale_id;

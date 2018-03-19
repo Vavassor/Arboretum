@@ -195,8 +195,11 @@ void destroy_toplevel_container(Context* context, Item* item, Heap* heap)
     // null and would cause it not to be found.
     SAFE_HEAP_DEALLOCATE(heap, item);
 
-    context->toplevel_containers = HEAP_REALLOCATE(heap, context->toplevel_containers, count - 1);
-    context->toplevel_containers_count = count - 1;
+    if(count)
+    {
+        context->toplevel_containers = HEAP_REALLOCATE(heap, context->toplevel_containers, count - 1);
+        context->toplevel_containers_count = count - 1;
+    }
 }
 
 void add_row(Container* container, int count, Context* context, Heap* heap)

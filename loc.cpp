@@ -1,5 +1,6 @@
 #include "loc.h"
 
+#include "array2.h"
 #include "filesystem.h"
 #include "memory.h"
 #include "platform.h"
@@ -97,9 +98,9 @@ static char* get_name(Stream* stream, Stack* stack)
 static char* get_entry(Stream* stream, Stack* stack)
 {
     char* entry = nullptr;
-    int added = 0;
 
-    for(int i = 0; stream->buffer[i]; i += 1)
+    int i;
+    for(i = 0; stream->buffer[i]; i += 1)
     {
         char c = stream->buffer[i];
         if(c == ']')
@@ -113,10 +114,8 @@ static char* get_entry(Stream* stream, Stack* stack)
 
             if(is_alphabetic_ascii(c))
             {
-                entry = STACK_REALLOCATE(stack, entry, added + 2);
-                entry[added] = '\\';
-                entry[added + 1] = c;
-                added += 2;
+                ARRAY_ADD_STACK(entry, '\\', stack);
+                ARRAY_ADD_STACK(entry, c, stack);
 
                 do
                 {
@@ -125,48 +124,43 @@ static char* get_entry(Stream* stream, Stack* stack)
 
                     if(is_valid_in_name(c))
                     {
-                        entry = STACK_REALLOCATE(stack, entry, added + 2);
-                        entry[added] = c;
-                        added += 1;
+                        ARRAY_ADD_STACK(entry, c, stack);
                         continue;
                     }
                     else if(c == '\\')
                     {
-                        entry = STACK_REALLOCATE(stack, entry, added + 2);
-                        entry[added] = c;
-                        added += 1;
+                        ARRAY_ADD_STACK(entry, c, stack);
                         break;
                     }
                     else
                     {
-                        STACK_DEALLOCATE(stack, entry);
+                        ARRAY_DESTROY_STACK(entry, stack);
                         return nullptr;
                     }
                 } while(stream->buffer[i]);
             }
             else if(c == '\\' || c == ']')
             {
-                entry = STACK_REALLOCATE(stack, entry, added + 2);
-                entry[added] = c;
-                added += 1;
+                ARRAY_ADD_STACK(entry, c, stack);
             }
             else if(c != '\n')
             {
-                STACK_DEALLOCATE(stack, entry);
+                ARRAY_DESTROY_STACK(entry, stack);
                 return nullptr;
             }
         }
         else
         {
-            entry = STACK_REALLOCATE(stack, entry, added + 2);
-            entry[added] = c;
-            added += 1;
+            ARRAY_ADD_STACK(entry, c, stack);
         }
     }
 
+    stream->buffer += i;
+
     if(entry)
     {
-        entry[added] = '\0';
+        ARRAY_ADD_STACK(entry, '\0', stack);
+        stream->buffer += 1;
     }
 
     return entry;
@@ -174,12 +168,14 @@ static char* get_entry(Stream* stream, Stack* stack)
 
 static bool add_localized_text(Platform* platform, const char* name, const char* entry)
 {
+    const int table_count = 7;
     struct
     {
         const char* name;
         const char** text;
-    } table[6] =
+    } table[table_count] =
     {
+        {"app_name",                    &platform->nonlocalized_text.app_name},
         {"file_pick_dialog_import",     &platform->localized_text.file_pick_dialog_import},
         {"file_pick_dialog_filesystem", &platform->localized_text.file_pick_dialog_filesystem},
         {"main_menu_enter_face_mode",   &platform->localized_text.main_menu_enter_face_mode},
@@ -188,7 +184,7 @@ static bool add_localized_text(Platform* platform, const char* name, const char*
         {"main_menu_import_file",       &platform->localized_text.main_menu_import_file},
     };
 
-    for(int i = 0; i < 6; i += 1)
+    for(int i = 0; i < table_count; i += 1)
     {
         if(strings_match(table[i].name, name))
         {
@@ -198,6 +194,15 @@ static bool add_localized_text(Platform* platform, const char* name, const char*
     }
 
     return false;
+}
+
+static bool check_until_newline(Stream* stream)
+{
+    const char* s;
+    for(s = stream->buffer; *s && is_space_or_tab_ascii(*s); s += 1);
+    stream->buffer = s;
+
+    return is_newline_ascii(*s);
 }
 
 static bool process_next_entry(Stream* stream, Platform* platform, Stack* stack)
@@ -219,6 +224,7 @@ static bool process_next_entry(Stream* stream, Platform* platform, Stack* stack)
     bool start_found = *stream->buffer == '[';
     bool end_found = false;
     bool added = false;
+    bool end_of_line_clean = false;
 
     if(start_found)
     {
@@ -239,30 +245,23 @@ static bool process_next_entry(Stream* stream, Platform* platform, Stack* stack)
                 STACK_DEALLOCATE(&platform->stack, copy);
             }
 
-            STACK_DEALLOCATE(stack, entry);
+            ARRAY_DESTROY_STACK(entry, stack);
+
+            end_of_line_clean = check_until_newline(stream);
         }
     }
 
     STACK_DEALLOCATE(stack, name);
 
-    return start_found && end_found && added;
+    return start_found && end_found && added && end_of_line_clean;
 }
 
-static const char* get_filename_for_locale_id(LocaleId locale_id)
-{
-    switch(locale_id)
-    {
-        default:
-        case LocaleId::Default: return "default.loc";
-    }
-}
 
-bool load_file(Platform* platform)
+
+bool load_file(Platform* platform, const char* path)
 {
     Stack stack = {};
     stack_create(&stack, KIBIBYTES(16));
-
-    const char* path = get_filename_for_locale_id(platform->locale_id);
 
     void* contents;
     u64 file_size;
@@ -272,12 +271,18 @@ bool load_file(Platform* platform)
     {
         Stream stream;
         stream.buffer = static_cast<const char*>(contents);
+        stream.error_occurred = false;
         bool processed_fine = true;
 
         while(stream_has_more(&stream) && processed_fine && !stream.error_occurred)
         {
             processed_fine = process_next_entry(&stream, platform, &stack);
             next_line(&stream);
+        }
+
+        if(!processed_fine || stream.error_occurred)
+        {
+            loaded = false;
         }
     }
 
