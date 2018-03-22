@@ -164,7 +164,7 @@ static char to_upper_case_char(char c)
     }
 }
 
-static void to_upper_case(char* string)
+void to_upper_case_ascii(char* string)
 {
     for(; *string; string += 1)
     {
@@ -172,9 +172,14 @@ static void to_upper_case(char* string)
     }
 }
 
+static bool is_ascii(char c)
+{
+    return !(c & 0x80);
+}
+
 static bool is_control_character(char c)
 {
-    return c <= 0x1f || (c >= 0x7f && c <= 0x9f);
+    return is_ascii(c) && (c <= 0x1f || (c >= 0x7f && c <= 0x9f));
 }
 
 int compare_alphabetic_ascii(const char* RESTRICT a, const char* RESTRICT b)
@@ -1175,7 +1180,7 @@ static void process_specifier(FormatContext* context, va_list arguments)
                     break;
                 }
             }
-            to_upper_case(int_buffer);
+            to_upper_case_ascii(int_buffer);
             int copied = copy_string(buffer, buffer_left, int_buffer);
             context->chars_written += copied;
             break;
@@ -1230,7 +1235,7 @@ static void process_specifier(FormatContext* context, va_list arguments)
                     break;
                 }
             }
-            to_upper_case(float_buffer);
+            to_upper_case_ascii(float_buffer);
             int copied = copy_string(buffer, buffer_left, float_buffer);
             context->chars_written += copied;
             break;
@@ -1285,7 +1290,7 @@ static void process_specifier(FormatContext* context, va_list arguments)
                     break;
                 }
             }
-            to_upper_case(float_buffer);
+            to_upper_case_ascii(float_buffer);
             int copied = copy_string(buffer, buffer_left, float_buffer);
             context->chars_written += copied;
             break;
@@ -1340,7 +1345,7 @@ static void process_specifier(FormatContext* context, va_list arguments)
                     break;
                 }
             }
-            to_upper_case(float_buffer);
+            to_upper_case_ascii(float_buffer);
             int copied = copy_string(buffer, buffer_left, float_buffer);
             context->chars_written += copied;
             break;

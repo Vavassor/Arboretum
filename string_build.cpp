@@ -34,7 +34,10 @@ char* copy_string_to_stack(const char* original, Stack* stack)
 
 void replace_string(char** original, const char* new_string, Heap* heap)
 {
-    HEAP_DEALLOCATE(heap, *original);
+    if(*original)
+    {
+        HEAP_DEALLOCATE(heap, *original);
+    }
     *original = copy_string_to_heap(new_string, heap);
 }
 

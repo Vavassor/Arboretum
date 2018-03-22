@@ -162,6 +162,8 @@ void destroy_directory(Directory* directory, Heap* heap)
     {
         HEAP_DEALLOCATE(heap, directory->records[i].name);
     }
+    directory->records_count = 0;
+
     ARRAY_DESTROY(directory->records, heap);
 }
 

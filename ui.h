@@ -116,6 +116,7 @@ struct TextInput
     TextBlock text_block;
     int cursor_position;
     int selection_start;
+    int cursor_blink_frame;
 };
 
 enum class ItemType
@@ -148,7 +149,6 @@ struct Item
     ItemType type;
     Id id;
     bool growable;
-    bool unfocusable;
 };
 
 enum class EventType
@@ -171,12 +171,14 @@ struct Event
         struct
         {
             int index;
+            bool expand;
         } list_selection;
 
         struct
         {
             Id now_focused;
             Id now_unfocused;
+            Id current_scope;
         } focus_change;
     };
 };
@@ -195,7 +197,9 @@ struct Context
     Vector2 viewport;
     Heap* heap;
     Stack* scratch;
-    Item* focused_container;
+    Item* focused_item;
+    Item* captor_item;
+    Item** tab_navigation_list;
     Item** toplevel_containers;
     int toplevel_containers_count;
     Id seed;
@@ -205,9 +209,13 @@ bool dequeue(EventQueue* queue, Event* event);
 void create_context(Context* context, Heap* heap, Stack* stack);
 void destroy_context(Context* context, Heap* heap);
 bool focused_on(Context* context, Item* item);
-void focus_on_container(Context* context, Item* item);
+void focus_on_item(Context* context, Item* item);
+bool is_captor(Context* context, Item* item);
+void capture(Context* context, Item* item);
+bool is_within_container(Item* outer, Item* item);
 Item* create_toplevel_container(Context* context, Heap* heap);
 void destroy_toplevel_container(Context* context, Item* item, Heap* heap);
+void empty_item(Context* context, Item* item);
 void add_row(Container* container, int count, Context* context, Heap* heap);
 void add_column(Container* container, int count, Context* context, Heap* heap);
 void set_text(TextBlock* text_block, const char* text, Heap* heap);
@@ -215,8 +223,11 @@ void insert_text(Item* item, const char* text_to_add, Heap* heap, Stack* stack);
 void create_items(Item* item, int lines_count, Heap* heap);
 void lay_out(Item* item, Rect space, Stack* stack);
 void draw(Item* item, Context* context);
+void draw_focus_indicator(Item* item, Context* context);
 
 void update(Context* context, Platform* platform);
+
+extern const Id invalid_id;
 
 } // namespace ui
 

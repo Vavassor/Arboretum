@@ -1,5 +1,6 @@
 #include "ui.h"
 
+#include "array2.h"
 #include "assert.h"
 #include "colours.h"
 #include "float_utilities.h"
@@ -20,6 +21,8 @@
 #include "vector_math.h"
 
 namespace ui {
+
+extern const Id invalid_id = 0;
 
 static void create_event_queue(EventQueue* queue, Heap* heap)
 {
@@ -60,17 +63,24 @@ void create_context(Context* context, Heap* heap, Stack* scratch)
     context->scratch = scratch;
 }
 
-static void destroy_list(List* list, Heap* heap)
-{
-    SAFE_HEAP_DEALLOCATE(heap, list->items);
-}
-
 static void destroy_text_block(TextBlock* text_block, Heap* heap)
 {
     SAFE_HEAP_DEALLOCATE(heap, text_block->text);
     SAFE_HEAP_DEALLOCATE(heap, text_block->glyphs);
 
     destroy(&text_block->glyph_map, heap);
+}
+
+static void destroy_list(List* list, Heap* heap)
+{
+    FOR_N(i, list->items_count)
+    {
+        destroy_text_block(list->items, heap);
+    }
+    list->items_count = 0;
+
+    SAFE_HEAP_DEALLOCATE(heap, list->items);
+    SAFE_HEAP_DEALLOCATE(heap, list->items_bounds);
 }
 
 static void destroy_container(Container* container, Heap* heap)
@@ -109,12 +119,16 @@ static void destroy_container(Container* container, Heap* heap)
                 }
             }
         }
+        container->items_count = 0;
+
         SAFE_HEAP_DEALLOCATE(heap, container->items);
     }
 }
 
 void destroy_context(Context* context, Heap* heap)
 {
+    ASSERT(heap == context->heap);
+
     destroy_event_queue(&context->queue, heap);
 
     FOR_N(i, context->toplevel_containers_count)
@@ -124,6 +138,8 @@ void destroy_context(Context* context, Heap* heap)
         SAFE_HEAP_DEALLOCATE(heap, item);
     }
     SAFE_HEAP_DEALLOCATE(heap, context->toplevel_containers);
+
+    ARRAY_DESTROY(context->tab_navigation_list, heap);
 }
 
 static Id generate_id(Context* context)
@@ -133,14 +149,63 @@ static Id generate_id(Context* context)
     return id;
 }
 
-bool focused_on(Context* context, Item* item)
+static bool in_focus_scope(Item* outer, Item* item)
 {
-    return item == context->focused_container;
+    if(outer->id == item->id)
+    {
+        return true;
+    }
+
+    Container* container = &outer->container;
+
+    FOR_N(i, container->items_count)
+    {
+        Item* inside = &container->items[i];
+        if(inside->id == item->id)
+        {
+            return true;
+        }
+        if(inside->type == ItemType::Container)
+        {
+            bool in_scope = in_focus_scope(inside, item);
+            if(in_scope)
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
-void focus_on_container(Context* context, Item* item)
+static Id get_focus_scope(Context* context, Item* item)
 {
-    if(item != context->focused_container)
+    if(!item)
+    {
+        return invalid_id;
+    }
+
+    FOR_N(i, context->toplevel_containers_count)
+    {
+        Item* toplevel = context->toplevel_containers[i];
+        bool within = in_focus_scope(toplevel, item);
+        if(within)
+        {
+            return toplevel->id;
+        }
+    }
+
+    return invalid_id;
+}
+
+bool focused_on(Context* context, Item* item)
+{
+    return item == context->focused_item;
+}
+
+void focus_on_item(Context* context, Item* item)
+{
+    if(item != context->focused_item)
     {
         Event event = {};
         event.type = EventType::Focus_Change;
@@ -148,14 +213,53 @@ void focus_on_container(Context* context, Item* item)
         {
             event.focus_change.now_focused = item->id;
         }
-        if(context->focused_container)
+        if(context->focused_item)
         {
-            event.focus_change.now_unfocused = context->focused_container->id;
+            event.focus_change.now_unfocused = context->focused_item->id;
         }
+        event.focus_change.current_scope = get_focus_scope(context, item);
         enqueue(&context->queue, event);
     }
 
-    context->focused_container = item;
+    context->focused_item = item;
+}
+
+bool is_captor(Context* context, Item* item)
+{
+    return item == context->captor_item;
+}
+
+void capture(Context* context, Item* item)
+{
+    context->captor_item = item;
+}
+
+static bool is_capture_within(Context* context, Item* item)
+{
+    if(!context->captor_item)
+    {
+        return false;
+    }
+
+    Container* container = &item->container;
+    FOR_N(i, container->items_count)
+    {
+        Item* inside = &container->items[i];
+        if(inside->id == context->captor_item->id)
+        {
+            return true;
+        }
+        if(inside->type == ItemType::Container)
+        {
+            bool within = is_capture_within(context, inside);
+            if(within)
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 Item* create_toplevel_container(Context* context, Heap* heap)
@@ -172,6 +276,17 @@ Item* create_toplevel_container(Context* context, Heap* heap)
 
 void destroy_toplevel_container(Context* context, Item* item, Heap* heap)
 {
+    // If the container is currently focused, make sure it becomes unfocused.
+    if(context->focused_item && in_focus_scope(item, context->focused_item))
+    {
+        focus_on_item(context, nullptr);
+    }
+    // Release capture if it's currently holding something.
+    if(is_capture_within(context, item))
+    {
+        capture(context, nullptr);
+    }
+
     destroy_container(&item->container, heap);
 
     // Find the container and overwrite it with the container on the end.
@@ -186,11 +301,7 @@ void destroy_toplevel_container(Context* context, Item* item, Heap* heap)
             break;
         }
     }
-    // If the container is currently focused, make sure it becomes unfocused.
-    if(focused_on(context, item))
-    {
-        focus_on_container(context, nullptr);
-    }
+
     // Only deallocate after the item is removed, because it sets the pointer to
     // null and would cause it not to be found.
     SAFE_HEAP_DEALLOCATE(heap, item);
@@ -199,6 +310,41 @@ void destroy_toplevel_container(Context* context, Item* item, Heap* heap)
     {
         context->toplevel_containers = HEAP_REALLOCATE(heap, context->toplevel_containers, count - 1);
         context->toplevel_containers_count = count - 1;
+    }
+}
+
+void empty_item(Context* context, Item* item)
+{
+    // Release capture if it's currently holding something.
+    if(is_capture_within(context, item))
+    {
+        capture(context, nullptr);
+    }
+
+    switch(item->type)
+    {
+        case ItemType::Button:
+        {
+            break;
+        }
+        case ItemType::Container:
+        {
+            destroy_container(&item->container, context->heap);
+            break;
+        }
+        case ItemType::List:
+        {
+            destroy_list(&item->list, context->heap);
+            break;
+        }
+        case ItemType::Text_Block:
+        {
+            break;
+        }
+        case ItemType::Text_Input:
+        {
+            break;
+        }
     }
 }
 
@@ -226,13 +372,16 @@ void add_column(Container* container, int count, Context* context, Heap* heap)
 
 void set_text(TextBlock* text_block, const char* text, Heap* heap)
 {
-    int size = string_size(text);
-    text_block->text = copy_chars_to_heap(text, size, heap);
+    // Clean up any prior text.
+    destroy(&text_block->glyph_map, heap);
+
+    replace_string(&text_block->text, text, heap);
 
     // @Incomplete: There isn't a one-to-one mapping between chars and glyphs.
     // Glyph count should be based on the mapping of the given text in a
     // particular font instead of the size in bytes.
-    text_block->glyphs = HEAP_ALLOCATE(heap, Glyph, size);
+    int size = string_size(text);
+    text_block->glyphs = HEAP_REALLOCATE(heap, text_block->glyphs, size);
     text_block->glyphs_cap = size;
     create(&text_block->glyph_map, size, heap);
 }
@@ -1404,7 +1553,7 @@ static int find_index_at_position(TextBlock* text_block, Vector2 dimensions, Vec
     return index;
 }
 
-void draw_text_input(Item* item)
+void draw_text_input(Item* item, Context* context)
 {
     ASSERT(item->type == ItemType::Text_Input);
 
@@ -1417,69 +1566,77 @@ void draw_text_input(Item* item)
     TextBlock* text_block = &text_input->text_block;
     bmfont::Font* font = text_block->font;
 
-    Vector2 cursor = compute_cursor_position(text_block, item->bounds.dimensions, text_input->cursor_position);
-    Vector2 top_left = rect_top_left(item->bounds);
-    cursor += top_left;
-
-    Rect rect;
-    rect.dimensions = {1.0f, font->line_height};
-    rect.bottom_left = cursor;
-    immediate::draw_opaque_rect(rect, vector4_white);
-
-    // Draw the selection highlight.
-    if(text_input->cursor_position != text_input->selection_start)
+    if(focused_on(context, item))
     {
-        Vector2 start = compute_cursor_position(text_block, item->bounds.dimensions, text_input->selection_start);
-        start += top_left;
+        Vector2 cursor = compute_cursor_position(text_block, item->bounds.dimensions, text_input->cursor_position);
+        Vector2 top_left = rect_top_left(item->bounds);
+        cursor += top_left;
 
-        Vector2 first, second;
-        if(text_input->selection_start < text_input->cursor_position)
+        Rect rect;
+        rect.dimensions = {1.7f, font->line_height};
+        rect.bottom_left = cursor;
+
+        text_input->cursor_blink_frame = (text_input->cursor_blink_frame + 1) & 0x3f;
+        if((text_input->cursor_blink_frame / 32) & 1)
         {
-            first = start;
-            second = cursor;
+            immediate::draw_opaque_rect(rect, vector4_white);
         }
-        else
-        {
-            first = cursor;
-            second = start;
-        }
 
-        if(almost_equals(cursor.y, start.y))
+        // Draw the selection highlight.
+        if(text_input->cursor_position != text_input->selection_start)
         {
-            // The selection endpoints are on the same line.
-            rect.bottom_left = first;
-            rect.dimensions.x = second.x - first.x;
-            rect.dimensions.y = font->line_height;
-            immediate::draw_transparent_rect(rect, selection_colour);
-        }
-        else
-        {
-            // The selection endpoints are on different lines.
-            Padding padding = text_block->padding;
-            float left = item->bounds.bottom_left.x + padding.start;
-            float right = left + item->bounds.dimensions.x - padding.end;
+            Vector2 start = compute_cursor_position(text_block, item->bounds.dimensions, text_input->selection_start);
+            start += top_left;
 
-            rect.bottom_left = first;
-            rect.dimensions.x = right - first.x;
-            rect.dimensions.y = font->line_height;
-            immediate::add_rect(rect, selection_colour);
-
-            int between_lines = (first.y - second.y) / font->line_height - 1;
-            FOR_N(i, between_lines)
+            Vector2 first, second;
+            if(text_input->selection_start < text_input->cursor_position)
             {
-                rect.dimensions.x = right - left;
-                rect.bottom_left.x = left;
-                rect.bottom_left.y = first.y - (font->line_height * (i + 1));
-                immediate::add_rect(rect, selection_colour);
+                first = start;
+                second = cursor;
+            }
+            else
+            {
+                first = cursor;
+                second = start;
             }
 
-            rect.dimensions.x = second.x - left;
-            rect.bottom_left.x = left;
-            rect.bottom_left.y = second.y;
-            immediate::add_rect(rect, selection_colour);
+            if(almost_equals(cursor.y, start.y))
+            {
+                // The selection endpoints are on the same line.
+                rect.bottom_left = first;
+                rect.dimensions.x = second.x - first.x;
+                rect.dimensions.y = font->line_height;
+                immediate::draw_transparent_rect(rect, selection_colour);
+            }
+            else
+            {
+                // The selection endpoints are on different lines.
+                Padding padding = text_block->padding;
+                float left = item->bounds.bottom_left.x + padding.start;
+                float right = left + item->bounds.dimensions.x - padding.end;
 
-            immediate::set_blend_mode(immediate::BlendMode::Transparent);
-            immediate::draw();
+                rect.bottom_left = first;
+                rect.dimensions.x = right - first.x;
+                rect.dimensions.y = font->line_height;
+                immediate::add_rect(rect, selection_colour);
+
+                int between_lines = (first.y - second.y) / font->line_height - 1;
+                FOR_N(i, between_lines)
+                {
+                    rect.dimensions.x = right - left;
+                    rect.bottom_left.x = left;
+                    rect.bottom_left.y = first.y - (font->line_height * (i + 1));
+                    immediate::add_rect(rect, selection_colour);
+                }
+
+                rect.dimensions.x = second.x - left;
+                rect.bottom_left.x = left;
+                rect.bottom_left.y = second.y;
+                immediate::add_rect(rect, selection_colour);
+
+                immediate::set_blend_mode(immediate::BlendMode::Transparent);
+                immediate::draw();
+            }
         }
     }
 }
@@ -1510,13 +1667,54 @@ void draw(Item* item, Context* context)
         }
         case ItemType::Text_Input:
         {
-            draw_text_input(item);
+            draw_text_input(item, context);
             break;
         }
     }
 }
 
-static void detect_hover(Item* item, Vector2 pointer_position)
+void draw_focus_indicator(Item* item, Context* context)
+{
+    if(context->focused_item && in_focus_scope(item, context->focused_item))
+    {
+        Item* focused = context->focused_item;
+
+        const Vector4 colour = {1.0f, 1.0f, 0.0f, 0.6f};
+        const float line_width = 2.0f;
+
+        Rect bounds = focused->bounds;
+
+        float width = bounds.dimensions.x;
+        float height = bounds.dimensions.y;
+
+        Vector2 top_left = rect_top_left(bounds);
+        Vector2 bottom_left = bounds.bottom_left;
+        Vector2 bottom_right = rect_bottom_right(bounds);
+
+        Rect top;
+        top.bottom_left = top_left;
+        top.dimensions = {width, line_width};
+
+        Rect bottom;
+        bottom.bottom_left = {bottom_left.x, bottom_left.y - line_width};
+        bottom.dimensions = {width, line_width};
+
+        Rect left;
+        left.bottom_left = {bottom_left.x - line_width, bottom_left.y - line_width};
+        left.dimensions = {line_width, height + (2 * line_width)};
+
+        Rect right;
+        right.bottom_left = {bottom_right.x, bottom_right.y - line_width};
+        right.dimensions = {line_width, height + (2 * line_width)};
+
+        immediate::draw_transparent_rect(top, colour);
+        immediate::draw_transparent_rect(bottom, colour);
+        immediate::draw_transparent_rect(left, colour);
+        immediate::draw_transparent_rect(right, colour);
+    }
+}
+
+static void detect_hover(Item* item, Vector2 pointer_position, Platform* platform)
 {
     switch(item->type)
     {
@@ -1524,6 +1722,10 @@ static void detect_hover(Item* item, Vector2 pointer_position)
         {
             bool hovered = point_in_rect(item->bounds, pointer_position);
             item->button.hovered = hovered;
+            if(hovered)
+            {
+                change_cursor(platform, CursorType::Arrow);
+            }
             break;
         }
         case ItemType::Container:
@@ -1532,7 +1734,7 @@ static void detect_hover(Item* item, Vector2 pointer_position)
             FOR_N(i, container->items_count)
             {
                 Item* inside = &container->items[i];
-                detect_hover(inside, pointer_position);
+                detect_hover(inside, pointer_position, platform);
             }
             break;
         }
@@ -1549,16 +1751,79 @@ static void detect_hover(Item* item, Vector2 pointer_position)
                 if(hovered)
                 {
                     list->hovered_item_index = i;
+                    change_cursor(platform, CursorType::Arrow);
                 }
             }
             break;
         }
         case ItemType::Text_Block:
-        case ItemType::Text_Input:
         {
             break;
         }
+        case ItemType::Text_Input:
+        {
+            bool hovered = point_in_rect(item->bounds, pointer_position);
+            if(hovered)
+            {
+                change_cursor(platform, CursorType::I_Beam);
+            }
+            break;
+        }
     }
+}
+
+static bool detect_focus_changes(Context* context, Item* item, Vector2 mouse_position)
+{
+    bool focus_taken;
+
+    switch(item->type)
+    {
+        case ItemType::Button:
+        {
+            focus_on_item(context, item);
+            focus_taken = true;
+            break;
+        }
+        case ItemType::Container:
+        {
+            Container* container = &item->container;
+
+            focus_taken = false;
+            FOR_N(i, container->items_count)
+            {
+                Item* inside = &container->items[i];
+
+                if(point_in_rect(inside->bounds, mouse_position))
+                {
+                    focus_taken = detect_focus_changes(context, inside, mouse_position);
+                    if(focus_taken)
+                    {
+                        break;
+                    }
+                }
+            }
+            break;
+        }
+        case ItemType::List:
+        {
+            focus_on_item(context, item);
+            focus_taken = true;
+            break;
+        }
+        case ItemType::Text_Block:
+        {
+            focus_taken = false;
+            break;
+        }
+        case ItemType::Text_Input:
+        {
+            focus_on_item(context, item);
+            focus_taken = true;
+            break;
+        }
+    }
+
+    return focus_taken;
 }
 
 void detect_focus_changes_for_toplevel_containers(Context* context)
@@ -1574,24 +1839,122 @@ void detect_focus_changes_for_toplevel_containers(Context* context)
     mouse_position.x = position_x - context->viewport.x / 2.0f;
     mouse_position.y = -(position_y - context->viewport.y / 2.0f);
 
-    bool any_changed = false;
+    Item* highest = nullptr;
     FOR_N(i, context->toplevel_containers_count)
     {
         Item* item = context->toplevel_containers[i];
-        bool hovered = point_in_rect(item->bounds, mouse_position);
-        if(hovered)
+        bool above = point_in_rect(item->bounds, mouse_position);
+        if(above)
         {
-            if(clicked && !item->unfocusable && !any_changed)
-            {
-                focus_on_container(context, item);
-                any_changed = true;
-            }
-            detect_hover(item, mouse_position);
+            highest = item;
         }
     }
-    if(clicked && !any_changed)
+    if(clicked)
     {
-        focus_on_container(context, nullptr);
+        if(highest)
+        {
+            detect_focus_changes(context, highest, mouse_position);
+        }
+        else
+        {
+            focus_on_item(context, nullptr);
+        }
+    }
+}
+
+static bool detect_capture_changes(Context* context, Item* item, Vector2 mouse_position)
+{
+    bool captured;
+
+    switch(item->type)
+    {
+        case ItemType::Button:
+        {
+            capture(context, item);
+            captured = true;
+            break;
+        }
+        case ItemType::Container:
+        {
+            Container* container = &item->container;
+            FOR_N(i, container->items_count)
+            {
+                Item* inside = &container->items[i];
+
+                if(point_in_rect(inside->bounds, mouse_position))
+                {
+                    captured = detect_capture_changes(context, inside, mouse_position);
+                    if(captured)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            if(!captured)
+            {
+                capture(context, item);
+                captured = true;
+            }
+            break;
+        }
+        case ItemType::List:
+        {
+            capture(context, item);
+            captured = true;
+            break;
+        }
+        case ItemType::Text_Block:
+        {
+            capture(context, item);
+            captured = true;
+            break;
+        }
+        case ItemType::Text_Input:
+        {
+            capture(context, item);
+            captured = true;
+            break;
+        }
+    }
+
+    return captured;
+}
+
+static void detect_capture_changes_for_toplevel_containers(Context* context, Platform* platform)
+{
+    bool clicked = input::get_mouse_clicked(input::MouseButton::Left)
+        || input::get_mouse_clicked(input::MouseButton::Middle)
+        || input::get_mouse_clicked(input::MouseButton::Right);
+
+    Vector2 mouse_position;
+    int position_x;
+    int position_y;
+    input::get_mouse_position(&position_x, &position_y);
+    mouse_position.x = position_x - context->viewport.x / 2.0f;
+    mouse_position.y = -(position_y - context->viewport.y / 2.0f);
+
+    Item* highest = nullptr;
+    FOR_N(i, context->toplevel_containers_count)
+    {
+        Item* item = context->toplevel_containers[i];
+        bool above = point_in_rect(item->bounds, mouse_position);
+        if(above)
+        {
+            highest = item;
+        }
+    }
+    if(highest)
+    {
+        detect_hover(highest, mouse_position, platform);
+        if(clicked)
+        {
+            detect_capture_changes(context, highest, mouse_position);
+        }
+    }
+    else if(clicked)
+    {
+        capture(context, nullptr);
     }
 }
 
@@ -1716,14 +2079,16 @@ static int find_end_of_line(TextBlock* text_block, int start_index)
     return end_of_text;
 }
 
-void update_input(Item* item, Context* context, Platform* platform)
+static void update_keyboard_input(Item* item, Context* context, Platform* platform)
 {
     switch(item->type)
     {
         case ItemType::Button:
         {
-            Button* button = &item->button;
-            if(button->hovered && input::get_mouse_clicked(input::MouseButton::Left))
+            bool activated = input::get_key_tapped(input::Key::Space)
+                || input::get_key_tapped(input::Key::Enter);
+
+            if(activated)
             {
                 Event event;
                 event.type = EventType::Button;
@@ -1737,27 +2102,42 @@ void update_input(Item* item, Context* context, Platform* platform)
             Container* container = &item->container;
             FOR_N(i, container->items_count)
             {
-                update_input(&container->items[i], context, platform);
+                update_keyboard_input(&container->items[i], context, platform);
             }
             break;
         }
         case ItemType::List:
         {
             List* list = &item->list;
+            int count = list->items_count;
 
-            int velocity_x;
-            int velocity_y;
-            input::get_mouse_scroll_velocity(&velocity_x, &velocity_y);
-            const float speed = 0.17f;
-            scroll(item, speed * velocity_y);
+            bool selection_changed = false;
+            bool expand = false;
 
-            if(is_valid_list_index(list->hovered_item_index) && input::get_mouse_clicked(input::MouseButton::Left))
+            if(input::get_key_auto_repeated(input::Key::Down_Arrow))
             {
-                list->selected_item_index = list->hovered_item_index;
+                list->selected_item_index = (list->selected_item_index + 1) % count;
+                selection_changed = true;
+            }
 
+            if(input::get_key_auto_repeated(input::Key::Up_Arrow))
+            {
+                list->selected_item_index = mod(list->selected_item_index - 1, count);
+                selection_changed = true;
+            }
+
+            if(input::get_key_tapped(input::Key::Space) && is_valid_index(list->selected_item_index))
+            {
+                selection_changed = true;
+                expand = true;
+            }
+
+            if(selection_changed)
+            {
                 Event event;
                 event.type = EventType::List_Selection;
                 event.list_selection.index = list->selected_item_index;
+                event.list_selection.expand = expand;
                 enqueue(&context->queue, event);
             }
             break;
@@ -1972,7 +2352,167 @@ void update_input(Item* item, Context* context, Platform* platform)
                 request_paste_from_clipboard(platform);
             }
 
-            // mouse controls
+            break;
+        }
+    }
+}
+
+static void build_tab_navigation_list(Context* context, Item* at)
+{
+    Container* container = &at->container;
+
+    FOR_N(j, container->items_count)
+    {
+        Item* item = &container->items[j];
+
+        switch(item->type)
+        {
+            case ItemType::Button:
+            {
+                ARRAY_ADD(context->tab_navigation_list, item, context->heap);
+                break;
+            }
+            case ItemType::Container:
+            {
+                build_tab_navigation_list(context, item);
+                break;
+            }
+            case ItemType::List:
+            {
+                ARRAY_ADD(context->tab_navigation_list, item, context->heap);
+                break;
+            }
+            case ItemType::Text_Block:
+            {
+                break;
+            }
+            case ItemType::Text_Input:
+            {
+                ARRAY_ADD(context->tab_navigation_list, item, context->heap);
+                break;
+            }
+        }
+    }
+}
+
+static void build_tab_navigation_list(Context* context)
+{
+    ARRAY_DESTROY(context->tab_navigation_list, context->heap);
+
+    FOR_N(i, context->toplevel_containers_count)
+    {
+        Item* toplevel = context->toplevel_containers[i];
+        build_tab_navigation_list(context, toplevel);
+    }
+}
+
+static void update_non_item_specific_keyboard_input(Context* context)
+{
+    if(input::get_key_auto_repeated(input::Key::Tab))
+    {
+        bool backward = input::get_key_modified_by_shift(input::Key::Tab);
+
+        ASSERT(context->tab_navigation_list);
+        ASSERT(ARRAY_COUNT(context->tab_navigation_list) > 0);
+
+        if(!context->focused_item)
+        {
+            if(backward)
+            {
+                focus_on_item(context, ARRAY_LAST(context->tab_navigation_list));
+            }
+            else
+            {
+                focus_on_item(context, context->tab_navigation_list[0]);
+            }
+        }
+        else
+        {
+            int found_index = invalid_index;
+            int count = ARRAY_COUNT(context->tab_navigation_list);
+
+            FOR_N(i, count)
+            {
+                Item* item = context->tab_navigation_list[i];
+                if(item->id == context->focused_item->id)
+                {
+                    found_index = i;
+                    break;
+                }
+            }
+
+            if(found_index != invalid_index)
+            {
+                int index;
+                if(backward)
+                {
+                    index = mod(found_index - 1, count);
+                }
+                else
+                {
+                    index = (found_index + 1) % count;
+                }
+                focus_on_item(context, context->tab_navigation_list[index]);
+            }
+        }
+    }
+}
+
+static void update_pointer_input(Item* item, Context* context, Platform* platform)
+{
+    switch(item->type)
+    {
+        case ItemType::Button:
+        {
+            Button* button = &item->button;
+            if(button->hovered && input::get_mouse_clicked(input::MouseButton::Left))
+            {
+                Event event;
+                event.type = EventType::Button;
+                event.button.id = item->id;
+                enqueue(&context->queue, event);
+            }
+            break;
+        }
+        case ItemType::Container:
+        {
+            Container* container = &item->container;
+            FOR_N(i, container->items_count)
+            {
+                update_pointer_input(&container->items[i], context, platform);
+            }
+            break;
+        }
+        case ItemType::List:
+        {
+            List* list = &item->list;
+
+            int velocity_x;
+            int velocity_y;
+            input::get_mouse_scroll_velocity(&velocity_x, &velocity_y);
+            const float speed = 0.17f;
+            scroll(item, speed * velocity_y);
+
+            if(is_valid_list_index(list->hovered_item_index) && input::get_mouse_clicked(input::MouseButton::Left))
+            {
+                list->selected_item_index = list->hovered_item_index;
+
+                Event event;
+                event.type = EventType::List_Selection;
+                event.list_selection.index = list->selected_item_index;
+                event.list_selection.expand = true;
+                enqueue(&context->queue, event);
+            }
+            break;
+        }
+        case ItemType::Text_Block:
+        {
+            break;
+        }
+        case ItemType::Text_Input:
+        {
+            TextInput* text_input = &item->text_input;
+            TextBlock* text_block = &text_input->text_block;
 
             bool clicked = input::get_mouse_clicked(input::MouseButton::Left);
             bool dragged = !clicked && input::get_mouse_pressed(input::MouseButton::Left);
@@ -2004,11 +2544,24 @@ void update_input(Item* item, Context* context, Platform* platform)
 
 void update(Context* context, Platform* platform)
 {
+    // @Incomplete: Tab order doesn't need to be updated every frame, only when
+    // the order or number of total items changes. Possibly during layout is a
+    // better time?
+    build_tab_navigation_list(context);
+
     detect_focus_changes_for_toplevel_containers(context);
-    if(context->focused_container)
+    if(context->focused_item)
     {
-        update_input(context->focused_container, context, platform);
+        update_keyboard_input(context->focused_item, context, platform);
     }
+
+    detect_capture_changes_for_toplevel_containers(context, platform);
+    if(context->captor_item)
+    {
+        update_pointer_input(context->captor_item, context, platform);
+    }
+
+    update_non_item_specific_keyboard_input(context);
 }
 
 } // namespace ui

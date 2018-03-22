@@ -66,6 +66,7 @@ namespace
     ui::Id export_button_id;
     ui::Id object_mode_button_id;
     ui::Id face_mode_button_id;
+    ui::Id text_input_id;
 
     struct
     {
@@ -266,7 +267,7 @@ bool editor_start_up(Platform* platform)
         test_anime->type = ui::ItemType::Container;
         test_anime->growable = true;
         test_anime->container.background_colour = {0.145f, 0.145f, 0.145f, 1.0f};
-        test_anime->container.padding = {1.0f, 1.0f, 1.0f, 1.0f};
+        test_anime->container.padding = {0.0f, 0.0f, 0.0f, 0.0f};
         test_anime->container.direction = ui::Direction::Left_To_Right;
         test_anime->container.alignment = ui::Alignment::Start;
         test_anime->container.justification = ui::Justification::Start;
@@ -276,6 +277,8 @@ bool editor_start_up(Platform* platform)
         test_anime->container.items[0].type = ui::ItemType::Text_Input;
         test_anime->container.items[0].text_input.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
         test_anime->container.items[0].text_input.text_block.font = &font;
+        test_anime->container.items[0].growable = true;
+        text_input_id = test_anime->container.items[0].id;
         ui::set_text(&test_anime->container.items[0].text_input.text_block, "-", &heap);
     }
 
@@ -865,7 +868,6 @@ void editor_update(Platform* platform)
                         if(id == import_button_id)
                         {
                             open_dialog(&dialog, &font, &ui_context, platform, &heap);
-                            dialog.panel->unfocusable = false;
                         }
                         else if(id == export_button_id)
                         {
@@ -883,6 +885,17 @@ void editor_update(Platform* platform)
                     }
                     case ui::EventType::Focus_Change:
                     {
+                        ui::Id gained_focus = event.focus_change.now_focused;
+                        if(gained_focus == text_input_id)
+                        {
+                            begin_composed_text(platform);
+                        }
+
+                        ui::Id lost_focus = event.focus_change.now_unfocused;
+                        if(lost_focus == text_input_id)
+                        {
+                            end_composed_text(platform);
+                        }
                         break;
                     }
                 }
@@ -890,7 +903,7 @@ void editor_update(Platform* platform)
         }
     }
 
-    if(!ui_context.focused_container)
+    if(!ui_context.focused_item)
     {
         switch(mode)
         {

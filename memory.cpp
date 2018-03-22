@@ -64,7 +64,7 @@ void copy_memory(void* RESTRICT to, const void* RESTRICT from, u64 bytes)
     }
 }
 
-void move_memory(void* RESTRICT to, const void* RESTRICT from, u64 bytes)
+void move_memory(void* to, const void* from, u64 bytes)
 {
     const u8* p0 = static_cast<const u8*>(from);
     u8* p1 = static_cast<u8*>(to);

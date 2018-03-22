@@ -1387,6 +1387,8 @@ void system_update(UpdateState* update, Platform* platform)
         space.dimensions = {300.0f, 500.0f};
         ui::lay_out(dialog_panel, space, &scratch);
         ui::draw(dialog_panel, ui_context);
+
+        ui::draw_focus_indicator(dialog_panel, ui_context);
     }
 
     // Draw the main menu.
@@ -1401,6 +1403,8 @@ void system_update(UpdateState* update, Platform* platform)
         space.bottom_left.y -= space.dimensions.y;
         ui::lay_out(main_menu, space, &scratch);
         ui::draw(main_menu, ui_context);
+
+        ui::draw_focus_indicator(main_menu, ui_context);
     }
 
     // test anime
@@ -1414,6 +1418,8 @@ void system_update(UpdateState* update, Platform* platform)
         space.dimensions = {300.0f, 500.0f};
         ui::lay_out(update->test_anime, space, &scratch);
         ui::draw(update->test_anime, ui_context);
+
+        ui::draw_focus_indicator(update->test_anime, ui_context);
     }
 
     glDepthMask(GL_TRUE);

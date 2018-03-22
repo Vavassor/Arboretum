@@ -10,7 +10,7 @@ void* virtual_allocate(u64 bytes);
 void virtual_deallocate(void* memory);
 void set_memory(void* memory, u8 value, u64 bytes);
 void copy_memory(void* RESTRICT to, const void* RESTRICT from, u64 bytes);
-void move_memory(void* RESTRICT to, const void* RESTRICT from, u64 bytes);
+void move_memory(void* to, const void* from, u64 bytes);
 
 #define SAFE_VIRTUAL_DEALLOCATE(memory)\
     if(memory) {virtual_deallocate(memory); (memory) = nullptr;}

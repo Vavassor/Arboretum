@@ -103,6 +103,7 @@ static const char* translate_cursor_type(CursorType type)
         default:
         case CursorType::Arrow:         return "left_ptr";
         case CursorType::Hand_Pointing: return "hand1";
+        case CursorType::I_Beam:        return "xterm";
     }
 }
 
@@ -392,10 +393,19 @@ static void instantiate_input_method(Display* display, XPointer client_data, XPo
 
     PlatformX11* platform = reinterpret_cast<PlatformX11*>(client_data);
 
+    // Close the previous input method and context, if there was one.
     if(platform->input_method_connected)
     {
-        XDestroyIC(platform->input_context);
-        XCloseIM(platform->input_method);
+        if(platform->input_context)
+        {
+            XDestroyIC(platform->input_context);
+            platform->input_context = nullptr;
+        }
+        if(platform->input_method)
+        {
+            XCloseIM(platform->input_method);
+            platform->input_method = nullptr;
+        }
         platform->input_method_connected = false;
     }
 
@@ -522,7 +532,7 @@ LocaleId match_closest_locale_id(const char* locale)
 bool main_start_up()
 {
     // Set the locale.
-    char* locale = setlocale(LC_ALL, "");
+    char* locale = setlocale(LC_ALL, "zh_CN.UTF-8");
     if(!locale)
     {
         LOG_ERROR("Failed to set the locale.");
@@ -631,8 +641,16 @@ bool main_start_up()
 
         // There are arbitrarily-named atom chosen which will be used to
         // identify properties in selection requests we make.
-        platform.paste_code = XInternAtom(platform.display, "ARBORETUM_PASTE", False);
-        platform.save_code = XInternAtom(platform.display, "ARBORETUM_SAVE_TARGETS", False);
+        const char* app_name = platform.base.nonlocalized_text.app_name;
+
+        char code[24];
+        format_string(code, sizeof(code), "%s_PASTE", app_name);
+        to_upper_case_ascii(code);
+        platform.paste_code = XInternAtom(platform.display, code, False);
+
+        format_string(code, sizeof(code), "%s_SAVE_TARGETS", app_name);
+        to_upper_case_ascii(code);
+        platform.save_code = XInternAtom(platform.display, code, False);
     }
 
     // Create the rendering context for OpenGL. The rendering context can only

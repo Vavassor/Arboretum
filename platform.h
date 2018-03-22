@@ -7,11 +7,13 @@ enum class CursorType
 {
     Arrow,
     Hand_Pointing,
+    I_Beam,
 };
 
 enum class LocaleId
 {
     Default,
+    en_US,
 };
 
 struct Platform

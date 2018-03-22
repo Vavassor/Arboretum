@@ -60,18 +60,23 @@ static void filter_directory(Directory* directory, const char** extensions, int 
     directory->records_count = ARRAY_COUNT(filtered);
 }
 
-static void open_directory(FilePickDialog* dialog, const char* directory, bmfont::Font* font, ui::Context* context, Platform* platform, Heap* heap)
+static void list_directory(FilePickDialog* dialog, const char* directory, bmfont::Font* font, ui::Context* context, Platform* platform, Heap* heap)
 {
-    dialog->enabled = true;
+    // Clean up a previous directory if there was one.
+    ui::Item* panel = dialog->panel;
 
-    // Create the panel for the dialog box.
-    ui::Item* panel = ui::create_toplevel_container(context, heap);
-    panel->type = ui::ItemType::Container;
-    panel->growable = true;
-    panel->container.alignment = ui::Alignment::Stretch;
-    dialog->panel = panel;
+    if(dialog->path_buttons_count > 0)
+    {
+        empty_item(context, &panel->container.items[0]);
+    }
+    if(dialog->directory.records_count > 0)
+    {
+        empty_item(context, &panel->container.items[1]);
+    }
 
-    ui::add_column(&panel->container, 3, context, heap);
+    SAFE_HEAP_DEALLOCATE(heap, dialog->path);
+    SAFE_HEAP_DEALLOCATE(heap, dialog->path_buttons);
+    destroy_directory(&dialog->directory, heap);
 
     // Set up the path bar at the top of the dialog.
     dialog->path = copy_string_to_heap(directory, heap);
@@ -158,6 +163,24 @@ static void open_directory(FilePickDialog* dialog, const char* directory, bmfont
         }
     }
 
+    ui::focus_on_item(context, file_list);
+}
+
+static void open_directory(FilePickDialog* dialog, const char* directory, bmfont::Font* font, ui::Context* context, Platform* platform, Heap* heap)
+{
+    dialog->enabled = true;
+
+    // Create the panel for the dialog box.
+    ui::Item* panel = ui::create_toplevel_container(context, heap);
+    panel->type = ui::ItemType::Container;
+    panel->growable = true;
+    panel->container.alignment = ui::Alignment::Stretch;
+    dialog->panel = panel;
+
+    ui::add_column(&panel->container, 3, context, heap);
+
+    list_directory(dialog, directory, font, context, platform, heap);
+
     // Set up the footer.
     ui::Item* footer = &panel->container.items[2];
     footer->type = ui::ItemType::Container;
@@ -180,8 +203,6 @@ static void open_directory(FilePickDialog* dialog, const char* directory, bmfont
     ui::set_text(&pick->button.text_block, platform->localized_text.file_pick_dialog_import, heap);
     dialog->pick_button = pick->id;
     dialog->pick = &pick->button;
-
-    ui::focus_on_container(context, panel);
 }
 
 void open_dialog(FilePickDialog* dialog, bmfont::Font* font, ui::Context* context, Platform* platform, Heap* heap)
@@ -195,25 +216,34 @@ void close_dialog(FilePickDialog* dialog, ui::Context* context, Heap* heap)
     if(dialog)
     {
         SAFE_HEAP_DEALLOCATE(heap, dialog->path);
-        ui::destroy_toplevel_container(context, dialog->panel, heap);
+        SAFE_HEAP_DEALLOCATE(heap, dialog->path_buttons);
+
+        if(dialog->panel)
+        {
+            ui::destroy_toplevel_container(context, dialog->panel, heap);
+            dialog->panel = nullptr;
+        }
+
         destroy_directory(&dialog->directory, heap);
         dialog->enabled = false;
     }
 }
 
-static void touch_record(FilePickDialog* dialog, int record_index, bmfont::Font* font, ui::Context* context, Platform* platform, Heap* heap)
+static void touch_record(FilePickDialog* dialog, int record_index, bool expand, bmfont::Font* font, ui::Context* context, Platform* platform, Heap* heap)
 {
     DirectoryRecord record = dialog->directory.records[record_index];
     switch(record.type)
     {
         case DirectoryRecordType::Directory:
         {
-            char* path = append_to_path(dialog->path, record.name, heap);
+            if(expand)
+            {
+                char* path = append_to_path(dialog->path, record.name, heap);
 
-            close_dialog(dialog, context, heap);
-            open_directory(dialog, path, font, context, platform, heap);
+                list_directory(dialog, path, font, context, platform, heap);
 
-            HEAP_DEALLOCATE(heap, path);
+                HEAP_DEALLOCATE(heap, path);
+            }
             break;
         }
         case DirectoryRecordType::File:
@@ -221,7 +251,7 @@ static void touch_record(FilePickDialog* dialog, int record_index, bmfont::Font*
             dialog->record_selected = record_index;
             dialog->pick->enabled = true;
             const char* filename = dialog->directory.records[record_index].name;
-            replace_string(&dialog->file_readout->text, filename, heap);
+            ui::set_text(dialog->file_readout, filename, heap);
             break;
         }
         default:
@@ -252,7 +282,7 @@ static void open_parent_directory(FilePickDialog* dialog, int segment, bmfont::F
         FOR_N(i, segment + 1)
         {
             int found_index = find_char(&path[slash], '/');
-            if(found_index != -1)
+            if(is_valid_index(found_index))
             {
                 slash += found_index + 1;
             }
@@ -266,8 +296,7 @@ static void open_parent_directory(FilePickDialog* dialog, int segment, bmfont::F
     char* subpath = HEAP_ALLOCATE(heap, char, subpath_size);
     copy_string(subpath, subpath_size, path);
 
-    close_dialog(dialog, context, heap);
-    open_directory(dialog, subpath, font, context, platform, heap);
+    list_directory(dialog, subpath, font, context, platform, heap);
 
     HEAP_DEALLOCATE(heap, subpath);
 }
@@ -302,7 +331,6 @@ static void pick_file(FilePickDialog* dialog, const char* name, ObjectLady* lady
         history_add(history, change);
 
         close_dialog(dialog, context, heap);
-        dialog->panel->unfocusable = true;
     }
 }
 
@@ -332,8 +360,8 @@ void handle_input(FilePickDialog* dialog, ui::Event event, bmfont::Font* font, O
         }
         case ui::EventType::Focus_Change:
         {
-            ui::Id id = event.focus_change.now_unfocused;
-            if(id == dialog->panel->id)
+            ui::Id id = event.focus_change.current_scope;
+            if(id != dialog->panel->id)
             {
                 close_dialog(dialog, context, heap);
             }
@@ -342,7 +370,8 @@ void handle_input(FilePickDialog* dialog, ui::Event event, bmfont::Font* font, O
         case ui::EventType::List_Selection:
         {
             int index = event.list_selection.index;
-            touch_record(dialog, index, font, context, platform, heap);
+            bool expand = event.list_selection.expand;
+            touch_record(dialog, index, expand, font, context, platform, heap);
             break;
         }
     }

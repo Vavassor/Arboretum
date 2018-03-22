@@ -36,6 +36,9 @@ struct ArrayHeader
 #define ARRAY_DESTROY_STACK(array, stack) \
     ((array) ? (STACK_DEALLOCATE(stack, ARRAY_HEADER_(array)), (array) = nullptr) : 0)
 
+#define ARRAY_LAST(array) \
+    ((array)[ARRAY_HEADER_(array)->count - 1])
+
 
 #define ARRAY_HEADER_(array) \
     reinterpret_cast<ArrayHeader*>(reinterpret_cast<u8*>(array) - offsetof(ArrayHeader, elements))

@@ -17,6 +17,7 @@ static const char* get_filename_for_locale_id(LocaleId locale_id)
     switch(locale_id)
     {
         default:
+        case LocaleId::en_US:
         case LocaleId::Default: return "default.loc";
     }
 }
