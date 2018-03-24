@@ -287,6 +287,9 @@ static const u8 grapheme_cluster_break_stage1[] = {
  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1, // U+10F000
 };
 
+// @Optimize: This only uses 5 bits of each value in the table. It could
+// be combined with the second-stage tables from line and word breaking to be
+// more memory-efficient.
 static const u8 grapheme_cluster_break_stage2[] = {
 
 // block 0
@@ -1855,6 +1858,14 @@ static int get_break_at(GraphemeClusterBreakContext* context, int text_index, in
     return index;
 }
 
+// @Optimize: Checking each rule one after another is very unnecessary as many
+// of them aren't dependent on prior rules having been checked.
+//
+// Pair cases could use a 2D table that cross-compares all possible break types.
+// Each cell would then have a possible value of "allowed", "disallowed", or
+// "indeterminate". If the lookup returns a determined value, return it.
+// Otherwise, move on to the cases involving runs of codepoints, like for emoji
+// sequences and regional indicators.
 bool allow_grapheme_cluster_break(GraphemeClusterBreakContext* context, int text_index, int break_index)
 {
     // Always break at the beginning and end of text.

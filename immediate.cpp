@@ -1,11 +1,12 @@
 #include "immediate.h"
 
-#include "gl_core_3_3.h"
 #include "assert.h"
-#include "vertex_layout.h"
-#include "memory.h"
-#include "math_basics.h"
+#include "colours.h"
 #include "float_utilities.h"
+#include "gl_core_3_3.h"
+#include "math_basics.h"
+#include "memory.h"
+#include "vertex_layout.h"
 
 namespace immediate {
 
@@ -40,6 +41,7 @@ struct Context
         VertexPT vertices_textured[context_vertices_cap];
     };
     Matrix4 view_projection;
+    Vector3 text_colour;
     GLuint vertex_arrays[context_vertex_type_count];
     GLuint buffers[context_vertex_type_count];
     GLuint shaders[context_vertex_type_count];
@@ -117,6 +119,11 @@ void set_blend_mode(BlendMode mode)
         context->blend_mode = mode;
         context->blend_mode_changed = true;
     }
+}
+
+void set_text_colour(Vector3 text_colour)
+{
+    context->text_colour = text_colour;
 }
 
 void set_clip_area(Rect rect, int viewport_width, int viewport_height)
@@ -200,10 +207,17 @@ void draw()
     GLint location = glGetUniformLocation(shader, "model_view_projection");
     glUniformMatrix4fv(location, 1, GL_TRUE, c->view_projection.elements);
 
+    location = glGetUniformLocation(shader, "text_colour");
+    if(location != -1)
+    {
+        glUniform3fv(location, 1, &c->text_colour[0]);
+    }
+
     glDrawArrays(get_mode(c->draw_mode), 0, c->filled);
 
     c->draw_mode = DrawMode::None;
     set_blend_mode(BlendMode::None);
+    set_text_colour(vector3_white);
     c->vertex_type = VertexType::None;
     c->filled = 0;
 }

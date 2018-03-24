@@ -36,3 +36,8 @@ unsigned int next_multiple(unsigned int x, unsigned int n)
 {
     return n * (x + n - 1) / n;
 }
+
+bool signs_opposite(int x, int y)
+{
+    return (x ^ y) < 0;
+}

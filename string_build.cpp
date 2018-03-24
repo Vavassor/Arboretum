@@ -43,9 +43,21 @@ void replace_string(char** original, const char* new_string, Heap* heap)
 
 char* append_to_path(const char* path, const char* segment, Heap* heap)
 {
-    int size = string_size(path) + 1 + string_size(segment) + 1;
-    char* extended = HEAP_ALLOCATE(heap, char, size);
-    format_string(extended, size, "%s/%s", path, segment);
+    int path_size = string_size(path);
+    char* extended;
+    if(path_size == 1)
+    {
+        ASSERT(path[0] == '/');
+        int size = path_size + string_size(segment) + 1;
+        extended = HEAP_ALLOCATE(heap, char, size);
+        format_string(extended, size, "%s%s", path, segment);
+    }
+    else
+    {
+        int size = path_size + 1 + string_size(segment) + 1;
+        extended = HEAP_ALLOCATE(heap, char, size);
+        format_string(extended, size, "%s/%s", path, segment);
+    }
     return extended;
 }
 

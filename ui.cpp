@@ -75,7 +75,7 @@ static void destroy_list(List* list, Heap* heap)
 {
     FOR_N(i, list->items_count)
     {
-        destroy_text_block(list->items, heap);
+        destroy_text_block(&list->items[i], heap);
     }
     list->items_count = 0;
 
@@ -131,14 +131,14 @@ void destroy_context(Context* context, Heap* heap)
 
     destroy_event_queue(&context->queue, heap);
 
-    FOR_N(i, context->toplevel_containers_count)
+    FOR_ALL(context->toplevel_containers)
     {
-        Item* item = context->toplevel_containers[i];
+        Item* item = *it;
         destroy_container(&item->container, heap);
         SAFE_HEAP_DEALLOCATE(heap, item);
     }
-    SAFE_HEAP_DEALLOCATE(heap, context->toplevel_containers);
 
+    ARRAY_DESTROY(context->toplevel_containers, heap);
     ARRAY_DESTROY(context->tab_navigation_list, heap);
 }
 
@@ -185,9 +185,9 @@ static Id get_focus_scope(Context* context, Item* item)
         return invalid_id;
     }
 
-    FOR_N(i, context->toplevel_containers_count)
+    FOR_ALL(context->toplevel_containers)
     {
-        Item* toplevel = context->toplevel_containers[i];
+        Item* toplevel = *it;
         bool within = in_focus_scope(toplevel, item);
         if(within)
         {
@@ -264,13 +264,9 @@ static bool is_capture_within(Context* context, Item* item)
 
 Item* create_toplevel_container(Context* context, Heap* heap)
 {
-    int count = context->toplevel_containers_count;
-    context->toplevel_containers = HEAP_REALLOCATE(heap, context->toplevel_containers, count + 1);
-
     Item* item = HEAP_ALLOCATE(heap, Item, 1);
     item->id = generate_id(context);
-    context->toplevel_containers[count] = item;
-    context->toplevel_containers_count += 1;
+    ARRAY_ADD(context->toplevel_containers, item, heap);
     return item;
 }
 
@@ -290,7 +286,7 @@ void destroy_toplevel_container(Context* context, Item* item, Heap* heap)
     destroy_container(&item->container, heap);
 
     // Find the container and overwrite it with the container on the end.
-    int count = context->toplevel_containers_count;
+    int count = ARRAY_COUNT(context->toplevel_containers);
     FOR_N(i, count)
     {
         Item* next = context->toplevel_containers[i];
@@ -308,8 +304,8 @@ void destroy_toplevel_container(Context* context, Item* item, Heap* heap)
 
     if(count)
     {
-        context->toplevel_containers = HEAP_REALLOCATE(heap, context->toplevel_containers, count - 1);
-        context->toplevel_containers_count = count - 1;
+        Item** last = &ARRAY_LAST(context->toplevel_containers);
+        ARRAY_REMOVE(context->toplevel_containers, last);
     }
 }
 
@@ -403,11 +399,6 @@ static int get_cross_axis_index(Axis axis)
 static float padding_along_axis(Padding padding, int axis)
 {
     return padding[axis] + padding[axis + 2];
-}
-
-static bool is_valid_list_index(int index)
-{
-    return index != invalid_index;
 }
 
 static float get_list_item_height(List* list, TextBlock* text_block)
@@ -1370,8 +1361,22 @@ static void draw_button(Item* item)
 {
     Button* button = &item->button;
 
-    const Vector4 non_hovered_colour = {0.145f, 0.145f, 0.145f, 1.0f};
-    const Vector4 hovered_colour = {0.247f, 0.251f, 0.271f, 1.0f};
+    Vector4 non_hovered_colour;
+    Vector4 hovered_colour;
+    Vector3 text_colour;
+    if(button->enabled)
+    {
+        non_hovered_colour = {0.145f, 0.145f, 0.145f, 1.0f};
+        hovered_colour = {0.247f, 0.251f, 0.271f, 1.0f};
+        text_colour = vector3_white;
+    }
+    else
+    {
+        non_hovered_colour = {0.318f, 0.318f, 0.318f, 1.0f};
+        hovered_colour = {0.382f, 0.386f, 0.418f, 1.0f};
+        text_colour = {0.782f, 0.786f, 0.818f};
+    }
+
     Vector4 colour;
     if(button->hovered)
     {
@@ -1383,6 +1388,7 @@ static void draw_button(Item* item)
     }
     immediate::draw_opaque_rect(item->bounds, colour);
 
+    immediate::set_text_colour(text_colour);
     draw_text_block(&item->button.text_block, item->bounds);
 }
 
@@ -1442,7 +1448,7 @@ static void draw_list(Item* item, Context* context)
     if(list->items)
     {
         // Draw the hover highlight for the items.
-        if(is_valid_list_index(list->hovered_item_index) && list->hovered_item_index != list->selected_item_index)
+        if(is_valid_index(list->hovered_item_index) && list->hovered_item_index != list->selected_item_index)
         {
             Rect rect = list->items_bounds[list->hovered_item_index];
             rect.bottom_left.y += list->scroll_top;
@@ -1450,7 +1456,7 @@ static void draw_list(Item* item, Context* context)
         }
 
         // Draw the selection highlight for the records.
-        if(is_valid_list_index(list->selected_item_index))
+        if(is_valid_index(list->selected_item_index))
         {
             Rect rect = list->items_bounds[list->selected_item_index];
             rect.bottom_left.y += list->scroll_top;
@@ -1714,18 +1720,29 @@ void draw_focus_indicator(Item* item, Context* context)
     }
 }
 
-static void detect_hover(Item* item, Vector2 pointer_position, Platform* platform)
+static bool detect_hover(Item* item, Vector2 pointer_position, Platform* platform)
 {
+    bool detected = false;
+
     switch(item->type)
     {
         case ItemType::Button:
         {
+            Button* button = &item->button;
             bool hovered = point_in_rect(item->bounds, pointer_position);
-            item->button.hovered = hovered;
+            button->hovered = hovered;
             if(hovered)
             {
-                change_cursor(platform, CursorType::Arrow);
+                if(button->enabled)
+                {
+                    change_cursor(platform, CursorType::Arrow);
+                }
+                else
+                {
+                    change_cursor(platform, CursorType::Prohibition_Sign);
+                }
             }
+            detected = hovered;
             break;
         }
         case ItemType::Container:
@@ -1734,7 +1751,7 @@ static void detect_hover(Item* item, Vector2 pointer_position, Platform* platfor
             FOR_N(i, container->items_count)
             {
                 Item* inside = &container->items[i];
-                detect_hover(inside, pointer_position, platform);
+                detected |= detect_hover(inside, pointer_position, platform);
             }
             break;
         }
@@ -1752,6 +1769,7 @@ static void detect_hover(Item* item, Vector2 pointer_position, Platform* platfor
                 {
                     list->hovered_item_index = i;
                     change_cursor(platform, CursorType::Arrow);
+                    detected = true;
                 }
             }
             break;
@@ -1767,9 +1785,12 @@ static void detect_hover(Item* item, Vector2 pointer_position, Platform* platfor
             {
                 change_cursor(platform, CursorType::I_Beam);
             }
+            detected = hovered;
             break;
         }
     }
+
+    return detected;
 }
 
 static bool detect_focus_changes(Context* context, Item* item, Vector2 mouse_position)
@@ -1826,7 +1847,7 @@ static bool detect_focus_changes(Context* context, Item* item, Vector2 mouse_pos
     return focus_taken;
 }
 
-void detect_focus_changes_for_toplevel_containers(Context* context)
+static void detect_focus_changes_for_toplevel_containers(Context* context)
 {
     bool clicked = input::get_mouse_clicked(input::MouseButton::Left)
         || input::get_mouse_clicked(input::MouseButton::Middle)
@@ -1840,9 +1861,9 @@ void detect_focus_changes_for_toplevel_containers(Context* context)
     mouse_position.y = -(position_y - context->viewport.y / 2.0f);
 
     Item* highest = nullptr;
-    FOR_N(i, context->toplevel_containers_count)
+    FOR_ALL(context->toplevel_containers)
     {
-        Item* item = context->toplevel_containers[i];
+        Item* item = *it;
         bool above = point_in_rect(item->bounds, mouse_position);
         if(above)
         {
@@ -1935,9 +1956,9 @@ static void detect_capture_changes_for_toplevel_containers(Context* context, Pla
     mouse_position.y = -(position_y - context->viewport.y / 2.0f);
 
     Item* highest = nullptr;
-    FOR_N(i, context->toplevel_containers_count)
+    FOR_ALL(context->toplevel_containers)
     {
-        Item* item = context->toplevel_containers[i];
+        Item* item = *it;
         bool above = point_in_rect(item->bounds, mouse_position);
         if(above)
         {
@@ -1946,15 +1967,21 @@ static void detect_capture_changes_for_toplevel_containers(Context* context, Pla
     }
     if(highest)
     {
-        detect_hover(highest, mouse_position, platform);
+        bool hovered = detect_hover(highest, mouse_position, platform);
+        context->anything_hovered = hovered;
+
         if(clicked)
         {
             detect_capture_changes(context, highest, mouse_position);
         }
     }
-    else if(clicked)
+    else
     {
-        capture(context, nullptr);
+        if(clicked)
+        {
+            capture(context, nullptr);
+        }
+        context->anything_hovered = false;
     }
 }
 
@@ -2085,10 +2112,12 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
     {
         case ItemType::Button:
         {
+            Button* button = &item->button;
+
             bool activated = input::get_key_tapped(input::Key::Space)
                 || input::get_key_tapped(input::Key::Enter);
 
-            if(activated)
+            if(activated && button->enabled)
             {
                 Event event;
                 event.type = EventType::Button;
@@ -2114,19 +2143,49 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
             bool selection_changed = false;
             bool expand = false;
 
-            if(input::get_key_auto_repeated(input::Key::Down_Arrow))
+            if(count > 0)
             {
-                list->selected_item_index = (list->selected_item_index + 1) % count;
-                selection_changed = true;
+                if(input::get_key_auto_repeated(input::Key::Down_Arrow))
+                {
+                    list->selected_item_index = (list->selected_item_index + 1) % count;
+                    selection_changed = true;
+                }
+
+                if(input::get_key_auto_repeated(input::Key::Up_Arrow))
+                {
+                    list->selected_item_index = mod(list->selected_item_index - 1, count);
+                    selection_changed = true;
+                }
+
+                if(input::get_key_tapped(input::Key::Home))
+                {
+                    list->selected_item_index = 0;
+                    selection_changed = true;
+                }
+
+                if(input::get_key_tapped(input::Key::End))
+                {
+                    list->selected_item_index = count - 1;
+                    selection_changed = true;
+                }
+
+                float item_height = list->items_bounds[0].dimensions.y + list->item_spacing;
+                int items_per_page = round(item->bounds.dimensions.y / item_height);
+
+                if(input::get_key_tapped(input::Key::Page_Up))
+                {
+                    list->selected_item_index = MAX(list->selected_item_index - items_per_page, 0);
+                    selection_changed = true;
+                }
+
+                if(input::get_key_tapped(input::Key::Page_Down))
+                {
+                    list->selected_item_index = MIN(list->selected_item_index + items_per_page, count - 1);
+                    selection_changed = true;
+                }
             }
 
-            if(input::get_key_auto_repeated(input::Key::Up_Arrow))
-            {
-                list->selected_item_index = mod(list->selected_item_index - 1, count);
-                selection_changed = true;
-            }
-
-            if(input::get_key_tapped(input::Key::Space) && is_valid_index(list->selected_item_index))
+            if((input::get_key_tapped(input::Key::Space) || input::get_key_tapped(input::Key::Enter)) && is_valid_index(list->selected_item_index))
             {
                 selection_changed = true;
                 expand = true;
@@ -2139,6 +2198,30 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                 event.list_selection.index = list->selected_item_index;
                 event.list_selection.expand = expand;
                 enqueue(&context->queue, event);
+            }
+
+            if(is_valid_index(list->selected_item_index))
+            {
+                ASSERT(list->items_count > 0);
+
+                int index = list->selected_item_index;
+                float item_height = list->items_bounds[0].dimensions.y + list->item_spacing;
+                float item_top = (item_height * index) + list->item_spacing;
+
+                float page_height = item->bounds.dimensions.y;
+                float scroll_top = list->scroll_top;
+                float from_page_edge = 3.0f * item_height;
+
+                const float velocity = 0.17f;
+
+                if(item_top < scroll_top + from_page_edge)
+                {
+                    scroll(item, velocity);
+                }
+                else if(item_top > scroll_top + page_height - from_page_edge)
+                {
+                    scroll(item, -velocity);
+                }
             }
             break;
         }
@@ -2399,9 +2482,9 @@ static void build_tab_navigation_list(Context* context)
 {
     ARRAY_DESTROY(context->tab_navigation_list, context->heap);
 
-    FOR_N(i, context->toplevel_containers_count)
+    FOR_ALL(context->toplevel_containers)
     {
-        Item* toplevel = context->toplevel_containers[i];
+        Item* toplevel = *it;
         build_tab_navigation_list(context, toplevel);
     }
 }
@@ -2465,7 +2548,7 @@ static void update_pointer_input(Item* item, Context* context, Platform* platfor
         case ItemType::Button:
         {
             Button* button = &item->button;
-            if(button->hovered && input::get_mouse_clicked(input::MouseButton::Left))
+            if(button->hovered && input::get_mouse_clicked(input::MouseButton::Left) && button->enabled)
             {
                 Event event;
                 event.type = EventType::Button;
@@ -2493,7 +2576,7 @@ static void update_pointer_input(Item* item, Context* context, Platform* platfor
             const float speed = 0.17f;
             scroll(item, speed * velocity_y);
 
-            if(is_valid_list_index(list->hovered_item_index) && input::get_mouse_clicked(input::MouseButton::Left))
+            if(is_valid_index(list->hovered_item_index) && input::get_mouse_clicked(input::MouseButton::Left))
             {
                 list->selected_item_index = list->hovered_item_index;
 

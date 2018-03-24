@@ -23,6 +23,7 @@ void set_matrices(Matrix4 view, Matrix4 projection);
 void set_shader(GLuint program);
 void set_textured_shader(GLuint program);
 void set_blend_mode(BlendMode mode);
+void set_text_colour(Vector3 text_colour);
 
 void set_clip_area(Rect rect, int viewport_width, int viewport_height);
 void stop_clip_area();

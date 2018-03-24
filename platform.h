@@ -8,6 +8,7 @@ enum class CursorType
     Arrow,
     Hand_Pointing,
     I_Beam,
+    Prohibition_Sign,
 };
 
 enum class LocaleId

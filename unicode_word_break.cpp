@@ -288,6 +288,9 @@ static const u8 word_break_stage1[] = {
 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, // U+10F000
 };
 
+// @Optimize: This only uses 5 bits of each value in the table. It could
+// be combined with the second stage tables from grapheme cluster and line
+// breaking to be more memory-efficient.
 static const u8 word_break_stage2[] = {
 
 // block 0
@@ -2404,6 +2407,17 @@ static WordBreak resolve_ignore_sequence_after(WordBreakContext* context, WordBr
     return word_break;
 }
 
+// @Optimize: Checking each rule one after another is unnecessary as many of
+// them aren't dependent on prior rules having been checked.
+//
+// Pair cases could use a 2D table that cross-compares all possible break types.
+// Each cell would then have a possible value of "allowed", "disallowed", or
+// "indeterminate". If the lookup returns a determined value, return it.
+// Otherwise, move on to the cases involving runs of codepoints, like for emoji
+// sequences and regional indicators.
+//
+// Note that ignore sequences would need to be resolved before looking into the
+// pair table.
 static bool allow_word_break(WordBreakContext* context, int text_index, int break_index)
 {
     // Always break at the beginning and end of text.

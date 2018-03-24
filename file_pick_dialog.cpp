@@ -62,6 +62,16 @@ static void filter_directory(Directory* directory, const char** extensions, int 
 
 static void list_directory(FilePickDialog* dialog, const char* directory, bmfont::Font* font, ui::Context* context, Platform* platform, Heap* heap)
 {
+    // Attempt to list the directory, first.
+    Directory new_directory = {};
+    bool listed = list_files_in_directory(directory, &new_directory, heap);
+    if(!listed)
+    {
+        LOG_ERROR("Failed to open the directory %s.", directory);
+        destroy_directory(&new_directory, heap);
+        return;
+    }
+
     // Clean up a previous directory if there was one.
     ui::Item* panel = dialog->panel;
 
@@ -78,11 +88,23 @@ static void list_directory(FilePickDialog* dialog, const char* directory, bmfont
     SAFE_HEAP_DEALLOCATE(heap, dialog->path_buttons);
     destroy_directory(&dialog->directory, heap);
 
+    // Set the new directory only after the previous was destroyed.
+    dialog->directory = new_directory;
+
     // Set up the path bar at the top of the dialog.
     dialog->path = copy_string_to_heap(directory, heap);
 
     int slashes = count_char_occurrences(dialog->path, '/');
-    int buttons_in_row = slashes + 1;
+    int buttons_in_row;
+    if(string_size(dialog->path) == 1)
+    {
+        ASSERT(dialog->path[0] == '/');
+        buttons_in_row = slashes;
+    }
+    else
+    {
+        buttons_in_row = slashes + 1;
+    }
     dialog->path_buttons_count = buttons_in_row;
     dialog->path_buttons = HEAP_ALLOCATE(heap, ui::Id, buttons_in_row);
 
@@ -99,6 +121,7 @@ static void list_directory(FilePickDialog* dialog, const char* directory, bmfont
         item->type = ui::ItemType::Button;
 
         ui::Button* button = &item->button;
+        button->enabled = true;
         button->text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
         button->text_block.font = font;
         button->text_block.text_overflow = ui::TextOverflow::Ellipsize_End;
@@ -111,7 +134,7 @@ static void list_directory(FilePickDialog* dialog, const char* directory, bmfont
             const char* name = platform->localized_text.file_pick_dialog_filesystem;
             ui::set_text(&button->text_block, name, heap);
         }
-        else if(found_index == -1)
+        else if(found_index == invalid_index)
         {
             // final path segment
             ui::set_text(&button->text_block, path, heap);
@@ -134,9 +157,6 @@ static void list_directory(FilePickDialog* dialog, const char* directory, bmfont
     ui::List* list = &file_list->list;
     list->item_spacing = 2.0f;
     list->side_margin = 2.0f;
-
-    bool listed = list_files_in_directory(dialog->path, &dialog->directory, heap);
-    ASSERT(listed);
 
     const int extensions_count = 1;
     const char* extensions[extensions_count] = {".obj"};
@@ -236,6 +256,10 @@ static void touch_record(FilePickDialog* dialog, int record_index, bool expand, 
     {
         case DirectoryRecordType::Directory:
         {
+            ui::set_text(dialog->file_readout, " ", heap);
+            dialog->record_selected = invalid_index;
+            dialog->pick->enabled = false;
+
             if(expand)
             {
                 char* path = append_to_path(dialog->path, record.name, heap);

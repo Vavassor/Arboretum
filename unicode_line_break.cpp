@@ -558,6 +558,9 @@ static const u8 line_break_stage1[] = {
 110, 110, 110, 110, 110, 110, 110, 110, 110, 110, 110, 110, 110, 110, 110, 110, // U+10F800
 };
 
+// @Optimize: This only uses 6 bits of each value in the table. It could
+// be combined with the second stage tables from grapheme cluster and word
+// breaking to be more memory-efficient.
 static const u8 line_break_stage2[] = {
 
 // block 0
@@ -2901,6 +2904,17 @@ LineBreak resolve_combining_mark(LineBreakContext* context, LineBreak line_break
     return line_break;
 }
 
+// @Optimize: Checking each rule one after another is very unnecessary as many
+// of them aren't dependent on prior rules having been checked.
+//
+// Pair cases could use a 2D table that cross-compares all possible break types.
+// Each cell would contain either the break category or an "indeterminate"
+// value. If the lookup returns a determined value, return it. Otherwise, move
+// on to the cases involving runs of codepoints, like for emoji
+// sequences and regional indicators.
+//
+// Note that there's complicating rules such as combining mark resolutions and
+// break subsitutions that need to fit into the changes.
 static LineBreakCategory categorise_line_break(LineBreakContext* context, int index, int break_index)
 {
     //--- Non-Tailorable Rules ---

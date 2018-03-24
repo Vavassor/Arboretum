@@ -28,7 +28,8 @@ struct ArrayHeader
 #define ARRAY_REMOVE(array, element) \
     (*element = (array)[--ARRAY_HEADER_(array)->count])
 
-#define ARRAY_RESERVE(array, extra, heap) // Nothing, for now
+#define ARRAY_RESERVE(array, extra, heap) \
+    ARRAY_FIT_(array, extra, heap)
 
 #define ARRAY_DESTROY(array, heap) \
     ((array) ? (HEAP_DEALLOCATE(heap, ARRAY_HEADER_(array)), (array) = nullptr) : 0)
@@ -57,6 +58,12 @@ struct ArrayHeader
 
 #define ARRAY_FIT_STACK_(array, extra, stack) \
     (ARRAY_FITS_(array, extra) ? 0 : ARRAY_RESIZE_STACK_(array, extra, stack))
+
+#define FOR_EACH(it, array) \
+    for(auto* it = array; it != (array + ARRAY_COUNT(array)); it += 1)
+
+#define FOR_ALL(array) \
+    FOR_EACH(it, array)
 
 
 void* resize_array(void* array, int count, int element_size, Heap* heap);

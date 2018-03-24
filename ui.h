@@ -201,8 +201,11 @@ struct Context
     Item* captor_item;
     Item** tab_navigation_list;
     Item** toplevel_containers;
-    int toplevel_containers_count;
     Id seed;
+
+    // This is for detecting when the mouse cursor is hovering over nothing
+    // in particular, to set the mouse cursor shape to default (arrow).
+    bool anything_hovered;
 };
 
 bool dequeue(EventQueue* queue, Event* event);

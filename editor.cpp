@@ -237,6 +237,7 @@ bool editor_start_up(Platform* platform)
         ui::add_row(&main_menu->container, items_in_row, &ui_context, &heap);
 
         main_menu->container.items[0].type = ui::ItemType::Button;
+        main_menu->container.items[0].button.enabled = true;
         main_menu->container.items[0].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
         main_menu->container.items[0].button.text_block.font = &font;
         ui::set_text(&main_menu->container.items[0].button.text_block, platform->localized_text.main_menu_import_file, &heap);
@@ -249,12 +250,14 @@ bool editor_start_up(Platform* platform)
         export_button_id = main_menu->container.items[1].id;
 
         main_menu->container.items[2].type = ui::ItemType::Button;
+        main_menu->container.items[2].button.enabled = true;
         main_menu->container.items[2].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
         main_menu->container.items[2].button.text_block.font = &font;
         ui::set_text(&main_menu->container.items[2].button.text_block, platform->localized_text.main_menu_enter_object_mode, &heap);
         object_mode_button_id = main_menu->container.items[2].id;
 
         main_menu->container.items[3].type = ui::ItemType::Button;
+        main_menu->container.items[3].button.enabled = true;
         main_menu->container.items[3].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
         main_menu->container.items[3].button.text_block.font = &font;
         ui::set_text(&main_menu->container.items[3].button.text_block, platform->localized_text.main_menu_enter_face_mode, &heap);
@@ -612,7 +615,6 @@ static void update_object_mode(Platform* platform)
         // Update pointer hover detection.
         // Casually raycast against every triangle in the scene.
         float closest = infinity;
-        int prior_hovered_index = hovered_object_index;
         hovered_object_index = invalid_index;
         FOR_N(i, lady.objects_count)
         {
@@ -633,13 +635,9 @@ static void update_object_mode(Platform* platform)
         }
 
         // Update the mouse cursor based on the hover status.
-        if(prior_hovered_index == invalid_index && hovered_object_index != invalid_index)
+        if(hovered_object_index != invalid_index)
         {
             change_cursor(platform, CursorType::Hand_Pointing);
-        }
-        if(prior_hovered_index != invalid_index && hovered_object_index == invalid_index)
-        {
-            change_cursor(platform, CursorType::Arrow);
         }
 
         // Detect selection.
@@ -926,6 +924,12 @@ void editor_update(Platform* platform)
                 break;
             }
         }
+    }
+
+    // Reset the mouse cursor if nothing is hovered.
+    if(!ui_context.anything_hovered && hovered_object_index == invalid_index)
+    {
+        change_cursor(platform, CursorType::Arrow);
     }
 
     // Clean up the history.

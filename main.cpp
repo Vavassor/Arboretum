@@ -38,6 +38,8 @@ struct PlatformX11
     Atom wm_delete_window;
     int screen;
 
+    CursorType cursor_type;
+
     XFontSet font_set;
     XIM input_method;
     XIC input_context;
@@ -101,18 +103,23 @@ static const char* translate_cursor_type(CursorType type)
     switch(type)
     {
         default:
-        case CursorType::Arrow:         return "left_ptr";
-        case CursorType::Hand_Pointing: return "hand1";
-        case CursorType::I_Beam:        return "xterm";
+        case CursorType::Arrow:            return "left_ptr";
+        case CursorType::Hand_Pointing:    return "hand1";
+        case CursorType::I_Beam:           return "xterm";
+        case CursorType::Prohibition_Sign: return "crossed_circle";
     }
 }
 
 void change_cursor(Platform* base, CursorType type)
 {
     PlatformX11* platform = reinterpret_cast<PlatformX11*>(base);
-    const char* name = translate_cursor_type(type);
-    Cursor cursor = XcursorLibraryLoadCursor(platform->display, name);
-    XDefineCursor(platform->display, platform->window, cursor);
+    if(platform->cursor_type != type)
+    {
+        const char* name = translate_cursor_type(type);
+        Cursor cursor = XcursorLibraryLoadCursor(platform->display, name);
+        XDefineCursor(platform->display, platform->window, cursor);
+        platform->cursor_type = type;
+    }
 }
 
 void begin_composed_text(Platform* base)

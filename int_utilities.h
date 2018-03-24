@@ -8,6 +8,7 @@ u32 next_power_of_two(u32 x);
 bool can_use_bitwise_and_to_cycle(int count);
 int mod(int x, int n);
 unsigned int next_multiple(unsigned int x, unsigned int n);
+bool signs_opposite(int x, int y);
 
 // Prefer these for integers and fmax() and fmin() for floating-point numbers.
 #define MAX(a, b)\
