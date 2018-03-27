@@ -157,6 +157,7 @@ static void list_directory(FilePickDialog* dialog, const char* directory, bmfont
     ui::List* list = &file_list->list;
     list->item_spacing = 2.0f;
     list->side_margin = 2.0f;
+    list->scroll_top = 0.0f;
 
     const int extensions_count = 1;
     const char* extensions[extensions_count] = {".obj"};
