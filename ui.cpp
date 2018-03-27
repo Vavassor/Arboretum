@@ -115,6 +115,7 @@ static void destroy_container(Container* container, Heap* heap)
                 case ItemType::Text_Input:
                 {
                     destroy_text_block(&item->text_input.text_block, heap);
+                    destroy_text_block(&item->text_input.label, heap);
                     break;
                 }
             }
@@ -376,7 +377,7 @@ void set_text(TextBlock* text_block, const char* text, Heap* heap)
     // @Incomplete: There isn't a one-to-one mapping between chars and glyphs.
     // Glyph count should be based on the mapping of the given text in a
     // particular font instead of the size in bytes.
-    int size = string_size(text);
+    int size = MAX(string_size(text), 1);
     text_block->glyphs = HEAP_REALLOCATE(heap, text_block->glyphs, size);
     text_block->glyphs_cap = size;
     create(&text_block->glyph_map, size, heap);
@@ -591,7 +592,9 @@ static Vector2 measure_ideal_dimensions(Container* container, Stack* stack)
             }
             case ItemType::Text_Input:
             {
-                item_ideal = measure_ideal_dimensions(&item->text_input.text_block, stack);
+                Vector2 input = measure_ideal_dimensions(&item->text_input.text_block, stack);
+                Vector2 hint = measure_ideal_dimensions(&item->text_input.label, stack);
+                item_ideal = max2(input, hint);
                 break;
             }
         }
@@ -870,7 +873,9 @@ static Vector2 measure_bound_dimensions(Container* container, Vector2 container_
             }
             case ItemType::Text_Input:
             {
-                dimensions = measure_bound_dimensions(&item->text_input.text_block, space, stack);
+                Vector2 input = measure_bound_dimensions(&item->text_input.text_block, space, stack);
+                Vector2 hint = measure_bound_dimensions(&item->text_input.label, space, stack);
+                dimensions = max2(input, hint);
                 break;
             }
         }
@@ -1359,6 +1364,8 @@ static void draw_text_block(TextBlock* text_block, Rect bounds)
 
 static void draw_button(Item* item)
 {
+    ASSERT(item->type == ItemType::Button);
+
     Button* button = &item->button;
 
     Vector4 non_hovered_colour;
@@ -1565,14 +1572,26 @@ void draw_text_input(Item* item, Context* context)
 
     const Vector4 selection_colour = {1.0f, 1.0f, 1.0f, 0.4f};
 
-    draw_text_block(&item->text_input.text_block, item->bounds);
-
-    // Draw the cursor.
     TextInput* text_input = &item->text_input;
     TextBlock* text_block = &text_input->text_block;
     bmfont::Font* font = text_block->font;
 
-    if(focused_on(context, item))
+    bool in_focus = focused_on(context, item);
+
+    if(in_focus || text_block->glyphs_count > 0)
+    {
+        // Show the text instead of the label.
+        draw_text_block(text_block, item->bounds);
+    }
+    else
+    {
+        // Show the label only when the field isn't focused. If it's been
+        // edited keep showing the entered text even if focus leaves.
+        draw_text_block(&text_input->label, item->bounds);
+    }
+
+    // Draw the cursor.
+    if(in_focus)
     {
         Vector2 cursor = compute_cursor_position(text_block, item->bounds.dimensions, text_input->cursor_position);
         Vector2 top_left = rect_top_left(item->bounds);
@@ -2376,15 +2395,7 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                 update_removed_glyphs(text_block, item->bounds.dimensions, context->scratch);
 
                 // Set the cursor to the beginning of the selection.
-                int new_position;
-                if(start < end)
-                {
-                    new_position = start;
-                }
-                else
-                {
-                    new_position = end;
-                }
+                int new_position = MIN(start, end);
                 text_input->cursor_position = new_position;
                 text_input->selection_start = new_position;
             }
@@ -2408,15 +2419,7 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                 update_removed_glyphs(text_block, item->bounds.dimensions, context->scratch);
 
                 // Retreat the cursor or set it to the beginning of the selection.
-                int new_position;
-                if(start < end)
-                {
-                    new_position = start;
-                }
-                else
-                {
-                    new_position = end;
-                }
+                int new_position = MIN(start, end);
                 text_input->cursor_position = new_position;
                 text_input->selection_start = new_position;
             }

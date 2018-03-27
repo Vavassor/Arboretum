@@ -114,6 +114,7 @@ struct List
 struct TextInput
 {
     TextBlock text_block;
+    TextBlock label;
     int cursor_position;
     int selection_start;
     int cursor_blink_frame;

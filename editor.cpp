@@ -280,9 +280,12 @@ bool editor_start_up(Platform* platform)
         test_anime->container.items[0].type = ui::ItemType::Text_Input;
         test_anime->container.items[0].text_input.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
         test_anime->container.items[0].text_input.text_block.font = &font;
+        test_anime->container.items[0].text_input.hint.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+        test_anime->container.items[0].text_input.hint.font = &font;
         test_anime->container.items[0].growable = true;
         text_input_id = test_anime->container.items[0].id;
-        ui::set_text(&test_anime->container.items[0].text_input.text_block, "-", &heap);
+        ui::set_text(&test_anime->container.items[0].text_input.text_block, "", &heap);
+        ui::set_text(&test_anime->container.items[0].text_input.hint, "Test hint", &heap);
     }
 
     // Move tool
