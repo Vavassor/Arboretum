@@ -2212,15 +2212,26 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                 float scroll_top = list->scroll_top;
                 float from_page_edge = 3.0f * item_height;
 
-                const float velocity = 0.17f;
+                float window_top = scroll_top + from_page_edge;
+                float window_bottom = scroll_top + page_height - from_page_edge;
 
-                if(item_top < scroll_top + from_page_edge)
+                float above_window = item_top - window_top;
+                float below_window = item_top - window_bottom;
+
+                const float factor = 0.2f;
+                const float min_speed = 4.0f;
+
+                if(above_window < 0.0f)
                 {
-                    scroll(item, velocity);
+                    float velocity = (factor * above_window) - min_speed;
+                    scroll_top += fmax(velocity, above_window);
+                    set_scroll(item, scroll_top);
                 }
-                else if(item_top > scroll_top + page_height - from_page_edge)
+                else if(below_window > 0.0f)
                 {
-                    scroll(item, -velocity);
+                    float velocity = (factor * below_window) + min_speed;
+                    scroll_top += fmin(velocity, below_window);
+                    set_scroll(item, scroll_top);
                 }
             }
             break;
