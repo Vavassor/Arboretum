@@ -132,8 +132,24 @@ void begin_composed_text(Platform* base)
 void end_composed_text(Platform* base)
 {
     PlatformX11* platform = reinterpret_cast<PlatformX11*>(base);
-    XUnsetICFocus(platform->input_context);
+    if(platform->input_context)
+    {
+        XUnsetICFocus(platform->input_context);
+    }
     platform->input_context_focused = false;
+}
+
+void set_composed_text_position(Platform* base, int x, int y)
+{
+    PlatformX11* platform = reinterpret_cast<PlatformX11*>(base);
+    ASSERT(platform->input_context_focused);
+
+    XPoint location;
+    location.x = x;
+    location.y = y;
+    XVaNestedList list = XVaCreateNestedList(0, XNSpotLocation, &location, nullptr);
+    XSetICValues(platform->input_context, XNPreeditAttributes, list, nullptr);
+    XFree(list);
 }
 
 bool copy_to_clipboard(Platform* base, char* clipboard)
@@ -439,7 +455,7 @@ static void instantiate_input_method(Display* display, XPointer client_data, XPo
     // Negotiate input method styles.
     XIMStyles* input_method_styles;
     XGetIMValues(platform->input_method, XNQueryInputStyle, &input_method_styles, NULL);
-    XIMStyle supported_styles = XIMPreeditNothing | XIMStatusNothing;
+    XIMStyle supported_styles = XIMPreeditPosition | XIMPreeditNothing | XIMStatusNothing;
     XIMStyle best_style = 0;
     for(int i = 0; i < input_method_styles->count_styles; i += 1)
     {
@@ -457,7 +473,8 @@ static void instantiate_input_method(Display* display, XPointer client_data, XPo
     }
 
     // input context
-    XVaNestedList list = XVaCreateNestedList(0, XNFontSet, platform->font_set, nullptr);
+    XPoint spot_location = {0, 0};
+    XVaNestedList list = XVaCreateNestedList(0, XNFontSet, platform->font_set, XNSpotLocation, &spot_location, nullptr);
     XIMCallback destroy_callback;
     destroy_callback.client_data = reinterpret_cast<XPointer>(platform);
     destroy_callback.callback = destroy_input_method;
@@ -799,7 +816,7 @@ static void handle_selection_notify(XEvent* event)
         {
             XGetWindowProperty(platform.display, platform.window, notification.property, 0, size, False, AnyPropertyType, &type, &format, &count, &size, &property);
             char* paste = reinterpret_cast<char*>(property);
-            editor_paste_from_clipboard(paste);
+            editor_paste_from_clipboard(&platform.base, paste);
 
             XFree(property);
         }
@@ -990,35 +1007,42 @@ static void handle_event(XEvent event)
             input::key_press(key, true, modifier);
 
             // Process key presses that are for typing text.
-            Status status;
-            KeySym key_sym;
-            const int buffer_size = 16;
-            char buffer[buffer_size];
-            int length = Xutf8LookupString(platform.input_context, &press, buffer, buffer_size, &key_sym, &status);
-            ASSERT(status != XBufferOverflow || length >= buffer_size);
-            switch(status)
+            if(platform.input_context)
             {
-                case XLookupNone:
-                case XLookupKeySym:
+                Status status;
+                KeySym key_sym;
+                const int buffer_size = 16;
+                char buffer[buffer_size];
+                int length = Xutf8LookupString(platform.input_context, &press, buffer, buffer_size, &key_sym, &status);
+                ASSERT(status != XBufferOverflow || length >= buffer_size);
+                switch(status)
                 {
-                    break;
-                }
-                case XLookupBoth:
-                {
-                    if(key_sym == XK_BackSpace || key_sym == XK_Delete || key_sym == XK_Return)
+                    case XLookupNone:
+                    case XLookupKeySym:
                     {
                         break;
                     }
-                    // fall-through on purpose
-                }
-                case XLookupChars:
-                {
-                    if(!only_control_characters(buffer))
+                    case XLookupBoth:
                     {
-                        input::composed_text_entered(buffer);
+                        if(key_sym == XK_BackSpace || key_sym == XK_Delete || key_sym == XK_Return)
+                        {
+                            break;
+                        }
+                        // fall-through on purpose
                     }
-                    break;
+                    case XLookupChars:
+                    {
+                        if(!only_control_characters(buffer))
+                        {
+                            input::composed_text_entered(buffer);
+                        }
+                        break;
+                    }
                 }
+            }
+            else
+            {
+                // @Incomplete: throw away keystrokes?
             }
             break;
         }

@@ -257,7 +257,7 @@ static void touch_record(FilePickDialog* dialog, int record_index, bool expand, 
     {
         case DirectoryRecordType::Directory:
         {
-            ui::set_text(dialog->file_readout, " ", heap);
+            ui::set_text(dialog->file_readout, "", heap);
             dialog->record_selected = invalid_index;
             dialog->pick->enabled = false;
 

@@ -42,6 +42,7 @@ struct Platform
 void change_cursor(Platform* platform, CursorType type);
 void begin_composed_text(Platform* platform);
 void end_composed_text(Platform* platform);
+void set_composed_text_position(Platform* base, int x, int y);
 bool copy_to_clipboard(Platform* platform, char* clipboard);
 void request_paste_from_clipboard(Platform* platform);
 

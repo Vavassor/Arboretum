@@ -2023,19 +2023,39 @@ static void update_added_glyphs(TextBlock* text_block, Vector2 dimensions, Heap*
     place_glyphs(text_block, dimensions, stack);
 }
 
-static void remove_selected_text(TextInput* text_input, Vector2 dimensions, Stack* stack)
+static void update_cursor_position(TextInput* text_input, Rect bounds, Vector2 viewport, Platform* platform)
+{
+    int index = text_input->cursor_position;
+    if(is_valid_index(index))
+    {
+        // Get the position within the item and determine the corresponding
+        // point in the viewport.
+        Vector2 position = compute_cursor_position(&text_input->text_block, bounds.dimensions, index);
+        position += bounds.bottom_left;
+        position.x += viewport.x / 2.0f;
+        position.y = (viewport.y / 2.0f) - position.y;
+
+        // Set the input method to anchor itself nearby.
+        int x = position.x;
+        int y = position.y;
+        set_composed_text_position(platform, x, y);
+    }
+}
+
+static void remove_selected_text(TextInput* text_input, Vector2 dimensions, Platform* platform, Stack* stack)
 {
     if(text_input->cursor_position != text_input->selection_start)
     {
         remove_substring(text_input->text_block.text, text_input->selection_start, text_input->cursor_position);
         update_removed_glyphs(&text_input->text_block, dimensions, stack);
+
         int collapsed = MIN(text_input->selection_start, text_input->cursor_position);
         text_input->cursor_position = collapsed;
         text_input->selection_start = collapsed;
     }
 }
 
-void insert_text(Item* item, const char* text_to_add, Heap* heap, Stack* stack)
+void insert_text(Item* item, const char* text_to_add, Vector2 viewport, Platform* platform, Heap* heap, Stack* stack)
 {
     TextInput* text_input = &item->text_input;
     TextBlock* text_block = &text_input->text_block;
@@ -2044,7 +2064,7 @@ void insert_text(Item* item, const char* text_to_add, Heap* heap, Stack* stack)
     int text_to_add_size = string_size(text_to_add);
     if(text_to_add_size > 0)
     {
-        remove_selected_text(text_input, dimensions, stack);
+        remove_selected_text(text_input, dimensions, platform, stack);
 
         int insert_index = text_input->cursor_position;
         char* text = insert_string(text_block->text, text_to_add, insert_index, heap);
@@ -2057,6 +2077,7 @@ void insert_text(Item* item, const char* text_to_add, Heap* heap, Stack* stack)
         int text_end = string_size(text_block->text);
         text_input->cursor_position = MIN(text_input->cursor_position + text_to_add_size, text_end);
         text_input->selection_start = text_input->cursor_position;
+        update_cursor_position(text_input, item->bounds, viewport, platform);
     }
 }
 
@@ -2266,7 +2287,11 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
 
             // Type out any new text.
             char* text_to_add = input::get_composed_text();
-            insert_text(item, text_to_add, context->heap, context->scratch);
+            insert_text(item, text_to_add, context->viewport, platform, context->heap, context->scratch);
+
+            // Record the cursor position before any movement so that change can
+            // be detected at a single point after any possible cursor moves.
+            int prior_cursor_position = text_input->cursor_position;
 
             if(input::get_key_auto_repeated(input::Key::Left_Arrow))
             {
@@ -2440,13 +2465,20 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                 bool copied = copy_selected_text(text_input, platform, context->heap);
                 if(copied)
                 {
-                    remove_selected_text(text_input, item->bounds.dimensions, context->scratch);
+                    remove_selected_text(text_input, item->bounds.dimensions, platform, context->scratch);
                 }
             }
 
             if(input::get_hotkey_tapped(input::Function::Paste))
             {
                 request_paste_from_clipboard(platform);
+            }
+
+            // Update the input method with the current cursor position if it's
+            // been moved.
+            if(prior_cursor_position != text_input->cursor_position)
+            {
+                update_cursor_position(text_input, item->bounds, context->viewport, platform);
             }
 
             break;
