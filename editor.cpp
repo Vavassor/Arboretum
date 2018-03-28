@@ -9,7 +9,6 @@
 #include "input.h"
 #include "int_utilities.h"
 #include "logging.h"
-#include "loop_macros.h"
 #include "math_basics.h"
 #include "move_tool.h"
 #include "obj.h"
@@ -513,7 +512,7 @@ static void update_object_mode(Platform* platform)
 
         int hovered_axis = invalid_index;
         float closest = infinity;
-        FOR_N(i, 3)
+        for(int i = 0; i < 3; i += 1)
         {
             Vector3 shaft_axis = vector3_zero;
             shaft_axis[i] = move_tool.shaft_length;
@@ -550,7 +549,7 @@ static void update_object_mode(Platform* platform)
         move_tool.hovered_axis = hovered_axis;
 
         int hovered_plane = invalid_index;
-        FOR_N(i, 3)
+        for(int i = 0; i < 3; i += 1)
         {
             Vector3 center = set_all_vector3(move_tool.shaft_length);
             center[i] = 0.0f;
@@ -619,7 +618,7 @@ static void update_object_mode(Platform* platform)
         // Casually raycast against every triangle in the scene.
         float closest = infinity;
         hovered_object_index = invalid_index;
-        FOR_N(i, lady.objects_count)
+        for(int i = 0; i < lady.objects_count; i += 1)
         {
             Object* object = &lady.objects[i];
             jan::Mesh* mesh = &object->mesh;
@@ -937,7 +936,7 @@ void editor_update(Platform* platform)
 
     // Clean up the history.
     {
-        FOR_N(i, history.changes_to_clean_up_count)
+        for(int i = 0; i < history.changes_to_clean_up_count; i += 1)
         {
             Change change = history.changes_to_clean_up[i];
             switch(change.type)

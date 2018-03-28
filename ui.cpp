@@ -8,7 +8,6 @@
 #include "input.h"
 #include "int_utilities.h"
 #include "logging.h"
-#include "loop_macros.h"
 #include "memory.h"
 #include "math_basics.h"
 #include "platform.h"
@@ -73,7 +72,7 @@ static void destroy_text_block(TextBlock* text_block, Heap* heap)
 
 static void destroy_list(List* list, Heap* heap)
 {
-    FOR_N(i, list->items_count)
+    for(int i = 0; i < list->items_count; i += 1)
     {
         destroy_text_block(&list->items[i], heap);
     }
@@ -87,7 +86,7 @@ static void destroy_container(Container* container, Heap* heap)
 {
     if(container)
     {
-        FOR_N(i, container->items_count)
+        for(int i = 0; i < container->items_count; i += 1)
         {
             Item* item = &container->items[i];
             switch(item->type)
@@ -159,7 +158,7 @@ static bool in_focus_scope(Item* outer, Item* item)
 
     Container* container = &outer->container;
 
-    FOR_N(i, container->items_count)
+    for(int i = 0; i < container->items_count; i += 1)
     {
         Item* inside = &container->items[i];
         if(inside->id == item->id)
@@ -243,7 +242,7 @@ static bool is_capture_within(Context* context, Item* item)
     }
 
     Container* container = &item->container;
-    FOR_N(i, container->items_count)
+    for(int i = 0; i < container->items_count; i += 1)
     {
         Item* inside = &container->items[i];
         if(inside->id == context->captor_item->id)
@@ -288,7 +287,7 @@ void destroy_toplevel_container(Context* context, Item* item, Heap* heap)
 
     // Find the container and overwrite it with the container on the end.
     int count = ARRAY_COUNT(context->toplevel_containers);
-    FOR_N(i, count)
+    for(int i = 0; i < count; i += 1)
     {
         Item* next = context->toplevel_containers[i];
         if(next == item)
@@ -350,7 +349,7 @@ void add_row(Container* container, int count, Context* context, Heap* heap)
     container->axis = Axis::Horizontal;
     container->items = HEAP_ALLOCATE(heap, Item, count);
     container->items_count = count;
-    FOR_N(i, count)
+    for(int i = 0; i < count; i += 1)
     {
         container->items[i].id = generate_id(context);
     }
@@ -361,7 +360,7 @@ void add_column(Container* container, int count, Context* context, Heap* heap)
     container->axis = Axis::Vertical;
     container->items = HEAP_ALLOCATE(heap, Item, count);
     container->items_count = count;
-    FOR_N(i, count)
+    for(int i = 0; i < count; i += 1)
     {
         container->items[i].id = generate_id(context);
     }
@@ -438,6 +437,7 @@ static void scroll(Item* item, float scroll_velocity_y)
 void create_items(Item* item, int lines_count, Heap* heap)
 {
     List* list = &item->list;
+
     list->items_count = lines_count;
     if(lines_count)
     {
@@ -449,6 +449,7 @@ void create_items(Item* item, int lines_count, Heap* heap)
         list->items = nullptr;
         list->items_bounds = nullptr;
     }
+
     list->hovered_item_index = invalid_index;
     list->selected_item_index = invalid_index;
 }
@@ -471,7 +472,7 @@ static Vector2 measure_ideal_dimensions(TextBlock* text_block, Stack* stack)
     int size = string_size(text_block->text);
     int next_break = find_next_mandatory_line_break(text_block->text, 0, stack);
     Vector2 pen = {padding.start, -padding.top - font->line_height};
-    FOR_N(i, size)
+    for(int i = 0; i < size; i += 1)
     {
         // @Incomplete: There isn't a one-to-one mapping between chars and
         // glyphs. Add a lookup to glyph given the next sequence of text.
@@ -564,7 +565,7 @@ static Vector2 measure_ideal_dimensions(Container* container, Stack* stack)
     int main_axis = get_main_axis_index(container->axis);
     int cross_axis = get_cross_axis_index(container->axis);
 
-    FOR_N(i, container->items_count)
+    for(int i = 0; i < container->items_count; i += 1)
     {
         Item* item = &container->items[i];
         Vector2 item_ideal;
@@ -694,7 +695,7 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
     int text_index = 0;
     int size = string_size(text_block->text);
 
-    FOR_N(i, size)
+    for(int i = 0; i < size; i += 1)
     {
         // @Incomplete: There isn't a one-to-one mapping between chars and
         // glyphs. Add a lookup to glyph given the next sequence of text.
@@ -801,7 +802,7 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
     if(text_block->text_overflow == TextOverflow::Ellipsize_End && add_ellipsis_pattern)
     {
         int size = string_size(ellipsize_text);
-        FOR_N(i, size)
+        for(int i = 0; i < size; i += 1)
         {
             char32_t current;
             int index = utf8_get_next_codepoint(ellipsize_text, size, i, &current);
@@ -839,7 +840,7 @@ static Vector2 measure_bound_dimensions(Container* container, Vector2 container_
     int shrink_axis = get_main_axis_index(shrink_along);
     int nonshrink_axis = get_cross_axis_index(shrink_along);
 
-    FOR_N(i, container->items_count)
+    for(int i = 0; i < container->items_count; i += 1)
     {
         Item* item = &container->items[i];
 
@@ -893,7 +894,7 @@ static Vector2 measure_bound_dimensions(Container* container, Vector2 container_
     if(result[main_axis] < container_space[main_axis])
     {
         int growable_items = 0;
-        FOR_N(i, container->items_count)
+        for(int i = 0; i < container->items_count; i += 1)
         {
             Item item = container->items[i];
             if(item.growable)
@@ -904,7 +905,7 @@ static Vector2 measure_bound_dimensions(Container* container, Vector2 container_
         if(growable_items > 0)
         {
             float grow = (container_space[main_axis] - result[main_axis]) / growable_items;
-            FOR_N(i, container->items_count)
+            for(int i = 0; i < container->items_count; i += 1)
             {
                 Item* item = &container->items[i];
                 if(item->growable)
@@ -917,7 +918,7 @@ static Vector2 measure_bound_dimensions(Container* container, Vector2 container_
     if(container->alignment == Alignment::Stretch && result[cross_axis] < container_space[cross_axis])
     {
         result[cross_axis] = container_space[cross_axis];
-        FOR_N(i, container->items_count)
+        for(int i = 0; i < container->items_count; i += 1)
         {
             Item* item = &container->items[i];
             item->bounds.dimensions[cross_axis] = container_space[cross_axis];
@@ -940,7 +941,7 @@ static float compute_shrink_factor(Container* container, Rect space, float ideal
         items_overshrunk = 0;
         float min_filled = 0.0f;
         float fit = 0.0f;
-        FOR_N(i, container->items_count)
+        for(int i = 0; i < container->items_count; i += 1)
         {
             Item* item = &container->items[i];
 
@@ -984,7 +985,7 @@ static void grow_or_commit_ideal_dimensions(Item* item, Vector2 container_space)
     // the ideal length at the same time.
     float ungrowable_length = 0.0f;
     float ideal_length = 0.0f;
-    FOR_N(i, container->items_count)
+    for(int i = 0; i < container->items_count; i += 1)
     {
         Item* next = &container->items[i];
         if(!next->growable)
@@ -999,7 +1000,7 @@ static void grow_or_commit_ideal_dimensions(Item* item, Vector2 container_space)
     float grow = (available - ungrowable_length) / (ideal_length - ungrowable_length);
 
     // Grow them.
-    FOR_N(i, container->items_count)
+    for(int i = 0; i < container->items_count; i += 1)
     {
         Item* next = &container->items[i];
 
@@ -1041,7 +1042,7 @@ static float measure_length(Container* container)
 {
     int axis = get_main_axis_index(container->axis);
     float length = 0.0f;
-    FOR_N(i, container->items_count)
+    for(int i = 0; i < container->items_count; i += 1)
     {
         Item item = container->items[i];
         length += item.bounds.dimensions[axis];
@@ -1172,7 +1173,7 @@ static void place_items_along_main_axis(Item* item, Rect space)
 
     if(fill_backward)
     {
-        FOR_N(i, container->items_count)
+        for(int i = 0; i < container->items_count; i += 1)
         {
             Item* next = &container->items[i];
 
@@ -1188,7 +1189,7 @@ static void place_items_along_main_axis(Item* item, Rect space)
     }
     else
     {
-        FOR_N(i, container->items_count)
+        for(int i = 0; i < container->items_count; i += 1)
         {
             Item* next = &container->items[i];
 
@@ -1294,7 +1295,7 @@ static void place_items_along_cross_axis(Item* item, Rect space)
         }
     }
 
-    FOR_N(i, container->items_count)
+    for(int i = 0; i < container->items_count; i += 1)
     {
         Item* next = &container->items[i];
         next->bounds.bottom_left[cross_axis] = position - (centering * next->bounds.dimensions[cross_axis]);
@@ -1314,7 +1315,7 @@ void lay_out(Item* item, Rect space, Stack* stack)
     Vector2 ideal = measure_ideal_dimensions(container, stack);
     item->ideal_dimensions = max2(item->min_dimensions, ideal);
     float ideal_length = 0.0f;
-    FOR_N(i, container->items_count)
+    for(int i = 0; i < container->items_count; i += 1)
     {
         Item next = container->items[i];
         ideal_length += next.ideal_dimensions[main_axis];
@@ -1350,7 +1351,7 @@ static void draw_text_block(TextBlock* text_block, Rect bounds)
 {
     Vector2 top_left = rect_top_left(bounds);
 
-    FOR_N(i, text_block->glyphs_count)
+    for(int i = 0; i < text_block->glyphs_count; i += 1)
     {
         Glyph glyph = text_block->glyphs[i];
         Rect rect = glyph.rect;
@@ -1405,7 +1406,7 @@ static void draw_container(Item* item, Context* context)
 
     immediate::draw_opaque_rect(item->bounds, item->container.background_colour);
 
-    FOR_N(i, item->container.items_count)
+    for(int i = 0; i < item->container.items_count; i += 1)
     {
         draw(&item->container.items[i], context);
     }
@@ -1431,7 +1432,7 @@ static void place_list_items(Item* item, Stack* stack)
         place.dimensions.x = item->bounds.dimensions.x - (2.0f * list->side_margin);
         place.dimensions.y = item_height - list->item_spacing;
 
-        FOR_N(i, list->items_count)
+        for(int i = 0; i < list->items_count; i += 1)
         {
             list->items_bounds[i] = place;
             place.bottom_left.y -= place.dimensions.y + list->item_spacing;
@@ -1452,7 +1453,7 @@ static void draw_list(Item* item, Context* context)
     const Vector4 hover_colour = {1.0f, 1.0f, 1.0f, 0.3f};
     const Vector4 selection_colour = {1.0f, 1.0f, 1.0f, 0.5f};
 
-    if(list->items)
+    if(list->items_count > 0)
     {
         // Draw the hover highlight for the items.
         if(is_valid_index(list->hovered_item_index) && list->hovered_item_index != list->selected_item_index)
@@ -1529,7 +1530,7 @@ static int find_index_at_position(TextBlock* text_block, Vector2 dimensions, Vec
 
     float closest = infinity;
     int count = text_block->glyphs_count;
-    FOR_N(i, count)
+    for(int i = 0; i < count; i += 1)
     {
         Glyph glyph = text_block->glyphs[i];
         Vector2 point = glyph.baseline_start;
@@ -1646,7 +1647,7 @@ void draw_text_input(Item* item, Context* context)
                 immediate::add_rect(rect, selection_colour);
 
                 int between_lines = (first.y - second.y) / font->line_height - 1;
-                FOR_N(i, between_lines)
+                for(int i = 0; i < between_lines; i += 1)
                 {
                     rect.dimensions.x = right - left;
                     rect.bottom_left.x = left;
@@ -1767,7 +1768,7 @@ static bool detect_hover(Item* item, Vector2 pointer_position, Platform* platfor
         case ItemType::Container:
         {
             Container* container = &item->container;
-            FOR_N(i, container->items_count)
+            for(int i = 0; i < container->items_count; i += 1)
             {
                 Item* inside = &container->items[i];
                 detected |= detect_hover(inside, pointer_position, platform);
@@ -1778,7 +1779,7 @@ static bool detect_hover(Item* item, Vector2 pointer_position, Platform* platfor
         {
             List* list = &item->list;
             list->hovered_item_index = invalid_index;
-            FOR_N(i, list->items_count)
+            for(int i = 0; i < list->items_count; i += 1)
             {
                 Rect bounds = list->items_bounds[i];
                 bounds.bottom_left.y += list->scroll_top;
@@ -1829,7 +1830,7 @@ static bool detect_focus_changes(Context* context, Item* item, Vector2 mouse_pos
             Container* container = &item->container;
 
             focus_taken = false;
-            FOR_N(i, container->items_count)
+            for(int i = 0; i < container->items_count; i += 1)
             {
                 Item* inside = &container->items[i];
 
@@ -1917,7 +1918,7 @@ static bool detect_capture_changes(Context* context, Item* item, Vector2 mouse_p
         case ItemType::Container:
         {
             Container* container = &item->container;
-            FOR_N(i, container->items_count)
+            for(int i = 0; i < container->items_count; i += 1)
             {
                 Item* inside = &container->items[i];
 
@@ -2169,7 +2170,7 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
         case ItemType::Container:
         {
             Container* container = &item->container;
-            FOR_N(i, container->items_count)
+            for(int i = 0; i < container->items_count; i += 1)
             {
                 update_keyboard_input(&container->items[i], context, platform);
             }
@@ -2490,9 +2491,9 @@ static void build_tab_navigation_list(Context* context, Item* at)
 {
     Container* container = &at->container;
 
-    FOR_N(j, container->items_count)
+    for(int i = 0; i < container->items_count; i += 1)
     {
-        Item* item = &container->items[j];
+        Item* item = &container->items[i];
 
         switch(item->type)
         {
@@ -2560,7 +2561,7 @@ static void update_non_item_specific_keyboard_input(Context* context)
             int found_index = invalid_index;
             int count = ARRAY_COUNT(context->tab_navigation_list);
 
-            FOR_N(i, count)
+            for(int i = 0; i < count; i += 1)
             {
                 Item* item = context->tab_navigation_list[i];
                 if(item->id == context->focused_item->id)
@@ -2606,7 +2607,7 @@ static void update_pointer_input(Item* item, Context* context, Platform* platfor
         case ItemType::Container:
         {
             Container* container = &item->container;
-            FOR_N(i, container->items_count)
+            for(int i = 0; i < container->items_count; i += 1)
             {
                 update_pointer_input(&container->items[i], context, platform);
             }

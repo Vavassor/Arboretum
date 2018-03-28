@@ -4,7 +4,6 @@
 #include "assert.h"
 #include "colours.h"
 #include "logging.h"
-#include "loop_macros.h"
 #include "obj.h"
 #include "platform.h"
 #include "sorting.h"
@@ -30,7 +29,7 @@ static void filter_directory(Directory* directory, const char** extensions, int 
 {
     DirectoryRecord* filtered = nullptr;
 
-    FOR_N(i, directory->records_count)
+    for(int i = 0; i < directory->records_count; i += 1)
     {
         DirectoryRecord record = directory->records[i];
         if(!show_hidden && record.hidden)
@@ -39,7 +38,7 @@ static void filter_directory(Directory* directory, const char** extensions, int 
         }
         if(record.type == DirectoryRecordType::File)
         {
-            FOR_N(j, extensions_count)
+            for(int j = 0; j < extensions_count; j += 1)
             {
                 if(string_ends_with(record.name, extensions[j]))
                 {
@@ -173,7 +172,7 @@ static void list_directory(FilePickDialog* dialog, const char* directory, bmfont
     {
         quick_sort_by_filename(dialog->directory.records, dialog->directory.records_count);
 
-        FOR_N(i, dialog->directory.records_count)
+        for(int i = 0; i < dialog->directory.records_count; i += 1)
         {
             DirectoryRecord record = dialog->directory.records[i];
             ui::TextBlock* text_block = &list->items[i];
@@ -304,7 +303,7 @@ static void open_parent_directory(FilePickDialog* dialog, int segment, bmfont::F
     }
     else
     {
-        FOR_N(i, segment + 1)
+        for(int i = 0; i < segment + 1; i += 1)
         {
             int found_index = find_char(&path[slash], '/');
             if(is_valid_index(found_index))
@@ -367,7 +366,7 @@ void handle_input(FilePickDialog* dialog, ui::Event event, bmfont::Font* font, O
         {
             ui::Id id = event.button.id;
 
-            FOR_N(i, dialog->path_buttons_count)
+            for(int i = 0; i < dialog->path_buttons_count; i += 1)
             {
                 if(id == dialog->path_buttons[i])
                 {

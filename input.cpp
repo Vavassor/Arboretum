@@ -1,6 +1,5 @@
 #include "input.h"
 
-#include "loop_macros.h"
 #include "string_utilities.h"
 
 namespace input {
@@ -150,7 +149,7 @@ bool get_hotkey_pressed(Function function)
 {
     int index = static_cast<int>(function);
     bool result = false;
-    FOR_N(i, 2)
+    for(int i = 0; i < 2; i += 1)
     {
         Hotkey hotkey = hotkeys[index][i];
         if(hotkey.key == Key::Unknown)
@@ -203,7 +202,7 @@ bool get_hotkey_tapped(Function function)
 {
     int index = static_cast<int>(function);
     bool result = false;
-    FOR_N(i, 2)
+    for(int i = 0; i < 2; i += 1)
     {
         Hotkey hotkey = hotkeys[index][i];
         if(hotkey.key == Key::Unknown)
@@ -302,7 +301,7 @@ void system_start_up()
 
 static void update_button_change_counts()
 {
-    FOR_N(i, 3)
+    for(int i = 0; i < 3; i += 1)
     {
         mouse.edge_counts[i] += 1;
     }
@@ -314,7 +313,7 @@ static void update_button_change_counts()
 
 static void update_key_change_counts()
 {
-    FOR_N(i, keys_count)
+    for(int i = 0; i < keys_count; i += 1)
     {
         keyboard.edge_counts[i] += 1;
     }

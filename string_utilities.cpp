@@ -85,6 +85,7 @@ char* find_string(const char* RESTRICT a, const char* RESTRICT b)
 
 int find_char(const char* s, char c)
 {
+    ASSERT(s);
     for(int i = 0; s[i]; i += 1)
     {
         if(s[i] == c)
@@ -127,12 +128,13 @@ bool string_ends_with(const char* RESTRICT a, const char* RESTRICT b)
     }
 }
 
-int count_char_occurrences(const char* string, char c)
+int count_char_occurrences(const char* s, char c)
 {
+    ASSERT(s);
     int count = 0;
-    for(; *string; string += 1)
+    for(int i = 0; s[i]; i += 1)
     {
-        count += (*string == c);
+        count += (s[i] == c);
     }
     return count;
 }
@@ -164,11 +166,11 @@ static char to_upper_case_char(char c)
     }
 }
 
-void to_upper_case_ascii(char* string)
+void to_upper_case_ascii(char* s)
 {
-    for(; *string; string += 1)
+    for(int i = 0; s[i]; i += 1)
     {
-        *string = to_upper_case_char(*string);
+        s[i] = to_upper_case_char(s[i]);
     }
 }
 
@@ -194,11 +196,11 @@ int compare_alphabetic_ascii(const char* RESTRICT a, const char* RESTRICT b)
     return c0 - c1;
 }
 
-bool only_control_characters(const char* string)
+bool only_control_characters(const char* s)
 {
-    for(; *string; string += 1)
+    for(int i = 0; s[i]; i += 1)
     {
-        if(!is_control_character(*string))
+        if(!is_control_character(s[i]))
         {
             return false;
         }

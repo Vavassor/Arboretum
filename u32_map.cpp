@@ -2,7 +2,6 @@
 
 #include "assert.h"
 #include "int_utilities.h"
-#include "loop_macros.h"
 #include "memory.h"
 
 namespace
@@ -51,7 +50,7 @@ void destroy(U32Map* map, Heap* heap)
 
 void reset_all(U32Map* map)
 {
-    FOR_N(i, map->cap)
+    for(int i = 0; i < map->cap; i += 1)
     {
         map->keys[i] = invalid_key;
     }

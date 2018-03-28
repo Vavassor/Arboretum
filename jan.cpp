@@ -4,7 +4,6 @@
 #include "array2.h"
 #include "assert.h"
 #include "math_basics.h"
-#include "loop_macros.h"
 
 namespace jan {
 
@@ -239,7 +238,7 @@ static Face* connect_vertices_and_add_face(Mesh* mesh, Vertex** vertices, int ve
 {
     Edge* edges[vertices_count];
     int end = vertices_count - 1;
-    FOR_N(i, end)
+    for(int i = 0; i < end; i += 1)
     {
         edges[i] = add_edge(mesh, vertices[i], vertices[i + 1]);
     }
@@ -254,7 +253,7 @@ Face* connect_disconnected_vertices_and_add_face(Mesh* mesh, Vertex** vertices, 
 {
     Edge* edges[vertices_count];
     int end = vertices_count - 1;
-    FOR_N(i, end)
+    for(int i = 0; i < end; i += 1)
     {
         edges[i] = add_edge_if_nonexistant(mesh, vertices[i], vertices[i + 1]);
     }
@@ -457,7 +456,7 @@ void make_a_weird_face(Mesh* mesh)
     positions[7] = {-0.05012f, -0.82722f, 0.0f};
 
     Vertex* vertices[vertices_count];
-    FOR_N(i, vertices_count)
+    for(int i = 0; i < vertices_count; i += 1)
     {
         vertices[i] = add_vertex(mesh, positions[i]);
     }
@@ -488,7 +487,7 @@ static bool point_in_triangle(Vector2 v0, Vector2 v1, Vector2 v2, Vector2 p)
 static bool is_clockwise(Vector2* vertices, int vertices_count)
 {
     float d = 0.0f;
-    FOR_N(i, vertices_count)
+    for(int i = 0; i < vertices_count; i += 1)
     {
         Vector2 v0 = vertices[i];
         Vector2 v1 = vertices[(i + 1) % vertices_count];
@@ -510,7 +509,7 @@ void triangulate(Mesh* mesh, Heap* heap, VertexPNC** out_vertices, int* out_vert
             ARRAY_RESERVE(vertices, 3, heap);
             ARRAY_RESERVE(indices, 3, heap);
             Link* link = face->link;
-            FOR_N(i, 3)
+            for(int i = 0; i < 3; i += 1)
             {
                 VertexPNC vertex;
                 vertex.position = link->vertex->position;
@@ -531,7 +530,7 @@ void triangulate(Mesh* mesh, Heap* heap, VertexPNC** out_vertices, int* out_vert
         // Copy all of the vertices in the face.
         ARRAY_RESERVE(vertices, face->edges, heap);
         Link* link = face->link;
-        FOR_N(i, face->edges)
+        for(int i = 0; i < face->edges; i += 1)
         {
             VertexPNC vertex;
             vertex.position = link->vertex->position;
@@ -548,7 +547,7 @@ void triangulate(Mesh* mesh, Heap* heap, VertexPNC** out_vertices, int* out_vert
         Matrix3 m = orthogonal_basis(face->normal);
         Matrix3 mi = transpose(m);
         link = face->link;
-        FOR_N(i, face->edges)
+        for(int i = 0; i < face->edges; i += 1)
         {
             Vector3 p = link->vertex->position;
             projected[i] = mi * p;
@@ -570,7 +569,7 @@ void triangulate(Mesh* mesh, Heap* heap, VertexPNC** out_vertices, int* out_vert
         // Keep vertex chains to walk both ways around the polygon.
         int l[max_vertices_per_face];
         int r[max_vertices_per_face];
-        FOR_N(i, face->edges)
+        for(int i = 0; i < face->edges; i += 1)
         {
             l[i] = mod(i - 1, face->edges);
             r[i] = mod(i + 1, face->edges);
@@ -608,7 +607,7 @@ void triangulate(Mesh* mesh, Heap* heap, VertexPNC** out_vertices, int* out_vert
             }
 
             bool in_triangle = false;
-            FOR_N(k, face->edges)
+            for(int k = 0; k < face->edges; k += 1)
             {
                 Vector2 point = projected[k];
                 if(k != l[j] && k != j && k != r[j] && point_in_triangle(v[0], v[1], v[2], point))
@@ -653,7 +652,7 @@ void destroy_selection(Selection* selection)
 
 static bool face_selected(Selection* selection, Face* face)
 {
-    FOR_N(i, selection->parts_count)
+    for(int i = 0; i < selection->parts_count; i += 1)
     {
         Face* selected = static_cast<Face*>(selection->parts[i]);
         if(selected == face)
@@ -693,7 +692,7 @@ static void add_face_to_selection(Selection* selection, Face* face)
 static void remove_face_from_selection(Selection* selection, Face* face)
 {
     int found_index = -1;
-    FOR_N(i, selection->parts_count)
+    for(int i = 0; i < selection->parts_count; i += 1)
     {
         if(static_cast<Face*>(selection->parts[i]) == face)
         {
@@ -722,7 +721,7 @@ void toggle_face_in_selection(Selection* selection, Face* face)
 
 void move_faces(Mesh* mesh, Selection* selection, Vector3 translation)
 {
-    FOR_N(i, selection->parts_count)
+    for(int i = 0; i < selection->parts_count; i += 1)
     {
         Face* face = static_cast<Face*>(selection->parts[i]);
         Link* first = face->link;
@@ -801,7 +800,7 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Stack* stack)
 
     // Calculate the vector to extrude all the vertices along.
     Vector3 average_direction = vector3_zero;
-    FOR_N(i, selection->parts_count)
+    for(int i = 0; i < selection->parts_count; i += 1)
     {
         Face* face = static_cast<Face*>(selection->parts[i]);
         average_direction += face->normal;
@@ -813,7 +812,7 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Stack* stack)
     VertexMap map;
     map_create(&map, mesh->vertices_count, stack);
 
-    FOR_N(i, selection->parts_count)
+    for(int i = 0; i < selection->parts_count; i += 1)
     {
         Face* face = static_cast<Face*>(selection->parts[i]);
         Link* first = face->link;
@@ -857,13 +856,13 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Stack* stack)
         } while(link != first);
     }
 
-    FOR_N(i, selection->parts_count)
+    for(int i = 0; i < selection->parts_count; i += 1)
     {
         Face* face = static_cast<Face*>(selection->parts[i]);
         const int vertices_count = face->edges;
         Vertex* vertices[vertices_count];
         Link* link = face->link;
-        FOR_N(j, vertices_count)
+        for(int j = 0; j < vertices_count; j += 1)
         {
             vertices[j] = map_find(&map, link->vertex);
             link = link->next;
@@ -900,7 +899,7 @@ void colour_selection(Mesh* mesh, Selection* selection, Vector3 colour)
 {
     if(selection->type == Selection::Type::Face)
     {
-        FOR_N(i, selection->parts_count)
+        for(int i = 0; i < selection->parts_count; i += 1)
         {
             Face* face = static_cast<Face*>(selection->parts[i]);
             colour_just_the_one_face(face, colour);

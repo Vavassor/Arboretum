@@ -1,6 +1,9 @@
 #ifndef SORTING_H_
 #define SORTING_H_
 
+#define SWAP(a, b) \
+    do { auto temp = (a); (a) = (b); (b) = temp; } while(0)
+
 #define DEFINE_INSERTION_SORT(type, before, suffix)\
     static void insertion_sort_##suffix(type* a, int count)\
     {\
@@ -67,9 +70,7 @@
                 }\
                 else\
                 {\
-                    type temp = a[i];\
-                    a[i] = a[j];\
-                    a[j] = temp;\
+                    SWAP(a[i], a[j]);\
                 }\
             }\
             quick_sort_innards(a, left, pivot);\
@@ -107,9 +108,7 @@
             }\
             else\
             {\
-                auto temp = a[index];\
-                a[index] = a[root];\
-                a[root] = temp;\
+                SWAP(a[index], a[root]);\
                 root = index;\
             }\
         }\
@@ -122,9 +121,7 @@
         }\
         for(int right = count - 1; right > 0;)\
         {\
-            auto temp = a[right];\
-            a[right] = a[0];\
-            a[0] = temp;\
+            SWAP(a[right], a[0]);\
             right -= 1;\
             sift_down_##suffix(a, 0, right);\
         }\

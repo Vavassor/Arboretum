@@ -4,7 +4,6 @@
 #include "editor.h"
 #include "int_utilities.h"
 #include "logging.h"
-#include "loop_macros.h"
 #include "memory.h"
 #include "object_lady.h"
 
@@ -93,7 +92,7 @@ void history_add_base_state(History* history, Change change, Heap* heap)
 
 void history_remove_base_state(History* history, ObjectId object_id)
 {
-    FOR_N(i, history->base_states_count)
+    for(int i = 0; i < history->base_states_count; i += 1)
     {
         Change* change = &history->base_states[i];
         ASSERT(change->type == ChangeType::Move);
@@ -186,7 +185,7 @@ Change* history_find_past_change(History* history)
                 }
             }
 
-            FOR_N(i, history->base_states_count)
+            for(int i = 0; i < history->base_states_count; i += 1)
             {
                 Change* base = &history->base_states[i];
                 if(base->type == change.type && base->move.object_id == object_id)

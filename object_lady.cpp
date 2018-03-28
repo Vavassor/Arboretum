@@ -1,7 +1,6 @@
 #include "object_lady.h"
 
 #include "memory.h"
-#include "loop_macros.h"
 
 void create_object_lady(ObjectLady* lady, Heap* heap)
 {
@@ -20,11 +19,11 @@ void destroy_object_lady(ObjectLady* lady, Heap* heap)
 {
     if(lady)
     {
-        FOR_N(i, lady->objects_count)
+        for(int i = 0; i < lady->objects_count; i += 1)
         {
             object_destroy(&lady->objects[i]);
         }
-        FOR_N(i, lady->storage_count)
+        for(int i = 0; i < lady->storage_count; i += 1)
         {
             object_destroy(&lady->storage[i]);
         }
@@ -93,7 +92,7 @@ static void add_to_storage(ObjectLady* lady, Object* object, Heap* heap)
 
 Object* get_object_by_id(ObjectLady* lady, ObjectId id)
 {
-    FOR_N(i, lady->objects_count)
+    for(int i = 0; i < lady->objects_count; i += 1)
     {
         Object* object = &lady->objects[i];
         if(object->id == id)
@@ -120,7 +119,7 @@ void store_object(ObjectLady* lady, ObjectId id, Heap* heap)
 
 static Object* get_object_in_storage_by_id(ObjectLady* lady, ObjectId id)
 {
-    FOR_N(i, lady->storage_count)
+    for(int i = 0; i < lady->storage_count; i += 1)
     {
         Object* object = &lady->storage[i];
         if(object->id == id)

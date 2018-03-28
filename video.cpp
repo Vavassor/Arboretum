@@ -26,7 +26,6 @@
 #include "sorting.h"
 #include "history.h"
 #include "colours.h"
-#include "loop_macros.h"
 #include "move_tool.h"
 #include "object_lady.h"
 
@@ -896,7 +895,7 @@ void system_shut_down(bool functions_loaded)
         glDeleteProgram(shader_halo.program);
         glDeleteProgram(shader_screen_pattern.program);
 
-        FOR_N(i, 1)
+        for(int i = 0; i < 1; i += 1)
         {
             glDeleteTextures(1, &font_textures[i]);
         }
@@ -1233,10 +1232,9 @@ void system_update(UpdateState* update, Platform* platform)
 
         view = look_at_matrix(camera->position, camera->target, vector3_unit_z);
 
-        FOR_N(i, ARRAY_COUNT(objects.array))
+        FOR_ALL(objects.array)
         {
-            Object* object = &objects.array[i];
-            object_set_matrices(object, view, projection);
+            object_set_matrices(it, view, projection);
         }
 
         immediate::set_matrices(view, projection);
@@ -1255,7 +1253,7 @@ void system_update(UpdateState* update, Platform* platform)
     glUseProgram(shader_lit.program);
 
     // Draw all unselected models.
-    FOR_N(i, lady->objects_count)
+    for(int i = 0; i < lady->objects_count; i += 1)
     {
         if(i == selected_object_index || i == hovered_object_index)
         {
@@ -1469,7 +1467,7 @@ Object* get_object(DenseMapId id)
 
 void set_up_font(bmfont::Font* font)
 {
-    FOR_N(i, font->pages_count)
+    for(int i = 0; i < font->pages_count; i += 1)
     {
         const char* path = font->pages[i].bitmap_filename;
         Bitmap bitmap;
