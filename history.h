@@ -40,8 +40,6 @@ struct History
     Change* base_states;
     Change* changes;
     Change* changes_to_clean_up;
-    int base_states_cap;
-    int base_states_count;
     int changes_cap;
     int changes_to_clean_up_cap;
     int changes_to_clean_up_count;

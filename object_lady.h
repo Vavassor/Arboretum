@@ -7,10 +7,6 @@ struct ObjectLady
 {
     Object* objects;
     Object* storage;
-    int objects_cap;
-    int objects_count;
-    int storage_cap;
-    int storage_count;
     ObjectId seed;
 };
 

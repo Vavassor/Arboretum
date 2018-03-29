@@ -1,5 +1,6 @@
 #include "history.h"
 
+#include "array2.h"
 #include "assert.h"
 #include "editor.h"
 #include "int_utilities.h"
@@ -9,15 +10,12 @@
 
 void history_create(History* history, Heap* heap)
 {
-    const int base_states_cap = 2;
     const int changes_cap = 200;
     const int cleanup_cap = 200;
 
-    history->base_states = HEAP_ALLOCATE(heap, Change, base_states_cap);
+    history->base_states = nullptr;
     history->changes = HEAP_ALLOCATE(heap, Change, changes_cap);
     history->changes_to_clean_up = HEAP_ALLOCATE(heap, Change, cleanup_cap);
-    history->base_states_cap = base_states_cap;
-    history->base_states_count = 0;
     history->changes_cap = changes_cap;
     history->changes_to_clean_up_cap = cleanup_cap;
     history->changes_to_clean_up_count = 0;
@@ -30,7 +28,7 @@ void history_destroy(History* history, Heap* heap)
 {
     if(history)
     {
-        SAFE_HEAP_DEALLOCATE(heap, history->base_states);
+        ARRAY_DESTROY(history->base_states, heap);
         SAFE_HEAP_DEALLOCATE(heap, history->changes);
     }
 }
@@ -73,37 +71,17 @@ void history_add(History* history, Change change)
 
 void history_add_base_state(History* history, Change change, Heap* heap)
 {
-    history->base_states[history->base_states_count] = change;
-    history->base_states_count += 1;
-
-    // Reserve more space for a future add.
-    int space = history->base_states_count;
-    while(space >= history->base_states_cap)
-    {
-        history->base_states_cap *= 2;
-        Change* base_states = HEAP_REALLOCATE(heap, history->base_states, history->base_states_cap);
-        if(!base_states)
-        {
-            break;
-        }
-        history->base_states = base_states;
-    }
+    ARRAY_ADD(history->base_states, change, heap);
 }
 
 void history_remove_base_state(History* history, ObjectId object_id)
 {
-    for(int i = 0; i < history->base_states_count; i += 1)
+    FOR_ALL(history->base_states)
     {
-        Change* change = &history->base_states[i];
-        ASSERT(change->type == ChangeType::Move);
-        if(change->move.object_id == object_id)
+        ASSERT(it->type == ChangeType::Move);
+        if(it->move.object_id == object_id)
         {
-            if(history->base_states_count > 1)
-            {
-                Change* last = &history->base_states[history->base_states_count - 1];
-                *change = *last;
-            }
-            history->base_states_count -= 1;
+            ARRAY_REMOVE(history->base_states, it);
             break;
         }
     }
@@ -185,12 +163,11 @@ Change* history_find_past_change(History* history)
                 }
             }
 
-            for(int i = 0; i < history->base_states_count; i += 1)
+            FOR_ALL(history->base_states)
             {
-                Change* base = &history->base_states[i];
-                if(base->type == change.type && base->move.object_id == object_id)
+                if(it->type == change.type && it->move.object_id == object_id)
                 {
-                    return base;
+                    return it;
                 }
             }
 

@@ -1167,7 +1167,7 @@ void draw_scale_tool(bool silhouetted)
 static void draw_object_with_halo(ObjectLady* lady, int index, Vector4 colour)
 {
     ASSERT(index != invalid_index);
-    ASSERT(index >= 0 && index < lady->objects_count);
+    ASSERT(index >= 0 && index < ARRAY_COUNT(lady->objects));
 
     Object object = *get_object(lady->objects[index].video_object);
 
@@ -1253,7 +1253,7 @@ void system_update(UpdateState* update, Platform* platform)
     glUseProgram(shader_lit.program);
 
     // Draw all unselected models.
-    for(int i = 0; i < lady->objects_count; i += 1)
+    for(int i = 0; i < ARRAY_COUNT(lady->objects); i += 1)
     {
         if(i == selected_object_index || i == hovered_object_index)
         {

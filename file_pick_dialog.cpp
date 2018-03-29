@@ -186,8 +186,10 @@ static void list_directory(FilePickDialog* dialog, const char* directory, bmfont
     ui::focus_on_item(context, file_list);
 }
 
-static void open_directory(FilePickDialog* dialog, const char* directory, bmfont::Font* font, ui::Context* context, Platform* platform, Heap* heap)
+void open_dialog(FilePickDialog* dialog, bmfont::Font* font, ui::Context* context, Platform* platform, Heap* heap)
 {
+    const char* default_path = get_documents_folder(heap);
+
     dialog->enabled = true;
 
     // Create the panel for the dialog box.
@@ -199,7 +201,7 @@ static void open_directory(FilePickDialog* dialog, const char* directory, bmfont
 
     ui::add_column(&panel->container, 3, context, heap);
 
-    list_directory(dialog, directory, font, context, platform, heap);
+    list_directory(dialog, default_path, font, context, platform, heap);
 
     // Set up the footer.
     ui::Item* footer = &panel->container.items[2];
@@ -213,7 +215,7 @@ static void open_directory(FilePickDialog* dialog, const char* directory, bmfont
     file_readout->type = ui::ItemType::Text_Block;
     file_readout->text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
     file_readout->text_block.font = font;
-    ui::set_text(&file_readout->text_block, " ", heap);
+    ui::set_text(&file_readout->text_block, "", heap);
     dialog->file_readout = &file_readout->text_block;
 
     ui::Item* pick = &footer->container.items[1];
@@ -223,12 +225,6 @@ static void open_directory(FilePickDialog* dialog, const char* directory, bmfont
     ui::set_text(&pick->button.text_block, platform->localized_text.file_pick_dialog_import, heap);
     dialog->pick_button = pick->id;
     dialog->pick = &pick->button;
-}
-
-void open_dialog(FilePickDialog* dialog, bmfont::Font* font, ui::Context* context, Platform* platform, Heap* heap)
-{
-    const char* default_path = get_documents_folder(heap);
-    open_directory(dialog, default_path, font, context, platform, heap);
 }
 
 void close_dialog(FilePickDialog* dialog, ui::Context* context, Heap* heap)
