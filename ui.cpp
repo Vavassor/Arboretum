@@ -1365,26 +1365,28 @@ static void draw_text_block(TextBlock* text_block, Rect bounds)
     immediate::draw();
 }
 
-static void draw_button(Item* item)
+static void draw_button(Item* item, Context* context)
 {
     ASSERT(item->type == ItemType::Button);
 
     Button* button = &item->button;
+
+    Theme* theme = &context->theme;
 
     Vector4 non_hovered_colour;
     Vector4 hovered_colour;
     Vector3 text_colour;
     if(button->enabled)
     {
-        non_hovered_colour = {0.145f, 0.145f, 0.145f, 1.0f};
-        hovered_colour = {0.247f, 0.251f, 0.271f, 1.0f};
-        text_colour = vector3_white;
+        non_hovered_colour = theme->colours.button_cap_enabled;
+        hovered_colour = theme->colours.button_cap_hovered_enabled;
+        text_colour = theme->colours.button_label_enabled;
     }
     else
     {
-        non_hovered_colour = {0.318f, 0.318f, 0.318f, 1.0f};
-        hovered_colour = {0.382f, 0.386f, 0.418f, 1.0f};
-        text_colour = {0.782f, 0.786f, 0.818f};
+        non_hovered_colour = theme->colours.button_cap_disabled;
+        hovered_colour = theme->colours.button_cap_hovered_disabled;
+        text_colour = theme->colours.button_label_disabled;
     }
 
     Vector4 colour;
@@ -1454,9 +1456,11 @@ static void draw_list(Item* item, Context* context)
     immediate::set_clip_area(item->bounds, context->viewport.x, context->viewport.y);
 
     List* list = &item->list;
-    float line_height = context->theme.font->line_height;
-    const Vector4 hover_colour = {1.0f, 1.0f, 1.0f, 0.3f};
-    const Vector4 selection_colour = {1.0f, 1.0f, 1.0f, 0.5f};
+
+    Theme* theme = &context->theme;
+    float line_height = theme->font->line_height;
+    Vector4 hover_colour = theme->colours.list_item_background_hovered;
+    Vector4 selection_colour = theme->colours.list_item_background_selected;
 
     if(list->items_count > 0)
     {
@@ -1573,12 +1577,12 @@ void draw_text_input(Item* item, Context* context)
 {
     ASSERT(item->type == ItemType::Text_Input);
 
-    const Vector4 selection_colour = {1.0f, 1.0f, 1.0f, 0.4f};
+    Vector4 selection_colour = context->theme.colours.text_input_selection;
+    Vector4 cursor_colour = context->theme.colours.text_input_cursor;
+    float line_height = context->theme.font->line_height;
 
     TextInput* text_input = &item->text_input;
     TextBlock* text_block = &text_input->text_block;
-    bmfont::Font* font = context->theme.font;
-    float line_height = font->line_height;
 
     bool in_focus = focused_on(context, item);
 
@@ -1602,13 +1606,13 @@ void draw_text_input(Item* item, Context* context)
         cursor += top_left;
 
         Rect rect;
-        rect.dimensions = {1.7f, font->line_height};
+        rect.dimensions = {1.7f, line_height};
         rect.bottom_left = cursor;
 
         text_input->cursor_blink_frame = (text_input->cursor_blink_frame + 1) & 0x3f;
         if((text_input->cursor_blink_frame / 32) & 1)
         {
-            immediate::draw_opaque_rect(rect, vector4_white);
+            immediate::draw_opaque_rect(rect, cursor_colour);
         }
 
         // Draw the selection highlight.
@@ -1634,7 +1638,7 @@ void draw_text_input(Item* item, Context* context)
                 // The selection endpoints are on the same line.
                 rect.bottom_left = first;
                 rect.dimensions.x = second.x - first.x;
-                rect.dimensions.y = font->line_height;
+                rect.dimensions.y = line_height;
                 immediate::draw_transparent_rect(rect, selection_colour);
             }
             else
@@ -1646,15 +1650,15 @@ void draw_text_input(Item* item, Context* context)
 
                 rect.bottom_left = first;
                 rect.dimensions.x = right - first.x;
-                rect.dimensions.y = font->line_height;
+                rect.dimensions.y = line_height;
                 immediate::add_rect(rect, selection_colour);
 
-                int between_lines = (first.y - second.y) / font->line_height - 1;
+                int between_lines = (first.y - second.y) / line_height - 1;
                 for(int i = 0; i < between_lines; i += 1)
                 {
                     rect.dimensions.x = right - left;
                     rect.bottom_left.x = left;
-                    rect.bottom_left.y = first.y - (font->line_height * (i + 1));
+                    rect.bottom_left.y = first.y - (line_height * (i + 1));
                     immediate::add_rect(rect, selection_colour);
                 }
 
@@ -1676,7 +1680,7 @@ void draw(Item* item, Context* context)
     {
         case ItemType::Button:
         {
-            draw_button(item);
+            draw_button(item, context);
             break;
         }
         case ItemType::Container:
@@ -1708,7 +1712,7 @@ void draw_focus_indicator(Item* item, Context* context)
     {
         Item* focused = context->focused_item;
 
-        const Vector4 colour = {1.0f, 1.0f, 0.0f, 0.6f};
+        Vector4 colour = context->theme.colours.focus_indicator;
         const float line_width = 2.0f;
 
         Rect bounds = focused->bounds;

@@ -194,6 +194,21 @@ struct EventQueue
 struct Theme
 {
     bmfont::Font* font;
+
+    struct
+    {
+        Vector4 button_cap_disabled;
+        Vector4 button_cap_enabled;
+        Vector4 button_cap_hovered_disabled;
+        Vector4 button_cap_hovered_enabled;
+        Vector3 button_label_disabled;
+        Vector3 button_label_enabled;
+        Vector4 focus_indicator;
+        Vector4 list_item_background_hovered;
+        Vector4 list_item_background_selected;
+        Vector4 text_input_cursor;
+        Vector4 text_input_selection;
+    } colours;
 };
 
 struct Context

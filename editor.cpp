@@ -223,6 +223,23 @@ bool editor_start_up(Platform* platform)
         ui_context.theme.font = &font;
     }
 
+    // Setup the UI theme.
+    {
+        ui::Theme* theme = &ui_context.theme;
+
+        theme->colours.button_cap_disabled = {0.318f, 0.318f, 0.318f, 1.0f};
+        theme->colours.button_cap_enabled = {0.145f, 0.145f, 0.145f, 1.0f};
+        theme->colours.button_cap_hovered_disabled = {0.382f, 0.386f, 0.418f, 1.0f};
+        theme->colours.button_cap_hovered_enabled = {0.247f, 0.251f, 0.271f, 1.0f};
+        theme->colours.button_label_disabled = {0.782f, 0.786f, 0.818f};
+        theme->colours.button_label_enabled = vector3_white;
+        theme->colours.focus_indicator = {1.0f, 1.0f, 0.0f, 0.6f};
+        theme->colours.list_item_background_hovered = {1.0f, 1.0f, 1.0f, 0.3f};
+        theme->colours.list_item_background_selected = {1.0f, 1.0f, 1.0f, 0.5f};
+        theme->colours.text_input_cursor = vector4_white;
+        theme->colours.text_input_selection = {1.0f, 1.0f, 1.0f, 0.4f};
+    }
+
     // Setup the main menu.
     {
         main_menu = ui::create_toplevel_container(&ui_context, &heap);
