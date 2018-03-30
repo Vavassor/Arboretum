@@ -109,7 +109,7 @@ static void list_directory(FilePickDialog* dialog, const char* directory, ui::Co
 
     ui::Item* path_bar = &panel->container.items[0];
     path_bar->type = ui::ItemType::Container;
-    path_bar->container.background_colour = vector4_yellow;
+    path_bar->container.style_type = ui::StyleType::Path_Bar;
     ui::add_row(&path_bar->container, buttons_in_row, context, heap);
 
     // Add buttons to the path bar.
@@ -204,7 +204,7 @@ void open_dialog(FilePickDialog* dialog, ui::Context* context, Platform* platfor
     // Set up the footer.
     ui::Item* footer = &panel->container.items[2];
     footer->type = ui::ItemType::Container;
-    footer->container.background_colour = vector4_blue;
+    footer->container.style_type = ui::StyleType::Footer;
     footer->container.justification = ui::Justification::Space_Between;
 
     ui::add_row(&footer->container, 2, context, heap);

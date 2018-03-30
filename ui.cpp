@@ -1408,7 +1408,10 @@ static void draw_container(Item* item, Context* context)
 {
     ASSERT(item->type == ItemType::Container);
 
-    immediate::draw_opaque_rect(item->bounds, item->container.background_colour);
+    int style_index = static_cast<int>(item->container.style_type);
+    Style style = context->theme.styles[style_index];
+
+    immediate::draw_opaque_rect(item->bounds, style.background);
 
     for(int i = 0; i < item->container.items_count; i += 1)
     {

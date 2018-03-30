@@ -238,6 +238,11 @@ bool editor_start_up(Platform* platform)
         theme->colours.list_item_background_selected = {1.0f, 1.0f, 1.0f, 0.5f};
         theme->colours.text_input_cursor = vector4_white;
         theme->colours.text_input_selection = {1.0f, 1.0f, 1.0f, 0.4f};
+
+        theme->styles[0].background = vector4_black;
+        theme->styles[1].background = vector4_blue;
+        theme->styles[2].background = {0.145f, 0.145f, 0.145f, 1.0f};
+        theme->styles[3].background = vector4_yellow;
     }
 
     // Setup the main menu.
@@ -245,7 +250,7 @@ bool editor_start_up(Platform* platform)
         main_menu = ui::create_toplevel_container(&ui_context, &heap);
         main_menu->type = ui::ItemType::Container;
         main_menu->growable = true;
-        main_menu->container.background_colour = {0.145f, 0.145f, 0.145f, 1.0f};
+        main_menu->container.style_type = ui::StyleType::Menu_Bar;
         main_menu->container.padding = {1.0f, 1.0f, 1.0f, 1.0f};
         main_menu->container.direction = ui::Direction::Left_To_Right;
         main_menu->container.alignment = ui::Alignment::Start;
@@ -283,7 +288,7 @@ bool editor_start_up(Platform* platform)
         test_anime = ui::create_toplevel_container(&ui_context, &heap);
         test_anime->type = ui::ItemType::Container;
         test_anime->growable = true;
-        test_anime->container.background_colour = {0.145f, 0.145f, 0.145f, 1.0f};
+        test_anime->container.style_type = ui::StyleType::Menu_Bar;
         test_anime->container.padding = {0.0f, 0.0f, 0.0f, 0.0f};
         test_anime->container.direction = ui::Direction::Left_To_Right;
         test_anime->container.alignment = ui::Alignment::Start;
@@ -871,46 +876,44 @@ void editor_update(Platform* platform)
             {
                 handle_input(&dialog, event, &lady, &history, &ui_context, platform, &heap, &scratch);
             }
-            else
+
+            switch(event.type)
             {
-                switch(event.type)
+                case ui::EventType::Button:
                 {
-                    case ui::EventType::Button:
+                    ui::Id id = event.button.id;
+                    if(id == import_button_id)
                     {
-                        ui::Id id = event.button.id;
-                        if(id == import_button_id)
-                        {
-                            open_dialog(&dialog, &ui_context, platform, &heap);
-                        }
-                        else if(id == export_button_id)
-                        {
-
-                        }
-                        else if(id == object_mode_button_id)
-                        {
-                            request_mode_change(Mode::Object);
-                        }
-                        else if(id == face_mode_button_id)
-                        {
-                            request_mode_change(Mode::Face);
-                        }
-                        break;
+                        open_dialog(&dialog, &ui_context, platform, &heap);
                     }
-                    case ui::EventType::Focus_Change:
+                    else if(id == export_button_id)
                     {
-                        ui::Id gained_focus = event.focus_change.now_focused;
-                        if(gained_focus == text_input_id)
-                        {
-                            begin_composed_text(platform);
-                        }
 
-                        ui::Id lost_focus = event.focus_change.now_unfocused;
-                        if(lost_focus == text_input_id)
-                        {
-                            end_composed_text(platform);
-                        }
-                        break;
                     }
+                    else if(id == object_mode_button_id)
+                    {
+                        request_mode_change(Mode::Object);
+                    }
+                    else if(id == face_mode_button_id)
+                    {
+                        request_mode_change(Mode::Face);
+                    }
+                    break;
+                }
+                case ui::EventType::Focus_Change:
+                {
+                    ui::Id gained_focus = event.focus_change.now_focused;
+                    if(gained_focus == text_input_id)
+                    {
+                        begin_composed_text(platform);
+                    }
+
+                    ui::Id lost_focus = event.focus_change.now_unfocused;
+                    if(lost_focus == text_input_id)
+                    {
+                        end_composed_text(platform);
+                    }
+                    break;
                 }
             }
         }

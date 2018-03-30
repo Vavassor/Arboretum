@@ -86,12 +86,20 @@ struct Button
     bool hovered;
 };
 
+enum class StyleType
+{
+    Default,
+    Footer,
+    Menu_Bar,
+    Path_Bar,
+};
+
 struct Container
 {
     Padding padding;
-    Vector4 background_colour;
     Item* items;
     int items_count;
+    StyleType style_type;
     Direction direction;
     Axis axis;
     Justification justification;
@@ -191,9 +199,16 @@ struct EventQueue
     int cap;
 };
 
+struct Style
+{
+    Vector4 background;
+};
+
 struct Theme
 {
     bmfont::Font* font;
+
+    Style styles[4];
 
     struct
     {
