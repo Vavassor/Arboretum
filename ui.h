@@ -73,7 +73,6 @@ struct TextBlock
     U32Map glyph_map;
     Padding padding;
     char* text;
-    bmfont::Font* font;
     Glyph* glyphs;
     int glyphs_cap;
     int glyphs_count;
@@ -192,8 +191,14 @@ struct EventQueue
     int cap;
 };
 
+struct Theme
+{
+    bmfont::Font* font;
+};
+
 struct Context
 {
+    Theme theme;
     EventQueue queue;
     Vector2 viewport;
     Heap* heap;
@@ -205,7 +210,7 @@ struct Context
     Id seed;
 
     // This is for detecting when the mouse cursor is hovering over nothing
-    // in particular, to set the mouse cursor shape to default (arrow).
+    // in particular, to set the mouse cursor shape to its default (arrow).
     bool anything_hovered;
 };
 
@@ -223,9 +228,9 @@ void empty_item(Context* context, Item* item);
 void add_row(Container* container, int count, Context* context, Heap* heap);
 void add_column(Container* container, int count, Context* context, Heap* heap);
 void set_text(TextBlock* text_block, const char* text, Heap* heap);
-void insert_text(Item* item, const char* text_to_add, Vector2 viewport, Platform* platform, Heap* heap, Stack* stack);
+void insert_text(Item* item, const char* text_to_add, Context* context, Platform* platform);
 void create_items(Item* item, int lines_count, Heap* heap);
-void lay_out(Item* item, Rect space, Stack* stack);
+void lay_out(Item* item, Rect space, Context* context);
 void draw(Item* item, Context* context);
 void draw_focus_indicator(Item* item, Context* context);
 

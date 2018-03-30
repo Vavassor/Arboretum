@@ -401,14 +401,14 @@ static float padding_along_axis(Padding padding, int axis)
     return padding[axis] + padding[axis + 2];
 }
 
-static float get_list_item_height(List* list, TextBlock* text_block)
+static float get_list_item_height(List* list, TextBlock* text_block, float line_height)
 {
     float spacing = list->item_spacing;
     Padding padding = text_block->padding;
-    return padding.top + text_block->font->line_height + padding.bottom + spacing;
+    return padding.top + line_height + padding.bottom + spacing;
 }
 
-static float get_scroll_bottom(Item* item)
+static float get_scroll_bottom(Item* item, float line_height)
 {
     float inner_height = item->bounds.dimensions.y;
     List* list = &item->list;
@@ -416,22 +416,22 @@ static float get_scroll_bottom(Item* item)
     if(list->items_count > 0)
     {
         float lines = list->items_count;
-        content_height = lines * get_list_item_height(list, &list->items[0]);
+        content_height = lines * get_list_item_height(list, &list->items[0], line_height);
     }
     return fmax(content_height - inner_height, 0.0f);
 }
 
-static void set_scroll(Item* item, float scroll)
+static void set_scroll(Item* item, float scroll, float line_height)
 {
-    float scroll_bottom = get_scroll_bottom(item);
+    float scroll_bottom = get_scroll_bottom(item, line_height);
     item->list.scroll_top = clamp(scroll, 0.0f, scroll_bottom);
 }
 
-static void scroll(Item* item, float scroll_velocity_y)
+static void scroll(Item* item, float scroll_velocity_y, float line_height)
 {
     const float speed = 120.0f;
     float scroll_top = item->list.scroll_top - (speed * scroll_velocity_y);
-    set_scroll(item, scroll_top);
+    set_scroll(item, scroll_top, line_height);
 }
 
 void create_items(Item* item, int lines_count, Heap* heap)
@@ -454,11 +454,12 @@ void create_items(Item* item, int lines_count, Heap* heap)
     list->selected_item_index = invalid_index;
 }
 
-static Vector2 measure_ideal_dimensions(TextBlock* text_block, Stack* stack)
+static Vector2 measure_ideal_dimensions(TextBlock* text_block, Context* context)
 {
     Vector2 bounds = vector2_zero;
 
-    bmfont::Font* font = text_block->font;
+    bmfont::Font* font = context->theme.font;
+    Stack* stack = context->scratch;
     Padding padding = text_block->padding;
 
     Vector2 texture_dimensions;
@@ -559,7 +560,7 @@ static Vector2 measure_ideal_dimensions(TextBlock* text_block, Stack* stack)
     return bounds;
 }
 
-static Vector2 measure_ideal_dimensions(Container* container, Stack* stack)
+static Vector2 measure_ideal_dimensions(Container* container, Context* context)
 {
     Vector2 bounds = vector2_zero;
     int main_axis = get_main_axis_index(container->axis);
@@ -573,12 +574,12 @@ static Vector2 measure_ideal_dimensions(Container* container, Stack* stack)
         {
             case ItemType::Button:
             {
-                item_ideal = measure_ideal_dimensions(&item->button.text_block, stack);
+                item_ideal = measure_ideal_dimensions(&item->button.text_block, context);
                 break;
             }
             case ItemType::Container:
             {
-                item_ideal = measure_ideal_dimensions(&item->container, stack);
+                item_ideal = measure_ideal_dimensions(&item->container, context);
                 break;
             }
             case ItemType::List:
@@ -588,13 +589,13 @@ static Vector2 measure_ideal_dimensions(Container* container, Stack* stack)
             }
             case ItemType::Text_Block:
             {
-                item_ideal = measure_ideal_dimensions(&item->text_block, stack);
+                item_ideal = measure_ideal_dimensions(&item->text_block, context);
                 break;
             }
             case ItemType::Text_Input:
             {
-                Vector2 input = measure_ideal_dimensions(&item->text_input.text_block, stack);
-                Vector2 hint = measure_ideal_dimensions(&item->text_input.label, stack);
+                Vector2 input = measure_ideal_dimensions(&item->text_input.text_block, context);
+                Vector2 hint = measure_ideal_dimensions(&item->text_input.label, context);
                 item_ideal = max2(input, hint);
                 break;
             }
@@ -660,11 +661,12 @@ static void place_glyph(TextBlock* text_block, bmfont::Glyph* glyph, bmfont::Fon
     insert(&text_block->glyph_map, text_index, glyph_index);
 }
 
-static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimensions, Stack* stack)
+static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimensions, Context* context)
 {
     Vector2 bounds = vector2_zero;
 
-    bmfont::Font* font = text_block->font;
+    bmfont::Font* font = context->theme.font;
+    Stack* stack = context->scratch;
 
     Padding padding = text_block->padding;
     float right = dimensions.x - padding.end;
@@ -832,7 +834,7 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
     return bounds;
 }
 
-static Vector2 measure_bound_dimensions(Container* container, Vector2 container_space, float shrink, Axis shrink_along, Stack* stack)
+static Vector2 measure_bound_dimensions(Container* container, Vector2 container_space, float shrink, Axis shrink_along, Context* context)
 {
     Vector2 result = vector2_zero;
     int main_axis = get_main_axis_index(container->axis);
@@ -854,12 +856,12 @@ static Vector2 measure_bound_dimensions(Container* container, Vector2 container_
         {
             case ItemType::Button:
             {
-                dimensions = measure_bound_dimensions(&item->button.text_block, space, stack);
+                dimensions = measure_bound_dimensions(&item->button.text_block, space, context);
                 break;
             }
             case ItemType::Container:
             {
-                dimensions = measure_bound_dimensions(&item->container, space, shrink, shrink_along, stack);
+                dimensions = measure_bound_dimensions(&item->container, space, shrink, shrink_along, context);
                 break;
             }
             case ItemType::List:
@@ -869,13 +871,13 @@ static Vector2 measure_bound_dimensions(Container* container, Vector2 container_
             }
             case ItemType::Text_Block:
             {
-                dimensions = measure_bound_dimensions(&item->text_block, space, stack);
+                dimensions = measure_bound_dimensions(&item->text_block, space, context);
                 break;
             }
             case ItemType::Text_Input:
             {
-                Vector2 input = measure_bound_dimensions(&item->text_input.text_block, space, stack);
-                Vector2 hint = measure_bound_dimensions(&item->text_input.label, space, stack);
+                Vector2 input = measure_bound_dimensions(&item->text_input.text_block, space, context);
+                Vector2 hint = measure_bound_dimensions(&item->text_input.label, space, context);
                 dimensions = max2(input, hint);
                 break;
             }
@@ -1306,13 +1308,13 @@ static void place_items_along_cross_axis(Item* item, Rect space)
     }
 }
 
-void lay_out(Item* item, Rect space, Stack* stack)
+void lay_out(Item* item, Rect space, Context* context)
 {
     Container* container = &item->container;
     int main_axis = get_main_axis_index(container->axis);
 
     // Compute the ideal dimensions of the container and its contents.
-    Vector2 ideal = measure_ideal_dimensions(container, stack);
+    Vector2 ideal = measure_ideal_dimensions(container, context);
     item->ideal_dimensions = max2(item->min_dimensions, ideal);
     float ideal_length = 0.0f;
     for(int i = 0; i < container->items_count; i += 1)
@@ -1334,7 +1336,7 @@ void lay_out(Item* item, Rect space, Stack* stack)
         // fit in the container.
         float shrink = compute_shrink_factor(container, space, ideal_length);
 
-        Vector2 bound = measure_bound_dimensions(container, space.dimensions, shrink, container->axis, stack);
+        Vector2 bound = measure_bound_dimensions(container, space.dimensions, shrink, container->axis, context);
         if(item->growable)
         {
             bound[main_axis] = space.dimensions[main_axis];
@@ -1412,18 +1414,20 @@ static void draw_container(Item* item, Context* context)
     }
 }
 
-static void place_glyphs(TextBlock* text_block, Vector2 bounds, Stack* stack)
+static void place_glyphs(TextBlock* text_block, Vector2 bounds, Context* context)
 {
-    measure_bound_dimensions(text_block, bounds, stack);
+    measure_bound_dimensions(text_block, bounds, context);
 }
 
-static void place_list_items(Item* item, Stack* stack)
+static void place_list_items(Item* item, Context* context)
 {
     List* list = &item->list;
 
     if(list->items_count > 0)
     {
-        float item_height = get_list_item_height(list, &list->items[0]);
+        float line_height = context->theme.font->line_height;
+
+        float item_height = get_list_item_height(list, &list->items[0], line_height);
         Vector2 top_left = rect_top_left(item->bounds);
 
         Rect place;
@@ -1436,7 +1440,7 @@ static void place_list_items(Item* item, Stack* stack)
         {
             list->items_bounds[i] = place;
             place.bottom_left.y -= place.dimensions.y + list->item_spacing;
-            place_glyphs(&list->items[i], list->items_bounds[i].dimensions, stack);
+            place_glyphs(&list->items[i], list->items_bounds[i].dimensions, context);
         }
     }
 }
@@ -1445,11 +1449,12 @@ static void draw_list(Item* item, Context* context)
 {
     ASSERT(item->type == ItemType::List);
 
-    place_list_items(item, context->scratch);
+    place_list_items(item, context);
 
     immediate::set_clip_area(item->bounds, context->viewport.x, context->viewport.y);
 
     List* list = &item->list;
+    float line_height = context->theme.font->line_height;
     const Vector4 hover_colour = {1.0f, 1.0f, 1.0f, 0.3f};
     const Vector4 selection_colour = {1.0f, 1.0f, 1.0f, 0.5f};
 
@@ -1472,7 +1477,7 @@ static void draw_list(Item* item, Context* context)
         }
 
         // Draw each item's contents.
-        float item_height = get_list_item_height(list, &list->items[0]);
+        float item_height = get_list_item_height(list, &list->items[0], line_height);
         float scroll = list->scroll_top;
         int start_index = scroll / item_height;
         start_index = MAX(start_index, 0);
@@ -1491,14 +1496,13 @@ static void draw_list(Item* item, Context* context)
     immediate::stop_clip_area();
 }
 
-static Vector2 compute_cursor_position(TextBlock* text_block, Vector2 dimensions, int index)
+static Vector2 compute_cursor_position(TextBlock* text_block, Vector2 dimensions, float line_height, int index)
 {
-    bmfont::Font* font = text_block->font;
     Padding padding = text_block->padding;
 
     // @Incomplete: There isn't a one-to-one mapping between chars and glyphs
     // Add a lookup to find the glyph given and index in the string.
-    Vector2 position = {padding.start, -padding.top - font->line_height};
+    Vector2 position = {padding.start, -padding.top - line_height};
     int size = string_size(text_block->text);
     if(index >= size && size > 0)
     {
@@ -1522,11 +1526,9 @@ static Vector2 compute_cursor_position(TextBlock* text_block, Vector2 dimensions
     return position;
 }
 
-static int find_index_at_position(TextBlock* text_block, Vector2 dimensions, Vector2 position)
+static int find_index_at_position(TextBlock* text_block, Vector2 dimensions, float line_height, Vector2 position)
 {
     int index = invalid_index;
-
-    bmfont::Font* font = text_block->font;
 
     float closest = infinity;
     int count = text_block->glyphs_count;
@@ -1535,7 +1537,7 @@ static int find_index_at_position(TextBlock* text_block, Vector2 dimensions, Vec
         Glyph glyph = text_block->glyphs[i];
         Vector2 point = glyph.baseline_start;
 
-        if(position.y >= point.y + font->line_height)
+        if(position.y >= point.y + line_height)
         {
             break;
         }
@@ -1554,7 +1556,7 @@ static int find_index_at_position(TextBlock* text_block, Vector2 dimensions, Vec
     Vector2 point;
     point.x = last.baseline_start.x + last.x_advance;
     point.y = last.baseline_start.y;
-    if(position.y < point.y + font->line_height && position.y > point.y)
+    if(position.y < point.y + line_height && position.y > point.y)
     {
         float distance = abs(point.x - position.x);
         if(distance < closest)
@@ -1575,7 +1577,8 @@ void draw_text_input(Item* item, Context* context)
 
     TextInput* text_input = &item->text_input;
     TextBlock* text_block = &text_input->text_block;
-    bmfont::Font* font = text_block->font;
+    bmfont::Font* font = context->theme.font;
+    float line_height = font->line_height;
 
     bool in_focus = focused_on(context, item);
 
@@ -1594,7 +1597,7 @@ void draw_text_input(Item* item, Context* context)
     // Draw the cursor.
     if(in_focus)
     {
-        Vector2 cursor = compute_cursor_position(text_block, item->bounds.dimensions, text_input->cursor_position);
+        Vector2 cursor = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
         Vector2 top_left = rect_top_left(item->bounds);
         cursor += top_left;
 
@@ -1611,7 +1614,7 @@ void draw_text_input(Item* item, Context* context)
         // Draw the selection highlight.
         if(text_input->cursor_position != text_input->selection_start)
         {
-            Vector2 start = compute_cursor_position(text_block, item->bounds.dimensions, text_input->selection_start);
+            Vector2 start = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->selection_start);
             start += top_left;
 
             Vector2 first, second;
@@ -2005,33 +2008,38 @@ static void detect_capture_changes_for_toplevel_containers(Context* context, Pla
     }
 }
 
-static void update_removed_glyphs(TextBlock* text_block, Vector2 dimensions, Stack* stack)
+static void update_removed_glyphs(TextBlock* text_block, Vector2 dimensions, Context* context)
 {
-    place_glyphs(text_block, dimensions, stack);
+    place_glyphs(text_block, dimensions, context);
 }
 
-static void update_added_glyphs(TextBlock* text_block, Vector2 dimensions, Heap* heap, Stack* stack)
+static void update_added_glyphs(TextBlock* text_block, Vector2 dimensions, Context* context)
 {
     // @Incomplete: There isn't a one-to-one mapping between chars and glyphs.
     // Glyph count should be based on the mapping of the given text in a
     // particular font instead of the size in bytes.
+    Heap* heap = context->heap;
     int glyphs_cap = string_size(text_block->text);
     text_block->glyphs = HEAP_REALLOCATE(heap, text_block->glyphs, glyphs_cap);
     text_block->glyphs_cap = glyphs_cap;
     destroy(&text_block->glyph_map, heap);
     create(&text_block->glyph_map, glyphs_cap, heap);
 
-    place_glyphs(text_block, dimensions, stack);
+    place_glyphs(text_block, dimensions, context);
 }
 
-static void update_cursor_position(TextInput* text_input, Rect bounds, Vector2 viewport, Platform* platform)
+static void update_cursor_position(TextInput* text_input, Rect bounds, Context* context, Platform* platform)
 {
+    bmfont::Font* font = context->theme.font;
+    float line_height = font->line_height;
+    Vector2 viewport = context->viewport;
+
     int index = text_input->cursor_position;
     if(is_valid_index(index))
     {
         // Get the position within the item and determine the corresponding
         // point in the viewport.
-        Vector2 position = compute_cursor_position(&text_input->text_block, bounds.dimensions, index);
+        Vector2 position = compute_cursor_position(&text_input->text_block, bounds.dimensions, line_height, index);
         position += bounds.bottom_left;
         position.x += viewport.x / 2.0f;
         position.y = (viewport.y / 2.0f) - position.y;
@@ -2043,12 +2051,12 @@ static void update_cursor_position(TextInput* text_input, Rect bounds, Vector2 v
     }
 }
 
-static void remove_selected_text(TextInput* text_input, Vector2 dimensions, Platform* platform, Stack* stack)
+static void remove_selected_text(TextInput* text_input, Vector2 dimensions, Context* context, Platform* platform)
 {
     if(text_input->cursor_position != text_input->selection_start)
     {
         remove_substring(text_input->text_block.text, text_input->selection_start, text_input->cursor_position);
-        update_removed_glyphs(&text_input->text_block, dimensions, stack);
+        update_removed_glyphs(&text_input->text_block, dimensions, context);
 
         int collapsed = MIN(text_input->selection_start, text_input->cursor_position);
         text_input->cursor_position = collapsed;
@@ -2056,7 +2064,7 @@ static void remove_selected_text(TextInput* text_input, Vector2 dimensions, Plat
     }
 }
 
-void insert_text(Item* item, const char* text_to_add, Vector2 viewport, Platform* platform, Heap* heap, Stack* stack)
+void insert_text(Item* item, const char* text_to_add, Context* context, Platform* platform)
 {
     TextInput* text_input = &item->text_input;
     TextBlock* text_block = &text_input->text_block;
@@ -2065,20 +2073,20 @@ void insert_text(Item* item, const char* text_to_add, Vector2 viewport, Platform
     int text_to_add_size = string_size(text_to_add);
     if(text_to_add_size > 0)
     {
-        remove_selected_text(text_input, dimensions, platform, stack);
+        remove_selected_text(text_input, dimensions, context, platform);
 
         int insert_index = text_input->cursor_position;
-        char* text = insert_string(text_block->text, text_to_add, insert_index, heap);
-        HEAP_DEALLOCATE(heap, text_block->text);
+        char* text = insert_string(text_block->text, text_to_add, insert_index, context->heap);
+        HEAP_DEALLOCATE(context->heap, text_block->text);
         text_block->text = text;
 
-        update_added_glyphs(text_block, dimensions, heap, stack);
+        update_added_glyphs(text_block, dimensions, context);
 
         // Advance the cursor past the inserted text.
         int text_end = string_size(text_block->text);
         text_input->cursor_position = MIN(text_input->cursor_position + text_to_add_size, text_end);
         text_input->selection_start = text_input->cursor_position;
-        update_cursor_position(text_input, item->bounds, viewport, platform);
+        update_cursor_position(text_input, item->bounds, context, platform);
     }
 }
 
@@ -2262,17 +2270,19 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                 const float factor = 0.2f;
                 const float min_speed = 4.0f;
 
+                float line_height = context->theme.font->line_height;
+
                 if(above_window < 0.0f)
                 {
                     float velocity = (factor * above_window) - min_speed;
                     scroll_top += fmax(velocity, above_window);
-                    set_scroll(item, scroll_top);
+                    set_scroll(item, scroll_top, line_height);
                 }
                 else if(below_window > 0.0f)
                 {
                     float velocity = (factor * below_window) + min_speed;
                     scroll_top += fmin(velocity, below_window);
-                    set_scroll(item, scroll_top);
+                    set_scroll(item, scroll_top, line_height);
                 }
             }
             break;
@@ -2285,10 +2295,11 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
         {
             TextInput* text_input = &item->text_input;
             TextBlock* text_block = &text_input->text_block;
+            float line_height = context->theme.font->line_height;
 
             // Type out any new text.
             char* text_to_add = input::get_composed_text();
-            insert_text(item, text_to_add, context->viewport, platform, context->heap, context->scratch);
+            insert_text(item, text_to_add, context, platform);
 
             // Record the cursor position before any movement so that change can
             // be detected at a single point after any possible cursor moves.
@@ -2330,9 +2341,9 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
 
             if(input::get_key_auto_repeated(input::Key::Up_Arrow))
             {
-                Vector2 position = compute_cursor_position(text_block, item->bounds.dimensions, text_input->cursor_position);
-                position.y += text_block->font->line_height;
-                int index = find_index_at_position(text_block, item->bounds.dimensions, position);
+                Vector2 position = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
+                position.y += line_height;
+                int index = find_index_at_position(text_block, item->bounds.dimensions, line_height, position);
 
                 if(index != invalid_index)
                 {
@@ -2347,9 +2358,9 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
 
             if(input::get_key_auto_repeated(input::Key::Down_Arrow))
             {
-                Vector2 position = compute_cursor_position(text_block, item->bounds.dimensions, text_input->cursor_position);
-                position.y -= text_block->font->line_height;
-                int index = find_index_at_position(text_block, item->bounds.dimensions, position);
+                Vector2 position = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
+                position.y -= line_height;
+                int index = find_index_at_position(text_block, item->bounds.dimensions, line_height, position);
 
                 if(index != invalid_index)
                 {
@@ -2418,7 +2429,7 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                     end = text_input->cursor_position;
                 }
                 remove_substring(text_block->text, start, end);
-                update_removed_glyphs(text_block, item->bounds.dimensions, context->scratch);
+                update_removed_glyphs(text_block, item->bounds.dimensions, context);
 
                 // Set the cursor to the beginning of the selection.
                 int new_position = MIN(start, end);
@@ -2442,7 +2453,7 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                     end = text_input->cursor_position;
                 }
                 remove_substring(text_block->text, start, end);
-                update_removed_glyphs(text_block, item->bounds.dimensions, context->scratch);
+                update_removed_glyphs(text_block, item->bounds.dimensions, context);
 
                 // Retreat the cursor or set it to the beginning of the selection.
                 int new_position = MIN(start, end);
@@ -2466,7 +2477,7 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                 bool copied = copy_selected_text(text_input, platform, context->heap);
                 if(copied)
                 {
-                    remove_selected_text(text_input, item->bounds.dimensions, platform, context->scratch);
+                    remove_selected_text(text_input, item->bounds.dimensions, context, platform);
                 }
             }
 
@@ -2479,7 +2490,7 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
             // been moved.
             if(prior_cursor_position != text_input->cursor_position)
             {
-                update_cursor_position(text_input, item->bounds, context->viewport, platform);
+                update_cursor_position(text_input, item->bounds, context, platform);
             }
 
             break;
@@ -2617,11 +2628,13 @@ static void update_pointer_input(Item* item, Context* context, Platform* platfor
         {
             List* list = &item->list;
 
+            float line_height = context->theme.font->line_height;
+
             int velocity_x;
             int velocity_y;
             input::get_mouse_scroll_velocity(&velocity_x, &velocity_y);
             const float speed = 0.17f;
-            scroll(item, speed * velocity_y);
+            scroll(item, speed * velocity_y, line_height);
 
             if(is_valid_index(list->hovered_item_index) && input::get_mouse_clicked(input::MouseButton::Left))
             {
@@ -2643,6 +2656,7 @@ static void update_pointer_input(Item* item, Context* context, Platform* platfor
         {
             TextInput* text_input = &item->text_input;
             TextBlock* text_block = &text_input->text_block;
+            float line_height = context->theme.font->line_height;
 
             bool clicked = input::get_mouse_clicked(input::MouseButton::Left);
             bool dragged = !clicked && input::get_mouse_pressed(input::MouseButton::Left);
@@ -2657,7 +2671,7 @@ static void update_pointer_input(Item* item, Context* context, Platform* platfor
                 Vector2 top_left = rect_top_left(item->bounds);
                 position -= top_left;
 
-                int index = find_index_at_position(text_block, item->bounds.dimensions, position);
+                int index = find_index_at_position(text_block, item->bounds.dimensions, line_height, position);
                 if(index != invalid_index)
                 {
                     text_input->cursor_position = index;

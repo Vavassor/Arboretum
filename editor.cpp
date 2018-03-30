@@ -220,6 +220,7 @@ bool editor_start_up(Platform* platform)
     {
         bmfont::load_font(&font, "droid_12.fnt", &heap, &scratch);
         video::set_up_font(&font);
+        ui_context.theme.font = &font;
     }
 
     // Setup the main menu.
@@ -239,27 +240,23 @@ bool editor_start_up(Platform* platform)
         main_menu->container.items[0].type = ui::ItemType::Button;
         main_menu->container.items[0].button.enabled = true;
         main_menu->container.items[0].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-        main_menu->container.items[0].button.text_block.font = &font;
         ui::set_text(&main_menu->container.items[0].button.text_block, platform->localized_text.main_menu_import_file, &heap);
         import_button_id = main_menu->container.items[0].id;
 
         main_menu->container.items[1].type = ui::ItemType::Button;
         main_menu->container.items[1].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-        main_menu->container.items[1].button.text_block.font = &font;
         ui::set_text(&main_menu->container.items[1].button.text_block, platform->localized_text.main_menu_export_file, &heap);
         export_button_id = main_menu->container.items[1].id;
 
         main_menu->container.items[2].type = ui::ItemType::Button;
         main_menu->container.items[2].button.enabled = true;
         main_menu->container.items[2].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-        main_menu->container.items[2].button.text_block.font = &font;
         ui::set_text(&main_menu->container.items[2].button.text_block, platform->localized_text.main_menu_enter_object_mode, &heap);
         object_mode_button_id = main_menu->container.items[2].id;
 
         main_menu->container.items[3].type = ui::ItemType::Button;
         main_menu->container.items[3].button.enabled = true;
         main_menu->container.items[3].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-        main_menu->container.items[3].button.text_block.font = &font;
         ui::set_text(&main_menu->container.items[3].button.text_block, platform->localized_text.main_menu_enter_face_mode, &heap);
         face_mode_button_id = main_menu->container.items[3].id;
     }
@@ -279,9 +276,7 @@ bool editor_start_up(Platform* platform)
 
         test_anime->container.items[0].type = ui::ItemType::Text_Input;
         test_anime->container.items[0].text_input.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-        test_anime->container.items[0].text_input.text_block.font = &font;
         test_anime->container.items[0].text_input.label.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-        test_anime->container.items[0].text_input.label.font = &font;
         test_anime->container.items[0].growable = true;
         text_input_id = test_anime->container.items[0].id;
         ui::set_text(&test_anime->container.items[0].text_input.text_block, "", &heap);
@@ -857,7 +852,7 @@ void editor_update(Platform* platform)
         {
             if(dialog.enabled)
             {
-                handle_input(&dialog, event, &font, &lady, &history, &ui_context, platform, &heap, &scratch);
+                handle_input(&dialog, event, &lady, &history, &ui_context, platform, &heap, &scratch);
             }
             else
             {
@@ -868,7 +863,7 @@ void editor_update(Platform* platform)
                         ui::Id id = event.button.id;
                         if(id == import_button_id)
                         {
-                            open_dialog(&dialog, &font, &ui_context, platform, &heap);
+                            open_dialog(&dialog, &ui_context, platform, &heap);
                         }
                         else if(id == export_button_id)
                         {
@@ -987,7 +982,7 @@ void editor_destroy_clipboard_copy(char* clipboard)
 void editor_paste_from_clipboard(Platform* platform, char* clipboard)
 {
     ui::Item* item = &test_anime->container.items[0];
-    ui::insert_text(item, clipboard, ui_context.viewport, platform, &heap, &scratch);
+    ui::insert_text(item, clipboard, &ui_context, platform);
 }
 
 void resize_viewport(int width, int height, double dots_per_millimeter)

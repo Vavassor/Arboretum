@@ -1383,7 +1383,7 @@ void system_update(UpdateState* update, Platform* platform)
         Rect space;
         space.bottom_left = {0.0f, -250.0f};
         space.dimensions = {300.0f, 500.0f};
-        ui::lay_out(dialog_panel, space, &scratch);
+        ui::lay_out(dialog_panel, space, ui_context);
         ui::draw(dialog_panel, ui_context);
 
         ui::draw_focus_indicator(dialog_panel, ui_context);
@@ -1399,7 +1399,7 @@ void system_update(UpdateState* update, Platform* platform)
         space.bottom_left = {-viewport.width / 2.0f, viewport.height / 2.0f};
         space.dimensions = {viewport.width, 60.0f};
         space.bottom_left.y -= space.dimensions.y;
-        ui::lay_out(main_menu, space, &scratch);
+        ui::lay_out(main_menu, space, ui_context);
         ui::draw(main_menu, ui_context);
 
         ui::draw_focus_indicator(main_menu, ui_context);
@@ -1414,7 +1414,7 @@ void system_update(UpdateState* update, Platform* platform)
         Rect space;
         space.bottom_left = {-200.0f, -250.0f};
         space.dimensions = {300.0f, 500.0f};
-        ui::lay_out(update->test_anime, space, &scratch);
+        ui::lay_out(update->test_anime, space, ui_context);
         ui::draw(update->test_anime, ui_context);
 
         ui::draw_focus_indicator(update->test_anime, ui_context);
