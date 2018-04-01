@@ -209,11 +209,29 @@ void open_dialog(FilePickDialog* dialog, ui::Context* context, Platform* platfor
 
     ui::add_row(&footer->container, 2, context, heap);
 
-    ui::Item* file_readout = &footer->container.items[0];
-    file_readout->type = ui::ItemType::Text_Block;
-    file_readout->text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-    ui::set_text(&file_readout->text_block, "", heap);
-    dialog->file_readout = &file_readout->text_block;
+    switch(dialog->type)
+    {
+        case DialogType::Export:
+        {
+            ui::Item* filename_field = &footer->container.items[0];
+            filename_field->type = ui::ItemType::Text_Input;
+            filename_field->text_input.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+            filename_field->text_input.label.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+            ui::set_text(&filename_field->text_input.text_block, "", heap);
+            ui::set_text(&filename_field->text_input.label, "Test label", heap);
+            dialog->filename_field_id = filename_field->id;
+            break;
+        }
+        case DialogType::Import:
+        {
+            ui::Item* file_readout = &footer->container.items[0];
+            file_readout->type = ui::ItemType::Text_Block;
+            file_readout->text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+            ui::set_text(&file_readout->text_block, "", heap);
+            dialog->file_readout = &file_readout->text_block;
+            break;
+        }
+    }
 
     ui::Item* pick = &footer->container.items[1];
     pick->type = ui::ItemType::Button;
@@ -376,10 +394,27 @@ void handle_input(FilePickDialog* dialog, ui::Event event, ObjectLady* lady, His
         }
         case ui::EventType::Focus_Change:
         {
-            ui::Id id = event.focus_change.current_scope;
-            if(id != dialog->panel->id)
+            ui::Id scope = event.focus_change.current_scope;
+            if(scope != dialog->panel->id)
             {
                 close_dialog(dialog, context, heap);
+            }
+
+            if(dialog->type == DialogType::Export)
+            {
+                ui::Id id = dialog->filename_field_id;
+
+                ui::Id gained_focus = event.focus_change.now_focused;
+                if(gained_focus == id)
+                {
+                    begin_composed_text(platform);
+                }
+
+                ui::Id lost_focus = event.focus_change.now_unfocused;
+                if(lost_focus == id)
+                {
+                    end_composed_text(platform);
+                }
             }
             break;
         }

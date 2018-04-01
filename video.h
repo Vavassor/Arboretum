@@ -42,7 +42,6 @@ struct UpdateState
     ui::Context* ui_context;
     ui::Item* main_menu;
     ui::Item* dialog_panel;
-    ui::Item* test_anime;
     bool dialog_enabled;
     ObjectLady* lady;
     int hovered_object_index;

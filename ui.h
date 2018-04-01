@@ -9,6 +9,7 @@ struct Platform;
 struct Heap;
 struct Stack;
 
+// User Interface
 namespace ui {
 
 struct Padding
@@ -258,13 +259,13 @@ void empty_item(Context* context, Item* item);
 void add_row(Container* container, int count, Context* context, Heap* heap);
 void add_column(Container* container, int count, Context* context, Heap* heap);
 void set_text(TextBlock* text_block, const char* text, Heap* heap);
-void insert_text(Item* item, const char* text_to_add, Context* context, Platform* platform);
 void create_items(Item* item, int lines_count, Heap* heap);
 void lay_out(Item* item, Rect space, Context* context);
 void draw(Item* item, Context* context);
 void draw_focus_indicator(Item* item, Context* context);
 
 void update(Context* context, Platform* platform);
+void accept_paste_from_clipboard(Context* context, const char* clipboard, Platform* platform);
 
 extern const Id invalid_id;
 

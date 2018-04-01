@@ -2715,4 +2715,16 @@ void update(Context* context, Platform* platform)
     update_non_item_specific_keyboard_input(context);
 }
 
+void accept_paste_from_clipboard(Context* context, const char* clipboard, Platform* platform)
+{
+    if(context->focused_item)
+    {
+        Item* item = context->focused_item;
+        if(item->type == ItemType::Text_Input)
+        {
+            insert_text(item, clipboard, context, platform);
+        }
+    }
+}
+
 } // namespace ui

@@ -61,12 +61,10 @@ namespace
 
     ui::Context ui_context;
     ui::Item* main_menu;
-    ui::Item* test_anime;
     ui::Id import_button_id;
     ui::Id export_button_id;
     ui::Id object_mode_button_id;
     ui::Id face_mode_button_id;
-    ui::Id text_input_id;
 
     struct
     {
@@ -281,28 +279,6 @@ bool editor_start_up(Platform* platform)
         main_menu->container.items[3].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
         ui::set_text(&main_menu->container.items[3].button.text_block, platform->localized_text.main_menu_enter_face_mode, &heap);
         face_mode_button_id = main_menu->container.items[3].id;
-    }
-
-    // Set up the test anime.
-    {
-        test_anime = ui::create_toplevel_container(&ui_context, &heap);
-        test_anime->type = ui::ItemType::Container;
-        test_anime->growable = true;
-        test_anime->container.style_type = ui::StyleType::Menu_Bar;
-        test_anime->container.padding = {0.0f, 0.0f, 0.0f, 0.0f};
-        test_anime->container.direction = ui::Direction::Left_To_Right;
-        test_anime->container.alignment = ui::Alignment::Start;
-        test_anime->container.justification = ui::Justification::Start;
-
-        ui::add_row(&test_anime->container, 1, &ui_context, &heap);
-
-        test_anime->container.items[0].type = ui::ItemType::Text_Input;
-        test_anime->container.items[0].text_input.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-        test_anime->container.items[0].text_input.label.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-        test_anime->container.items[0].growable = true;
-        text_input_id = test_anime->container.items[0].id;
-        ui::set_text(&test_anime->container.items[0].text_input.text_block, "", &heap);
-        ui::set_text(&test_anime->container.items[0].text_input.label, "Test label", &heap);
     }
 
     // Move tool
@@ -900,21 +876,6 @@ void editor_update(Platform* platform)
                     }
                     break;
                 }
-                case ui::EventType::Focus_Change:
-                {
-                    ui::Id gained_focus = event.focus_change.now_focused;
-                    if(gained_focus == text_input_id)
-                    {
-                        begin_composed_text(platform);
-                    }
-
-                    ui::Id lost_focus = event.focus_change.now_unfocused;
-                    if(lost_focus == text_input_id)
-                    {
-                        end_composed_text(platform);
-                    }
-                    break;
-                }
             }
         }
     }
@@ -986,7 +947,6 @@ void editor_update(Platform* platform)
     update.main_menu = main_menu;
     update.dialog_panel = dialog.panel;
     update.dialog_enabled = dialog.enabled;
-    update.test_anime = test_anime;
     update.lady = &lady;
     update.hovered_object_index = hovered_object_index;
     update.selected_object_index = selected_object_index;
@@ -1001,8 +961,7 @@ void editor_destroy_clipboard_copy(char* clipboard)
 
 void editor_paste_from_clipboard(Platform* platform, char* clipboard)
 {
-    ui::Item* item = &test_anime->container.items[0];
-    ui::insert_text(item, clipboard, &ui_context, platform);
+    ui::accept_paste_from_clipboard(&ui_context, clipboard, platform);
 }
 
 void resize_viewport(int width, int height, double dots_per_millimeter)
