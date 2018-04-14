@@ -3,7 +3,7 @@
 
 #include "bmfont.h"
 #include "geometry.h"
-#include "u32_map.h"
+#include "map.h"
 
 struct Platform;
 struct Heap;
@@ -71,7 +71,7 @@ struct Glyph
 
 struct TextBlock
 {
-    U32Map glyph_map;
+    Map glyph_map;
     Padding padding;
     char* text;
     Glyph* glyphs;

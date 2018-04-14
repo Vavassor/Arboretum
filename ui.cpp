@@ -67,7 +67,7 @@ static void destroy_text_block(TextBlock* text_block, Heap* heap)
     SAFE_HEAP_DEALLOCATE(heap, text_block->text);
     SAFE_HEAP_DEALLOCATE(heap, text_block->glyphs);
 
-    destroy(&text_block->glyph_map, heap);
+    map_destroy(&text_block->glyph_map, heap);
 }
 
 static void destroy_list(List* list, Heap* heap)
@@ -369,7 +369,7 @@ void add_column(Container* container, int count, Context* context, Heap* heap)
 void set_text(TextBlock* text_block, const char* text, Heap* heap)
 {
     // Clean up any prior text.
-    destroy(&text_block->glyph_map, heap);
+    map_destroy(&text_block->glyph_map, heap);
 
     replace_string(&text_block->text, text, heap);
 
@@ -379,7 +379,7 @@ void set_text(TextBlock* text_block, const char* text, Heap* heap)
     int size = MAX(string_size(text), 1);
     text_block->glyphs = HEAP_REALLOCATE(heap, text_block->glyphs, size);
     text_block->glyphs_cap = size;
-    create(&text_block->glyph_map, size, heap);
+    map_create(&text_block->glyph_map, size, heap);
 }
 
 // The "main" axis of a container is the one items are placed along and the
@@ -467,7 +467,7 @@ static Vector2 measure_ideal_dimensions(TextBlock* text_block, Context* context)
     texture_dimensions.y = font->image_height;
 
     text_block->glyphs_count = 0;
-    reset_all(&text_block->glyph_map);
+    map_clear(&text_block->glyph_map);
 
     char32_t prior_char = '\0';
     int size = string_size(text_block->text);
@@ -522,7 +522,9 @@ static Vector2 measure_ideal_dimensions(TextBlock* text_block, Context* context)
             typeset_glyph->text_index = text_index;
             text_block->glyphs_count += 1;
 
-            insert(&text_block->glyph_map, text_index, glyph_index);
+            void* key = reinterpret_cast<void*>(text_index);
+            void* value = reinterpret_cast<void*>(glyph_index);
+            map_add(&text_block->glyph_map, key, value, context->heap);
 
             pen.x += glyph->x_advance + kerning;
         }
@@ -545,7 +547,9 @@ static Vector2 measure_ideal_dimensions(TextBlock* text_block, Context* context)
             typeset_glyph->text_index = text_index;
             text_block->glyphs_count += 1;
 
-            insert(&text_block->glyph_map, text_index, glyph_index);
+            void* key = reinterpret_cast<void*>(text_index);
+            void* value = reinterpret_cast<void*>(glyph_index);
+            map_add(&text_block->glyph_map, key, value, context->heap);
         }
 
         prior_char = current;
@@ -634,7 +638,7 @@ static float compute_run_length(const char* text, int start, int end, bmfont::Fo
     return length;
 }
 
-static void place_glyph(TextBlock* text_block, bmfont::Glyph* glyph, bmfont::Font* font, int text_index, Vector2 pen, Vector2 texture_dimensions)
+static void place_glyph(TextBlock* text_block, bmfont::Glyph* glyph, bmfont::Font* font, int text_index, Vector2 pen, Vector2 texture_dimensions, Context* context)
 {
     Vector2 top_left = pen;
     top_left.x += glyph->offset.x;
@@ -658,7 +662,9 @@ static void place_glyph(TextBlock* text_block, bmfont::Glyph* glyph, bmfont::Fon
     typeset_glyph->text_index = text_index;
     text_block->glyphs_count += 1;
 
-    insert(&text_block->glyph_map, text_index, glyph_index);
+    void* key = reinterpret_cast<void*>(text_index);
+    void* value = reinterpret_cast<void*>(glyph_index);
+    map_add(&text_block->glyph_map, key, value, context->heap);
 }
 
 static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimensions, Context* context)
@@ -673,7 +679,7 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
     float whole_width = dimensions.x - padding.start - padding.end;
 
     text_block->glyphs_count = 0;
-    reset_all(&text_block->glyph_map);
+    map_clear(&text_block->glyph_map);
 
     Vector2 texture_dimensions;
     texture_dimensions.x = font->image_width;
@@ -771,7 +777,7 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
             float kerning = bmfont::lookup_kerning(font, prior_char, current);
             pen.x += kerning;
 
-            place_glyph(text_block, glyph, font, text_index, pen, texture_dimensions);
+            place_glyph(text_block, glyph, font, text_index, pen, texture_dimensions, context);
 
             pen.x += glyph->x_advance;
         }
@@ -794,7 +800,9 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
             typeset_glyph->text_index = text_index;
             text_block->glyphs_count += 1;
 
-            insert(&text_block->glyph_map, text_index, glyph_index);
+            void* key = reinterpret_cast<void*>(text_index);
+            void* value = reinterpret_cast<void*>(glyph_index);
+            map_add(&text_block->glyph_map, key, value, context->heap);
         }
 
         prior_char = current;
@@ -817,7 +825,7 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
             float kerning = bmfont::lookup_kerning(font, prior_char, current);
             pen.x += kerning;
 
-            place_glyph(text_block, glyph, font, text_index, pen, texture_dimensions);
+            place_glyph(text_block, glyph, font, text_index, pen, texture_dimensions, context);
 
             pen.x += glyph->x_advance;
 
@@ -1521,10 +1529,12 @@ static Vector2 compute_cursor_position(TextBlock* text_block, Vector2 dimensions
     }
     else if(index >= 0)
     {
-        u32 glyph_index;
-        bool found = look_up(&text_block->glyph_map, index, &glyph_index);
+        void* value;
+        void* key = reinterpret_cast<void*>(index);
+        bool found = map_get(&text_block->glyph_map, key, &value);
         if(found)
         {
+            upointer glyph_index = reinterpret_cast<upointer>(value);
             Glyph glyph = text_block->glyphs[glyph_index];
             position = glyph.baseline_start;
         }
@@ -2038,8 +2048,8 @@ static void update_added_glyphs(TextBlock* text_block, Vector2 dimensions, Id id
     int glyphs_cap = string_size(text_block->text);
     text_block->glyphs = HEAP_REALLOCATE(heap, text_block->glyphs, glyphs_cap);
     text_block->glyphs_cap = glyphs_cap;
-    destroy(&text_block->glyph_map, heap);
-    create(&text_block->glyph_map, glyphs_cap, heap);
+    map_destroy(&text_block->glyph_map, heap);
+    map_create(&text_block->glyph_map, glyphs_cap, heap);
 
     place_glyphs(text_block, dimensions, context);
     signal_text_change(context, id);
@@ -2129,10 +2139,12 @@ static int find_beginning_of_line(TextBlock* text_block, int start_index)
 {
     start_index = MIN(start_index, string_size(text_block->text) - 1);
 
-    u32 glyph_index;
-    bool found = look_up(&text_block->glyph_map, start_index, &glyph_index);
+    void* key = reinterpret_cast<void*>(start_index);
+    void* value;
+    bool found = map_get(&text_block->glyph_map, key, &value);
     if(found)
     {
+        upointer glyph_index = reinterpret_cast<upointer>(value);
         Glyph first = text_block->glyphs[glyph_index];
         float first_y = first.baseline_start.y;
         for(int i = glyph_index - 1; i >= 0; i -= 1)
@@ -2153,10 +2165,12 @@ static int find_end_of_line(TextBlock* text_block, int start_index)
     int end_of_text = string_size(text_block->text);
     start_index = MIN(start_index, end_of_text - 1);
 
-    u32 glyph_index;
-    bool found = look_up(&text_block->glyph_map, start_index, &glyph_index);
+    void* key = reinterpret_cast<void*>(start_index);
+    void* value;
+    bool found = map_get(&text_block->glyph_map, key, &value);
     if(found)
     {
+        upointer glyph_index = reinterpret_cast<upointer>(value);
         Glyph first = text_block->glyphs[glyph_index];
         float first_y = first.baseline_start.y;
         for(int i = glyph_index + 1; i < text_block->glyphs_count; i += 1)
