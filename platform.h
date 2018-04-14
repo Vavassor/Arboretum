@@ -22,6 +22,7 @@ struct Platform
     struct
     {
         const char* file_pick_dialog_filesystem;
+        const char* file_pick_dialog_export;
         const char* file_pick_dialog_import;
         const char* main_menu_enter_face_mode;
         const char* main_menu_enter_object_mode;

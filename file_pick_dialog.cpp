@@ -209,6 +209,7 @@ void open_dialog(FilePickDialog* dialog, ui::Context* context, Platform* platfor
 
     ui::add_row(&footer->container, 2, context, heap);
 
+    const char* pick_button_text;
     switch(dialog->type)
     {
         case DialogType::Export:
@@ -217,9 +218,14 @@ void open_dialog(FilePickDialog* dialog, ui::Context* context, Platform* platfor
             filename_field->type = ui::ItemType::Text_Input;
             filename_field->text_input.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
             filename_field->text_input.label.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+            filename_field->growable = true;
             ui::set_text(&filename_field->text_input.text_block, "", heap);
-            ui::set_text(&filename_field->text_input.label, "Test label", heap);
+            ui::set_text(&filename_field->text_input.label, "enter filename", heap);
             dialog->filename_field_id = filename_field->id;
+            dialog->filename_field = &filename_field->text_input;
+
+            pick_button_text = platform->localized_text.file_pick_dialog_export;
+
             break;
         }
         case DialogType::Import:
@@ -229,6 +235,9 @@ void open_dialog(FilePickDialog* dialog, ui::Context* context, Platform* platfor
             file_readout->text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
             ui::set_text(&file_readout->text_block, "", heap);
             dialog->file_readout = &file_readout->text_block;
+
+            pick_button_text = platform->localized_text.file_pick_dialog_import;
+
             break;
         }
     }
@@ -236,7 +245,7 @@ void open_dialog(FilePickDialog* dialog, ui::Context* context, Platform* platfor
     ui::Item* pick = &footer->container.items[1];
     pick->type = ui::ItemType::Button;
     pick->button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-    ui::set_text(&pick->button.text_block, platform->localized_text.file_pick_dialog_import, heap);
+    ui::set_text(&pick->button.text_block, pick_button_text, heap);
     dialog->pick_button = pick->id;
     dialog->pick = &pick->button;
 }
@@ -266,9 +275,28 @@ static void touch_record(FilePickDialog* dialog, int record_index, bool expand, 
     {
         case DirectoryRecordType::Directory:
         {
-            ui::set_text(dialog->file_readout, "", heap);
-            dialog->record_selected = invalid_index;
-            dialog->pick->enabled = false;
+            switch(dialog->type)
+            {
+                case DialogType::Import:
+                {
+                    ui::set_text(dialog->file_readout, "", heap);
+                    dialog->pick->enabled = false;
+                    dialog->record_selected = invalid_index;
+                    break;
+                }
+                case DialogType::Export:
+                {
+                    // If the user typed in an arbitrary filename, it shouldn't
+                    // be cleared.
+                    if(dialog->record_selected != invalid_index)
+                    {
+                        ui::set_text(dialog->file_readout, "", heap);
+                        dialog->pick->enabled = false;
+                        dialog->record_selected = invalid_index;
+                    }
+                    break;
+                }
+            }
 
             if(expand)
             {
@@ -285,7 +313,21 @@ static void touch_record(FilePickDialog* dialog, int record_index, bool expand, 
             dialog->record_selected = record_index;
             dialog->pick->enabled = true;
             const char* filename = dialog->directory.records[record_index].name;
-            ui::set_text(dialog->file_readout, filename, heap);
+
+            switch(dialog->type)
+            {
+                case DialogType::Import:
+                {
+                    ui::set_text(dialog->file_readout, filename, heap);
+                    break;
+                }
+                case DialogType::Export:
+                {
+                    ui::set_text(&dialog->filename_field->text_block, filename, heap);
+                    break;
+                }
+            }
+
             break;
         }
         default:
@@ -335,7 +377,25 @@ static void open_parent_directory(FilePickDialog* dialog, int segment, ui::Conte
     HEAP_DEALLOCATE(heap, subpath);
 }
 
-static void pick_file(FilePickDialog* dialog, const char* name, ObjectLady* lady, History* history, ui::Context* context, Heap* heap, Stack* stack)
+static void export_file(FilePickDialog* dialog, const char* name, ObjectLady* lady, int selected_object_index, ui::Context* context, Heap* heap)
+{
+    char* path = append_to_path(dialog->path, name, heap);
+    jan::Mesh* mesh = &lady->objects[selected_object_index].mesh;
+    bool saved = obj::save_file(path, mesh, heap);
+    HEAP_DEALLOCATE(heap, path);
+
+    if(!saved)
+    {
+        // TODO: Report this to the user, not the log!
+        LOG_DEBUG("Failed to save the file %s as an .obj.", name);
+    }
+    else
+    {
+        close_dialog(dialog, context, heap);
+    }
+}
+
+static void import_file(FilePickDialog* dialog, const char* name, ObjectLady* lady, History* history, ui::Context* context, Heap* heap, Stack* stack)
 {
     char* path = append_to_path(dialog->path, name, heap);
     jan::Mesh mesh;
@@ -368,7 +428,54 @@ static void pick_file(FilePickDialog* dialog, const char* name, ObjectLady* lady
     }
 }
 
-void handle_input(FilePickDialog* dialog, ui::Event event, ObjectLady* lady, History* history, ui::Context* context, Platform* platform, Heap* heap, Stack* stack)
+static void pick_file(FilePickDialog* dialog, ObjectLady* lady, int selected_object_index, History* history, ui::Context* context, Heap* heap, Stack* stack)
+{
+    int selected = dialog->record_selected;
+
+    switch(dialog->type)
+    {
+        case DialogType::Export:
+        {
+            char* filename;
+
+            if(is_valid_index(selected))
+            {
+                DirectoryRecord record = dialog->directory.records[selected];
+                filename = copy_string_to_stack(record.name, stack);
+            }
+            else
+            {
+                const char* name = dialog->filename_field->text_block.text;
+                const char* extension = ".obj";
+
+                if(string_ends_with(name, extension))
+                {
+                    filename = copy_string_to_stack(name, stack);
+                }
+                else
+                {
+                    int size = string_size(name) + string_size(extension) + 1;
+                    filename = STACK_ALLOCATE(stack, char, size);
+                    format_string(filename, size, "%s%s", name, extension);
+                }
+            }
+
+            export_file(dialog, filename, lady, selected_object_index, context, heap);
+            STACK_DEALLOCATE(stack, filename);
+
+            break;
+        }
+        case DialogType::Import:
+        {
+            ASSERT(is_valid_index(selected));
+            DirectoryRecord record = dialog->directory.records[selected];
+            import_file(dialog, record.name, lady, history, context, heap, stack);
+            break;
+        }
+    }
+}
+
+void handle_input(FilePickDialog* dialog, ui::Event event, ObjectLady* lady, int selected_object_index, History* history, ui::Context* context, Platform* platform, Heap* heap, Stack* stack)
 {
     switch(event.type)
     {
@@ -386,9 +493,7 @@ void handle_input(FilePickDialog* dialog, ui::Event event, ObjectLady* lady, His
 
             if(id == dialog->pick_button)
             {
-                int selected = dialog->record_selected;
-                DirectoryRecord record = dialog->directory.records[selected];
-                pick_file(dialog, record.name, lady, history, context, heap, stack);
+                pick_file(dialog, lady, selected_object_index, history, context, heap, stack);
             }
             break;
         }
@@ -423,6 +528,20 @@ void handle_input(FilePickDialog* dialog, ui::Event event, ObjectLady* lady, His
             int index = event.list_selection.index;
             bool expand = event.list_selection.expand;
             touch_record(dialog, index, expand, context, platform, heap);
+            break;
+        }
+        case ui::EventType::Text_Change:
+        {
+            if(dialog->type == DialogType::Export
+                && event.text_change.id == dialog->filename_field_id)
+            {
+                int size = string_size(dialog->filename_field->text_block.text);
+                dialog->pick->enabled = size != 0;
+
+                // If a file was selected and the user starts editing the text
+                // then the user may no longer be referring to the file.
+                dialog->record_selected = invalid_index;
+            }
             break;
         }
     }

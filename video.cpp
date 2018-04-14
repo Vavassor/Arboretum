@@ -644,6 +644,19 @@ static Object* look_up(DenseMap* map, DenseMapId id)
 
 static void remove_pair(DenseMap* map, DenseMapId id, int index)
 {
+    // TODO: This doesn't tombstone slots! When a key is removed, it may have
+    // been in the path that another key probed past to get to its current slot.
+    // So removing this slot from that path will cause the next lookup for that
+    // other key to fail. Normally a "tombstone" value is placed in a deleted
+    // key slot, which is treated as empty but allows probes to move across it.
+    // 
+    // When the hash map is used for a long period it can accumulate tombstones
+    // which increases probe lengths. So, a strategy to counterract this is,
+    // during a remove, to patch a bit ahead of the removed value. Probe forward
+    // and search for values that missed their original hash and swap them back
+    // to where they should be. If a slot that has a correctly-placed hash or is
+    // empty is found, you can clear out intervening tombstones and finish.
+
     int probe = hash_index(index, map->table_size);
     while(map->id_table_keys[probe] != index && map->id_table_keys[probe] != invalid_index)
     {

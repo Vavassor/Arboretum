@@ -163,8 +163,9 @@ struct Item
 enum class EventType
 {
     Button,
-    List_Selection,
     Focus_Change,
+    List_Selection,
+    Text_Change,
 };
 
 struct Event
@@ -179,16 +180,21 @@ struct Event
 
         struct
         {
+            Id now_focused;
+            Id now_unfocused;
+            Id current_scope;
+        } focus_change;
+
+        struct
+        {
             int index;
             bool expand;
         } list_selection;
 
         struct
         {
-            Id now_focused;
-            Id now_unfocused;
-            Id current_scope;
-        } focus_change;
+            Id id;
+        } text_change;
     };
 };
 

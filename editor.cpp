@@ -264,6 +264,7 @@ bool editor_start_up(Platform* platform)
         import_button_id = main_menu->container.items[0].id;
 
         main_menu->container.items[1].type = ui::ItemType::Button;
+        main_menu->container.items[1].button.enabled = true;
         main_menu->container.items[1].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
         ui::set_text(&main_menu->container.items[1].button.text_block, platform->localized_text.main_menu_export_file, &heap);
         export_button_id = main_menu->container.items[1].id;
@@ -789,7 +790,7 @@ static void request_mode_change(Mode requested_mode)
         case Mode::Edge:
         case Mode::Vertex:
         {
-            if(selected_object_index != invalid_index)
+            if(is_valid_index(selected_object_index))
             {
                 mode = requested_mode;
             }
@@ -813,9 +814,8 @@ void editor_update(Platform* platform)
     }
     if(mouse.drag)
     {
-        if(
-            input::get_mouse_pressed(input::MouseButton::Left) ||
-            input::get_mouse_pressed(input::MouseButton::Right))
+        if(input::get_mouse_pressed(input::MouseButton::Left)
+            || input::get_mouse_pressed(input::MouseButton::Right))
         {
             int velocity_x;
             int velocity_y;
@@ -850,7 +850,7 @@ void editor_update(Platform* platform)
         {
             if(dialog.enabled)
             {
-                handle_input(&dialog, event, &lady, &history, &ui_context, platform, &heap, &scratch);
+                handle_input(&dialog, event, &lady, selected_object_index, &history, &ui_context, platform, &heap, &scratch);
             }
 
             switch(event.type)
@@ -860,11 +860,13 @@ void editor_update(Platform* platform)
                     ui::Id id = event.button.id;
                     if(id == import_button_id)
                     {
+                        dialog.type = DialogType::Import;
                         open_dialog(&dialog, &ui_context, platform, &heap);
                     }
                     else if(id == export_button_id)
                     {
-
+                        dialog.type = DialogType::Export;
+                        open_dialog(&dialog, &ui_context, platform, &heap);
                     }
                     else if(id == object_mode_button_id)
                     {
@@ -876,7 +878,19 @@ void editor_update(Platform* platform)
                     }
                     break;
                 }
+                case ui::EventType::Focus_Change:
+                case ui::EventType::List_Selection:
+                case ui::EventType::Text_Change:
+                {
+                    break;
+                }
             }
+        }
+
+        // The export button is only enabled if an object is selected.
+        if(!dialog.enabled)
+        {
+            main_menu->container.items[1].button.enabled = is_valid_index(selected_object_index);
         }
     }
 

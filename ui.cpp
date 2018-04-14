@@ -2015,12 +2015,21 @@ static void detect_capture_changes_for_toplevel_containers(Context* context, Pla
     }
 }
 
-static void update_removed_glyphs(TextBlock* text_block, Vector2 dimensions, Context* context)
+static void signal_text_change(Context* context, Id id)
 {
-    place_glyphs(text_block, dimensions, context);
+    Event event = {};
+    event.type = EventType::Text_Change;
+    event.text_change.id = id;
+    enqueue(&context->queue, event);
 }
 
-static void update_added_glyphs(TextBlock* text_block, Vector2 dimensions, Context* context)
+static void update_removed_glyphs(TextBlock* text_block, Vector2 dimensions, Id id, Context* context)
+{
+    place_glyphs(text_block, dimensions, context);
+    signal_text_change(context, id);
+}
+
+static void update_added_glyphs(TextBlock* text_block, Vector2 dimensions, Id id, Context* context)
 {
     // @Incomplete: There isn't a one-to-one mapping between chars and glyphs.
     // Glyph count should be based on the mapping of the given text in a
@@ -2033,6 +2042,7 @@ static void update_added_glyphs(TextBlock* text_block, Vector2 dimensions, Conte
     create(&text_block->glyph_map, glyphs_cap, heap);
 
     place_glyphs(text_block, dimensions, context);
+    signal_text_change(context, id);
 }
 
 static void update_cursor_position(TextInput* text_input, Rect bounds, Context* context, Platform* platform)
@@ -2058,12 +2068,12 @@ static void update_cursor_position(TextInput* text_input, Rect bounds, Context* 
     }
 }
 
-static void remove_selected_text(TextInput* text_input, Vector2 dimensions, Context* context, Platform* platform)
+static void remove_selected_text(TextInput* text_input, Vector2 dimensions, Id id, Context* context, Platform* platform)
 {
     if(text_input->cursor_position != text_input->selection_start)
     {
         remove_substring(text_input->text_block.text, text_input->selection_start, text_input->cursor_position);
-        update_removed_glyphs(&text_input->text_block, dimensions, context);
+        update_removed_glyphs(&text_input->text_block, dimensions, id, context);
 
         int collapsed = MIN(text_input->selection_start, text_input->cursor_position);
         text_input->cursor_position = collapsed;
@@ -2080,14 +2090,14 @@ void insert_text(Item* item, const char* text_to_add, Context* context, Platform
     int text_to_add_size = string_size(text_to_add);
     if(text_to_add_size > 0)
     {
-        remove_selected_text(text_input, dimensions, context, platform);
+        remove_selected_text(text_input, dimensions, item->id, context, platform);
 
         int insert_index = text_input->cursor_position;
         char* text = insert_string(text_block->text, text_to_add, insert_index, context->heap);
         HEAP_DEALLOCATE(context->heap, text_block->text);
         text_block->text = text;
 
-        update_added_glyphs(text_block, dimensions, context);
+        update_added_glyphs(text_block, dimensions, item->id, context);
 
         // Advance the cursor past the inserted text.
         int text_end = string_size(text_block->text);
@@ -2436,7 +2446,7 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                     end = text_input->cursor_position;
                 }
                 remove_substring(text_block->text, start, end);
-                update_removed_glyphs(text_block, item->bounds.dimensions, context);
+                update_removed_glyphs(text_block, item->bounds.dimensions, item->id, context);
 
                 // Set the cursor to the beginning of the selection.
                 int new_position = MIN(start, end);
@@ -2460,7 +2470,7 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                     end = text_input->cursor_position;
                 }
                 remove_substring(text_block->text, start, end);
-                update_removed_glyphs(text_block, item->bounds.dimensions, context);
+                update_removed_glyphs(text_block, item->bounds.dimensions, item->id, context);
 
                 // Retreat the cursor or set it to the beginning of the selection.
                 int new_position = MIN(start, end);
@@ -2484,7 +2494,7 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                 bool copied = copy_selected_text(text_input, platform, context->heap);
                 if(copied)
                 {
-                    remove_selected_text(text_input, item->bounds.dimensions, context, platform);
+                    remove_selected_text(text_input, item->bounds.dimensions, item->id, context, platform);
                 }
             }
 
