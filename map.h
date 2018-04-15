@@ -37,6 +37,12 @@ bool map_iterator_is_not_end(MapIterator it);
 void* map_iterator_get_key(MapIterator it);
 void* map_iterator_get_value(MapIterator it);
 
+#define MAP_ADD(map, key, value, heap) \
+    map_add(map, reinterpret_cast<void*>(key), reinterpret_cast<void*>(value), heap)
+
+#define MAP_REMOVE(map, key) \
+    map_remove(map, reinterpret_cast<void*>(key))
+
 #define ITERATE_MAP(it, map) \
     for(MapIterator it = map_iterator_start(map); map_iterator_is_not_end(it); it = map_iterator_next(it))
 

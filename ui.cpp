@@ -522,9 +522,7 @@ static Vector2 measure_ideal_dimensions(TextBlock* text_block, Context* context)
             typeset_glyph->text_index = text_index;
             text_block->glyphs_count += 1;
 
-            void* key = reinterpret_cast<void*>(text_index);
-            void* value = reinterpret_cast<void*>(glyph_index);
-            map_add(&text_block->glyph_map, key, value, context->heap);
+            MAP_ADD(&text_block->glyph_map, text_index, glyph_index, context->heap);
 
             pen.x += glyph->x_advance + kerning;
         }
@@ -547,9 +545,7 @@ static Vector2 measure_ideal_dimensions(TextBlock* text_block, Context* context)
             typeset_glyph->text_index = text_index;
             text_block->glyphs_count += 1;
 
-            void* key = reinterpret_cast<void*>(text_index);
-            void* value = reinterpret_cast<void*>(glyph_index);
-            map_add(&text_block->glyph_map, key, value, context->heap);
+            MAP_ADD(&text_block->glyph_map, text_index, glyph_index, context->heap);
         }
 
         prior_char = current;
@@ -662,9 +658,7 @@ static void place_glyph(TextBlock* text_block, bmfont::Glyph* glyph, bmfont::Fon
     typeset_glyph->text_index = text_index;
     text_block->glyphs_count += 1;
 
-    void* key = reinterpret_cast<void*>(text_index);
-    void* value = reinterpret_cast<void*>(glyph_index);
-    map_add(&text_block->glyph_map, key, value, context->heap);
+    MAP_ADD(&text_block->glyph_map, text_index, glyph_index, context->heap);
 }
 
 static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimensions, Context* context)
@@ -800,9 +794,7 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
             typeset_glyph->text_index = text_index;
             text_block->glyphs_count += 1;
 
-            void* key = reinterpret_cast<void*>(text_index);
-            void* value = reinterpret_cast<void*>(glyph_index);
-            map_add(&text_block->glyph_map, key, value, context->heap);
+            MAP_ADD(&text_block->glyph_map, text_index, glyph_index, context->heap);
         }
 
         prior_char = current;

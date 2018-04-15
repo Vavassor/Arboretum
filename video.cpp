@@ -1,33 +1,34 @@
 #include "video.h"
 
-#include "float_utilities.h"
-#include "int_utilities.h"
-#include "string_utilities.h"
-#include "string_build.h"
-#include "vector_math.h"
-#include "gl_core_3_3.h"
-#include "vertex_layout.h"
-#include "shader.h"
-#include "jan.h"
-#include "intersection.h"
-#include "input.h"
-#include "logging.h"
-#include "memory.h"
 #include "assert.h"
 #include "array2.h"
-#include "bmp.h"
-#include "obj.h"
-#include "immediate.h"
-#include "math_basics.h"
 #include "bmfont.h"
-#include "ui.h"
-#include "filesystem.h"
-#include "platform.h"
-#include "sorting.h"
-#include "history.h"
+#include "bmp.h"
 #include "colours.h"
+#include "filesystem.h"
+#include "float_utilities.h"
+#include "gl_core_3_3.h"
+#include "history.h"
+#include "immediate.h"
+#include "input.h"
+#include "int_utilities.h"
+#include "intersection.h"
+#include "jan.h"
+#include "logging.h"
+#include "map.h"
+#include "math_basics.h"
+#include "memory.h"
 #include "move_tool.h"
+#include "obj.h"
 #include "object_lady.h"
+#include "platform.h"
+#include "shader.h"
+#include "sorting.h"
+#include "string_utilities.h"
+#include "string_build.h"
+#include "ui.h"
+#include "vector_math.h"
+#include "vertex_layout.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -504,30 +505,20 @@ GLuint upload_bitmap(Bitmap* bitmap)
 
 struct DenseMap
 {
+    Map id_map;
+    Map index_map;
     Object* array;
-    int* id_table_keys;
-    DenseMapId* id_table_values;
-    DenseMapId* index_table_keys;
-    int* index_table_values;
     DenseMapId seed;
-    int table_size;
-    int table_filled;
 };
 
 static void create(DenseMap* map, Heap* heap)
 {
-    const int table_size = 1024;
+    const int cap = 1024;
 
     map->array = nullptr;
-    map->id_table_keys = HEAP_ALLOCATE(heap, int, table_size);
-    map->id_table_values = HEAP_ALLOCATE(heap, DenseMapId, table_size);
-    map->index_table_keys = HEAP_ALLOCATE(heap, DenseMapId, table_size);
-    map->index_table_values = HEAP_ALLOCATE(heap, int, table_size);
-    set_memory(map->id_table_keys, 0xff, sizeof(int) * table_size);
-    set_memory(map->index_table_values, 0xff, sizeof(int) * table_size);
+    map_create(&map->id_map, cap, heap);
+    map_create(&map->index_map, cap, heap);
     map->seed = 1;
-    map->table_size = table_size;
-    map->table_filled = 0;
 }
 
 static void destroy(DenseMap* map, Heap* heap)
@@ -535,10 +526,8 @@ static void destroy(DenseMap* map, Heap* heap)
     if(map)
     {
         ARRAY_DESTROY(map->array, heap);
-        SAFE_HEAP_DEALLOCATE(heap, map->id_table_keys);
-        SAFE_HEAP_DEALLOCATE(heap, map->id_table_values);
-        SAFE_HEAP_DEALLOCATE(heap, map->index_table_keys);
-        SAFE_HEAP_DEALLOCATE(heap, map->index_table_values);
+        map_destroy(&map->id_map, heap);
+        map_destroy(&map->index_map, heap);
     }
 }
 
@@ -549,91 +538,40 @@ static DenseMapId generate_id(DenseMap* map)
     return id;
 }
 
-// a public domain 4-byte hash function by Bob Jenkins, adapted from a
-// multiplicative method by Thomas Wang, to do it 6-shifts
-// http://burtleburtle.net/bob/hash/integer.html
-static u32 hash_bj6(u32 a)
+static void add_pair(DenseMap* map, DenseMapId id, int index, Heap* heap)
 {
-    a = (a + 0x7ed55d16) + (a << 12);
-    a = (a ^ 0xc761c23c) ^ (a >> 19);
-    a = (a + 0x165667b1) + (a << 5);
-    a = (a + 0xd3a2646c) ^ (a << 9);
-    a = (a + 0xfd7046c5) + (a << 3);
-    a = (a ^ 0xb55a4f09) ^ (a >> 16);
-    return a;
-}
-
-static int hash_id(DenseMapId id, int n)
-{
-    return hash_bj6(id) & (n - 1);
-}
-
-static int hash_index(int index, int n)
-{
-    return hash_bj6(index) & (n - 1);
-}
-
-static void add_pair(DenseMap* map, DenseMapId id, int index)
-{
-    // Insert the ID into the ID table.
-    ASSERT(can_use_bitwise_and_to_cycle(map->table_size));
-    int probe = hash_index(index, map->table_size);
-    while(map->id_table_keys[probe] != invalid_index)
-    {
-        probe = (probe + 1) & (map->table_size - 1);
-    }
-    map->id_table_keys[probe] = index;
-    map->id_table_values[probe] = id;
-
-    // Insert the index into the index table.
-    probe = hash_id(id, map->table_size);
-    while(map->index_table_keys[probe])
-    {
-        probe = (probe + 1) & (map->table_size - 1);
-    }
-    map->index_table_keys[probe] = id;
-    map->index_table_values[probe] = index;
+    MAP_ADD(&map->id_map, index, id, heap);
+    MAP_ADD(&map->index_map, id, index, heap);
 }
 
 static DenseMapId add(DenseMap* map, Heap* heap)
 {
     int index = ARRAY_COUNT(map->array);
+    DenseMapId id = generate_id(map);
+
     Object nobody = {};
     ARRAY_ADD(map->array, nobody, heap);
-
-    DenseMapId id = generate_id(map);
-    add_pair(map, id, index);
-
-    map->table_filled += 1;
-    if(map->table_filled >= map->table_size)
-    {
-        ASSERT(false);
-        // TODO: resize
-    }
+    add_pair(map, id, index, heap);
 
     return id;
 }
 
 static int look_up_index(DenseMap* map, DenseMapId id)
 {
-    int probe = hash_id(id, map->table_size);
-    while(map->index_table_keys[probe] != id && map->index_table_keys[probe])
-    {
-        probe = (probe + 1) & (map->table_size - 1);
-    }
-    int index = map->index_table_values[probe];
-    return index;
+    void* key = reinterpret_cast<void*>(id);
+    void* value;
+    bool got = map_get(&map->index_map, key, &value);
+    ASSERT(got);
+    return reinterpret_cast<upointer>(value);
 }
 
 static DenseMapId look_up_id(DenseMap* map, int index)
 {
-    int probe = hash_index(index, map->table_size);
-    while(map->id_table_keys[probe] != index && map->id_table_keys[probe] != invalid_index)
-    {
-        probe = (probe + 1) & (map->table_size - 1);
-    }
-    DenseMapId id = map->id_table_values[probe];
-    return id;
+    void* key = reinterpret_cast<void*>(index);
+    void* value;
+    bool got = map_get(&map->index_map, key, &value);
+    ASSERT(got);
+    return reinterpret_cast<upointer>(value);
 }
 
 static Object* look_up(DenseMap* map, DenseMapId id)
@@ -644,37 +582,11 @@ static Object* look_up(DenseMap* map, DenseMapId id)
 
 static void remove_pair(DenseMap* map, DenseMapId id, int index)
 {
-    // TODO: This doesn't tombstone slots! When a key is removed, it may have
-    // been in the path that another key probed past to get to its current slot.
-    // So removing this slot from that path will cause the next lookup for that
-    // other key to fail. Normally a "tombstone" value is placed in a deleted
-    // key slot, which is treated as empty but allows probes to move across it.
-    // 
-    // When the hash map is used for a long period it can accumulate tombstones
-    // which increases probe lengths. So, a strategy to counterract this is,
-    // during a remove, to patch a bit ahead of the removed value. Probe forward
-    // and search for values that missed their original hash and swap them back
-    // to where they should be. If a slot that has a correctly-placed hash or is
-    // empty is found, you can clear out intervening tombstones and finish.
-
-    int probe = hash_index(index, map->table_size);
-    while(map->id_table_keys[probe] != index && map->id_table_keys[probe] != invalid_index)
-    {
-        probe = (probe + 1) & (map->table_size - 1);
-    }
-    map->id_table_keys[probe] = invalid_index;
-    map->id_table_values[probe] = 0;
-
-    probe = hash_id(id, map->table_size);
-    while(map->index_table_keys[probe] != id && map->index_table_keys[probe])
-    {
-        probe = (probe + 1) & (map->table_size - 1);
-    }
-    map->index_table_keys[probe] = 0;
-    map->index_table_values[probe] = invalid_index;
+    MAP_REMOVE(&map->id_map, index);
+    MAP_REMOVE(&map->index_map, id);
 }
 
-static void remove(DenseMap* map, DenseMapId id)
+static void remove(DenseMap* map, DenseMapId id, Heap* heap)
 {
     int index = look_up_index(map, id);
     Object* object = &map->array[index];
@@ -685,7 +597,7 @@ static void remove(DenseMap* map, DenseMapId id)
     int moved_index = ARRAY_COUNT(map->array);
     DenseMapId moved_id = look_up_id(map, moved_index);
     remove_pair(map, moved_id, moved_index);
-    add_pair(map, moved_id, index);
+    add_pair(map, moved_id, index, heap);
 }
 
 namespace
@@ -1455,7 +1367,7 @@ void remove_object(DenseMapId id)
 {
     Object* object = look_up(&objects, id);
     object_destroy(object);
-    remove(&objects, id);
+    remove(&objects, id, &heap);
 }
 
 Object* get_object(DenseMapId id)
