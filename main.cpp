@@ -1186,6 +1186,7 @@ int main(int argc, char** argv)
 
 #elif defined(OS_WINDOWS)
 
+#include "assert.h"
 #include "editor.h"
 #include "gl_core_3_3.h"
 #include "input.h"
@@ -1198,6 +1199,7 @@ int main(int argc, char** argv)
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <Windows.h>
+#include <windowsx.h>
 
 struct PlatformWindows
 {
@@ -1289,6 +1291,137 @@ void request_paste_from_clipboard(Platform* base)
 	// TODO
 }
 
+static void get_window_dimensions(PlatformWindows* platform, int* width, int* height)
+{
+	RECT rect;
+	BOOL got = GetClientRect(platform->window, &rect);
+	ASSERT(got);
+	*width = rect.right;
+	*height = rect.bottom;
+}
+
+static double get_dots_per_millimeter(PlatformWindows* platform)
+{
+	const double millimeters_per_inch = 25.4;
+	UINT dpi = 96; // GetDpiForWindow(platform->window);
+	return dpi / millimeters_per_inch;
+}
+
+static input::Key translate_virtual_key(WPARAM w_param)
+{
+	switch(w_param)
+	{
+		case '0':           return input::Key::Zero;
+		case '1':           return input::Key::One;
+		case '2':           return input::Key::Two;
+		case '3':           return input::Key::Three;
+		case '4':           return input::Key::Four;
+		case '5':           return input::Key::Five;
+		case '6':           return input::Key::Six;
+		case '7':           return input::Key::Seven;
+		case '8':           return input::Key::Eight;
+		case '9':           return input::Key::Nine;
+		case 'A':           return input::Key::A;
+		case VK_ADD:        return input::Key::Numpad_Add;
+		case 'B':           return input::Key::B;
+		case VK_BACK:       return input::Key::Backspace;
+		case 'C':           return input::Key::C;
+		case 'D':           return input::Key::D;
+		case VK_DECIMAL:    return input::Key::Numpad_Decimal;
+		case VK_DELETE:     return input::Key::Delete;
+		case VK_DIVIDE:     return input::Key::Numpad_Divide;
+		case VK_DOWN:       return input::Key::Down_Arrow;
+		case 'E':           return input::Key::E;
+		case VK_END:        return input::Key::End;
+		case VK_ESCAPE:     return input::Key::Escape;
+		case 'F':           return input::Key::F;
+		case VK_F1:         return input::Key::F1;
+		case VK_F2:         return input::Key::F2;
+		case VK_F3:         return input::Key::F3;
+		case VK_F4:         return input::Key::F4;
+		case VK_F5:         return input::Key::F5;
+		case VK_F6:         return input::Key::F6;
+		case VK_F7:         return input::Key::F7;
+		case VK_F8:         return input::Key::F8;
+		case VK_F9:         return input::Key::F9;
+		case VK_F10:        return input::Key::F10;
+		case VK_F11:        return input::Key::F11;
+		case VK_F12:        return input::Key::F12;
+		case 'G':           return input::Key::G;
+		case 'H':           return input::Key::H;
+		case VK_HOME:       return input::Key::Home;
+		case 'I':           return input::Key::I;
+		case VK_INSERT:     return input::Key::Insert;
+		case 'J':           return input::Key::J;
+		case 'K':           return input::Key::K;
+		case 'L':           return input::Key::L;
+		case VK_LEFT:       return input::Key::Left_Arrow;
+		case 'M':           return input::Key::M;
+		case VK_MULTIPLY:   return input::Key::Numpad_Multiply;
+		case 'N':           return input::Key::N;
+		case VK_NUMPAD0:    return input::Key::Numpad_0;
+		case VK_NUMPAD1:    return input::Key::Numpad_1;
+		case VK_NUMPAD2:    return input::Key::Numpad_2;
+		case VK_NUMPAD3:    return input::Key::Numpad_3;
+		case VK_NUMPAD4:    return input::Key::Numpad_4;
+		case VK_NUMPAD5:    return input::Key::Numpad_5;
+		case VK_NUMPAD6:    return input::Key::Numpad_6;
+		case VK_NUMPAD7:    return input::Key::Numpad_7;
+		case VK_NUMPAD8:    return input::Key::Numpad_8;
+		case VK_NUMPAD9:    return input::Key::Numpad_9;
+		case VK_NEXT:       return input::Key::Page_Down;
+		case 'O':           return input::Key::O;
+		case VK_OEM_1:      return input::Key::Semicolon;
+		case VK_OEM_2:      return input::Key::Slash;
+		case VK_OEM_3:      return input::Key::Grave_Accent;
+		case VK_OEM_4:      return input::Key::Left_Bracket;
+		case VK_OEM_5:      return input::Key::Backslash;
+		case VK_OEM_6:      return input::Key::Right_Bracket;
+		case VK_OEM_7:      return input::Key::Apostrophe;
+		case VK_OEM_COMMA:  return input::Key::Comma;
+		case VK_OEM_MINUS:  return input::Key::Minus;
+		case VK_OEM_PERIOD: return input::Key::Period;
+		case VK_OEM_PLUS:   return input::Key::Equals_Sign;
+		case 'P':           return input::Key::P;
+		case VK_PAUSE:      return input::Key::Pause;
+		case VK_PRIOR:      return input::Key::Page_Up;
+		case 'Q':           return input::Key::Q;
+		case 'R':           return input::Key::R;
+		case VK_RETURN:     return input::Key::Enter;
+		case VK_RIGHT:      return input::Key::Right_Arrow;
+		case 'S':           return input::Key::S;
+		case VK_SPACE:      return input::Key::Space;
+		case VK_SUBTRACT:   return input::Key::Numpad_Subtract;
+		case 'T':           return input::Key::T;
+		case VK_TAB:        return input::Key::Tab;
+		case 'U':           return input::Key::U;
+		case VK_UP:         return input::Key::Up_Arrow;
+		case 'V':           return input::Key::V;
+		case 'W':           return input::Key::W;
+		case 'X':           return input::Key::X;
+		case 'Y':           return input::Key::Y;
+		case 'Z':           return input::Key::Z;
+		default:            return input::Key::Unknown;
+	}
+}
+
+static input::Modifier translate_modifiers(WPARAM w_param)
+{
+	input::Modifier modifier = {};
+	modifier.control = w_param & MK_CONTROL;
+	modifier.shift = w_param & MK_SHIFT;
+	return modifier;
+}
+
+static input::Modifier fetch_modifiers()
+{
+	input::Modifier modifier = {};
+	modifier.alt = GetKeyState(VK_MENU) & 0x8000;
+	modifier.control = GetKeyState(VK_CONTROL) & 0x8000;
+	modifier.shift = GetKeyState(VK_SHIFT) & 0x8000;
+	return modifier;
+}
+
 namespace
 {
 	const int window_width = 800;
@@ -1341,18 +1474,110 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
 
 			return 0;
 		}
+		case WM_KEYDOWN:
+		{
+			bool auto_repeated = l_param & 0x40000000;
+			if(!auto_repeated)
+			{
+				input::Modifier modifier = fetch_modifiers();
+				input::Key key = translate_virtual_key(w_param);
+				input::key_press(key, true, modifier);
+			}
+
+			return 0;
+		}
+		case WM_KEYUP:
+		{
+			input::Modifier modifier = fetch_modifiers();
+			input::Key key = translate_virtual_key(w_param);
+			input::key_press(key, false, modifier);
+
+			return 0;
+		}
+		case WM_LBUTTONDOWN:
+		{
+			input::Modifier modifier = translate_modifiers(w_param);
+			input::mouse_click(input::MouseButton::Left, true, modifier);
+
+			return 0;
+		}
+		case WM_LBUTTONUP:
+		{
+			input::Modifier modifier = translate_modifiers(w_param);
+			input::mouse_click(input::MouseButton::Left, false, modifier);
+
+			return 0;
+		}
+		case WM_MBUTTONDOWN:
+		{
+			input::Modifier modifier = translate_modifiers(w_param);
+			input::mouse_click(input::MouseButton::Middle, true, modifier);
+
+			return 0;
+		}
+		case WM_MBUTTONUP:
+		{
+			input::Modifier modifier = translate_modifiers(w_param);
+			input::mouse_click(input::MouseButton::Middle, false, modifier);
+
+			return 0;
+		}
+		case WM_MOUSEMOVE:
+		{
+			int x = GET_X_LPARAM(l_param);
+			int y = GET_Y_LPARAM(l_param);
+			input::mouse_move(x, y);
+
+			return 0;
+		}
+		case WM_MOUSEWHEEL:
+		{
+			int scroll = GET_WHEEL_DELTA_WPARAM(w_param) / WHEEL_DELTA;
+			input::mouse_scroll(0, scroll);
+
+			return 0;
+		}
+		case WM_RBUTTONDOWN:
+		{
+			input::Modifier modifier = translate_modifiers(w_param);
+			input::mouse_click(input::MouseButton::Right, true, modifier);
+
+			return 0;
+		}
+		case WM_RBUTTONUP:
+		{
+			input::Modifier modifier = translate_modifiers(w_param);
+			input::mouse_click(input::MouseButton::Right, false, modifier);
+
+			return 0;
+		}
+		case WM_SETCURSOR:
+		{
+			if(LOWORD(l_param) == HTCLIENT)
+			{
+				HCURSOR cursor = get_cursor_by_type(&platform, platform.cursor_type);
+				SetCursor(cursor);
+				return TRUE;
+			}
+			return FALSE;
+		}
+		case WM_SIZE:
+		{
+			int width = LOWORD(l_param);
+			int height = HIWORD(l_param);
+			double dpmm = get_dots_per_millimeter(&platform);
+			if(functions_loaded)
+			{
+				resize_viewport(width, height, dpmm);
+			}
+
+			return 0;
+		}
 		default:
 		{
 			return DefWindowProc(hwnd, message, w_param, l_param);
 		}
 	}
-}
-
-static double get_dots_per_millimeter(PlatformWindows* platform)
-{
-	const double millimeters_per_inch = 25.4;
-	UINT dpi = 96; // GetDpiForWindow(platform->window);
-	return dpi / millimeters_per_inch;
 }
 
 static LocaleId match_closest_locale_id()
@@ -1397,7 +1622,7 @@ static bool main_start_up(HINSTANCE instance, int show_command)
 		return false;
 	}
 
-	DWORD window_style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+	DWORD window_style = WS_OVERLAPPEDWINDOW;
 	const char* app_name = platform.base.nonlocalized_text.app_name;
 	platform.window = CreateWindowExA(WS_EX_APPWINDOW, MAKEINTATOM(registered_class), app_name, window_style, CW_USEDEFAULT, CW_USEDEFAULT, window_width, window_height, nullptr, nullptr, instance, nullptr);
 	if(!platform.window)
@@ -1416,9 +1641,11 @@ static bool main_start_up(HINSTANCE instance, int show_command)
 	PIXELFORMATDESCRIPTOR descriptor = {};
 	descriptor.nSize = sizeof descriptor;
 	descriptor.nVersion = 1;
-	descriptor.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER | PFD_DEPTH_DONTCARE;
+	descriptor.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
 	descriptor.iPixelType = PFD_TYPE_RGBA;
 	descriptor.cColorBits = 32;
+	descriptor.cDepthBits = 24;
+	descriptor.cStencilBits = 8;
 	descriptor.iLayerType = PFD_MAIN_PLANE;
 	int format_index = ChoosePixelFormat(platform.device_context, &descriptor);
 	if(format_index == 0)
@@ -1472,7 +1699,9 @@ static bool main_start_up(HINSTANCE instance, int show_command)
 	}
 
 	double dpmm = get_dots_per_millimeter(&platform);
-	resize_viewport(window_width, window_height, dpmm);
+	int width, height;
+	get_window_dimensions(&platform, &width, &height);
+	resize_viewport(width, height, dpmm);
 
 	return true;
 }
