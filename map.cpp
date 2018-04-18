@@ -256,6 +256,7 @@ void map_remove(Map* map, void* key)
         map->values[i] = map->values[j];
         map->hashes[i] = map->hashes[j];
     }
+	map->count -= 1;
 }
 
 void map_reserve(Map* map, int cap, Heap* heap)

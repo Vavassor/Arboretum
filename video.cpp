@@ -569,7 +569,7 @@ static DenseMapId look_up_id(DenseMap* map, int index)
 {
     void* key = reinterpret_cast<void*>(index);
     void* value;
-    bool got = map_get(&map->index_map, key, &value);
+    bool got = map_get(&map->id_map, key, &value);
     ASSERT(got);
     return reinterpret_cast<upointer>(value);
 }
@@ -588,16 +588,19 @@ static void remove_pair(DenseMap* map, DenseMapId id, int index)
 
 static void remove(DenseMap* map, DenseMapId id, Heap* heap)
 {
-    int index = look_up_index(map, id);
-    Object* object = &map->array[index];
-    ARRAY_REMOVE(map->array, object);
+	int index = look_up_index(map, id);
+	Object* object = &map->array[index];
+	ARRAY_REMOVE(map->array, object);
 
-    remove_pair(map, id, index);
+	remove_pair(map, id, index);
 
-    int moved_index = ARRAY_COUNT(map->array);
-    DenseMapId moved_id = look_up_id(map, moved_index);
-    remove_pair(map, moved_id, moved_index);
-    add_pair(map, moved_id, index, heap);
+	int moved_index = ARRAY_COUNT(map->array);
+	if(moved_index != 0)
+	{
+		DenseMapId moved_id = look_up_id(map, moved_index);
+		remove_pair(map, moved_id, moved_index);
+		add_pair(map, moved_id, index, heap);
+	}
 }
 
 namespace
