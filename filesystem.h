@@ -7,7 +7,7 @@ struct Stack;
 struct Heap;
 
 bool load_whole_file(const char* path, void** contents, u64* bytes, Stack* stack);
-bool save_whole_file(const char* path, const void* contents, u64 bytes);
+bool save_whole_file(const char* path, const void* contents, u64 bytes, Stack* stack);
 
 enum class FileOpenMode
 {

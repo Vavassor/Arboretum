@@ -3,6 +3,8 @@
 
 #include "sized_types.h"
 
+struct Stack;
+
 // Bitmap Image File (.bmp)
 namespace bmp {
 
@@ -39,7 +41,7 @@ enum
     COMPRESSION_NONE = 0,
 };
 
-bool write_file(const char* path, const u8* pixels, int width, int height);
+bool write_file(const char* path, const u8* pixels, int width, int height, Stack* stack);
 
 } // namespace bmp
 

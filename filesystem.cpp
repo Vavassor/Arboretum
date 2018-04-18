@@ -52,8 +52,10 @@ bool load_whole_file(const char* path, void** contents, u64* bytes, Stack* stack
     return true;
 }
 
-bool save_whole_file(const char* path, const void* contents, u64 bytes)
+bool save_whole_file(const char* path, const void* contents, u64 bytes, Stack* stack)
 {
+	static_cast<void>(stack);
+
     int flag = O_WRONLY | O_CREAT | O_TRUNC;
     mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
     int file = open(path, flag, mode);
@@ -371,9 +373,21 @@ bool load_whole_file(const char* path, void** contents, u64* bytes, Stack* stack
 	return true;
 }
 
-bool save_whole_file(const char* path, const void* contents, u64 bytes)
+bool save_whole_file(const char* path, const void* contents, u64 bytes, Stack* stack)
 {
-	return true;
+	wchar_t* wide_path = utf8_to_wide_char(path, stack);
+	HANDLE handle = CreateFileW(wide_path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+	STACK_DEALLOCATE(stack, wide_path);
+	if(handle == INVALID_HANDLE_VALUE)
+	{
+		return false;
+	}
+
+	DWORD bytes_written;
+	BOOL wrote = WriteFile(handle, contents, bytes, &bytes_written, nullptr);
+	CloseHandle(handle);
+
+	return wrote && bytes_written == bytes;
 }
 
 struct File

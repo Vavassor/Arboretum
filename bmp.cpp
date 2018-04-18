@@ -10,7 +10,7 @@ static unsigned int pad_multiple_of_four(unsigned int x)
     return (x + 3) & ~0x3;
 }
 
-bool write_file(const char* path, const u8* pixels, int width, int height)
+bool write_file(const char* path, const u8* pixels, int width, int height, Stack* stack)
 {
     unsigned int bytes_per_pixel = 3;
     unsigned int padded_width = pad_multiple_of_four(width);
@@ -57,7 +57,7 @@ bool write_file(const char* path, const u8* pixels, int width, int height)
         hand += row_padding;
     }
 
-    save_whole_file(path, file_contents, file_size);
+    save_whole_file(path, file_contents, file_size, stack);
 
     virtual_deallocate(file_contents);
 

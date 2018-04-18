@@ -1344,7 +1344,7 @@ void system_update(UpdateState* update, Platform* platform)
         int pixels_count = viewport.width * viewport.height;
         Pixel24* pixels = STACK_ALLOCATE(&scratch, Pixel24, pixels_count);
         glReadPixels(0, 0, viewport.width, viewport.height, GL_BGR, GL_UNSIGNED_BYTE, pixels);
-        bmp::write_file("test.bmp", reinterpret_cast<const u8*>(pixels), viewport.width, viewport.height);
+        bmp::write_file("test.bmp", reinterpret_cast<const u8*>(pixels), viewport.width, viewport.height, &scratch);
         STACK_DEALLOCATE(&scratch, pixels);
     }
 }
