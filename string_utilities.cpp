@@ -208,6 +208,17 @@ bool only_control_characters(const char* s)
     return true;
 }
 
+void replace_chars(char* s, char original, char replacement)
+{
+	for(int i = 0; s[i]; i += 1)
+	{
+		if(s[i] == original)
+		{
+			s[i] = replacement;
+		}
+	}
+}
+
 // String To Value..............................................................
 
 static bool is_whitespace(char c)
@@ -912,7 +923,7 @@ static void find_length(FormatContext* context)
     ASSERT(false);
 }
 
-static void process_specifier(FormatContext* context, va_list arguments)
+static va_list process_specifier(FormatContext* context, va_list arguments)
 {
     char specifier = *context->format;
     char* buffer = context->buffer + context->chars_written;
@@ -1454,6 +1465,8 @@ static void process_specifier(FormatContext* context, va_list arguments)
             break;
         }
     }
+	
+	return arguments;
 }
 
 // TODO: Bug report December 31, 2017 - segfault in process_specifier when
@@ -1487,7 +1500,7 @@ void va_list_format_string(char* buffer, int buffer_size, const char* format, va
                 find_width(&context, arguments);
                 find_precision(&context, arguments);
                 find_length(&context);
-                process_specifier(&context, arguments);
+                arguments = process_specifier(&context, arguments);
             }
         }
     }

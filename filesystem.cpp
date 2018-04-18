@@ -510,7 +510,10 @@ static DirectoryRecordType translate_directory_record_type(DWORD attributes)
 
 bool list_files_in_directory(const char* path, Directory* result, Heap* heap)
 {
-	wchar_t* wide_path = utf8_to_wide_char(path, heap);
+	char* new_path = copy_string_to_heap(path, heap);
+	new_path = append_to_path(new_path, "*", heap);
+	wchar_t* wide_path = utf8_to_wide_char(new_path, heap);
+	HEAP_DEALLOCATE(heap, new_path);
 
 	WIN32_FIND_DATAW data;
 	HANDLE found = FindFirstFileW(wide_path, &data);
@@ -525,9 +528,17 @@ bool list_files_in_directory(const char* path, Directory* result, Heap* heap)
 
 	do
 	{
+		char* filename = wide_char_to_utf8(data.cFileName, heap);
+
+		if(strings_match(filename, ".") || strings_match(filename, ".."))
+		{
+			HEAP_DEALLOCATE(heap, filename);
+			continue;
+		}
+
 		DirectoryRecord record;
 		record.type = translate_directory_record_type(data.dwFileAttributes);
-		record.name = wide_char_to_utf8(data.cFileName, heap);
+		record.name = filename;
 		record.hidden = data.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN;
 
 		ARRAY_ADD(listing, record, heap);
@@ -566,6 +577,7 @@ char* get_documents_folder(Heap* heap)
 	}
 
 	char* finished = wide_char_to_utf8(path, heap);
+	replace_chars(finished, '\\', '/');
 
 	CoTaskMemFree(path);
 

@@ -17,6 +17,7 @@ int count_char_occurrences(const char* string, char c);
 int compare_alphabetic_ascii(const char* RESTRICT a, const char* RESTRICT b);
 bool only_control_characters(const char* string);
 void to_upper_case_ascii(char* string);
+void replace_chars(char* s, char original, char replacement);
 
 bool string_to_int(const char* string, int* value);
 bool string_to_float(const char* string, float* value);
@@ -24,7 +25,7 @@ bool string_to_double(const char* string, double* value);
 
 const char* bool_to_string(bool b);
 int int_to_string(char* string, int size, int value);
-void float_to_string(char* string, float value, unsigned int precision);
+void float_to_string(char* string, int size, float value, unsigned int precision);
 
 void va_list_format_string(char* buffer, int buffer_size, const char* format, va_list arguments);
 void format_string(char* buffer, int buffer_size, const char* format, ...);
