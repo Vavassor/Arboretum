@@ -318,7 +318,7 @@ static bool string_to_u64(const char* string, char** after, int base, u64* value
     }
     if(negative)
     {
-        result = -result;
+        result = ~result + 1;
     }
 
     *value = result;
@@ -575,7 +575,10 @@ static void double_to_string(char* string, int size, double value, unsigned int 
         int m1;
         if(include_exponent)
         {
-            if(m < 0) m -= 1.0;
+			if(m < 0)
+			{
+				m -= 1.0;
+			}
             n /= pow(10.0, m);
             m1 = m;
             m = 0;

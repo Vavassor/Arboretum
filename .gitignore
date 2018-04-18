@@ -1,5 +1,7 @@
+Arboretum/
 Debug/
 Release/
+.vs/
 .cproject
 .project
 *.vcxproj*

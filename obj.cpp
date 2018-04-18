@@ -401,7 +401,7 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
         for(int i = 0; i < ARRAY_COUNT(faces); i += 1)
         {
             Face obj_face = faces[i];
-            jan::Vertex* vertices[obj_face.sides];
+            jan::Vertex** vertices = STACK_ALLOCATE(stack, jan::Vertex*, obj_face.sides);
             for(int j = 0; j < obj_face.sides; j += 1)
             {
                 MultiIndex index = multi_indices[obj_face.base_index + j];
@@ -422,7 +422,8 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
                 }
                 vertices[j] = vertex;
             }
-            jan::connect_disconnected_vertices_and_add_face(&mesh, vertices, obj_face.sides);
+            jan::connect_disconnected_vertices_and_add_face(&mesh, vertices, obj_face.sides, stack);
+			STACK_DEALLOCATE(stack, vertices);
         }
         jan::update_normals(&mesh);
         STACK_DEALLOCATE(stack, seen);

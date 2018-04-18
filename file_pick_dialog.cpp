@@ -212,6 +212,7 @@ void open_dialog(FilePickDialog* dialog, ui::Context* context, Platform* platfor
     const char* pick_button_text;
     switch(dialog->type)
     {
+		default:
         case DialogType::Export:
         {
             ui::Item* filename_field = &footer->container.items[0];

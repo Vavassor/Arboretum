@@ -1,3 +1,7 @@
+#include "platform_definitions.h"
+
+#if defined(OS_LINUX)
+
 #include <X11/X.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
@@ -1179,3 +1183,398 @@ int main(int argc, char** argv)
 
     return 0;
 }
+
+#elif defined(OS_WINDOWS)
+
+#include "editor.h"
+#include "gl_core_3_3.h"
+#include "input.h"
+#include "logging.h"
+#include "platform.h"
+#include "video.h"
+#include "wgl_extensions.h"
+
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <Windows.h>
+
+struct PlatformWindows
+{
+	Platform base;
+
+	HWND window;
+	HDC device_context;
+
+	CursorType cursor_type;
+	HCURSOR cursor_arrow;
+	HCURSOR cursor_hand_pointing;
+	HCURSOR cursor_i_beam;
+	HCURSOR cursor_prohibition_sign;
+};
+
+static void load_cursors(PlatformWindows* platform)
+{
+	UINT flags = LR_DEFAULTSIZE | LR_SHARED;
+	platform->cursor_arrow = static_cast<HCURSOR>(LoadImage(nullptr, IDC_ARROW, IMAGE_CURSOR, 0, 0, flags));
+	platform->cursor_hand_pointing = static_cast<HCURSOR>(LoadImage(nullptr, IDC_HAND, IMAGE_CURSOR, 0, 0, flags));
+	platform->cursor_i_beam = static_cast<HCURSOR>(LoadImage(nullptr, IDC_IBEAM, IMAGE_CURSOR, 0, 0, flags));
+	platform->cursor_prohibition_sign = static_cast<HCURSOR>(LoadImage(nullptr, IDC_NO, IMAGE_CURSOR, 0, 0, flags));
+}
+
+static HCURSOR get_cursor_by_type(PlatformWindows* platform, CursorType type)
+{
+	switch(type)
+	{
+		default:
+		case CursorType::Arrow:
+			return platform->cursor_arrow;
+
+		case CursorType::Hand_Pointing:
+			return platform->cursor_hand_pointing;
+
+		case CursorType::I_Beam:
+			return platform->cursor_i_beam;
+
+		case CursorType::Prohibition_Sign:
+			return platform->cursor_prohibition_sign;
+	}
+}
+
+void change_cursor(Platform* base, CursorType type)
+{
+	PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
+	if(platform->cursor_type != type)
+	{
+		HCURSOR cursor = get_cursor_by_type(platform, type);
+		SetCursor(cursor);
+		platform->cursor_type = type;
+	}
+}
+
+void begin_composed_text(Platform* base)
+{
+	PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
+
+	// TODO
+}
+
+void end_composed_text(Platform* base)
+{
+	PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
+
+	// TODO
+}
+
+void set_composed_text_position(Platform* base, int x, int y)
+{
+	PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
+
+	// TODO
+}
+
+bool copy_to_clipboard(Platform* base, char* clipboard)
+{
+	PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
+
+	// TODO
+
+	return true;
+}
+
+void request_paste_from_clipboard(Platform* base)
+{
+	PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
+
+	// TODO
+}
+
+namespace
+{
+	const int window_width = 800;
+	const int window_height = 600;
+
+	PlatformWindows platform;
+	HGLRC rendering_context;
+	bool functions_loaded;
+}
+
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_param)
+{
+	switch(message)
+	{
+		case WM_CLOSE:
+		{
+			PostQuitMessage(0);
+			return 0;
+		}
+		case WM_DESTROY:
+		{
+			HGLRC rc = wglGetCurrentContext();
+			if(rc)
+			{
+				HDC dc = wglGetCurrentDC();
+				wglMakeCurrent(nullptr, nullptr);
+				ReleaseDC(hwnd, dc);
+				wglDeleteContext(rc);
+			}
+			DestroyWindow(hwnd);
+			if(hwnd == platform.window)
+			{
+				platform.window = nullptr;
+			}
+			return 0;
+		}
+		case WM_DPICHANGED:
+		{
+			WORD dpi = HIWORD(w_param);
+			double dots_per_millimeter = dpi / 25.4;
+			resize_viewport(window_width, window_height, dots_per_millimeter);
+
+			RECT* suggested_rect = reinterpret_cast<RECT*>(l_param);
+			int left = suggested_rect->left;
+			int top = suggested_rect->top;
+			int width = suggested_rect->right - suggested_rect->left;
+			int height = suggested_rect->bottom - suggested_rect->top;
+			UINT flags = SWP_NOZORDER | SWP_NOACTIVATE;
+			SetWindowPos(hwnd, nullptr, left, top, width, height, flags);
+
+			return 0;
+		}
+		default:
+		{
+			return DefWindowProc(hwnd, message, w_param, l_param);
+		}
+	}
+}
+
+static double get_dots_per_millimeter(PlatformWindows* platform)
+{
+	const double millimeters_per_inch = 25.4;
+	UINT dpi = 96; // GetDpiForWindow(platform->window);
+	return dpi / millimeters_per_inch;
+}
+
+static LocaleId match_closest_locale_id()
+{
+	LANGID id = GetUserDefaultUILanguage();
+	WORD primary = PRIMARYLANGID(id);
+	switch(primary)
+	{
+		default:
+		case LANG_ENGLISH:
+		{
+			return LocaleId::Default;
+		}
+	}
+}
+
+static bool main_start_up(HINSTANCE instance, int show_command)
+{
+	platform.base.locale_id = match_closest_locale_id();
+	create_stack(&platform.base);
+	bool loaded = load_localized_text(&platform.base);
+	if(!loaded)
+	{
+		LOG_ERROR("Failed to load the localized text.");
+		return false;
+	}
+	load_cursors(&platform);
+
+	WNDCLASSEXA window_class = {};
+	window_class.cbSize = sizeof window_class;
+	window_class.style = CS_HREDRAW | CS_VREDRAW;
+	window_class.lpfnWndProc = WindowProc;
+	window_class.hInstance = instance;
+	window_class.hIcon = LoadIcon(instance, IDI_APPLICATION);
+	window_class.hIconSm = static_cast<HICON>(LoadIcon(instance, IDI_APPLICATION));
+	window_class.hCursor = LoadCursor(nullptr, IDC_ARROW);
+	window_class.lpszClassName = "ArboretumWindowClass";
+	ATOM registered_class = RegisterClassExA(&window_class);
+	if(registered_class == 0)
+	{
+		LOG_ERROR("Failed to register the window class.");
+		return false;
+	}
+
+	DWORD window_style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+	const char* app_name = platform.base.nonlocalized_text.app_name;
+	platform.window = CreateWindowExA(WS_EX_APPWINDOW, MAKEINTATOM(registered_class), app_name, window_style, CW_USEDEFAULT, CW_USEDEFAULT, window_width, window_height, nullptr, nullptr, instance, nullptr);
+	if(!platform.window)
+	{
+		LOG_ERROR("Failed to create the window.");
+		return false;
+	}
+
+	platform.device_context = GetDC(platform.window);
+	if(!platform.device_context)
+	{
+		LOG_ERROR("Couldn't obtain the device context.");
+		return false;
+	}
+
+	PIXELFORMATDESCRIPTOR descriptor = {};
+	descriptor.nSize = sizeof descriptor;
+	descriptor.nVersion = 1;
+	descriptor.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER | PFD_DEPTH_DONTCARE;
+	descriptor.iPixelType = PFD_TYPE_RGBA;
+	descriptor.cColorBits = 32;
+	descriptor.iLayerType = PFD_MAIN_PLANE;
+	int format_index = ChoosePixelFormat(platform.device_context, &descriptor);
+	if(format_index == 0)
+	{
+		LOG_ERROR("Failed to set up the pixel format.");
+		return false;
+	}
+	if(SetPixelFormat(platform.device_context, format_index, &descriptor) == FALSE)
+	{
+		LOG_ERROR("Failed to set up the pixel format.");
+		return false;
+	}
+
+	rendering_context = wglCreateContext(platform.device_context);
+	if(!rendering_context)
+	{
+		LOG_ERROR("Couldn't create the rendering context.");
+		return false;
+	}
+
+	ShowWindow(platform.window, show_command);
+
+	// Set it to be this thread's rendering context.
+	if(wglMakeCurrent(platform.device_context, rendering_context) == FALSE)
+	{
+		LOG_ERROR("Couldn't set this thread's rendering context (wglMakeCurrent failed).");
+		return false;
+	}
+
+	functions_loaded = ogl_LoadFunctions();
+	if(!functions_loaded)
+	{
+		LOG_ERROR("OpenGL functions could not be loaded!");
+		return false;
+	}
+
+	input::system_start_up();
+
+	bool started = video::system_start_up();
+	if(!started)
+	{
+		LOG_ERROR("Video system failed startup.");
+		return false;
+	}
+
+	started = editor_start_up(&platform.base);
+	if(!started)
+	{
+		LOG_ERROR("Editor failed startup.");
+		return false;
+	}
+
+	double dpmm = get_dots_per_millimeter(&platform);
+	resize_viewport(window_width, window_height, dpmm);
+
+	return true;
+}
+
+static void main_shut_down()
+{
+	editor_shut_down();
+	video::system_shut_down(functions_loaded);
+	destroy_stack(&platform.base);
+
+	if(rendering_context)
+	{
+		wglMakeCurrent(nullptr, nullptr);
+		ReleaseDC(platform.window, platform.device_context);
+		wglDeleteContext(rendering_context);
+	}
+	else if(platform.device_context)
+	{
+		ReleaseDC(platform.window, platform.device_context);
+	}
+	if(platform.window)
+	{
+		DestroyWindow(platform.window);
+	}
+}
+
+static s64 get_clock_frequency()
+{
+	LARGE_INTEGER frequency;
+	QueryPerformanceFrequency(&frequency);
+	return frequency.QuadPart;
+}
+
+static s64 get_timestamp()
+{
+	LARGE_INTEGER now;
+	QueryPerformanceCounter(&now);
+	return now.QuadPart;
+}
+
+static double get_second_duration(s64 start, s64 end, s64 frequency)
+{
+	return (end - start) / static_cast<double>(frequency);
+}
+
+static void go_to_sleep(double amount_to_sleep)
+{
+	DWORD milliseconds = 1000 * amount_to_sleep;
+	Sleep(milliseconds);
+}
+
+static int main_loop()
+{
+	const double frame_frequency = 1.0 / 60.0;
+	s64 clock_frequency = get_clock_frequency();
+
+	MSG msg = {};
+	for(;;)
+	{
+		s64 frame_start_time = get_timestamp();
+
+		editor_update(&platform.base);
+		input::system_update();
+
+		SwapBuffers(platform.device_context);
+
+		while(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+		{
+			if(msg.message == WM_QUIT)
+			{
+				return msg.wParam;
+			}
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+
+		// Sleep off any remaining time until the next frame.
+		s64 frame_end_time = get_timestamp();
+		double frame_thusfar = get_second_duration(frame_end_time, frame_start_time, clock_frequency);
+		if(frame_thusfar < frame_frequency)
+		{
+			go_to_sleep(frame_frequency - frame_thusfar);
+		}
+	}
+}
+
+int CALLBACK WinMain(HINSTANCE instance, HINSTANCE previous_instance, LPSTR command_line, int show_command)
+{
+	// This is always null.
+	static_cast<void>(previous_instance);
+	// Call GetCommandLineW instead for the Unicode version of this string.
+	static_cast<void>(command_line);
+
+	if(!main_start_up(instance, show_command))
+	{
+		main_shut_down();
+		return 0;
+	}
+	int result = main_loop();
+	main_shut_down();
+
+	return result;
+}
+
+#endif // defined(OS_WINDOWS)

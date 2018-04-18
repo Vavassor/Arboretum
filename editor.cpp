@@ -174,7 +174,7 @@ bool editor_start_up(Platform* platform)
         Object* dodecahedron = add_object(&lady, &heap);
         jan::Mesh* mesh = &dodecahedron->mesh;
 
-        jan::make_a_weird_face(mesh);
+        jan::make_a_weird_face(mesh, &scratch);
 
         jan::Selection selection = jan::select_all(mesh, &heap);
         jan::extrude(mesh, &selection, 0.6f, &scratch);
@@ -623,7 +623,7 @@ static void update_object_mode(Platform* platform)
             Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
             ray = transform_ray(ray, inverse_transform(model));
             float distance;
-            jan::Face* face = first_face_hit_by_ray(mesh, ray, &distance);
+            jan::Face* face = first_face_hit_by_ray(mesh, ray, &distance, &scratch);
             if(face && distance < closest)
             {
                 closest = distance;
@@ -734,7 +734,7 @@ static void update_face_mode()
         Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
         Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
         ray = transform_ray(ray, inverse_transform(model));
-        jan::Face* face = first_face_hit_by_ray(mesh, ray, nullptr);
+        jan::Face* face = first_face_hit_by_ray(mesh, ray, nullptr, &scratch);
         if(face)
         {
             if(input::get_key_tapped(input::Key::F))

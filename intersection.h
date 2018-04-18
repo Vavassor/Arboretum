@@ -44,12 +44,14 @@ struct Torus
     float minor_radius;
 };
 
+struct Stack;
+
 namespace jan {
 
 struct Mesh;
 struct Face;
 
-Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance);
+Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance, Stack* stack);
 
 } // namespace jan
 

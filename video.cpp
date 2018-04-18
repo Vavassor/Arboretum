@@ -1322,7 +1322,8 @@ void system_update(UpdateState* update, Platform* platform)
 
         Rect space;
         space.bottom_left = {-viewport.width / 2.0f, viewport.height / 2.0f};
-        space.dimensions = {viewport.width, 60.0f};
+		space.dimensions.x = viewport.width;
+		space.dimensions.y = 60.0f;
         space.bottom_left.y -= space.dimensions.y;
         ui::lay_out(main_menu, space, ui_context);
         ui::draw(main_menu, ui_context);

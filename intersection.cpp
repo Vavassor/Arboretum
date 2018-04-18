@@ -1,12 +1,13 @@
 #include "intersection.h"
 
 #include "assert.h"
-#include "float_utilities.h"
-#include "math_basics.h"
 #include "complex_math.h"
-#include "restrict.h"
+#include "float_utilities.h"
 #include "jan.h"
 #include "logging.h"
+#include "math_basics.h"
+#include "memory.h"
+#include "restrict.h"
 
 static float orient(Vector2 v0, Vector2 v1, Vector2 v2)
 {
@@ -512,7 +513,7 @@ static void project_face_onto_plane(Face* face, Vector2* vertices)
     } while(link != first);
 }
 
-Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance)
+Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance, Stack* stack)
 {
     float closest = infinity;
     Face* result = nullptr;
@@ -528,7 +529,7 @@ Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance)
                 Matrix3 mi = transpose(orthogonal_basis(face->normal));
                 Vector2 point = mi * intersection;
 
-                Vector2 projected[face->edges];
+                Vector2* projected = STACK_ALLOCATE(stack, Vector2, face->edges);
                 project_face_onto_plane(face, projected);
 
                 if(point_in_polygon(point, projected, face->edges))
@@ -536,6 +537,7 @@ Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance)
                     closest = distance;
                     result = face;
                 }
+				STACK_DEALLOCATE(stack, projected);
             }
         }
     }

@@ -1,8 +1,8 @@
 #include "jan.h"
 
-#include "int_utilities.h"
 #include "array2.h"
 #include "assert.h"
+#include "int_utilities.h"
 #include "math_basics.h"
 
 namespace jan {
@@ -234,9 +234,9 @@ Face* add_face(Mesh* mesh, Vertex** vertices, Edge** edges, int edges_count)
     return face;
 }
 
-static Face* connect_vertices_and_add_face(Mesh* mesh, Vertex** vertices, int vertices_count)
+static Face* connect_vertices_and_add_face(Mesh* mesh, Vertex** vertices, int vertices_count, Stack* stack)
 {
-    Edge* edges[vertices_count];
+	Edge** edges = STACK_ALLOCATE(stack, Edge*, vertices_count);
     int end = vertices_count - 1;
     for(int i = 0; i < end; i += 1)
     {
@@ -245,13 +245,14 @@ static Face* connect_vertices_and_add_face(Mesh* mesh, Vertex** vertices, int ve
     edges[end] = add_edge(mesh, vertices[end], vertices[0]);
 
     Face* face = add_face(mesh, vertices, edges, vertices_count);
+	STACK_DEALLOCATE(stack, edges);
 
     return face;
 }
 
-Face* connect_disconnected_vertices_and_add_face(Mesh* mesh, Vertex** vertices, int vertices_count)
+Face* connect_disconnected_vertices_and_add_face(Mesh* mesh, Vertex** vertices, int vertices_count, Stack* stack)
 {
-    Edge* edges[vertices_count];
+    Edge** edges = STACK_ALLOCATE(stack, Edge*, vertices_count);
     int end = vertices_count - 1;
     for(int i = 0; i < end; i += 1)
     {
@@ -260,6 +261,7 @@ Face* connect_disconnected_vertices_and_add_face(Mesh* mesh, Vertex** vertices, 
     edges[end] = add_edge_if_nonexistant(mesh, vertices[end], vertices[0]);
 
     Face* face = add_face(mesh, vertices, edges, vertices_count);
+	STACK_DEALLOCATE(stack, edges);
 
     return face;
 }
@@ -442,7 +444,7 @@ void update_normals(Mesh* mesh)
     }
 }
 
-void make_a_weird_face(Mesh* mesh)
+void make_a_weird_face(Mesh* mesh, Stack* stack)
 {
     const int vertices_count = 8;
     Vector3 positions[vertices_count];
@@ -461,7 +463,7 @@ void make_a_weird_face(Mesh* mesh)
         vertices[i] = add_vertex(mesh, positions[i]);
     }
 
-    Face* face = connect_vertices_and_add_face(mesh, vertices, vertices_count);
+    Face* face = connect_vertices_and_add_face(mesh, vertices, vertices_count, stack);
 
     compute_face_normal(face);
 }
@@ -860,15 +862,16 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Stack* stack)
     {
         Face* face = static_cast<Face*>(selection->parts[i]);
         const int vertices_count = face->edges;
-        Vertex* vertices[vertices_count];
+        Vertex** vertices = STACK_ALLOCATE(stack, Vertex*, vertices_count);
         Link* link = face->link;
         for(int j = 0; j < vertices_count; j += 1)
         {
             vertices[j] = map_find(&map, link->vertex);
             link = link->next;
         }
-        connect_disconnected_vertices_and_add_face(mesh, vertices, vertices_count);
+        connect_disconnected_vertices_and_add_face(mesh, vertices, vertices_count, stack);
         remove_face_and_its_unlinked_edges_and_vertices(mesh, face);
+		STACK_DEALLOCATE(stack, vertices);
     }
 
     map_destroy(&map, stack);

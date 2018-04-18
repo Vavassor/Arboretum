@@ -156,17 +156,6 @@ void write_to_standard_output(const char* text, bool error)
 
 // Directory Listing............................................................
 
-void destroy_directory(Directory* directory, Heap* heap)
-{
-    for(int i = 0; i < directory->records_count; i += 1)
-    {
-        HEAP_DEALLOCATE(heap, directory->records[i].name);
-    }
-    directory->records_count = 0;
-
-    ARRAY_DESTROY(directory->records, heap);
-}
-
 static DirectoryRecordType translate_directory_record_type(unsigned char type)
 {
     switch(type)
@@ -292,4 +281,308 @@ char* get_documents_folder(Heap* heap)
     return get_user_folder("XDG_DOCUMENTS_DIR", "Documents", heap);
 }
 
-#endif // defined(OS_LINUX)
+#elif defined(OS_WINDOWS)
+
+#include <Shlobj.h>
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <Windows.h>
+
+static char* wide_char_to_utf8(const wchar_t* string, Heap* heap)
+{
+	int bytes = WideCharToMultiByte(CP_UTF8, 0, string, -1, nullptr, 0, nullptr, nullptr);
+	char* result = HEAP_ALLOCATE(heap, char, bytes);
+	bytes = WideCharToMultiByte(CP_UTF8, 0, string, -1, result, bytes, nullptr, nullptr);
+	if(bytes == 0)
+	{
+		SAFE_HEAP_DEALLOCATE(heap, result);
+		return nullptr;
+	}
+	return result;
+}
+
+static wchar_t* utf8_to_wide_char(const char* string, Heap* heap)
+{
+	int count = MultiByteToWideChar(CP_UTF8, 0, string, -1, nullptr, 0);
+	wchar_t* result = HEAP_ALLOCATE(heap, wchar_t, count);
+	count = MultiByteToWideChar(CP_UTF8, 0, string, -1, result, count);
+	if(count == 0)
+	{
+		SAFE_HEAP_DEALLOCATE(heap, result);
+		return nullptr;
+	}
+	return result;
+}
+
+static wchar_t* utf8_to_wide_char(const char* string, Stack* stack)
+{
+	int count = MultiByteToWideChar(CP_UTF8, 0, string, -1, nullptr, 0);
+	wchar_t* result = STACK_ALLOCATE(stack, wchar_t, count);
+	count = MultiByteToWideChar(CP_UTF8, 0, string, -1, result, count);
+	if(count == 0)
+	{
+		if(result)
+		{
+			STACK_DEALLOCATE(stack, result);
+		}
+		return nullptr;
+	}
+	return result;
+}
+
+bool load_whole_file(const char* path, void** contents, u64* bytes, Stack* stack)
+{
+	wchar_t* wide_path = utf8_to_wide_char(path, stack);
+	HANDLE handle = CreateFileW(wide_path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+	STACK_DEALLOCATE(stack, wide_path);
+	if(handle == INVALID_HANDLE_VALUE)
+	{
+		return false;
+	}
+
+	BY_HANDLE_FILE_INFORMATION info;
+	BOOL got = GetFileInformationByHandle(handle, &info);
+	if(!got)
+	{
+		CloseHandle(handle);
+		return false;
+	}
+
+	u64 size = info.nFileSizeHigh << 32 | info.nFileSizeLow;
+	char* buffer = STACK_ALLOCATE(stack, char, size + 1);
+	DWORD bytes_read;
+	BOOL read = ReadFile(handle, buffer, size, &bytes_read, nullptr);
+
+	CloseHandle(handle);
+
+	if(!read || bytes_read != size)
+	{
+		STACK_DEALLOCATE(stack, buffer);
+		return false;
+	}
+
+	// Null-terminate the file data so it can be easily interpreted as text if
+	// necessary.
+	buffer[size] = '\0';
+	*contents = buffer;
+	*bytes = size;
+
+	return true;
+}
+
+bool save_whole_file(const char* path, const void* contents, u64 bytes)
+{
+	return true;
+}
+
+struct File
+{
+	HANDLE handle;
+	Heap* heap;
+	wchar_t* wide_path;
+};
+
+File* open_file(const char* path, FileOpenMode open_mode, Heap* heap)
+{
+	wchar_t* wide_path = nullptr;
+
+	DWORD access;
+	DWORD share_mode;
+	DWORD disposition;
+	DWORD flags;
+	switch(open_mode)
+	{
+		case FileOpenMode::Write_Temporary:
+		{
+			access = GENERIC_WRITE;
+			share_mode = 0;
+			disposition = CREATE_ALWAYS;
+			flags = FILE_ATTRIBUTE_NORMAL;
+			if(!path)
+			{
+				const int wide_path_cap = MAX_PATH;
+				wchar_t just_path[wide_path_cap];
+				DWORD count = GetTempPathW(wide_path_cap, just_path);
+				if(count == 0)
+				{
+					return nullptr;
+				}
+				wide_path = HEAP_ALLOCATE(heap, wchar_t, wide_path_cap);
+				UINT unique = GetTempFileNameW(just_path, L"ARB", 0, wide_path);
+				if(unique == 0)
+				{
+					SAFE_HEAP_DEALLOCATE(heap, wide_path);
+					return nullptr;
+				}
+			}
+			break;
+		}
+	}
+
+	if(!wide_path)
+	{
+		wide_path = utf8_to_wide_char(path, heap);
+	}
+
+	HANDLE handle = CreateFileW(wide_path, access, share_mode, nullptr, disposition, flags, nullptr);
+	if(handle == INVALID_HANDLE_VALUE)
+	{
+		SAFE_HEAP_DEALLOCATE(heap, wide_path);
+		return nullptr;
+	}
+
+	File* file = HEAP_ALLOCATE(heap, File, 1);
+	file->handle = handle;
+	file->heap = heap;
+	file->wide_path = wide_path;
+	return file;
+}
+
+void close_file(File* file)
+{
+	if(!file)
+	{
+		return;
+	}
+
+	CloseHandle(file->handle);
+	SAFE_HEAP_DEALLOCATE(file->heap, file->wide_path);
+	HEAP_DEALLOCATE(file->heap, file);
+}
+
+bool make_file_permanent(File* file, const char* path)
+{
+	wchar_t* wide_path = utf8_to_wide_char(path, file->heap);
+	DWORD flags = MOVEFILE_COPY_ALLOWED | MOVEFILE_REPLACE_EXISTING;
+	BOOL moved = MoveFileExW(file->wide_path, wide_path, flags);
+	SAFE_HEAP_DEALLOCATE(file->heap, wide_path);
+	return moved;
+}
+
+bool write_file(File* file, const void* data, u64 bytes)
+{
+	DWORD bytes_written;
+	BOOL wrote = WriteFile(file->handle, data, bytes, &bytes_written, nullptr);
+	return wrote && bytes_written == bytes;
+}
+
+void write_to_standard_output(const char* text, bool error)
+{
+	if(IsDebuggerPresent())
+	{
+		OutputDebugStringA(text);
+	}
+	else
+	{
+		HANDLE handle;
+		if(error)
+		{
+			handle = GetStdHandle(STD_ERROR_HANDLE);
+		}
+		else
+		{
+			handle = GetStdHandle(STD_OUTPUT_HANDLE);
+		}
+		DWORD bytes_written;
+		WriteFile(handle, text, string_size(text), &bytes_written, nullptr);
+		CloseHandle(handle);
+	}
+}
+
+// Directory Listing............................................................
+
+static DirectoryRecordType translate_directory_record_type(DWORD attributes)
+{
+	if(attributes & FILE_ATTRIBUTE_DIRECTORY)
+	{
+		return DirectoryRecordType::Directory;
+	}
+	else if(attributes & FILE_ATTRIBUTE_NORMAL)
+	{
+		return DirectoryRecordType::File;
+	}
+	else
+	{
+		return DirectoryRecordType::Unknown;
+	}
+}
+
+bool list_files_in_directory(const char* path, Directory* result, Heap* heap)
+{
+	wchar_t* wide_path = utf8_to_wide_char(path, heap);
+
+	WIN32_FIND_DATAW data;
+	HANDLE found = FindFirstFileW(wide_path, &data);
+	SAFE_HEAP_DEALLOCATE(heap, wide_path);
+	if(found == INVALID_HANDLE_VALUE)
+	{
+		return false;
+	}
+
+	DirectoryRecord* listing = nullptr;
+	int listing_count = 0;
+
+	do
+	{
+		DirectoryRecord record;
+		record.type = translate_directory_record_type(data.dwFileAttributes);
+		record.name = wide_char_to_utf8(data.cFileName, heap);
+		record.hidden = data.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN;
+
+		ARRAY_ADD(listing, record, heap);
+		listing_count += 1;
+	} while(FindNextFileW(found, &data));
+	
+	DWORD error = GetLastError();
+	FindClose(found);
+
+	if(error != ERROR_NO_MORE_FILES)
+	{
+		for(int i = 0; i < listing_count; i += 1)
+		{
+			SAFE_HEAP_DEALLOCATE(heap, listing->name);
+		}
+		ARRAY_DESTROY(listing, heap);
+		return false;
+	}
+
+	result->records = listing;
+	result->records_count = listing_count;
+
+	return true;
+}
+
+// User Directories.............................................................
+
+char* get_documents_folder(Heap* heap)
+{
+	PWSTR path = nullptr;
+	HRESULT result = SHGetKnownFolderPath(FOLDERID_Documents, 0, nullptr, &path);
+	if(FAILED(result))
+	{
+		CoTaskMemFree(path);
+		return nullptr;
+	}
+
+	char* finished = wide_char_to_utf8(path, heap);
+
+	CoTaskMemFree(path);
+
+	return finished;
+}
+
+#endif // defined(OS_WINDOWS)
+
+// Directory Listing............................................................
+
+void destroy_directory(Directory* directory, Heap* heap)
+{
+	for(int i = 0; i < directory->records_count; i += 1)
+	{
+		HEAP_DEALLOCATE(heap, directory->records[i].name);
+	}
+	directory->records_count = 0;
+
+	ARRAY_DESTROY(directory->records, heap);
+}
