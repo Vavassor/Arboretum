@@ -1912,7 +1912,7 @@ static int main_loop()
 
 		SwapBuffers(platform.device_context);
 
-		while(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+		while(PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
 		{
 			if(msg.message == WM_QUIT)
 			{
@@ -1924,7 +1924,7 @@ static int main_loop()
 
 		// Sleep off any remaining time until the next frame.
 		s64 frame_end_time = get_timestamp();
-		double frame_thusfar = get_second_duration(frame_end_time, frame_start_time, clock_frequency);
+		double frame_thusfar = get_second_duration(frame_start_time, frame_end_time, clock_frequency);
 		if(frame_thusfar < frame_frequency)
 		{
 			go_to_sleep(frame_frequency - frame_thusfar);
