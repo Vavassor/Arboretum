@@ -1192,14 +1192,32 @@ int main(int argc, char** argv)
 #include "input.h"
 #include "logging.h"
 #include "platform.h"
+#include "string_utilities.h"
 #include "video.h"
 #include "wgl_extensions.h"
+#include "wide_char.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <Windows.h>
 #include <windowsx.h>
+
+struct Int2
+{
+	int x;
+	int y;
+};
+
+bool operator == (const Int2& a, const Int2& b)
+{
+	return a.x == b.x && a.y == b.y;
+}
+
+bool operator != (const Int2& a, const Int2& b)
+{
+	return a.x != b.x || a.y != b.y;
+}
 
 struct PlatformWindows
 {
@@ -1213,6 +1231,10 @@ struct PlatformWindows
 	HCURSOR cursor_hand_pointing;
 	HCURSOR cursor_i_beam;
 	HCURSOR cursor_prohibition_sign;
+
+	bool input_context_focused;
+	Int2 composed_text_position;
+	bool composing;
 };
 
 static void load_cursors(PlatformWindows* platform)
@@ -1229,17 +1251,10 @@ static HCURSOR get_cursor_by_type(PlatformWindows* platform, CursorType type)
 	switch(type)
 	{
 		default:
-		case CursorType::Arrow:
-			return platform->cursor_arrow;
-
-		case CursorType::Hand_Pointing:
-			return platform->cursor_hand_pointing;
-
-		case CursorType::I_Beam:
-			return platform->cursor_i_beam;
-
-		case CursorType::Prohibition_Sign:
-			return platform->cursor_prohibition_sign;
+		case CursorType::Arrow:            return platform->cursor_arrow;
+		case CursorType::Hand_Pointing:    return platform->cursor_hand_pointing;
+		case CursorType::I_Beam:           return platform->cursor_i_beam;
+		case CursorType::Prohibition_Sign: return platform->cursor_prohibition_sign;
 	}
 }
 
@@ -1254,25 +1269,66 @@ void change_cursor(Platform* base, CursorType type)
 	}
 }
 
-void begin_composed_text(Platform* base)
+static void reset_composing(PlatformWindows* platform, HIMC context)
 {
-	PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
-
-	// TODO
+	if(platform->composing)
+	{
+		ImmNotifyIME(context, NI_COMPOSITIONSTR, CPS_COMPLETE, 0);
+		platform->composing = false;
+	}
 }
 
-void end_composed_text(Platform* base)
+static void move_input_method(HIMC context, Int2 position)
 {
-	PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
-
-	// TODO
+	CANDIDATEFORM candidate_position;
+	candidate_position.dwIndex = 0;
+	candidate_position.dwStyle = CFS_CANDIDATEPOS;
+	candidate_position.ptCurrentPos = {position.x, position.y};
+	candidate_position.rcArea = {0, 0, 0, 0};
+	ImmSetCandidateWindow(context, &candidate_position);
 }
 
 void set_composed_text_position(Platform* base, int x, int y)
 {
 	PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
 
-	// TODO
+	Int2 position = {x, y};
+	if(position != platform->composed_text_position)
+	{
+		HIMC context = ImmGetContext(platform->window);
+		if(context)
+		{
+			move_input_method(context, position);
+			ImmReleaseContext(platform->window, context);
+		}
+
+		platform->composed_text_position = position;
+	}
+}
+
+void begin_composed_text(Platform* base)
+{
+	PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
+
+	ImmAssociateContextEx(platform->window, nullptr, IACE_DEFAULT);
+
+	platform->input_context_focused = true;
+}
+
+void end_composed_text(Platform* base)
+{
+	PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
+
+	HIMC context = ImmGetContext(platform->window);
+	if(context)
+	{
+		reset_composing(platform, context);
+		ImmReleaseContext(platform->window, context);
+	}
+	
+	ImmAssociateContextEx(platform->window, nullptr, 0);
+
+	platform->input_context_focused = false;
 }
 
 bool copy_to_clipboard(Platform* base, char* clipboard)
@@ -1474,17 +1530,102 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
 
 			return 0;
 		}
+		case WM_CHAR:
+		{
+			if(platform.input_context_focused)
+			{
+				wchar_t wide[2] = {w_param, L'\0'};
+				char* text = wide_char_to_utf8(wide, &platform.base.stack);
+				if(!only_control_characters(text))
+				{
+					input::composed_text_entered(text);
+				}
+				STACK_DEALLOCATE(&platform.base.stack, text);
+				
+				return 0;
+			}
+			break;
+		}
+		case WM_IME_COMPOSITION:
+		{
+			if(l_param & GCS_RESULTSTR)
+			{
+				HIMC context = ImmGetContext(hwnd);
+				if(!context)
+				{
+					LOG_ERROR("Failed to get the input method context.");
+					break;
+				}
+
+				move_input_method(context, platform.composed_text_position);
+
+				int bytes = ImmGetCompositionStringW(context, GCS_RESULTSTR, nullptr, 0);
+				bytes += sizeof(wchar_t);
+				wchar_t* string = static_cast<wchar_t*>(stack_allocate(&platform.base.stack, bytes));
+
+				ImmGetCompositionStringW(context, GCS_RESULTSTR, string, bytes);
+				ImmReleaseContext(hwnd, context);
+
+				char* text = wide_char_to_utf8(string, &platform.base.stack);
+				input::composed_text_entered(text);
+
+				STACK_DEALLOCATE(&platform.base.stack, text);
+				STACK_DEALLOCATE(&platform.base.stack, string);
+
+				platform.composing = false;
+
+				return 0;
+			}
+			else if(l_param & GCS_COMPSTR)
+			{
+				platform.composing = true;
+
+				return 0;
+			}
+		}
+		case WM_IME_SETCONTEXT:
+		{
+			HIMC context = ImmGetContext(hwnd);
+			if(context)
+			{
+				move_input_method(context, platform.composed_text_position);
+				reset_composing(&platform, context);
+
+				ImmReleaseContext(hwnd, context);
+			}
+
+			l_param &= ~ISC_SHOWUICOMPOSITIONWINDOW;
+
+			break;
+		}
+		case WM_IME_STARTCOMPOSITION:
+		{
+			HIMC context = ImmGetContext(hwnd);
+			if(context)
+			{
+				move_input_method(context, platform.composed_text_position);
+
+				ImmReleaseContext(hwnd, context);
+			}
+
+			platform.composing = false;
+
+			return 0;
+		}
 		case WM_KEYDOWN:
 		{
+			// Bit 30 of the LPARAM is set when the key was previously down, so
+			// it can be used to determine whether a press is auto-repeated.
+
 			bool auto_repeated = l_param & 0x40000000;
 			if(!auto_repeated)
 			{
 				input::Modifier modifier = fetch_modifiers();
 				input::Key key = translate_virtual_key(w_param);
 				input::key_press(key, true, modifier);
-			}
 
-			return 0;
+				return 0;
+			}
 		}
 		case WM_KEYUP:
 		{
@@ -1559,6 +1700,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
 				SetCursor(cursor);
 				return TRUE;
 			}
+
 			return FALSE;
 		}
 		case WM_SIZE:
@@ -1573,11 +1715,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
 
 			return 0;
 		}
-		default:
-		{
-			return DefWindowProc(hwnd, message, w_param, l_param);
-		}
 	}
+	return DefWindowProcW(hwnd, message, w_param, l_param);
 }
 
 static LocaleId match_closest_locale_id()
@@ -1594,6 +1733,9 @@ static LocaleId match_closest_locale_id()
 	}
 }
 
+#define MAKEINTATOMW(atom) \
+	((LPWSTR)((ULONG_PTR)((WORD)(atom))))
+
 static bool main_start_up(HINSTANCE instance, int show_command)
 {
 	platform.base.locale_id = match_closest_locale_id();
@@ -1606,7 +1748,7 @@ static bool main_start_up(HINSTANCE instance, int show_command)
 	}
 	load_cursors(&platform);
 
-	WNDCLASSEXA window_class = {};
+	WNDCLASSEXW window_class = {};
 	window_class.cbSize = sizeof window_class;
 	window_class.style = CS_HREDRAW | CS_VREDRAW;
 	window_class.lpfnWndProc = WindowProc;
@@ -1614,8 +1756,8 @@ static bool main_start_up(HINSTANCE instance, int show_command)
 	window_class.hIcon = LoadIcon(instance, IDI_APPLICATION);
 	window_class.hIconSm = static_cast<HICON>(LoadIcon(instance, IDI_APPLICATION));
 	window_class.hCursor = LoadCursor(nullptr, IDC_ARROW);
-	window_class.lpszClassName = "ArboretumWindowClass";
-	ATOM registered_class = RegisterClassExA(&window_class);
+	window_class.lpszClassName = L"ArboretumWindowClass";
+	ATOM registered_class = RegisterClassExW(&window_class);
 	if(registered_class == 0)
 	{
 		LOG_ERROR("Failed to register the window class.");
@@ -1624,7 +1766,9 @@ static bool main_start_up(HINSTANCE instance, int show_command)
 
 	DWORD window_style = WS_OVERLAPPEDWINDOW;
 	const char* app_name = platform.base.nonlocalized_text.app_name;
-	platform.window = CreateWindowExA(WS_EX_APPWINDOW, MAKEINTATOM(registered_class), app_name, window_style, CW_USEDEFAULT, CW_USEDEFAULT, window_width, window_height, nullptr, nullptr, instance, nullptr);
+	wchar_t* title = utf8_to_wide_char(app_name, &platform.base.stack);
+	platform.window = CreateWindowExW(WS_EX_APPWINDOW, MAKEINTATOMW(registered_class), title, window_style, CW_USEDEFAULT, CW_USEDEFAULT, window_width, window_height, nullptr, nullptr, instance, nullptr);
+	STACK_DEALLOCATE(&platform.base.stack, title);
 	if(!platform.window)
 	{
 		LOG_ERROR("Failed to create the window.");

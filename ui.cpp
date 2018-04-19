@@ -1917,7 +1917,7 @@ static void detect_focus_changes_for_toplevel_containers(Context* context)
 
 static bool detect_capture_changes(Context* context, Item* item, Vector2 mouse_position)
 {
-    bool captured;
+    bool captured = false;
 
     switch(item->type)
     {
