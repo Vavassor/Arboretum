@@ -588,19 +588,19 @@ static void remove_pair(DenseMap* map, DenseMapId id, int index)
 
 static void remove(DenseMap* map, DenseMapId id, Heap* heap)
 {
-	int index = look_up_index(map, id);
-	Object* object = &map->array[index];
-	ARRAY_REMOVE(map->array, object);
+    int index = look_up_index(map, id);
+    Object* object = &map->array[index];
+    ARRAY_REMOVE(map->array, object);
 
-	remove_pair(map, id, index);
+    remove_pair(map, id, index);
 
-	int moved_index = ARRAY_COUNT(map->array);
-	if(moved_index != 0)
-	{
-		DenseMapId moved_id = look_up_id(map, moved_index);
-		remove_pair(map, moved_id, moved_index);
-		add_pair(map, moved_id, index, heap);
-	}
+    int moved_index = ARRAY_COUNT(map->array);
+    if(moved_index != 0)
+    {
+        DenseMapId moved_id = look_up_id(map, moved_index);
+        remove_pair(map, moved_id, moved_index);
+        add_pair(map, moved_id, index, heap);
+    }
 }
 
 namespace
@@ -1325,8 +1325,8 @@ void system_update(UpdateState* update, Platform* platform)
 
         Rect space;
         space.bottom_left = {-viewport.width / 2.0f, viewport.height / 2.0f};
-		space.dimensions.x = viewport.width;
-		space.dimensions.y = 60.0f;
+        space.dimensions.x = viewport.width;
+        space.dimensions.y = 60.0f;
         space.bottom_left.y -= space.dimensions.y;
         ui::lay_out(main_menu, space, ui_context);
         ui::draw(main_menu, ui_context);

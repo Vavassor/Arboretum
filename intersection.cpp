@@ -537,7 +537,7 @@ Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance, Stack* st
                     closest = distance;
                     result = face;
                 }
-				STACK_DEALLOCATE(stack, projected);
+                STACK_DEALLOCATE(stack, projected);
             }
         }
     }

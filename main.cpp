@@ -1206,182 +1206,182 @@ int main(int argc, char** argv)
 
 struct Int2
 {
-	int x;
-	int y;
+    int x;
+    int y;
 };
 
 bool operator == (const Int2& a, const Int2& b)
 {
-	return a.x == b.x && a.y == b.y;
+    return a.x == b.x && a.y == b.y;
 }
 
 bool operator != (const Int2& a, const Int2& b)
 {
-	return a.x != b.x || a.y != b.y;
+    return a.x != b.x || a.y != b.y;
 }
 
 struct PlatformWindows
 {
-	Platform base;
+    Platform base;
 
-	HWND window;
-	HDC device_context;
+    HWND window;
+    HDC device_context;
 
-	CursorType cursor_type;
-	HCURSOR cursor_arrow;
-	HCURSOR cursor_hand_pointing;
-	HCURSOR cursor_i_beam;
-	HCURSOR cursor_prohibition_sign;
+    CursorType cursor_type;
+    HCURSOR cursor_arrow;
+    HCURSOR cursor_hand_pointing;
+    HCURSOR cursor_i_beam;
+    HCURSOR cursor_prohibition_sign;
 
-	bool input_context_focused;
-	Int2 composed_text_position;
-	bool composing;
+    bool input_context_focused;
+    Int2 composed_text_position;
+    bool composing;
 };
 
 static void load_cursors(PlatformWindows* platform)
 {
-	UINT flags = LR_DEFAULTSIZE | LR_SHARED;
-	platform->cursor_arrow = static_cast<HCURSOR>(LoadImage(nullptr, IDC_ARROW, IMAGE_CURSOR, 0, 0, flags));
-	platform->cursor_hand_pointing = static_cast<HCURSOR>(LoadImage(nullptr, IDC_HAND, IMAGE_CURSOR, 0, 0, flags));
-	platform->cursor_i_beam = static_cast<HCURSOR>(LoadImage(nullptr, IDC_IBEAM, IMAGE_CURSOR, 0, 0, flags));
-	platform->cursor_prohibition_sign = static_cast<HCURSOR>(LoadImage(nullptr, IDC_NO, IMAGE_CURSOR, 0, 0, flags));
+    UINT flags = LR_DEFAULTSIZE | LR_SHARED;
+    platform->cursor_arrow = static_cast<HCURSOR>(LoadImage(nullptr, IDC_ARROW, IMAGE_CURSOR, 0, 0, flags));
+    platform->cursor_hand_pointing = static_cast<HCURSOR>(LoadImage(nullptr, IDC_HAND, IMAGE_CURSOR, 0, 0, flags));
+    platform->cursor_i_beam = static_cast<HCURSOR>(LoadImage(nullptr, IDC_IBEAM, IMAGE_CURSOR, 0, 0, flags));
+    platform->cursor_prohibition_sign = static_cast<HCURSOR>(LoadImage(nullptr, IDC_NO, IMAGE_CURSOR, 0, 0, flags));
 }
 
 static HCURSOR get_cursor_by_type(PlatformWindows* platform, CursorType type)
 {
-	switch(type)
-	{
-		default:
-		case CursorType::Arrow:            return platform->cursor_arrow;
-		case CursorType::Hand_Pointing:    return platform->cursor_hand_pointing;
-		case CursorType::I_Beam:           return platform->cursor_i_beam;
-		case CursorType::Prohibition_Sign: return platform->cursor_prohibition_sign;
-	}
+    switch(type)
+    {
+        default:
+        case CursorType::Arrow:            return platform->cursor_arrow;
+        case CursorType::Hand_Pointing:    return platform->cursor_hand_pointing;
+        case CursorType::I_Beam:           return platform->cursor_i_beam;
+        case CursorType::Prohibition_Sign: return platform->cursor_prohibition_sign;
+    }
 }
 
 void change_cursor(Platform* base, CursorType type)
 {
-	PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
-	if(platform->cursor_type != type)
-	{
-		HCURSOR cursor = get_cursor_by_type(platform, type);
-		SetCursor(cursor);
-		platform->cursor_type = type;
-	}
+    PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
+    if(platform->cursor_type != type)
+    {
+        HCURSOR cursor = get_cursor_by_type(platform, type);
+        SetCursor(cursor);
+        platform->cursor_type = type;
+    }
 }
 
 static void reset_composing(PlatformWindows* platform, HIMC context)
 {
-	if(platform->composing)
-	{
-		ImmNotifyIME(context, NI_COMPOSITIONSTR, CPS_COMPLETE, 0);
-		platform->composing = false;
-	}
+    if(platform->composing)
+    {
+        ImmNotifyIME(context, NI_COMPOSITIONSTR, CPS_COMPLETE, 0);
+        platform->composing = false;
+    }
 }
 
 static void move_input_method(HIMC context, Int2 position)
 {
-	CANDIDATEFORM candidate_position;
-	candidate_position.dwIndex = 0;
-	candidate_position.dwStyle = CFS_CANDIDATEPOS;
-	candidate_position.ptCurrentPos = {position.x, position.y};
-	candidate_position.rcArea = {0, 0, 0, 0};
-	ImmSetCandidateWindow(context, &candidate_position);
+    CANDIDATEFORM candidate_position;
+    candidate_position.dwIndex = 0;
+    candidate_position.dwStyle = CFS_CANDIDATEPOS;
+    candidate_position.ptCurrentPos = {position.x, position.y};
+    candidate_position.rcArea = {0, 0, 0, 0};
+    ImmSetCandidateWindow(context, &candidate_position);
 }
 
 void set_composed_text_position(Platform* base, int x, int y)
 {
-	PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
+    PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
 
-	Int2 position = {x, y};
-	if(position != platform->composed_text_position)
-	{
-		HIMC context = ImmGetContext(platform->window);
-		if(context)
-		{
-			move_input_method(context, position);
-			ImmReleaseContext(platform->window, context);
-		}
+    Int2 position = {x, y};
+    if(position != platform->composed_text_position)
+    {
+        HIMC context = ImmGetContext(platform->window);
+        if(context)
+        {
+            move_input_method(context, position);
+            ImmReleaseContext(platform->window, context);
+        }
 
-		platform->composed_text_position = position;
-	}
+        platform->composed_text_position = position;
+    }
 }
 
 void begin_composed_text(Platform* base)
 {
-	PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
+    PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
 
-	ImmAssociateContextEx(platform->window, nullptr, IACE_DEFAULT);
+    ImmAssociateContextEx(platform->window, nullptr, IACE_DEFAULT);
 
-	platform->input_context_focused = true;
+    platform->input_context_focused = true;
 }
 
 void end_composed_text(Platform* base)
 {
-	PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
+    PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
 
-	HIMC context = ImmGetContext(platform->window);
-	if(context)
-	{
-		reset_composing(platform, context);
-		ImmReleaseContext(platform->window, context);
-	}
-	
-	ImmAssociateContextEx(platform->window, nullptr, 0);
+    HIMC context = ImmGetContext(platform->window);
+    if(context)
+    {
+        reset_composing(platform, context);
+        ImmReleaseContext(platform->window, context);
+    }
+    
+    ImmAssociateContextEx(platform->window, nullptr, 0);
 
-	platform->input_context_focused = false;
+    platform->input_context_focused = false;
 }
 
 bool copy_to_clipboard(Platform* base, char* clipboard)
 {
-	PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
+    PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
 
-	// Convert the contents to UTF-16.
-	wchar_t* wide = utf8_to_wide_char(clipboard, &base->stack);
-	if(!wide)
-	{
-		return false;
-	}
+    // Convert the contents to UTF-16.
+    wchar_t* wide = utf8_to_wide_char(clipboard, &base->stack);
+    if(!wide)
+    {
+        return false;
+    }
 
-	// Make a copy of the wide string that can be moved within the default windows
-	// heap (GMEM_MOVEABLE).
-	int count = string_size(clipboard);
-	HGLOBAL handle = GlobalAlloc(GMEM_MOVEABLE, (count + 1) * sizeof(wchar_t));
-	if(!handle)
-	{
-		STACK_DEALLOCATE(&base->stack, wide);
-		return false;
-	}
+    // Make a copy of the wide string that can be moved within the default windows
+    // heap (GMEM_MOVEABLE).
+    int count = string_size(clipboard);
+    HGLOBAL handle = GlobalAlloc(GMEM_MOVEABLE, (count + 1) * sizeof(wchar_t));
+    if(!handle)
+    {
+        STACK_DEALLOCATE(&base->stack, wide);
+        return false;
+    }
 
-	LPWSTR wide_clone = static_cast<LPWSTR>(GlobalLock(handle));
-	copy_memory(wide_clone, wide, count * sizeof(wchar_t));
-	wide_clone[count] = L'\0';
-	GlobalUnlock(handle);
+    LPWSTR wide_clone = static_cast<LPWSTR>(GlobalLock(handle));
+    copy_memory(wide_clone, wide, count * sizeof(wchar_t));
+    wide_clone[count] = L'\0';
+    GlobalUnlock(handle);
 
-	STACK_DEALLOCATE(&base->stack, wide);
+    STACK_DEALLOCATE(&base->stack, wide);
 
-	// Actually copy to the clipboard.
-	BOOL opened = OpenClipboard(platform->window);
-	if(!opened)
-	{
-		GlobalFree(handle);
-		return false;
-	}
+    // Actually copy to the clipboard.
+    BOOL opened = OpenClipboard(platform->window);
+    if(!opened)
+    {
+        GlobalFree(handle);
+        return false;
+    }
 
-	EmptyClipboard();
-	SetClipboardData(CF_UNICODETEXT, handle);
-	CloseClipboard();
+    EmptyClipboard();
+    SetClipboardData(CF_UNICODETEXT, handle);
+    CloseClipboard();
 
-	GlobalFree(handle);
+    GlobalFree(handle);
 
-	return true;
+    return true;
 }
 
 void request_paste_from_clipboard(Platform* base)
 {
     PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
 
-	BOOL has_utf16 = IsClipboardFormatAvailable(CF_UNICODETEXT);
+    BOOL has_utf16 = IsClipboardFormatAvailable(CF_UNICODETEXT);
     if(!has_utf16)
     {
         LOG_ERROR("Paste format UTF-16 was not available.");
@@ -1406,7 +1406,7 @@ void request_paste_from_clipboard(Platform* base)
 
         CloseClipboard();
     }
-	
+    
     if(paste)
     {
         // Standardize on Unix line endings by replacing "Windows style"
@@ -1425,605 +1425,605 @@ void request_paste_from_clipboard(Platform* base)
 
 static void get_window_dimensions(PlatformWindows* platform, int* width, int* height)
 {
-	RECT rect;
-	BOOL got = GetClientRect(platform->window, &rect);
-	ASSERT(got);
-	*width = rect.right;
-	*height = rect.bottom;
+    RECT rect;
+    BOOL got = GetClientRect(platform->window, &rect);
+    ASSERT(got);
+    *width = rect.right;
+    *height = rect.bottom;
 }
 
 static double get_dots_per_millimeter(PlatformWindows* platform)
 {
-	const double millimeters_per_inch = 25.4;
-	UINT dpi = 96; // GetDpiForWindow(platform->window);
-	return dpi / millimeters_per_inch;
+    const double millimeters_per_inch = 25.4;
+    UINT dpi = 96; // GetDpiForWindow(platform->window);
+    return dpi / millimeters_per_inch;
 }
 
 static input::Key translate_virtual_key(WPARAM w_param)
 {
-	switch(w_param)
-	{
-		case '0':           return input::Key::Zero;
-		case '1':           return input::Key::One;
-		case '2':           return input::Key::Two;
-		case '3':           return input::Key::Three;
-		case '4':           return input::Key::Four;
-		case '5':           return input::Key::Five;
-		case '6':           return input::Key::Six;
-		case '7':           return input::Key::Seven;
-		case '8':           return input::Key::Eight;
-		case '9':           return input::Key::Nine;
-		case 'A':           return input::Key::A;
-		case VK_ADD:        return input::Key::Numpad_Add;
-		case 'B':           return input::Key::B;
-		case VK_BACK:       return input::Key::Backspace;
-		case 'C':           return input::Key::C;
-		case 'D':           return input::Key::D;
-		case VK_DECIMAL:    return input::Key::Numpad_Decimal;
-		case VK_DELETE:     return input::Key::Delete;
-		case VK_DIVIDE:     return input::Key::Numpad_Divide;
-		case VK_DOWN:       return input::Key::Down_Arrow;
-		case 'E':           return input::Key::E;
-		case VK_END:        return input::Key::End;
-		case VK_ESCAPE:     return input::Key::Escape;
-		case 'F':           return input::Key::F;
-		case VK_F1:         return input::Key::F1;
-		case VK_F2:         return input::Key::F2;
-		case VK_F3:         return input::Key::F3;
-		case VK_F4:         return input::Key::F4;
-		case VK_F5:         return input::Key::F5;
-		case VK_F6:         return input::Key::F6;
-		case VK_F7:         return input::Key::F7;
-		case VK_F8:         return input::Key::F8;
-		case VK_F9:         return input::Key::F9;
-		case VK_F10:        return input::Key::F10;
-		case VK_F11:        return input::Key::F11;
-		case VK_F12:        return input::Key::F12;
-		case 'G':           return input::Key::G;
-		case 'H':           return input::Key::H;
-		case VK_HOME:       return input::Key::Home;
-		case 'I':           return input::Key::I;
-		case VK_INSERT:     return input::Key::Insert;
-		case 'J':           return input::Key::J;
-		case 'K':           return input::Key::K;
-		case 'L':           return input::Key::L;
-		case VK_LEFT:       return input::Key::Left_Arrow;
-		case 'M':           return input::Key::M;
-		case VK_MULTIPLY:   return input::Key::Numpad_Multiply;
-		case 'N':           return input::Key::N;
-		case VK_NUMPAD0:    return input::Key::Numpad_0;
-		case VK_NUMPAD1:    return input::Key::Numpad_1;
-		case VK_NUMPAD2:    return input::Key::Numpad_2;
-		case VK_NUMPAD3:    return input::Key::Numpad_3;
-		case VK_NUMPAD4:    return input::Key::Numpad_4;
-		case VK_NUMPAD5:    return input::Key::Numpad_5;
-		case VK_NUMPAD6:    return input::Key::Numpad_6;
-		case VK_NUMPAD7:    return input::Key::Numpad_7;
-		case VK_NUMPAD8:    return input::Key::Numpad_8;
-		case VK_NUMPAD9:    return input::Key::Numpad_9;
-		case VK_NEXT:       return input::Key::Page_Down;
-		case 'O':           return input::Key::O;
-		case VK_OEM_1:      return input::Key::Semicolon;
-		case VK_OEM_2:      return input::Key::Slash;
-		case VK_OEM_3:      return input::Key::Grave_Accent;
-		case VK_OEM_4:      return input::Key::Left_Bracket;
-		case VK_OEM_5:      return input::Key::Backslash;
-		case VK_OEM_6:      return input::Key::Right_Bracket;
-		case VK_OEM_7:      return input::Key::Apostrophe;
-		case VK_OEM_COMMA:  return input::Key::Comma;
-		case VK_OEM_MINUS:  return input::Key::Minus;
-		case VK_OEM_PERIOD: return input::Key::Period;
-		case VK_OEM_PLUS:   return input::Key::Equals_Sign;
-		case 'P':           return input::Key::P;
-		case VK_PAUSE:      return input::Key::Pause;
-		case VK_PRIOR:      return input::Key::Page_Up;
-		case 'Q':           return input::Key::Q;
-		case 'R':           return input::Key::R;
-		case VK_RETURN:     return input::Key::Enter;
-		case VK_RIGHT:      return input::Key::Right_Arrow;
-		case 'S':           return input::Key::S;
-		case VK_SPACE:      return input::Key::Space;
-		case VK_SUBTRACT:   return input::Key::Numpad_Subtract;
-		case 'T':           return input::Key::T;
-		case VK_TAB:        return input::Key::Tab;
-		case 'U':           return input::Key::U;
-		case VK_UP:         return input::Key::Up_Arrow;
-		case 'V':           return input::Key::V;
-		case 'W':           return input::Key::W;
-		case 'X':           return input::Key::X;
-		case 'Y':           return input::Key::Y;
-		case 'Z':           return input::Key::Z;
-		default:            return input::Key::Unknown;
-	}
+    switch(w_param)
+    {
+        case '0':           return input::Key::Zero;
+        case '1':           return input::Key::One;
+        case '2':           return input::Key::Two;
+        case '3':           return input::Key::Three;
+        case '4':           return input::Key::Four;
+        case '5':           return input::Key::Five;
+        case '6':           return input::Key::Six;
+        case '7':           return input::Key::Seven;
+        case '8':           return input::Key::Eight;
+        case '9':           return input::Key::Nine;
+        case 'A':           return input::Key::A;
+        case VK_ADD:        return input::Key::Numpad_Add;
+        case 'B':           return input::Key::B;
+        case VK_BACK:       return input::Key::Backspace;
+        case 'C':           return input::Key::C;
+        case 'D':           return input::Key::D;
+        case VK_DECIMAL:    return input::Key::Numpad_Decimal;
+        case VK_DELETE:     return input::Key::Delete;
+        case VK_DIVIDE:     return input::Key::Numpad_Divide;
+        case VK_DOWN:       return input::Key::Down_Arrow;
+        case 'E':           return input::Key::E;
+        case VK_END:        return input::Key::End;
+        case VK_ESCAPE:     return input::Key::Escape;
+        case 'F':           return input::Key::F;
+        case VK_F1:         return input::Key::F1;
+        case VK_F2:         return input::Key::F2;
+        case VK_F3:         return input::Key::F3;
+        case VK_F4:         return input::Key::F4;
+        case VK_F5:         return input::Key::F5;
+        case VK_F6:         return input::Key::F6;
+        case VK_F7:         return input::Key::F7;
+        case VK_F8:         return input::Key::F8;
+        case VK_F9:         return input::Key::F9;
+        case VK_F10:        return input::Key::F10;
+        case VK_F11:        return input::Key::F11;
+        case VK_F12:        return input::Key::F12;
+        case 'G':           return input::Key::G;
+        case 'H':           return input::Key::H;
+        case VK_HOME:       return input::Key::Home;
+        case 'I':           return input::Key::I;
+        case VK_INSERT:     return input::Key::Insert;
+        case 'J':           return input::Key::J;
+        case 'K':           return input::Key::K;
+        case 'L':           return input::Key::L;
+        case VK_LEFT:       return input::Key::Left_Arrow;
+        case 'M':           return input::Key::M;
+        case VK_MULTIPLY:   return input::Key::Numpad_Multiply;
+        case 'N':           return input::Key::N;
+        case VK_NUMPAD0:    return input::Key::Numpad_0;
+        case VK_NUMPAD1:    return input::Key::Numpad_1;
+        case VK_NUMPAD2:    return input::Key::Numpad_2;
+        case VK_NUMPAD3:    return input::Key::Numpad_3;
+        case VK_NUMPAD4:    return input::Key::Numpad_4;
+        case VK_NUMPAD5:    return input::Key::Numpad_5;
+        case VK_NUMPAD6:    return input::Key::Numpad_6;
+        case VK_NUMPAD7:    return input::Key::Numpad_7;
+        case VK_NUMPAD8:    return input::Key::Numpad_8;
+        case VK_NUMPAD9:    return input::Key::Numpad_9;
+        case VK_NEXT:       return input::Key::Page_Down;
+        case 'O':           return input::Key::O;
+        case VK_OEM_1:      return input::Key::Semicolon;
+        case VK_OEM_2:      return input::Key::Slash;
+        case VK_OEM_3:      return input::Key::Grave_Accent;
+        case VK_OEM_4:      return input::Key::Left_Bracket;
+        case VK_OEM_5:      return input::Key::Backslash;
+        case VK_OEM_6:      return input::Key::Right_Bracket;
+        case VK_OEM_7:      return input::Key::Apostrophe;
+        case VK_OEM_COMMA:  return input::Key::Comma;
+        case VK_OEM_MINUS:  return input::Key::Minus;
+        case VK_OEM_PERIOD: return input::Key::Period;
+        case VK_OEM_PLUS:   return input::Key::Equals_Sign;
+        case 'P':           return input::Key::P;
+        case VK_PAUSE:      return input::Key::Pause;
+        case VK_PRIOR:      return input::Key::Page_Up;
+        case 'Q':           return input::Key::Q;
+        case 'R':           return input::Key::R;
+        case VK_RETURN:     return input::Key::Enter;
+        case VK_RIGHT:      return input::Key::Right_Arrow;
+        case 'S':           return input::Key::S;
+        case VK_SPACE:      return input::Key::Space;
+        case VK_SUBTRACT:   return input::Key::Numpad_Subtract;
+        case 'T':           return input::Key::T;
+        case VK_TAB:        return input::Key::Tab;
+        case 'U':           return input::Key::U;
+        case VK_UP:         return input::Key::Up_Arrow;
+        case 'V':           return input::Key::V;
+        case 'W':           return input::Key::W;
+        case 'X':           return input::Key::X;
+        case 'Y':           return input::Key::Y;
+        case 'Z':           return input::Key::Z;
+        default:            return input::Key::Unknown;
+    }
 }
 
 static input::Modifier translate_modifiers(WPARAM w_param)
 {
-	input::Modifier modifier = {};
-	modifier.control = w_param & MK_CONTROL;
-	modifier.shift = w_param & MK_SHIFT;
-	return modifier;
+    input::Modifier modifier = {};
+    modifier.control = w_param & MK_CONTROL;
+    modifier.shift = w_param & MK_SHIFT;
+    return modifier;
 }
 
 static input::Modifier fetch_modifiers()
 {
-	input::Modifier modifier = {};
-	modifier.alt = GetKeyState(VK_MENU) & 0x8000;
-	modifier.control = GetKeyState(VK_CONTROL) & 0x8000;
-	modifier.shift = GetKeyState(VK_SHIFT) & 0x8000;
-	return modifier;
+    input::Modifier modifier = {};
+    modifier.alt = GetKeyState(VK_MENU) & 0x8000;
+    modifier.control = GetKeyState(VK_CONTROL) & 0x8000;
+    modifier.shift = GetKeyState(VK_SHIFT) & 0x8000;
+    return modifier;
 }
 
 namespace
 {
-	const int window_width = 800;
-	const int window_height = 600;
+    const int window_width = 800;
+    const int window_height = 600;
 
-	PlatformWindows platform;
-	HGLRC rendering_context;
-	bool functions_loaded;
+    PlatformWindows platform;
+    HGLRC rendering_context;
+    bool functions_loaded;
 }
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_param)
 {
-	switch(message)
-	{
-		case WM_CLOSE:
-		{
-			PostQuitMessage(0);
-			return 0;
-		}
-		case WM_DESTROY:
-		{
-			HGLRC rc = wglGetCurrentContext();
-			if(rc)
-			{
-				HDC dc = wglGetCurrentDC();
-				wglMakeCurrent(nullptr, nullptr);
-				ReleaseDC(hwnd, dc);
-				wglDeleteContext(rc);
-			}
-			DestroyWindow(hwnd);
-			if(hwnd == platform.window)
-			{
-				platform.window = nullptr;
-			}
-			return 0;
-		}
-		case WM_DPICHANGED:
-		{
-			WORD dpi = HIWORD(w_param);
-			double dots_per_millimeter = dpi / 25.4;
-			resize_viewport(window_width, window_height, dots_per_millimeter);
+    switch(message)
+    {
+        case WM_CLOSE:
+        {
+            PostQuitMessage(0);
+            return 0;
+        }
+        case WM_DESTROY:
+        {
+            HGLRC rc = wglGetCurrentContext();
+            if(rc)
+            {
+                HDC dc = wglGetCurrentDC();
+                wglMakeCurrent(nullptr, nullptr);
+                ReleaseDC(hwnd, dc);
+                wglDeleteContext(rc);
+            }
+            DestroyWindow(hwnd);
+            if(hwnd == platform.window)
+            {
+                platform.window = nullptr;
+            }
+            return 0;
+        }
+        case WM_DPICHANGED:
+        {
+            WORD dpi = HIWORD(w_param);
+            double dots_per_millimeter = dpi / 25.4;
+            resize_viewport(window_width, window_height, dots_per_millimeter);
 
-			RECT* suggested_rect = reinterpret_cast<RECT*>(l_param);
-			int left = suggested_rect->left;
-			int top = suggested_rect->top;
-			int width = suggested_rect->right - suggested_rect->left;
-			int height = suggested_rect->bottom - suggested_rect->top;
-			UINT flags = SWP_NOZORDER | SWP_NOACTIVATE;
-			SetWindowPos(hwnd, nullptr, left, top, width, height, flags);
+            RECT* suggested_rect = reinterpret_cast<RECT*>(l_param);
+            int left = suggested_rect->left;
+            int top = suggested_rect->top;
+            int width = suggested_rect->right - suggested_rect->left;
+            int height = suggested_rect->bottom - suggested_rect->top;
+            UINT flags = SWP_NOZORDER | SWP_NOACTIVATE;
+            SetWindowPos(hwnd, nullptr, left, top, width, height, flags);
 
-			return 0;
-		}
-		case WM_CHAR:
-		{
-			if(platform.input_context_focused)
-			{
-				wchar_t wide[2] = {w_param, L'\0'};
-				char* text = wide_char_to_utf8(wide, &platform.base.stack);
-				if(!only_control_characters(text))
-				{
-					input::composed_text_entered(text);
-				}
-				STACK_DEALLOCATE(&platform.base.stack, text);
-				
-				return 0;
-			}
-			break;
-		}
-		case WM_IME_COMPOSITION:
-		{
-			if(l_param & GCS_RESULTSTR)
-			{
-				HIMC context = ImmGetContext(hwnd);
-				if(!context)
-				{
-					LOG_ERROR("Failed to get the input method context.");
-					break;
-				}
+            return 0;
+        }
+        case WM_CHAR:
+        {
+            if(platform.input_context_focused)
+            {
+                wchar_t wide[2] = {w_param, L'\0'};
+                char* text = wide_char_to_utf8(wide, &platform.base.stack);
+                if(!only_control_characters(text))
+                {
+                    input::composed_text_entered(text);
+                }
+                STACK_DEALLOCATE(&platform.base.stack, text);
+                
+                return 0;
+            }
+            break;
+        }
+        case WM_IME_COMPOSITION:
+        {
+            if(l_param & GCS_RESULTSTR)
+            {
+                HIMC context = ImmGetContext(hwnd);
+                if(!context)
+                {
+                    LOG_ERROR("Failed to get the input method context.");
+                    break;
+                }
 
-				move_input_method(context, platform.composed_text_position);
+                move_input_method(context, platform.composed_text_position);
 
-				int bytes = ImmGetCompositionStringW(context, GCS_RESULTSTR, nullptr, 0);
-				bytes += sizeof(wchar_t);
-				wchar_t* string = static_cast<wchar_t*>(stack_allocate(&platform.base.stack, bytes));
+                int bytes = ImmGetCompositionStringW(context, GCS_RESULTSTR, nullptr, 0);
+                bytes += sizeof(wchar_t);
+                wchar_t* string = static_cast<wchar_t*>(stack_allocate(&platform.base.stack, bytes));
 
-				ImmGetCompositionStringW(context, GCS_RESULTSTR, string, bytes);
-				ImmReleaseContext(hwnd, context);
+                ImmGetCompositionStringW(context, GCS_RESULTSTR, string, bytes);
+                ImmReleaseContext(hwnd, context);
 
-				char* text = wide_char_to_utf8(string, &platform.base.stack);
-				input::composed_text_entered(text);
+                char* text = wide_char_to_utf8(string, &platform.base.stack);
+                input::composed_text_entered(text);
 
-				STACK_DEALLOCATE(&platform.base.stack, text);
-				STACK_DEALLOCATE(&platform.base.stack, string);
+                STACK_DEALLOCATE(&platform.base.stack, text);
+                STACK_DEALLOCATE(&platform.base.stack, string);
 
-				platform.composing = false;
+                platform.composing = false;
 
-				return 0;
-			}
-			else if(l_param & GCS_COMPSTR)
-			{
-				platform.composing = true;
+                return 0;
+            }
+            else if(l_param & GCS_COMPSTR)
+            {
+                platform.composing = true;
 
-				return 0;
-			}
-		}
-		case WM_IME_SETCONTEXT:
-		{
-			HIMC context = ImmGetContext(hwnd);
-			if(context)
-			{
-				move_input_method(context, platform.composed_text_position);
-				reset_composing(&platform, context);
+                return 0;
+            }
+        }
+        case WM_IME_SETCONTEXT:
+        {
+            HIMC context = ImmGetContext(hwnd);
+            if(context)
+            {
+                move_input_method(context, platform.composed_text_position);
+                reset_composing(&platform, context);
 
-				ImmReleaseContext(hwnd, context);
-			}
+                ImmReleaseContext(hwnd, context);
+            }
 
-			l_param &= ~ISC_SHOWUICOMPOSITIONWINDOW;
+            l_param &= ~ISC_SHOWUICOMPOSITIONWINDOW;
 
-			break;
-		}
-		case WM_IME_STARTCOMPOSITION:
-		{
-			HIMC context = ImmGetContext(hwnd);
-			if(context)
-			{
-				move_input_method(context, platform.composed_text_position);
+            break;
+        }
+        case WM_IME_STARTCOMPOSITION:
+        {
+            HIMC context = ImmGetContext(hwnd);
+            if(context)
+            {
+                move_input_method(context, platform.composed_text_position);
 
-				ImmReleaseContext(hwnd, context);
-			}
+                ImmReleaseContext(hwnd, context);
+            }
 
-			platform.composing = false;
+            platform.composing = false;
 
-			return 0;
-		}
-		case WM_KEYDOWN:
-		{
-			// Bit 30 of the LPARAM is set when the key was previously down, so
-			// it can be used to determine whether a press is auto-repeated.
+            return 0;
+        }
+        case WM_KEYDOWN:
+        {
+            // Bit 30 of the LPARAM is set when the key was previously down, so
+            // it can be used to determine whether a press is auto-repeated.
 
-			bool auto_repeated = l_param & 0x40000000;
-			if(!auto_repeated)
-			{
-				input::Modifier modifier = fetch_modifiers();
-				input::Key key = translate_virtual_key(w_param);
-				input::key_press(key, true, modifier);
+            bool auto_repeated = l_param & 0x40000000;
+            if(!auto_repeated)
+            {
+                input::Modifier modifier = fetch_modifiers();
+                input::Key key = translate_virtual_key(w_param);
+                input::key_press(key, true, modifier);
 
-				return 0;
-			}
-		}
-		case WM_KEYUP:
-		{
-			input::Modifier modifier = fetch_modifiers();
-			input::Key key = translate_virtual_key(w_param);
-			input::key_press(key, false, modifier);
+                return 0;
+            }
+        }
+        case WM_KEYUP:
+        {
+            input::Modifier modifier = fetch_modifiers();
+            input::Key key = translate_virtual_key(w_param);
+            input::key_press(key, false, modifier);
 
-			return 0;
-		}
-		case WM_LBUTTONDOWN:
-		{
-			input::Modifier modifier = translate_modifiers(w_param);
-			input::mouse_click(input::MouseButton::Left, true, modifier);
+            return 0;
+        }
+        case WM_LBUTTONDOWN:
+        {
+            input::Modifier modifier = translate_modifiers(w_param);
+            input::mouse_click(input::MouseButton::Left, true, modifier);
 
-			return 0;
-		}
-		case WM_LBUTTONUP:
-		{
-			input::Modifier modifier = translate_modifiers(w_param);
-			input::mouse_click(input::MouseButton::Left, false, modifier);
+            return 0;
+        }
+        case WM_LBUTTONUP:
+        {
+            input::Modifier modifier = translate_modifiers(w_param);
+            input::mouse_click(input::MouseButton::Left, false, modifier);
 
-			return 0;
-		}
-		case WM_MBUTTONDOWN:
-		{
-			input::Modifier modifier = translate_modifiers(w_param);
-			input::mouse_click(input::MouseButton::Middle, true, modifier);
+            return 0;
+        }
+        case WM_MBUTTONDOWN:
+        {
+            input::Modifier modifier = translate_modifiers(w_param);
+            input::mouse_click(input::MouseButton::Middle, true, modifier);
 
-			return 0;
-		}
-		case WM_MBUTTONUP:
-		{
-			input::Modifier modifier = translate_modifiers(w_param);
-			input::mouse_click(input::MouseButton::Middle, false, modifier);
+            return 0;
+        }
+        case WM_MBUTTONUP:
+        {
+            input::Modifier modifier = translate_modifiers(w_param);
+            input::mouse_click(input::MouseButton::Middle, false, modifier);
 
-			return 0;
-		}
-		case WM_MOUSEMOVE:
-		{
-			int x = GET_X_LPARAM(l_param);
-			int y = GET_Y_LPARAM(l_param);
-			input::mouse_move(x, y);
+            return 0;
+        }
+        case WM_MOUSEMOVE:
+        {
+            int x = GET_X_LPARAM(l_param);
+            int y = GET_Y_LPARAM(l_param);
+            input::mouse_move(x, y);
 
-			return 0;
-		}
-		case WM_MOUSEWHEEL:
-		{
-			int scroll = GET_WHEEL_DELTA_WPARAM(w_param) / WHEEL_DELTA;
-			input::mouse_scroll(0, scroll);
+            return 0;
+        }
+        case WM_MOUSEWHEEL:
+        {
+            int scroll = GET_WHEEL_DELTA_WPARAM(w_param) / WHEEL_DELTA;
+            input::mouse_scroll(0, scroll);
 
-			return 0;
-		}
-		case WM_RBUTTONDOWN:
-		{
-			input::Modifier modifier = translate_modifiers(w_param);
-			input::mouse_click(input::MouseButton::Right, true, modifier);
+            return 0;
+        }
+        case WM_RBUTTONDOWN:
+        {
+            input::Modifier modifier = translate_modifiers(w_param);
+            input::mouse_click(input::MouseButton::Right, true, modifier);
 
-			return 0;
-		}
-		case WM_RBUTTONUP:
-		{
-			input::Modifier modifier = translate_modifiers(w_param);
-			input::mouse_click(input::MouseButton::Right, false, modifier);
+            return 0;
+        }
+        case WM_RBUTTONUP:
+        {
+            input::Modifier modifier = translate_modifiers(w_param);
+            input::mouse_click(input::MouseButton::Right, false, modifier);
 
-			return 0;
-		}
-		case WM_SETCURSOR:
-		{
-			if(LOWORD(l_param) == HTCLIENT)
-			{
-				HCURSOR cursor = get_cursor_by_type(&platform, platform.cursor_type);
-				SetCursor(cursor);
-				return TRUE;
-			}
+            return 0;
+        }
+        case WM_SETCURSOR:
+        {
+            if(LOWORD(l_param) == HTCLIENT)
+            {
+                HCURSOR cursor = get_cursor_by_type(&platform, platform.cursor_type);
+                SetCursor(cursor);
+                return TRUE;
+            }
 
-			return FALSE;
-		}
-		case WM_SIZE:
-		{
-			int width = LOWORD(l_param);
-			int height = HIWORD(l_param);
-			double dpmm = get_dots_per_millimeter(&platform);
-			if(functions_loaded)
-			{
-				resize_viewport(width, height, dpmm);
-			}
+            return FALSE;
+        }
+        case WM_SIZE:
+        {
+            int width = LOWORD(l_param);
+            int height = HIWORD(l_param);
+            double dpmm = get_dots_per_millimeter(&platform);
+            if(functions_loaded)
+            {
+                resize_viewport(width, height, dpmm);
+            }
 
-			return 0;
-		}
-	}
-	return DefWindowProcW(hwnd, message, w_param, l_param);
+            return 0;
+        }
+    }
+    return DefWindowProcW(hwnd, message, w_param, l_param);
 }
 
 static LocaleId match_closest_locale_id()
 {
-	LANGID id = GetUserDefaultUILanguage();
-	WORD primary = PRIMARYLANGID(id);
-	switch(primary)
-	{
-		default:
-		case LANG_ENGLISH:
-		{
-			return LocaleId::Default;
-		}
-	}
+    LANGID id = GetUserDefaultUILanguage();
+    WORD primary = PRIMARYLANGID(id);
+    switch(primary)
+    {
+        default:
+        case LANG_ENGLISH:
+        {
+            return LocaleId::Default;
+        }
+    }
 }
 
 #define MAKEINTATOMW(atom) \
-	((LPWSTR)((ULONG_PTR)((WORD)(atom))))
+    ((LPWSTR)((ULONG_PTR)((WORD)(atom))))
 
 static bool main_start_up(HINSTANCE instance, int show_command)
 {
-	platform.base.locale_id = match_closest_locale_id();
-	create_stack(&platform.base);
-	bool loaded = load_localized_text(&platform.base);
-	if(!loaded)
-	{
-		LOG_ERROR("Failed to load the localized text.");
-		return false;
-	}
-	load_cursors(&platform);
+    platform.base.locale_id = match_closest_locale_id();
+    create_stack(&platform.base);
+    bool loaded = load_localized_text(&platform.base);
+    if(!loaded)
+    {
+        LOG_ERROR("Failed to load the localized text.");
+        return false;
+    }
+    load_cursors(&platform);
 
-	WNDCLASSEXW window_class = {};
-	window_class.cbSize = sizeof window_class;
-	window_class.style = CS_HREDRAW | CS_VREDRAW;
-	window_class.lpfnWndProc = WindowProc;
-	window_class.hInstance = instance;
-	window_class.hIcon = LoadIcon(instance, IDI_APPLICATION);
-	window_class.hIconSm = static_cast<HICON>(LoadIcon(instance, IDI_APPLICATION));
-	window_class.hCursor = LoadCursor(nullptr, IDC_ARROW);
-	window_class.lpszClassName = L"ArboretumWindowClass";
-	ATOM registered_class = RegisterClassExW(&window_class);
-	if(registered_class == 0)
-	{
-		LOG_ERROR("Failed to register the window class.");
-		return false;
-	}
+    WNDCLASSEXW window_class = {};
+    window_class.cbSize = sizeof window_class;
+    window_class.style = CS_HREDRAW | CS_VREDRAW;
+    window_class.lpfnWndProc = WindowProc;
+    window_class.hInstance = instance;
+    window_class.hIcon = LoadIcon(instance, IDI_APPLICATION);
+    window_class.hIconSm = static_cast<HICON>(LoadIcon(instance, IDI_APPLICATION));
+    window_class.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    window_class.lpszClassName = L"ArboretumWindowClass";
+    ATOM registered_class = RegisterClassExW(&window_class);
+    if(registered_class == 0)
+    {
+        LOG_ERROR("Failed to register the window class.");
+        return false;
+    }
 
-	DWORD window_style = WS_OVERLAPPEDWINDOW;
-	const char* app_name = platform.base.nonlocalized_text.app_name;
-	wchar_t* title = utf8_to_wide_char(app_name, &platform.base.stack);
-	platform.window = CreateWindowExW(WS_EX_APPWINDOW, MAKEINTATOMW(registered_class), title, window_style, CW_USEDEFAULT, CW_USEDEFAULT, window_width, window_height, nullptr, nullptr, instance, nullptr);
-	STACK_DEALLOCATE(&platform.base.stack, title);
-	if(!platform.window)
-	{
-		LOG_ERROR("Failed to create the window.");
-		return false;
-	}
+    DWORD window_style = WS_OVERLAPPEDWINDOW;
+    const char* app_name = platform.base.nonlocalized_text.app_name;
+    wchar_t* title = utf8_to_wide_char(app_name, &platform.base.stack);
+    platform.window = CreateWindowExW(WS_EX_APPWINDOW, MAKEINTATOMW(registered_class), title, window_style, CW_USEDEFAULT, CW_USEDEFAULT, window_width, window_height, nullptr, nullptr, instance, nullptr);
+    STACK_DEALLOCATE(&platform.base.stack, title);
+    if(!platform.window)
+    {
+        LOG_ERROR("Failed to create the window.");
+        return false;
+    }
 
-	platform.device_context = GetDC(platform.window);
-	if(!platform.device_context)
-	{
-		LOG_ERROR("Couldn't obtain the device context.");
-		return false;
-	}
+    platform.device_context = GetDC(platform.window);
+    if(!platform.device_context)
+    {
+        LOG_ERROR("Couldn't obtain the device context.");
+        return false;
+    }
 
-	PIXELFORMATDESCRIPTOR descriptor = {};
-	descriptor.nSize = sizeof descriptor;
-	descriptor.nVersion = 1;
-	descriptor.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
-	descriptor.iPixelType = PFD_TYPE_RGBA;
-	descriptor.cColorBits = 32;
-	descriptor.cDepthBits = 24;
-	descriptor.cStencilBits = 8;
-	descriptor.iLayerType = PFD_MAIN_PLANE;
-	int format_index = ChoosePixelFormat(platform.device_context, &descriptor);
-	if(format_index == 0)
-	{
-		LOG_ERROR("Failed to set up the pixel format.");
-		return false;
-	}
-	if(SetPixelFormat(platform.device_context, format_index, &descriptor) == FALSE)
-	{
-		LOG_ERROR("Failed to set up the pixel format.");
-		return false;
-	}
+    PIXELFORMATDESCRIPTOR descriptor = {};
+    descriptor.nSize = sizeof descriptor;
+    descriptor.nVersion = 1;
+    descriptor.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
+    descriptor.iPixelType = PFD_TYPE_RGBA;
+    descriptor.cColorBits = 32;
+    descriptor.cDepthBits = 24;
+    descriptor.cStencilBits = 8;
+    descriptor.iLayerType = PFD_MAIN_PLANE;
+    int format_index = ChoosePixelFormat(platform.device_context, &descriptor);
+    if(format_index == 0)
+    {
+        LOG_ERROR("Failed to set up the pixel format.");
+        return false;
+    }
+    if(SetPixelFormat(platform.device_context, format_index, &descriptor) == FALSE)
+    {
+        LOG_ERROR("Failed to set up the pixel format.");
+        return false;
+    }
 
-	rendering_context = wglCreateContext(platform.device_context);
-	if(!rendering_context)
-	{
-		LOG_ERROR("Couldn't create the rendering context.");
-		return false;
-	}
+    rendering_context = wglCreateContext(platform.device_context);
+    if(!rendering_context)
+    {
+        LOG_ERROR("Couldn't create the rendering context.");
+        return false;
+    }
 
-	ShowWindow(platform.window, show_command);
+    ShowWindow(platform.window, show_command);
 
-	// Set it to be this thread's rendering context.
-	if(wglMakeCurrent(platform.device_context, rendering_context) == FALSE)
-	{
-		LOG_ERROR("Couldn't set this thread's rendering context (wglMakeCurrent failed).");
-		return false;
-	}
+    // Set it to be this thread's rendering context.
+    if(wglMakeCurrent(platform.device_context, rendering_context) == FALSE)
+    {
+        LOG_ERROR("Couldn't set this thread's rendering context (wglMakeCurrent failed).");
+        return false;
+    }
 
-	functions_loaded = ogl_LoadFunctions();
-	if(!functions_loaded)
-	{
-		LOG_ERROR("OpenGL functions could not be loaded!");
-		return false;
-	}
+    functions_loaded = ogl_LoadFunctions();
+    if(!functions_loaded)
+    {
+        LOG_ERROR("OpenGL functions could not be loaded!");
+        return false;
+    }
 
-	input::system_start_up();
+    input::system_start_up();
 
-	bool started = video::system_start_up();
-	if(!started)
-	{
-		LOG_ERROR("Video system failed startup.");
-		return false;
-	}
+    bool started = video::system_start_up();
+    if(!started)
+    {
+        LOG_ERROR("Video system failed startup.");
+        return false;
+    }
 
-	started = editor_start_up(&platform.base);
-	if(!started)
-	{
-		LOG_ERROR("Editor failed startup.");
-		return false;
-	}
+    started = editor_start_up(&platform.base);
+    if(!started)
+    {
+        LOG_ERROR("Editor failed startup.");
+        return false;
+    }
 
-	double dpmm = get_dots_per_millimeter(&platform);
-	int width, height;
-	get_window_dimensions(&platform, &width, &height);
-	resize_viewport(width, height, dpmm);
+    double dpmm = get_dots_per_millimeter(&platform);
+    int width, height;
+    get_window_dimensions(&platform, &width, &height);
+    resize_viewport(width, height, dpmm);
 
-	return true;
+    return true;
 }
 
 static void main_shut_down()
 {
-	editor_shut_down();
-	video::system_shut_down(functions_loaded);
-	destroy_stack(&platform.base);
+    editor_shut_down();
+    video::system_shut_down(functions_loaded);
+    destroy_stack(&platform.base);
 
-	if(rendering_context)
-	{
-		wglMakeCurrent(nullptr, nullptr);
-		ReleaseDC(platform.window, platform.device_context);
-		wglDeleteContext(rendering_context);
-	}
-	else if(platform.device_context)
-	{
-		ReleaseDC(platform.window, platform.device_context);
-	}
-	if(platform.window)
-	{
-		DestroyWindow(platform.window);
-	}
+    if(rendering_context)
+    {
+        wglMakeCurrent(nullptr, nullptr);
+        ReleaseDC(platform.window, platform.device_context);
+        wglDeleteContext(rendering_context);
+    }
+    else if(platform.device_context)
+    {
+        ReleaseDC(platform.window, platform.device_context);
+    }
+    if(platform.window)
+    {
+        DestroyWindow(platform.window);
+    }
 }
 
 static s64 get_clock_frequency()
 {
-	LARGE_INTEGER frequency;
-	QueryPerformanceFrequency(&frequency);
-	return frequency.QuadPart;
+    LARGE_INTEGER frequency;
+    QueryPerformanceFrequency(&frequency);
+    return frequency.QuadPart;
 }
 
 static s64 get_timestamp()
 {
-	LARGE_INTEGER now;
-	QueryPerformanceCounter(&now);
-	return now.QuadPart;
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    return now.QuadPart;
 }
 
 static double get_second_duration(s64 start, s64 end, s64 frequency)
 {
-	return (end - start) / static_cast<double>(frequency);
+    return (end - start) / static_cast<double>(frequency);
 }
 
 static void go_to_sleep(double amount_to_sleep)
 {
-	DWORD milliseconds = 1000 * amount_to_sleep;
-	Sleep(milliseconds);
+    DWORD milliseconds = 1000 * amount_to_sleep;
+    Sleep(milliseconds);
 }
 
 static int main_loop()
 {
-	const double frame_frequency = 1.0 / 60.0;
-	s64 clock_frequency = get_clock_frequency();
+    const double frame_frequency = 1.0 / 60.0;
+    s64 clock_frequency = get_clock_frequency();
 
-	MSG msg = {};
-	for(;;)
-	{
-		s64 frame_start_time = get_timestamp();
+    MSG msg = {};
+    for(;;)
+    {
+        s64 frame_start_time = get_timestamp();
 
-		editor_update(&platform.base);
-		input::system_update();
+        editor_update(&platform.base);
+        input::system_update();
 
-		SwapBuffers(platform.device_context);
+        SwapBuffers(platform.device_context);
 
-		while(PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
-		{
-			if(msg.message == WM_QUIT)
-			{
-				return msg.wParam;
-			}
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
-		}
+        while(PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+        {
+            if(msg.message == WM_QUIT)
+            {
+                return msg.wParam;
+            }
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
 
-		// Sleep off any remaining time until the next frame.
-		s64 frame_end_time = get_timestamp();
-		double frame_thusfar = get_second_duration(frame_start_time, frame_end_time, clock_frequency);
-		if(frame_thusfar < frame_frequency)
-		{
-			go_to_sleep(frame_frequency - frame_thusfar);
-		}
-	}
+        // Sleep off any remaining time until the next frame.
+        s64 frame_end_time = get_timestamp();
+        double frame_thusfar = get_second_duration(frame_start_time, frame_end_time, clock_frequency);
+        if(frame_thusfar < frame_frequency)
+        {
+            go_to_sleep(frame_frequency - frame_thusfar);
+        }
+    }
 }
 
 int CALLBACK WinMain(HINSTANCE instance, HINSTANCE previous_instance, LPSTR command_line, int show_command)
 {
-	// This is always null.
-	static_cast<void>(previous_instance);
-	// Call GetCommandLineW instead for the Unicode version of this string.
-	static_cast<void>(command_line);
+    // This is always null.
+    static_cast<void>(previous_instance);
+    // Call GetCommandLineW instead for the Unicode version of this string.
+    static_cast<void>(command_line);
 
-	if(!main_start_up(instance, show_command))
-	{
-		main_shut_down();
-		return 0;
-	}
-	int result = main_loop();
-	main_shut_down();
+    if(!main_start_up(instance, show_command))
+    {
+        main_shut_down();
+        return 0;
+    }
+    int result = main_loop();
+    main_shut_down();
 
-	return result;
+    return result;
 }
 
 #endif // defined(OS_WINDOWS)

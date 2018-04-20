@@ -236,7 +236,7 @@ Face* add_face(Mesh* mesh, Vertex** vertices, Edge** edges, int edges_count)
 
 static Face* connect_vertices_and_add_face(Mesh* mesh, Vertex** vertices, int vertices_count, Stack* stack)
 {
-	Edge** edges = STACK_ALLOCATE(stack, Edge*, vertices_count);
+    Edge** edges = STACK_ALLOCATE(stack, Edge*, vertices_count);
     int end = vertices_count - 1;
     for(int i = 0; i < end; i += 1)
     {
@@ -245,7 +245,7 @@ static Face* connect_vertices_and_add_face(Mesh* mesh, Vertex** vertices, int ve
     edges[end] = add_edge(mesh, vertices[end], vertices[0]);
 
     Face* face = add_face(mesh, vertices, edges, vertices_count);
-	STACK_DEALLOCATE(stack, edges);
+    STACK_DEALLOCATE(stack, edges);
 
     return face;
 }
@@ -261,7 +261,7 @@ Face* connect_disconnected_vertices_and_add_face(Mesh* mesh, Vertex** vertices, 
     edges[end] = add_edge_if_nonexistant(mesh, vertices[end], vertices[0]);
 
     Face* face = add_face(mesh, vertices, edges, vertices_count);
-	STACK_DEALLOCATE(stack, edges);
+    STACK_DEALLOCATE(stack, edges);
 
     return face;
 }
@@ -871,7 +871,7 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Stack* stack)
         }
         connect_disconnected_vertices_and_add_face(mesh, vertices, vertices_count, stack);
         remove_face_and_its_unlinked_edges_and_vertices(mesh, face);
-		STACK_DEALLOCATE(stack, vertices);
+        STACK_DEALLOCATE(stack, vertices);
     }
 
     map_destroy(&map, stack);

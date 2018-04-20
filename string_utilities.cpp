@@ -141,17 +141,17 @@ int count_char_occurrences(const char* s, char c)
 
 int count_substring_occurrences(const char* string, const char* pattern)
 {
-	int count = 0;
-	const char* s = string;
-	const char* p = find_string(s, pattern);
-	int pattern_size = string_size(pattern);
-	while(p)
-	{
-		count += 1;
-		s = p + pattern_size;
-		p = find_string(s, pattern);
-	}
-	return count;
+    int count = 0;
+    const char* s = string;
+    const char* p = find_string(s, pattern);
+    int pattern_size = string_size(pattern);
+    while(p)
+    {
+        count += 1;
+        s = p + pattern_size;
+        p = find_string(s, pattern);
+    }
+    return count;
 }
 
 static void reverse_string(char* s, int length)
@@ -225,13 +225,13 @@ bool only_control_characters(const char* s)
 
 void replace_chars(char* s, char original, char replacement)
 {
-	for(int i = 0; s[i]; i += 1)
-	{
-		if(s[i] == original)
-		{
-			s[i] = replacement;
-		}
-	}
+    for(int i = 0; s[i]; i += 1)
+    {
+        if(s[i] == original)
+        {
+            s[i] = replacement;
+        }
+    }
 }
 
 // String To Value..............................................................
@@ -601,10 +601,10 @@ static void double_to_string(char* string, int size, double value, unsigned int 
         int m1;
         if(include_exponent)
         {
-			if(m < 0)
-			{
-				m -= 1.0;
-			}
+            if(m < 0)
+            {
+                m -= 1.0;
+            }
             n /= pow(10.0, m);
             m1 = m;
             m = 0;
@@ -1480,8 +1480,8 @@ static va_list process_specifier(FormatContext* context, va_list arguments)
             break;
         }
     }
-	
-	return arguments;
+    
+    return arguments;
 }
 
 // TODO: Bug report December 31, 2017 - segfault in process_specifier when

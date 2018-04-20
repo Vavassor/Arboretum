@@ -10,7 +10,7 @@
 
 static void break_debugger()
 {
-	raise(SIGTRAP);
+    raise(SIGTRAP);
 }
 
 #elif defined(OS_WINDOWS)
@@ -22,7 +22,7 @@ static void break_debugger()
 
 static void break_debugger()
 {
-	DebugBreak();
+    DebugBreak();
 }
 
 #endif // defined(OS_WINDOWS)
@@ -34,6 +34,6 @@ void assert_fail(const char* expression, const char* file, int line)
     format_string(message, message_size, "Assertion failed: %s file %s line number %i\n", expression, file, line);
     write_to_standard_output(message, true);
 
-	break_debugger();
+    break_debugger();
     raise(SIGABRT);
 }

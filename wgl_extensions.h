@@ -8,10 +8,10 @@
 #define __wglext_h_
 
 #ifndef WIN32_LEAN_AND_MEAN
-	#define WIN32_LEAN_AND_MEAN 1
+    #define WIN32_LEAN_AND_MEAN 1
 #endif
 #ifndef NOMINMAX
-	#define NOMINMAX
+    #define NOMINMAX
 #endif
 #include <windows.h>
 
@@ -179,8 +179,8 @@ extern BOOL (CODEGEN_FUNCPTR *_ptrc_wglSwapIntervalEXT)(int);
 
 enum wgl_LoadStatus
 {
-	wgl_LOAD_FAILED = 0,
-	wgl_LOAD_SUCCEEDED = 1,
+    wgl_LOAD_FAILED = 0,
+    wgl_LOAD_SUCCEEDED = 1,
 };
 
 int wgl_LoadFunctions(HDC hdc);

@@ -423,7 +423,7 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
                 vertices[j] = vertex;
             }
             jan::connect_disconnected_vertices_and_add_face(&mesh, vertices, obj_face.sides, stack);
-			STACK_DEALLOCATE(stack, vertices);
+            STACK_DEALLOCATE(stack, vertices);
         }
         jan::update_normals(&mesh);
         STACK_DEALLOCATE(stack, seen);
