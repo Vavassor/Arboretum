@@ -1886,11 +1886,9 @@ static void detect_focus_changes_for_toplevel_containers(Context* context)
         || input::get_mouse_clicked(input::MouseButton::Right);
 
     Vector2 mouse_position;
-    int position_x;
-    int position_y;
-    input::get_mouse_position(&position_x, &position_y);
-    mouse_position.x = position_x - context->viewport.x / 2.0f;
-    mouse_position.y = -(position_y - context->viewport.y / 2.0f);
+    Int2 position = input::get_mouse_position();
+    mouse_position.x = position.x - context->viewport.x / 2.0f;
+    mouse_position.y = -(position.y - context->viewport.y / 2.0f);
 
     Item* highest = nullptr;
     FOR_ALL(context->toplevel_containers)
@@ -1981,11 +1979,9 @@ static void detect_capture_changes_for_toplevel_containers(Context* context, Pla
         || input::get_mouse_clicked(input::MouseButton::Right);
 
     Vector2 mouse_position;
-    int position_x;
-    int position_y;
-    input::get_mouse_position(&position_x, &position_y);
-    mouse_position.x = position_x - context->viewport.x / 2.0f;
-    mouse_position.y = -(position_y - context->viewport.y / 2.0f);
+    Int2 position = input::get_mouse_position();
+    mouse_position.x = position.x - context->viewport.x / 2.0f;
+    mouse_position.y = -(position.y - context->viewport.y / 2.0f);
 
     Item* highest = nullptr;
     FOR_ALL(context->toplevel_containers)
@@ -2653,11 +2649,9 @@ static void update_pointer_input(Item* item, Context* context, Platform* platfor
 
             float line_height = context->theme.font->line_height;
 
-            int velocity_x;
-            int velocity_y;
-            input::get_mouse_scroll_velocity(&velocity_x, &velocity_y);
+            Int2 velocity = input::get_mouse_scroll_velocity();
             const float speed = 0.17f;
-            scroll(item, speed * velocity_y, line_height);
+            scroll(item, speed * velocity.y, line_height);
 
             if(is_valid_index(list->hovered_item_index) && input::get_mouse_clicked(input::MouseButton::Left))
             {
@@ -2685,16 +2679,15 @@ static void update_pointer_input(Item* item, Context* context, Platform* platfor
             bool dragged = !clicked && input::get_mouse_pressed(input::MouseButton::Left);
             if(clicked || dragged)
             {
-                int x, y;
-                input::get_mouse_position(&x, &y);
-                Vector2 position;
-                position.x = x - context->viewport.x / 2.0f;
-                position.y = -(y - context->viewport.y / 2.0f);
+                Vector2 mouse_position;
+                Int2 position = input::get_mouse_position();
+                mouse_position.x = position.x - context->viewport.x / 2.0f;
+                mouse_position.y = -(position.y - context->viewport.y / 2.0f);
 
                 Vector2 top_left = rect_top_left(item->bounds);
-                position -= top_left;
+                mouse_position -= top_left;
 
-                int index = find_index_at_position(text_block, item->bounds.dimensions, line_height, position);
+                int index = find_index_at_position(text_block, item->bounds.dimensions, line_height, mouse_position);
                 if(index != invalid_index)
                 {
                     text_input->cursor_position = index;

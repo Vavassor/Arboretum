@@ -1,8 +1,9 @@
 #ifndef CAMERA_H_
 #define CAMERA_H_
 
-#include "vector_math.h"
 #include "intersection.h"
+#include "int2.h"
+#include "vector_math.h"
 
 struct Camera
 {
@@ -13,12 +14,6 @@ struct Camera
     float far_plane;
 };
 
-struct Viewport
-{
-    int width;
-    int height;
-};
-
-Ray ray_from_viewport_point(Vector2 point, Viewport viewport, Matrix4 view, Matrix4 projection, bool orthographic);
+Ray ray_from_viewport_point(Vector2 point, Int2 viewport, Matrix4 view, Matrix4 projection, bool orthographic);
 
 #endif // CAMERA_H_

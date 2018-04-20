@@ -76,7 +76,7 @@ namespace
     } mouse;
 
     Camera camera;
-    Viewport viewport;
+    Int2 viewport;
     FilePickDialog dialog;
 }
 
@@ -324,7 +324,7 @@ static void update_camera_controls()
 {
     Vector3 forward = camera.position - camera.target;
     Vector3 right = normalise(cross(vector3_unit_z, forward));
-    Matrix4 projection = perspective_projection_matrix(camera.field_of_view, viewport.width, viewport.height, camera.near_plane, camera.far_plane);
+    Matrix4 projection = perspective_projection_matrix(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
 
     if(mouse.scroll_velocity_y != 0.0f && action_allowed(Action::Zoom_Camera))
     {
@@ -495,7 +495,7 @@ static void delete_object(Platform* platform)
 
 static void update_object_mode(Platform* platform)
 {
-    Matrix4 projection = perspective_projection_matrix(camera.field_of_view, viewport.width, viewport.height, camera.near_plane, camera.far_plane);
+    Matrix4 projection = perspective_projection_matrix(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
 
     // Update the move tool.
     if(selected_object_index != invalid_index && action_allowed(Action::Move))
@@ -694,7 +694,7 @@ static void update_face_mode()
 
     Object* object = &lady.objects[selected_object_index];
     jan::Mesh* mesh = &object->mesh;
-    Matrix4 projection = perspective_projection_matrix(camera.field_of_view, viewport.width, viewport.height, camera.near_plane, camera.far_plane);
+    Matrix4 projection = perspective_projection_matrix(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
 
     if(input::get_key_tapped(input::Key::G))
     {
@@ -709,11 +709,9 @@ static void update_face_mode()
     // Translation of faces.
     if(translating)
     {
-        int velocity_x;
-        int velocity_y;
-        input::get_mouse_velocity(&velocity_x, &velocity_y);
-        mouse.velocity.x = velocity_x;
-        mouse.velocity.y = velocity_y;
+        Int2 velocity = input::get_mouse_velocity();
+        mouse.velocity.x = velocity.x;
+        mouse.velocity.y = velocity.y;
 
         Vector3 forward = camera.position - camera.target;
         Vector3 right = normalise(cross(vector3_unit_z, forward));
@@ -817,11 +815,9 @@ void editor_update(Platform* platform)
         if(input::get_mouse_pressed(input::MouseButton::Left)
             || input::get_mouse_pressed(input::MouseButton::Right))
         {
-            int velocity_x;
-            int velocity_y;
-            input::get_mouse_velocity(&velocity_x, &velocity_y);
-            mouse.velocity.x = velocity_x;
-            mouse.velocity.y = velocity_y;
+            Int2 velocity = input::get_mouse_velocity();
+            mouse.velocity.x = velocity.x;
+            mouse.velocity.y = velocity.y;
         }
         else
         {
@@ -829,17 +825,13 @@ void editor_update(Platform* platform)
         }
     }
     {
-        int position_x;
-        int position_y;
-        input::get_mouse_position(&position_x, &position_y);
-        mouse.position.x = position_x;
-        mouse.position.y = position_y;
+        Int2 position = input::get_mouse_position();
+        mouse.position.x = position.x;
+        mouse.position.y = position.y;
 
         const float scroll_speed = 0.15f;
-        int scroll_velocity_x;
-        int scroll_velocity_y;
-        input::get_mouse_scroll_velocity(&scroll_velocity_x, &scroll_velocity_y);
-        mouse.scroll_velocity_y = scroll_speed * scroll_velocity_y;
+        Int2 scroll_velocity = input::get_mouse_scroll_velocity();
+        mouse.scroll_velocity_y = scroll_speed * scroll_velocity.y;
     }
 
     // Update the UI system and respond to any events that occurred.
@@ -978,13 +970,12 @@ void editor_paste_from_clipboard(Platform* platform, char* clipboard)
     ui::accept_paste_from_clipboard(&ui_context, clipboard, platform);
 }
 
-void resize_viewport(int width, int height, double dots_per_millimeter)
+void resize_viewport(Int2 dimensions, double dots_per_millimeter)
 {
-    viewport.width = width;
-    viewport.height = height;
+    viewport = dimensions;
 
-    ui_context.viewport.x = width;
-    ui_context.viewport.y = height;
+    ui_context.viewport.x = dimensions.x;
+    ui_context.viewport.y = dimensions.y;
 
-    video::resize_viewport(width, height, dots_per_millimeter, camera.field_of_view);
+    video::resize_viewport(dimensions, dots_per_millimeter, camera.field_of_view);
 }

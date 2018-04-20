@@ -2,6 +2,7 @@
 #define VIDEO_H_
 
 #include "camera.h"
+#include "int2.h"
 #include "sized_types.h"
 
 struct Heap;
@@ -36,7 +37,7 @@ struct Object;
 
 struct UpdateState
 {
-    Viewport viewport;
+    Int2 viewport;
     Camera* camera;
     MoveTool* move_tool;
     ui::Context* ui_context;
@@ -51,7 +52,7 @@ struct UpdateState
 bool system_start_up();
 void system_shut_down(bool functions_loaded);
 void system_update(UpdateState* update, Platform* platform);
-void resize_viewport(int width, int height, double dots_per_millimeter, float fov);
+void resize_viewport(Int2 dimensions, double dots_per_millimeter, float fov);
 
 void object_create(Object* object);
 void object_destroy(Object* object);

@@ -1138,7 +1138,7 @@ static void draw_object_with_halo(ObjectLady* lady, int index, Vector4 colour)
 void system_update(UpdateState* update, Platform* platform)
 {
     Camera* camera = update->camera;
-    Viewport viewport = update->viewport;
+    Int2 viewport = update->viewport;
     MoveTool* move_tool = update->move_tool;
     ui::Context* ui_context = update->ui_context;
     ui::Item* main_menu = update->main_menu;
@@ -1152,7 +1152,7 @@ void system_update(UpdateState* update, Platform* platform)
 
     // Update matrices.
     {
-        projection = perspective_projection_matrix(camera->field_of_view, viewport.width, viewport.height, camera->near_plane, camera->far_plane);
+        projection = perspective_projection_matrix(camera->field_of_view, viewport.x, viewport.y, camera->near_plane, camera->far_plane);
 
         Vector3 direction = normalise(camera->target - camera->position);
         Matrix4 view = look_at_matrix(vector3_zero, direction, vector3_unit_z);
@@ -1271,7 +1271,7 @@ void system_update(UpdateState* update, Platform* platform)
         const Vector4 y_axis_shadow_colour = {0.3569f, 0.7f, 0.0f, 1.0f};
         const Vector4 z_axis_shadow_colour = {0.0863f, 0.0314f, 0.7f, 1.0f};
 
-        int corner_x = viewport.width - scale - padding;
+        int corner_x = viewport.x - scale - padding;
         int corner_y = padding;
         glViewport(corner_x, corner_y, scale, scale);
         glClear(GL_DEPTH_BUFFER_BIT);
@@ -1294,7 +1294,7 @@ void system_update(UpdateState* update, Platform* platform)
     }
 
     // Draw the screen-space UI.
-    glViewport(0, 0, viewport.width, viewport.height);
+    glViewport(0, 0, viewport.x, viewport.y);
     glDisable(GL_DEPTH_TEST);
     glDepthMask(GL_FALSE);
 
@@ -1324,8 +1324,8 @@ void system_update(UpdateState* update, Platform* platform)
         glBindSampler(0, nearest_repeat);
 
         Rect space;
-        space.bottom_left = {-viewport.width / 2.0f, viewport.height / 2.0f};
-        space.dimensions.x = viewport.width;
+        space.bottom_left = {-viewport.x / 2.0f, viewport.y / 2.0f};
+        space.dimensions.x = viewport.x;
         space.dimensions.y = 60.0f;
         space.bottom_left.y -= space.dimensions.y;
         ui::lay_out(main_menu, space, ui_context);
@@ -1341,16 +1341,18 @@ void system_update(UpdateState* update, Platform* platform)
     // Output a test screenshot.
     if(input::get_key_tapped(input::Key::F12))
     {
-        int pixels_count = viewport.width * viewport.height;
+        int pixels_count = viewport.x * viewport.y;
         Pixel24* pixels = STACK_ALLOCATE(&scratch, Pixel24, pixels_count);
-        glReadPixels(0, 0, viewport.width, viewport.height, GL_BGR, GL_UNSIGNED_BYTE, pixels);
-        bmp::write_file("test.bmp", reinterpret_cast<const u8*>(pixels), viewport.width, viewport.height, &scratch);
+        glReadPixels(0, 0, viewport.x, viewport.y, GL_BGR, GL_UNSIGNED_BYTE, pixels);
+        bmp::write_file("test.bmp", reinterpret_cast<const u8*>(pixels), viewport.x, viewport.y, &scratch);
         STACK_DEALLOCATE(&scratch, pixels);
     }
 }
 
-void resize_viewport(int width, int height, double dots_per_millimeter, float fov)
+void resize_viewport(Int2 dimensions, double dots_per_millimeter, float fov)
 {
+    int width = dimensions.x;
+    int height = dimensions.y;
     sky_projection = perspective_projection_matrix(fov, width, height, 0.001f, 1.0f);
     screen_projection = orthographic_projection_matrix(width, height, -1.0f, 1.0f);
 

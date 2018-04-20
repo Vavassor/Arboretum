@@ -1,6 +1,8 @@
 #ifndef INPUT_H_
 #define INPUT_H_
 
+#include "int2.h"
+
 namespace input {
 
 struct Modifier
@@ -152,11 +154,11 @@ bool get_key_modified_by_alt(Key key);
 bool get_key_auto_repeated(Key key);
 
 void mouse_click(MouseButton button, bool pressed, Modifier modifier);
-void mouse_scroll(int x, int y);
-void mouse_move(int x, int y);
-void get_mouse_position(int* x, int* y);
-void get_mouse_velocity(int* x, int* y);
-void get_mouse_scroll_velocity(int* x, int* y);
+void mouse_scroll(Int2 velocity);
+void mouse_move(Int2 position);
+Int2 get_mouse_position();
+Int2 get_mouse_velocity();
+Int2 get_mouse_scroll_velocity();
 bool get_mouse_pressed(MouseButton button);
 bool get_mouse_clicked(MouseButton button);
 

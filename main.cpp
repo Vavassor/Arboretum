@@ -1190,6 +1190,7 @@ int main(int argc, char** argv)
 #include "editor.h"
 #include "gl_core_3_3.h"
 #include "input.h"
+#include "int2.h"
 #include "logging.h"
 #include "platform.h"
 #include "string_build.h"
@@ -1204,28 +1205,13 @@ int main(int argc, char** argv)
 #include <Windows.h>
 #include <windowsx.h>
 
-struct Int2
-{
-    int x;
-    int y;
-};
-
-bool operator == (const Int2& a, const Int2& b)
-{
-    return a.x == b.x && a.y == b.y;
-}
-
-bool operator != (const Int2& a, const Int2& b)
-{
-    return a.x != b.x || a.y != b.y;
-}
-
 struct PlatformWindows
 {
     Platform base;
 
     HWND window;
     HDC device_context;
+    Int2 viewport;
 
     CursorType cursor_type;
     HCURSOR cursor_arrow;
@@ -1423,13 +1409,12 @@ void request_paste_from_clipboard(Platform* base)
     }
 }
 
-static void get_window_dimensions(PlatformWindows* platform, int* width, int* height)
+static Int2 get_window_dimensions(PlatformWindows* platform)
 {
     RECT rect;
     BOOL got = GetClientRect(platform->window, &rect);
     ASSERT(got);
-    *width = rect.right;
-    *height = rect.bottom;
+    return {rect.right, rect.bottom};
 }
 
 static double get_dots_per_millimeter(PlatformWindows* platform)
@@ -1594,7 +1579,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
         {
             WORD dpi = HIWORD(w_param);
             double dots_per_millimeter = dpi / 25.4;
-            resize_viewport(window_width, window_height, dots_per_millimeter);
+            resize_viewport(platform.viewport, dots_per_millimeter);
 
             RECT* suggested_rect = reinterpret_cast<RECT*>(l_param);
             int left = suggested_rect->left;
@@ -1741,16 +1726,18 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
         }
         case WM_MOUSEMOVE:
         {
-            int x = GET_X_LPARAM(l_param);
-            int y = GET_Y_LPARAM(l_param);
-            input::mouse_move(x, y);
+            Int2 position;
+            position.x = GET_X_LPARAM(l_param);
+            position.y = GET_Y_LPARAM(l_param);
+            input::mouse_move(position);
 
             return 0;
         }
         case WM_MOUSEWHEEL:
         {
             int scroll = GET_WHEEL_DELTA_WPARAM(w_param) / WHEEL_DELTA;
-            input::mouse_scroll(0, scroll);
+            Int2 velocity = {0, scroll};
+            input::mouse_scroll(velocity);
 
             return 0;
         }
@@ -1783,10 +1770,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
         {
             int width = LOWORD(l_param);
             int height = HIWORD(l_param);
+            platform.viewport = {width, height};
             double dpmm = get_dots_per_millimeter(&platform);
             if(functions_loaded)
             {
-                resize_viewport(width, height, dpmm);
+                resize_viewport(platform.viewport, dpmm);
             }
 
             return 0;
@@ -1919,9 +1907,8 @@ static bool main_start_up(HINSTANCE instance, int show_command)
     }
 
     double dpmm = get_dots_per_millimeter(&platform);
-    int width, height;
-    get_window_dimensions(&platform, &width, &height);
-    resize_viewport(width, height, dpmm);
+    Int2 dimensions = get_window_dimensions(&platform);
+    resize_viewport(dimensions, dpmm);
 
     return true;
 }

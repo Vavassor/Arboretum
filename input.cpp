@@ -10,12 +10,9 @@ namespace
     {
         bool buttons_pressed[3];
         int edge_counts[3];
-        int x;
-        int y;
-        int velocity_x;
-        int velocity_y;
-        int scroll_velocity_x;
-        int scroll_velocity_y;
+        Int2 position;
+        Int2 velocity;
+        Int2 scroll_velocity;
     } mouse;
 
     const int keys_count = 256;
@@ -89,36 +86,30 @@ void mouse_click(MouseButton button, bool pressed, Modifier modifier)
     mouse.edge_counts[index] = 0;
 }
 
-void mouse_scroll(int x, int y)
+void mouse_scroll(Int2 velocity)
 {
-    mouse.scroll_velocity_x = x;
-    mouse.scroll_velocity_y = y;
+    mouse.scroll_velocity = velocity;
 }
 
-void mouse_move(int x, int y)
+void mouse_move(Int2 position)
 {
-    mouse.velocity_x = x - mouse.x;
-    mouse.velocity_y = y - mouse.y;
-    mouse.x = x;
-    mouse.y = y;
+    mouse.velocity = position - mouse.position;
+    mouse.position = position;
 }
 
-void get_mouse_position(int* x, int* y)
+Int2 get_mouse_position()
 {
-    *x = mouse.x;
-    *y = mouse.y;
+    return mouse.position;
 }
 
-void get_mouse_velocity(int* x, int* y)
+Int2 get_mouse_velocity()
 {
-    *x = mouse.velocity_x;
-    *y = mouse.velocity_y;
+    return mouse.velocity;
 }
 
-void get_mouse_scroll_velocity(int* x, int* y)
+Int2 get_mouse_scroll_velocity()
 {
-    *x = mouse.scroll_velocity_x;
-    *y = mouse.scroll_velocity_y;
+    return mouse.scroll_velocity;
 }
 
 bool get_mouse_pressed(MouseButton button)
@@ -305,10 +296,8 @@ static void update_button_change_counts()
     {
         mouse.edge_counts[i] += 1;
     }
-    mouse.velocity_x = 0;
-    mouse.velocity_y = 0;
-    mouse.scroll_velocity_x = 0;
-    mouse.scroll_velocity_y = 0;
+    mouse.velocity = int2_zero;
+    mouse.scroll_velocity = int2_zero;
 }
 
 static void update_key_change_counts()

@@ -1,6 +1,11 @@
 #include "wide_char.h"
 
 #include "memory.h"
+#include "platform_definitions.h"
+
+#if !defined(OS_WINDOWS)
+#error Only compile wide_char.cpp on Windows!
+#endif
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
