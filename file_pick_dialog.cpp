@@ -351,7 +351,15 @@ static void open_parent_directory(FilePickDialog* dialog, int segment, ui::Conte
         }
         else
         {
-            slash = 2;
+            int found_index = find_char(path, '/');
+            if(is_valid_index(found_index))
+            {
+                slash = found_index + 1;
+            }
+            else
+            {
+                slash = string_size(path) + 1;
+            }
         }
     }
     else
