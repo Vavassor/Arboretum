@@ -139,6 +139,21 @@ int count_char_occurrences(const char* s, char c)
     return count;
 }
 
+int count_substring_occurrences(const char* string, const char* pattern)
+{
+	int count = 0;
+	const char* s = string;
+	const char* p = find_string(s, pattern);
+	int pattern_size = string_size(pattern);
+	while(p)
+	{
+		count += 1;
+		s = p + pattern_size;
+		p = find_string(s, pattern);
+	}
+	return count;
+}
+
 static void reverse_string(char* s, int length)
 {
     for(int i = 0, j = length - 1; i < j; i += 1, j -= 1)

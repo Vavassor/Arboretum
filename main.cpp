@@ -1192,6 +1192,7 @@ int main(int argc, char** argv)
 #include "input.h"
 #include "logging.h"
 #include "platform.h"
+#include "string_build.h"
 #include "string_utilities.h"
 #include "video.h"
 #include "wgl_extensions.h"
@@ -1335,16 +1336,91 @@ bool copy_to_clipboard(Platform* base, char* clipboard)
 {
 	PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
 
-	// TODO
+	// Convert the contents to UTF-16.
+	wchar_t* wide = utf8_to_wide_char(clipboard, &base->stack);
+	if(!wide)
+	{
+		return false;
+	}
+
+	// Make a copy of the wide string that can be moved within the default windows
+	// heap (GMEM_MOVEABLE).
+	int count = string_size(clipboard);
+	HGLOBAL handle = GlobalAlloc(GMEM_MOVEABLE, (count + 1) * sizeof(wchar_t));
+	if(!handle)
+	{
+		STACK_DEALLOCATE(&base->stack, wide);
+		return false;
+	}
+
+	LPWSTR wide_clone = static_cast<LPWSTR>(GlobalLock(handle));
+	copy_memory(wide_clone, wide, count * sizeof(wchar_t));
+	wide_clone[count] = L'\0';
+	GlobalUnlock(handle);
+
+	STACK_DEALLOCATE(&base->stack, wide);
+
+	// Actually copy to the clipboard.
+	BOOL opened = OpenClipboard(platform->window);
+	if(!opened)
+	{
+		GlobalFree(handle);
+		return false;
+	}
+
+	EmptyClipboard();
+	SetClipboardData(CF_UNICODETEXT, handle);
+	CloseClipboard();
+
+	GlobalFree(handle);
 
 	return true;
 }
 
 void request_paste_from_clipboard(Platform* base)
 {
-	PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
+    PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
 
-	// TODO
+	BOOL has_utf16 = IsClipboardFormatAvailable(CF_UNICODETEXT);
+    if(!has_utf16)
+    {
+        LOG_ERROR("Paste format UTF-16 was not available.");
+        return;
+    }
+
+    // Get the actual paste and convert to UTF-8 text.
+    char* paste = nullptr;
+    BOOL opened = OpenClipboard(platform->window);
+    if(opened)
+    {
+        HGLOBAL data = GetClipboardData(CF_UNICODETEXT);
+        if(data)
+        {
+            LPWSTR wide = static_cast<LPWSTR>(GlobalLock(data));
+            if(wide)
+            {
+                paste = wide_char_to_utf8(wide, &base->stack);
+                GlobalUnlock(data);
+            }
+        }
+
+        CloseClipboard();
+    }
+	
+    if(paste)
+    {
+        // Standardize on Unix line endings by replacing "Windows style"
+        // carriage return + line feed pairs before handing it to the editor.
+
+        char* corrected = replace_substrings(paste, "\r\n", "\n", &base->stack);
+        editor_paste_from_clipboard(base, corrected);
+        STACK_DEALLOCATE(&base->stack, corrected);
+        STACK_DEALLOCATE(&base->stack, paste);
+    }
+    else
+    {
+        LOG_ERROR("Paste failed.");
+    }
 }
 
 static void get_window_dimensions(PlatformWindows* platform, int* width, int* height)

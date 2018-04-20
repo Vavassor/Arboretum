@@ -13,6 +13,7 @@ int find_char(const char* s, char c);
 bool string_starts_with(const char* RESTRICT a, const char* RESTRICT b);
 bool string_ends_with(const char* RESTRICT a, const char* RESTRICT b);
 int count_char_occurrences(const char* string, char c);
+int count_substring_occurrences(const char* string, const char* pattern);
 
 int compare_alphabetic_ascii(const char* RESTRICT a, const char* RESTRICT b);
 bool only_control_characters(const char* string);

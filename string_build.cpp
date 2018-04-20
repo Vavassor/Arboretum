@@ -99,3 +99,47 @@ void remove_substring(char* string, int start, int end)
         string[new_end] = '\0';
     }
 }
+
+char* replace_substrings(const char* original, const char* pattern, const char* replacement, Stack* stack)
+{
+	// Determine the size of the result.
+	int original_size = string_size(original);
+	int pattern_size = string_size(pattern);
+	int replacement_size = string_size(replacement);
+	int count = count_substring_occurrences(original, pattern);
+	int result_size = original_size + (replacement_size - pattern_size) * count;
+
+	// Allocate the result.
+	char* result = STACK_ALLOCATE(stack, char, result_size + 1);
+	result[result_size] = '\0';
+
+	// Do the replacement.
+	const char* s1 = find_string(original, pattern);
+	if(s1)
+	{
+		const char* s0 = original;
+		int i = 0;
+		do
+		{
+			int span = s1 - s0;
+			copy_string(&result[i], span + 1, s0);
+			i += span;
+			copy_string(&result[i], replacement_size + 1, replacement);
+			i += replacement_size;
+			s0 = s1 + pattern_size;
+			s1 = find_string(s0, pattern);
+		} while(s1);
+
+		int remaining = (original + original_size) - s0;
+		if(remaining > 0)
+		{
+			copy_string(&result[i], remaining + 1, s0);
+		}
+	}
+	else
+	{
+		copy_string(result, result_size + 1, original);
+	}
+
+	return result;
+}
