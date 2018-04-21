@@ -806,7 +806,7 @@ static void find_flags(FormatContext* context)
     ASSERT(false);
 }
 
-static void find_width(FormatContext* context, va_list arguments)
+static void find_width(FormatContext* context, va_list* arguments)
 {
     for(; *context->format; context->format += 1)
     {
@@ -817,7 +817,7 @@ static void find_width(FormatContext* context, va_list arguments)
         }
         else if(next == '*')
         {
-            context->width = va_arg(arguments, int);
+            context->width = va_arg(*arguments, int);
             return;
         }
         else
@@ -835,7 +835,7 @@ static void find_width(FormatContext* context, va_list arguments)
     ASSERT(false);
 }
 
-static void find_precision(FormatContext* context, va_list arguments)
+static void find_precision(FormatContext* context, va_list* arguments)
 {
     if(*context->format != '.')
     {
@@ -856,7 +856,7 @@ static void find_precision(FormatContext* context, va_list arguments)
         }
         else if(next == '*')
         {
-            context->precision = va_arg(arguments, int);
+            context->precision = va_arg(*arguments, int);
             return;
         }
         else
@@ -938,7 +938,7 @@ static void find_length(FormatContext* context)
     ASSERT(false);
 }
 
-static va_list process_specifier(FormatContext* context, va_list arguments)
+static void process_specifier(FormatContext* context, va_list* arguments)
 {
     char specifier = *context->format;
     char* buffer = context->buffer + context->chars_written;
@@ -964,37 +964,37 @@ static va_list process_specifier(FormatContext* context, va_list arguments)
                 case Length::Byte:
                 case Length::Short:
                 {
-                    int value = va_arg(arguments, int);
+                    int value = va_arg(*arguments, int);
                     int_to_string(int_buffer, int_buffer_size, value);
                     break;
                 }
                 case Length::Long:
                 {
-                    long value = va_arg(arguments, long);
+                    long value = va_arg(*arguments, long);
                     s64_to_string(int_buffer, int_buffer_size, value, 10);
                     break;
                 }
                 case Length::Long_Long:
                 {
-                    long long value = va_arg(arguments, long long);
+                    long long value = va_arg(*arguments, long long);
                     s64_to_string(int_buffer, int_buffer_size, value, 10);
                     break;
                 }
                 case Length::Int_Max:
                 {
-                    intmax_t value = va_arg(arguments, intmax_t);
+                    intmax_t value = va_arg(*arguments, intmax_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 10);
                     break;
                 }
                 case Length::Size_T:
                 {
-                    size_t value = va_arg(arguments, size_t);
+                    size_t value = va_arg(*arguments, size_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 10);
                     break;
                 }
                 case Length::Ptr_Diff:
                 {
-                    ptrdiff_t value = va_arg(arguments, ptrdiff_t);
+                    ptrdiff_t value = va_arg(*arguments, ptrdiff_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 10);
                     break;
                 }
@@ -1017,37 +1017,37 @@ static va_list process_specifier(FormatContext* context, va_list arguments)
                 case Length::Byte:
                 case Length::Short:
                 {
-                    unsigned int value = va_arg(arguments, unsigned int);
+                    unsigned int value = va_arg(*arguments, unsigned int);
                     int_to_string(int_buffer, int_buffer_size, value);
                     break;
                 }
                 case Length::Long:
                 {
-                    unsigned long value = va_arg(arguments, unsigned long);
+                    unsigned long value = va_arg(*arguments, unsigned long);
                     s64_to_string(int_buffer, int_buffer_size, value, 10);
                     break;
                 }
                 case Length::Long_Long:
                 {
-                    unsigned long long value = va_arg(arguments, unsigned long long);
+                    unsigned long long value = va_arg(*arguments, unsigned long long);
                     s64_to_string(int_buffer, int_buffer_size, value, 10);
                     break;
                 }
                 case Length::Int_Max:
                 {
-                    uintmax_t value = va_arg(arguments, uintmax_t);
+                    uintmax_t value = va_arg(*arguments, uintmax_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 10);
                     break;
                 }
                 case Length::Size_T:
                 {
-                    size_t value = va_arg(arguments, size_t);
+                    size_t value = va_arg(*arguments, size_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 10);
                     break;
                 }
                 case Length::Ptr_Diff:
                 {
-                    ptrdiff_t value = va_arg(arguments, ptrdiff_t);
+                    ptrdiff_t value = va_arg(*arguments, ptrdiff_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 10);
                     break;
                 }
@@ -1070,37 +1070,37 @@ static va_list process_specifier(FormatContext* context, va_list arguments)
                 case Length::Byte:
                 case Length::Short:
                 {
-                    unsigned int value = va_arg(arguments, unsigned int);
+                    unsigned int value = va_arg(*arguments, unsigned int);
                     s64_to_string(int_buffer, int_buffer_size, value, 8);
                     break;
                 }
                 case Length::Long:
                 {
-                    unsigned long value = va_arg(arguments, unsigned long);
+                    unsigned long value = va_arg(*arguments, unsigned long);
                     s64_to_string(int_buffer, int_buffer_size, value, 8);
                     break;
                 }
                 case Length::Long_Long:
                 {
-                    unsigned long long value = va_arg(arguments, unsigned long long);
+                    unsigned long long value = va_arg(*arguments, unsigned long long);
                     s64_to_string(int_buffer, int_buffer_size, value, 8);
                     break;
                 }
                 case Length::Int_Max:
                 {
-                    uintmax_t value = va_arg(arguments, uintmax_t);
+                    uintmax_t value = va_arg(*arguments, uintmax_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 8);
                     break;
                 }
                 case Length::Size_T:
                 {
-                    size_t value = va_arg(arguments, size_t);
+                    size_t value = va_arg(*arguments, size_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 8);
                     break;
                 }
                 case Length::Ptr_Diff:
                 {
-                    ptrdiff_t value = va_arg(arguments, ptrdiff_t);
+                    ptrdiff_t value = va_arg(*arguments, ptrdiff_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 8);
                     break;
                 }
@@ -1123,37 +1123,37 @@ static va_list process_specifier(FormatContext* context, va_list arguments)
                 case Length::Byte:
                 case Length::Short:
                 {
-                    unsigned int value = va_arg(arguments, unsigned int);
+                    unsigned int value = va_arg(*arguments, unsigned int);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
                 case Length::Long:
                 {
-                    unsigned long value = va_arg(arguments, unsigned long);
+                    unsigned long value = va_arg(*arguments, unsigned long);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
                 case Length::Long_Long:
                 {
-                    unsigned long long value = va_arg(arguments, unsigned long long);
+                    unsigned long long value = va_arg(*arguments, unsigned long long);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
                 case Length::Int_Max:
                 {
-                    uintmax_t value = va_arg(arguments, uintmax_t);
+                    uintmax_t value = va_arg(*arguments, uintmax_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
                 case Length::Size_T:
                 {
-                    size_t value = va_arg(arguments, size_t);
+                    size_t value = va_arg(*arguments, size_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
                 case Length::Ptr_Diff:
                 {
-                    ptrdiff_t value = va_arg(arguments, ptrdiff_t);
+                    ptrdiff_t value = va_arg(*arguments, ptrdiff_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
@@ -1176,37 +1176,37 @@ static va_list process_specifier(FormatContext* context, va_list arguments)
                 case Length::Byte:
                 case Length::Short:
                 {
-                    unsigned int value = va_arg(arguments, unsigned int);
+                    unsigned int value = va_arg(*arguments, unsigned int);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
                 case Length::Long:
                 {
-                    unsigned long value = va_arg(arguments, unsigned long);
+                    unsigned long value = va_arg(*arguments, unsigned long);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
                 case Length::Long_Long:
                 {
-                    unsigned long long value = va_arg(arguments, unsigned long long);
+                    unsigned long long value = va_arg(*arguments, unsigned long long);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
                 case Length::Int_Max:
                 {
-                    uintmax_t value = va_arg(arguments, uintmax_t);
+                    uintmax_t value = va_arg(*arguments, uintmax_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
                 case Length::Size_T:
                 {
-                    size_t value = va_arg(arguments, size_t);
+                    size_t value = va_arg(*arguments, size_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
                 case Length::Ptr_Diff:
                 {
-                    ptrdiff_t value = va_arg(arguments, ptrdiff_t);
+                    ptrdiff_t value = va_arg(*arguments, ptrdiff_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
@@ -1228,13 +1228,13 @@ static va_list process_specifier(FormatContext* context, va_list arguments)
                 }
                 case Length::Unspecified:
                 {
-                    double value = va_arg(arguments, double);
+                    double value = va_arg(*arguments, double);
                     double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Force_Decimal, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
                 case Length::Long_Double:
                 {
-                    long double value = va_arg(arguments, long double);
+                    long double value = va_arg(*arguments, long double);
                     double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Force_Decimal, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
@@ -1255,13 +1255,13 @@ static va_list process_specifier(FormatContext* context, va_list arguments)
                 }
                 case Length::Unspecified:
                 {
-                    double value = va_arg(arguments, double);
+                    double value = va_arg(*arguments, double);
                     double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Force_Decimal, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
                 case Length::Long_Double:
                 {
-                    long double value = va_arg(arguments, long double);
+                    long double value = va_arg(*arguments, long double);
                     double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Force_Decimal, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
@@ -1283,13 +1283,13 @@ static va_list process_specifier(FormatContext* context, va_list arguments)
                 }
                 case Length::Unspecified:
                 {
-                    double value = va_arg(arguments, double);
+                    double value = va_arg(*arguments, double);
                     double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Force_Scientific_Notation, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
                 case Length::Long_Double:
                 {
-                    long double value = va_arg(arguments, long double);
+                    long double value = va_arg(*arguments, long double);
                     double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Force_Scientific_Notation, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
@@ -1310,13 +1310,13 @@ static va_list process_specifier(FormatContext* context, va_list arguments)
                 }
                 case Length::Unspecified:
                 {
-                    double value = va_arg(arguments, double);
+                    double value = va_arg(*arguments, double);
                     double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Force_Scientific_Notation, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
                 case Length::Long_Double:
                 {
-                    long double value = va_arg(arguments, long double);
+                    long double value = va_arg(*arguments, long double);
                     double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Force_Scientific_Notation, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
@@ -1338,13 +1338,13 @@ static va_list process_specifier(FormatContext* context, va_list arguments)
                 }
                 case Length::Unspecified:
                 {
-                    double value = va_arg(arguments, double);
+                    double value = va_arg(*arguments, double);
                     double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Use_Shortest, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
                 case Length::Long_Double:
                 {
-                    long double value = va_arg(arguments, long double);
+                    long double value = va_arg(*arguments, long double);
                     double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Use_Shortest, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
@@ -1365,13 +1365,13 @@ static va_list process_specifier(FormatContext* context, va_list arguments)
                 }
                 case Length::Unspecified:
                 {
-                    double value = va_arg(arguments, double);
+                    double value = va_arg(*arguments, double);
                     double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Use_Shortest, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
                 case Length::Long_Double:
                 {
-                    long double value = va_arg(arguments, long double);
+                    long double value = va_arg(*arguments, long double);
                     double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Use_Shortest, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
@@ -1383,14 +1383,14 @@ static va_list process_specifier(FormatContext* context, va_list arguments)
         }
         case 'a':
         {
-            double value = va_arg(arguments, double);
+            double value = va_arg(*arguments, double);
             // Not yet supported!
             ASSERT(false);
             break;
         }
         case 'A':
         {
-            double value = va_arg(arguments, double);
+            double value = va_arg(*arguments, double);
             // Not yet supported!
             ASSERT(false);
             break;
@@ -1406,13 +1406,13 @@ static va_list process_specifier(FormatContext* context, va_list arguments)
                 }
                 case Length::Unspecified:
                 {
-                    char value = va_arg(arguments, int);
+                    char value = va_arg(*arguments, int);
                     add_char(context, value);
                     break;
                 }
                 case Length::Long:
                 {
-                    wint_t value = va_arg(arguments, wint_t);
+                    wint_t value = va_arg(*arguments, wint_t);
                     add_char(context, value);
                     break;
                 }
@@ -1430,13 +1430,13 @@ static va_list process_specifier(FormatContext* context, va_list arguments)
                 }
                 case Length::Unspecified:
                 {
-                    char* value = va_arg(arguments, char*);
+                    char* value = va_arg(*arguments, char*);
                     context->chars_written += copy_string(buffer, buffer_left, value);
                     break;
                 }
                 case Length::Long:
                 {
-                    wchar_t* value = va_arg(arguments, wchar_t*);
+                    wchar_t* value = va_arg(*arguments, wchar_t*);
                     // Not yet supported!
                     ASSERT(false);
                     break;
@@ -1449,7 +1449,7 @@ static va_list process_specifier(FormatContext* context, va_list arguments)
             // No length sub-specifiers apply here.
             ASSERT(context->length == Length::Unspecified);
 
-            void* value = va_arg(arguments, void*);
+            void* value = va_arg(*arguments, void*);
             upointer address = reinterpret_cast<upointer>(value);
 
             char int_buffer[int_buffer_size];
@@ -1460,7 +1460,7 @@ static va_list process_specifier(FormatContext* context, va_list arguments)
         }
         case 'n':
         {
-            signed int* value = va_arg(arguments, signed int*);
+            signed int* value = va_arg(*arguments, signed int*);
             ASSERT(value);
             if(value)
             {
@@ -1480,13 +1480,11 @@ static va_list process_specifier(FormatContext* context, va_list arguments)
             break;
         }
     }
-    
-    return arguments;
 }
 
 // TODO: Bug report December 31, 2017 - segfault in process_specifier when
 // exceeding the buffer_size.
-void va_list_format_string(char* buffer, int buffer_size, const char* format, va_list arguments)
+void va_list_format_string(char* buffer, int buffer_size, const char* format, va_list* arguments)
 {
     FormatContext context = {};
     context.buffer = buffer;
@@ -1515,7 +1513,7 @@ void va_list_format_string(char* buffer, int buffer_size, const char* format, va
                 find_width(&context, arguments);
                 find_precision(&context, arguments);
                 find_length(&context);
-                arguments = process_specifier(&context, arguments);
+                process_specifier(&context, arguments);
             }
         }
     }
@@ -1538,6 +1536,6 @@ void format_string(char* buffer, int buffer_size, const char* format, ...)
 {
     va_list arguments;
     va_start(arguments, format);
-    va_list_format_string(buffer, buffer_size, format, arguments);
+    va_list_format_string(buffer, buffer_size, format, &arguments);
     va_end(arguments);
 }

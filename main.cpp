@@ -722,7 +722,8 @@ bool main_start_up()
         return false;
     }
     double dpmm = get_dots_per_millimeter(&platform);
-    resize_viewport(window_width, window_height, dpmm);
+    Int2 dimensions = {window_width, window_height};
+    resize_viewport(dimensions, dpmm);
 
     build_key_table(&platform);
 
@@ -940,11 +941,13 @@ static void handle_event(XEvent event)
             }
             else if(button.button == Button4)
             {
-                input::mouse_scroll(0, +1);
+                Int2 velocity = {0, +1};
+                input::mouse_scroll(velocity);
             }
             else if(button.button == Button5)
             {
-                input::mouse_scroll(0, -1);
+                Int2 velocity = {0, -1};
+                input::mouse_scroll(velocity);
             }
             break;
         }
@@ -980,7 +983,8 @@ static void handle_event(XEvent event)
         {
             XConfigureRequestEvent configure = event.xconfigurerequest;
             double dpmm = get_dots_per_millimeter(&platform);
-            resize_viewport(configure.width, configure.height, dpmm);
+            Int2 dimensions = {configure.width, configure.height};
+            resize_viewport(dimensions, dpmm);
             break;
         }
         case FocusIn:
@@ -1083,7 +1087,8 @@ static void handle_event(XEvent event)
         case MotionNotify:
         {
             XMotionEvent motion = event.xmotion;
-            input::mouse_move(motion.x, motion.y);
+            Int2 position = {motion.x, motion.y};
+            input::mouse_move(position);
             break;
         }
         case SelectionClear:

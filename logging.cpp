@@ -26,7 +26,7 @@ void add_message(Level level, const char* format, ...)
     }
     const int buffer_size = 128;
     char buffer[128];
-    va_list_format_string(buffer, buffer_size, format, arguments);
+    va_list_format_string(buffer, buffer_size, format, &arguments);
     va_end(arguments);
     write_to_standard_output(buffer, output_to_stderr);
     write_to_standard_output("\n", output_to_stderr);

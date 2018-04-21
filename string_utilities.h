@@ -28,7 +28,7 @@ const char* bool_to_string(bool b);
 int int_to_string(char* string, int size, int value);
 void float_to_string(char* string, int size, float value, unsigned int precision);
 
-void va_list_format_string(char* buffer, int buffer_size, const char* format, va_list arguments);
+void va_list_format_string(char* buffer, int buffer_size, const char* format, va_list* arguments);
 void format_string(char* buffer, int buffer_size, const char* format, ...);
 
 #endif // STRING_UTILITES_H_
