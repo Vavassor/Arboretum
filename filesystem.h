@@ -47,8 +47,36 @@ struct Directory
 void destroy_directory(Directory* directory, Heap* heap);
 bool list_files_in_directory(const char* path, Directory* result, Heap* heap);
 
+// Filesystem Listing...........................................................
+
+struct Filesystem
+{
+    char* label;
+};
+
+struct FilesystemList
+{
+    Filesystem* filesystems;
+};
+
+bool list_filesystems(FilesystemList* list, Heap* heap);
+void destroy_filesystem_list(FilesystemList* list, Heap* heap);
+
 // User Directories.............................................................
 
-char* get_documents_folder(Heap* heap);
+enum UserFolder
+{
+    Cache,
+    Config,
+    Data,
+    Desktop,
+    Documents,
+    Downloads,
+    Music,
+    Pictures,
+    Videos,
+};
+
+char* get_user_folder(UserFolder folder, Heap* heap);
 
 #endif // FILESYSTEM_H_

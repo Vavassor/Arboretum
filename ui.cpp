@@ -236,6 +236,8 @@ void capture(Context* context, Item* item)
 
 static bool is_capture_within(Context* context, Item* item)
 {
+    ASSERT(item->type == ItemType::Container);
+
     if(!context->captor_item)
     {
         return false;
@@ -311,12 +313,6 @@ void destroy_toplevel_container(Context* context, Item* item, Heap* heap)
 
 void empty_item(Context* context, Item* item)
 {
-    // Release capture if it's currently holding something.
-    if(is_capture_within(context, item))
-    {
-        capture(context, nullptr);
-    }
-
     switch(item->type)
     {
         case ItemType::Button:
@@ -325,6 +321,12 @@ void empty_item(Context* context, Item* item)
         }
         case ItemType::Container:
         {
+            // Release capture if it's currently holding something.
+            if(is_capture_within(context, item))
+            {
+                capture(context, nullptr);
+            }
+
             destroy_container(&item->container, context->heap);
             break;
         }

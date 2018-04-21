@@ -76,11 +76,11 @@ static void list_directory(FilePickDialog* dialog, const char* directory, ui::Co
 
     if(dialog->path_buttons_count > 0)
     {
-        empty_item(context, &panel->container.items[0]);
+        ui::empty_item(context, &panel->container.items[0]);
     }
     if(dialog->directory.records_count > 0)
     {
-        empty_item(context, &panel->container.items[1]);
+        ui::empty_item(context, &panel->container.items[1]);
     }
 
     SAFE_HEAP_DEALLOCATE(heap, dialog->path);
@@ -186,7 +186,7 @@ static void list_directory(FilePickDialog* dialog, const char* directory, ui::Co
 
 void open_dialog(FilePickDialog* dialog, ui::Context* context, Platform* platform, Heap* heap)
 {
-    const char* default_path = get_documents_folder(heap);
+    const char* default_path = get_user_folder(UserFolder::Documents, heap);
 
     dialog->enabled = true;
 

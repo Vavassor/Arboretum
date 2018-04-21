@@ -1,6 +1,7 @@
 #include "filesystem.h"
 
 #include "array2.h"
+#include "logging.h"
 #include "memory.h"
 #include "platform_definitions.h"
 #include "string_utilities.h"
@@ -238,6 +239,15 @@ bool list_files_in_directory(const char* path, Directory* result, Heap* heap)
     return true;
 }
 
+// Filesystem Listing...........................................................
+
+bool list_filesystems(FilesystemList* list, Heap* heap)
+{
+    // TODO
+
+    return false;
+}
+
 // User Directories.............................................................
 
 static bool is_uid_root(int uid)
@@ -278,9 +288,43 @@ static char* get_user_folder(const char* env_name, const char* default_relative_
     return nullptr;
 }
 
-char* get_documents_folder(Heap* heap)
+static const char* get_env_name(UserFolder folder)
 {
-    return get_user_folder("XDG_DOCUMENTS_DIR", "Documents", heap);
+    switch(folder)
+    {
+        case UserFolder::Cache:     return "XDG_CACHE_HOME";
+        case UserFolder::Config:    return "XDG_CONFIG_HOME";
+        case UserFolder::Data:      return "XDG_DATA_HOME";
+        case UserFolder::Desktop:   return "XDG_DESKTOP_DIR";
+        case UserFolder::Documents: return "XDG_DOCUMENTS_DIR";
+        case UserFolder::Downloads: return "XDG_DOWNLOAD_DIR";
+        case UserFolder::Music:     return "XDG_MUSIC_DIR";
+        case UserFolder::Pictures:  return "XDG_PICTURES_DIR";
+        case UserFolder::Videos:    return "XDG_VIDEOS_DIR";
+    }
+}
+
+static const char* get_default_relative_path(UserFolder folder)
+{
+    switch(folder)
+    {
+        case UserFolder::Cache:     return ".cache";
+        case UserFolder::Config:    return ".config";
+        case UserFolder::Data:      return ".local/share";
+        case UserFolder::Desktop:   return "Desktop";
+        case UserFolder::Documents: return "Documents";
+        case UserFolder::Downloads: return "Downloads";
+        case UserFolder::Music:     return "Music";
+        case UserFolder::Pictures:  return "Pictures";
+        case UserFolder::Videos:    return "Videos";
+    }
+}
+
+char* get_user_folder(UserFolder folder, Heap* heap)
+{
+    const char* env_name = get_env_name(folder);
+    const char* default_relative_path = get_default_relative_path(folder);
+    return get_user_folder(env_name, default_relative_path, heap);
 }
 
 #elif defined(OS_WINDOWS)
@@ -488,7 +532,7 @@ bool list_files_in_directory(const char* path, Directory* result, Heap* heap)
     new_path = append_to_path(new_path, "*", heap);
     wchar_t* wide_path = utf8_to_wide_char(new_path, heap);
     HEAP_DEALLOCATE(heap, new_path);
-
+    
     WIN32_FIND_DATAW data;
     HANDLE found = FindFirstFileW(wide_path, &data);
     SAFE_HEAP_DEALLOCATE(heap, wide_path);
@@ -538,12 +582,104 @@ bool list_files_in_directory(const char* path, Directory* result, Heap* heap)
     return true;
 }
 
+// Filesystem Listing...........................................................
+
+bool list_filesystems(FilesystemList* list, Heap* heap)
+{
+    *list = {};
+
+    const int volume_name_cap = 50;
+    wchar_t volume_name[volume_name_cap];
+    HANDLE handle = FindFirstVolumeW(volume_name, volume_name_cap);
+    if(handle == INVALID_HANDLE_VALUE)
+    {
+        return false;
+    }
+
+    BOOL found;
+    do
+    {
+        DWORD char_count;
+        int path_chain_cap = 50;
+        wchar_t* path_chain = HEAP_ALLOCATE(heap, wchar_t, path_chain_cap);
+        BOOL got = GetVolumePathNamesForVolumeNameW(volume_name, path_chain, path_chain_cap, &char_count);
+        if(!got)
+        {
+            DWORD error = GetLastError();
+            if(error == ERROR_MORE_DATA)
+            {
+                path_chain_cap = char_count;
+                path_chain = HEAP_REALLOCATE(heap, path_chain, path_chain_cap);
+                got = GetVolumePathNamesForVolumeNameW(volume_name, path_chain, path_chain_cap, &char_count);
+                if(!got)
+                {
+                    destroy_filesystem_list(list, heap);
+                    HEAP_DEALLOCATE(heap, path_chain);
+                    return false;
+                }
+            }
+            else
+            {
+                destroy_filesystem_list(list, heap);
+                HEAP_DEALLOCATE(heap, path_chain);
+                return false;
+            }
+        }
+
+        const int label_cap = MAX_PATH + 1;
+        wchar_t label[label_cap];
+        got = GetVolumeInformationW(path_chain, label, label_cap, nullptr, nullptr, nullptr, nullptr, 0);
+
+        Filesystem filesystem = {};
+        if(got)
+        {
+            filesystem.label = wide_char_to_utf8(label, heap);
+        }
+        else
+        {
+            filesystem.label = wide_char_to_utf8(path_chain, heap);
+        }
+        ARRAY_ADD(list->filesystems, filesystem, heap);
+        
+        HEAP_DEALLOCATE(heap, path_chain);
+
+        found = FindNextVolumeW(handle, volume_name, volume_name_cap);
+    } while(found);
+
+    DWORD error = GetLastError();
+    FindVolumeClose(handle);
+
+    if(error != ERROR_NO_MORE_FILES)
+    {
+        destroy_filesystem_list(list, heap);
+        return false;
+    }
+
+    return true;
+}
+
 // User Directories.............................................................
 
-char* get_documents_folder(Heap* heap)
+KNOWNFOLDERID translate_to_known_folder_id(UserFolder folder)
 {
+    switch(folder)
+    {
+        case UserFolder::Cache:     return FOLDERID_LocalAppData;
+        case UserFolder::Config:    return FOLDERID_RoamingAppData;
+        case UserFolder::Data:      return FOLDERID_LocalAppData;
+        case UserFolder::Desktop:   return FOLDERID_Desktop;
+        case UserFolder::Documents: return FOLDERID_Documents;
+        case UserFolder::Music:     return FOLDERID_Music;
+        case UserFolder::Pictures:  return FOLDERID_Pictures;
+        case UserFolder::Videos:    return FOLDERID_Videos;
+    }
+}
+
+char* get_user_folder(UserFolder folder, Heap* heap)
+{
+    KNOWNFOLDERID folder_id = translate_to_known_folder_id(folder);
     PWSTR path = nullptr;
-    HRESULT result = SHGetKnownFolderPath(FOLDERID_Documents, 0, nullptr, &path);
+    HRESULT result = SHGetKnownFolderPath(folder_id, 0, nullptr, &path);
     if(FAILED(result))
     {
         CoTaskMemFree(path);
@@ -571,4 +707,18 @@ void destroy_directory(Directory* directory, Heap* heap)
     directory->records_count = 0;
 
     ARRAY_DESTROY(directory->records, heap);
+}
+
+// Filesystem Listing...........................................................
+
+void destroy_filesystem_list(FilesystemList* list, Heap* heap)
+{
+    if(list)
+    {
+        FOR_ALL(list->filesystems)
+        {
+            HEAP_DEALLOCATE(heap, it->label);
+        }
+        ARRAY_DESTROY(list->filesystems, heap);
+    }
 }
