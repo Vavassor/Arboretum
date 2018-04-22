@@ -47,20 +47,21 @@ struct Directory
 void destroy_directory(Directory* directory, Heap* heap);
 bool list_files_in_directory(const char* path, Directory* result, Heap* heap);
 
-// Filesystem Listing...........................................................
+// Volume Listing...............................................................
 
-struct Filesystem
+struct Volume
 {
     char* label;
+    char* path;
 };
 
-struct FilesystemList
+struct VolumeList
 {
-    Filesystem* filesystems;
+    Volume* volumes;
 };
 
-bool list_filesystems(FilesystemList* list, Heap* heap);
-void destroy_filesystem_list(FilesystemList* list, Heap* heap);
+bool list_volumes(VolumeList* list, Heap* heap);
+void destroy_volume_list(VolumeList* list, Heap* heap);
 
 // User Directories.............................................................
 

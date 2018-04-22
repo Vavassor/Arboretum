@@ -13,7 +13,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <dirent.h>
+#include <mntent.h>
 #include <pwd.h>
+#include <blkid/blkid.h>
 #include <stdlib.h>
 
 bool load_whole_file(const char* path, void** contents, u64* bytes, Stack* stack)
@@ -239,13 +241,108 @@ bool list_files_in_directory(const char* path, Directory* result, Heap* heap)
     return true;
 }
 
-// Filesystem Listing...........................................................
+// Volume Listing...............................................................
 
-bool list_filesystems(FilesystemList* list, Heap* heap)
+static void add_device_if_mounted(VolumeList* list, const char* devname, const char* label, Heap* heap)
 {
-    // TODO
+    FILE* file = setmntent("/proc/mounts", "r");
+    if(!file)
+    {
+        return;
+    }
 
-    return false;
+    struct mntent entry;
+    const int buffer_cap = 1024;
+    char buffer[buffer_cap];
+    while(getmntent_r(file, &entry, buffer, buffer_cap))
+    {
+        if(strings_match(entry.mnt_type, MNTTYPE_SWAP))
+        {
+            continue;
+        }
+
+        if(strings_match(devname, entry.mnt_fsname))
+        {
+            const char* path = entry.mnt_dir;
+            if(!label)
+            {
+                label = path;
+            }
+
+            Volume volume = {};
+            volume.label = copy_string_to_heap(label, heap);
+            volume.path = copy_string_to_heap(path, heap);
+            ARRAY_ADD(list->volumes, volume, heap);
+            break;
+        }
+    }
+
+    endmntent(file);
+}
+
+bool list_volumes(VolumeList* list, Heap* heap)
+{
+    *list = {};
+
+    blkid_cache cache = nullptr;
+    int result = blkid_get_cache(&cache, nullptr);
+    if(result != 0)
+    {
+        return false;
+    }
+
+    result = blkid_probe_all(cache);
+    if(result != 0)
+    {
+        blkid_put_cache(cache);
+        return false;
+    }
+
+    blkid_dev device;
+    blkid_dev_iterate it = blkid_dev_iterate_begin(cache);
+    while(blkid_dev_next(it, &device) == 0)
+    {
+        device = blkid_verify(cache, device);
+        if(!device)
+        {
+            continue;
+        }
+
+        const char* devname = blkid_dev_devname(device);
+        if(access(devname, F_OK))
+        {
+            continue;
+        }
+
+        const char* device_type = nullptr;
+        const char* label = nullptr;
+
+        blkid_tag_iterate tag = blkid_tag_iterate_begin(device);
+        const char* type;
+        const char* value;
+        while(blkid_tag_next(tag, &type, &value) == 0)
+        {
+            if(strings_match(type, "TYPE"))
+            {
+                device_type = value;
+            }
+            else if(strings_match(type, "LABEL"))
+            {
+                label = value;
+            }
+        }
+        blkid_tag_iterate_end(tag);
+
+        if(device_type)
+        {
+            add_device_if_mounted(list, devname, label, heap);
+        }
+    }
+    blkid_dev_iterate_end(it);
+
+    blkid_put_cache(cache);
+
+    return true;
 }
 
 // User Directories.............................................................
@@ -292,6 +389,7 @@ static const char* get_env_name(UserFolder folder)
 {
     switch(folder)
     {
+        default:
         case UserFolder::Cache:     return "XDG_CACHE_HOME";
         case UserFolder::Config:    return "XDG_CONFIG_HOME";
         case UserFolder::Data:      return "XDG_DATA_HOME";
@@ -308,6 +406,7 @@ static const char* get_default_relative_path(UserFolder folder)
 {
     switch(folder)
     {
+        default:
         case UserFolder::Cache:     return ".cache";
         case UserFolder::Config:    return ".config";
         case UserFolder::Data:      return ".local/share";
@@ -582,9 +681,9 @@ bool list_files_in_directory(const char* path, Directory* result, Heap* heap)
     return true;
 }
 
-// Filesystem Listing...........................................................
+// Volume Listing...............................................................
 
-bool list_filesystems(FilesystemList* list, Heap* heap)
+bool list_volumes(VolumeList* list, Heap* heap)
 {
     *list = {};
 
@@ -613,14 +712,14 @@ bool list_filesystems(FilesystemList* list, Heap* heap)
                 got = GetVolumePathNamesForVolumeNameW(volume_name, path_chain, path_chain_cap, &char_count);
                 if(!got)
                 {
-                    destroy_filesystem_list(list, heap);
+                    destroy_volume_list(list, heap);
                     HEAP_DEALLOCATE(heap, path_chain);
                     return false;
                 }
             }
             else
             {
-                destroy_filesystem_list(list, heap);
+                destroy_volume_list(list, heap);
                 HEAP_DEALLOCATE(heap, path_chain);
                 return false;
             }
@@ -630,16 +729,19 @@ bool list_filesystems(FilesystemList* list, Heap* heap)
         wchar_t label[label_cap];
         got = GetVolumeInformationW(path_chain, label, label_cap, nullptr, nullptr, nullptr, nullptr, 0);
 
-        Filesystem filesystem = {};
+        Volume volume = {};
         if(got)
         {
-            filesystem.label = wide_char_to_utf8(label, heap);
+            volume.label = wide_char_to_utf8(label, heap);
         }
         else
         {
-            filesystem.label = wide_char_to_utf8(path_chain, heap);
+            volume.label = wide_char_to_utf8(path_chain, heap);
         }
-        ARRAY_ADD(list->filesystems, filesystem, heap);
+        char* path = wide_char_to_utf8(path_chain, heap);
+        replace_chars(path, '\\', '/');
+        volume.path = path;
+        ARRAY_ADD(list->volumes, volume, heap);
         
         HEAP_DEALLOCATE(heap, path_chain);
 
@@ -651,7 +753,7 @@ bool list_filesystems(FilesystemList* list, Heap* heap)
 
     if(error != ERROR_NO_MORE_FILES)
     {
-        destroy_filesystem_list(list, heap);
+        destroy_volume_list(list, heap);
         return false;
     }
 
@@ -709,16 +811,17 @@ void destroy_directory(Directory* directory, Heap* heap)
     ARRAY_DESTROY(directory->records, heap);
 }
 
-// Filesystem Listing...........................................................
+// Volume Listing...............................................................
 
-void destroy_filesystem_list(FilesystemList* list, Heap* heap)
+void destroy_volume_list(VolumeList* list, Heap* heap)
 {
     if(list)
     {
-        FOR_ALL(list->filesystems)
+        FOR_ALL(list->volumes)
         {
             HEAP_DEALLOCATE(heap, it->label);
+            HEAP_DEALLOCATE(heap, it->path);
         }
-        ARRAY_DESTROY(list->filesystems, heap);
+        ARRAY_DESTROY(list->volumes, heap);
     }
 }
