@@ -11,6 +11,7 @@ bool save_whole_file(const char* path, const void* contents, u64 bytes, Stack* s
 
 enum class FileOpenMode
 {
+    Read,
     Write_Temporary,
 };
 
@@ -18,6 +19,7 @@ struct File;
 File* open_file(const char* path, FileOpenMode open_mode, Heap* heap);
 void close_file(File* file);
 bool make_file_permanent(File* file, const char* path);
+bool read_file(File* file, void* data, u64 bytes, u64* bytes_got);
 bool write_file(File* file, const void* data, u64 bytes);
 
 void write_to_standard_output(const char* text, bool error);

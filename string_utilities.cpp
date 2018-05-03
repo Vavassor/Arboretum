@@ -278,6 +278,7 @@ static bool string_to_u64(const char* string, char** after, int base, u64* value
         }
     }
 
+    bool zero_first = false;
     if(base < 0 || base == 1 || base > 36)
     {
         if(after)
@@ -300,6 +301,7 @@ static bool string_to_u64(const char* string, char** after, int base, u64* value
         else
         {
             base = 8;
+            zero_first = true;
             s += 1;
         }
     }
@@ -329,7 +331,7 @@ static bool string_to_u64(const char* string, char** after, int base, u64* value
 
     if(after)
     {
-        if(!digits_read)
+        if(!digits_read && !zero_first)
         {
             *after = const_cast<char*>(string);
         }
@@ -355,6 +357,14 @@ bool string_to_int(const char* string, int* value)
 {
     u64 u;
     bool success = string_to_u64(string, nullptr, 0, &u);
+    *value = u;
+    return success;
+}
+
+bool string_to_int_extra(const char* string, char** after, int base, int* value)
+{
+    u64 u;
+    bool success = string_to_u64(string, after, base, &u);
     *value = u;
     return success;
 }

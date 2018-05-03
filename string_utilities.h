@@ -21,6 +21,7 @@ void to_upper_case_ascii(char* string);
 void replace_chars(char* s, char original, char replacement);
 
 bool string_to_int(const char* string, int* value);
+bool string_to_int_extra(const char* string, char** after, int base, int* value);
 bool string_to_float(const char* string, float* value);
 bool string_to_double(const char* string, double* value);
 

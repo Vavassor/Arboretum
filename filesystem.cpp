@@ -15,7 +15,6 @@
 #include <dirent.h>
 #include <mntent.h>
 #include <pwd.h>
-#include <blkid/blkid.h>
 #include <stdlib.h>
 
 bool load_whole_file(const char* path, void** contents, u64* bytes, Stack* stack)
@@ -89,6 +88,11 @@ File* open_file(const char* path, FileOpenMode open_mode, Heap* heap)
     int flag;
     switch(open_mode)
     {
+        case FileOpenMode::Read:
+        {
+            flag = O_RDONLY;
+            break;
+        }
         case FileOpenMode::Write_Temporary:
         {
             flag = O_TMPFILE | O_WRONLY;
@@ -130,6 +134,69 @@ bool make_file_permanent(File* file, const char* path)
     format_string(fd_path, fd_path_max, "/proc/self/fd/%d", file->descriptor);
     int result = linkat(AT_FDCWD, fd_path, AT_FDCWD, path, AT_SYMLINK_FOLLOW);
     return result == 0;
+}
+
+bool read_file(File* file, void* data, u64 bytes, u64* bytes_got)
+{
+    ssize_t bytes_read = read(file->descriptor, data, bytes);
+    if(bytes_read != -1)
+    {
+        *bytes_got = bytes_read;
+        return true;
+    }
+    return false;
+}
+
+bool read_line(File* file, char** line, u64* bytes, Heap* heap)
+{
+    if(!*line)
+    {
+        *bytes = 128;
+        *line = HEAP_ALLOCATE(heap, char, *bytes);
+        if(!*line)
+        {
+            return false;
+        }
+    }
+
+    int read_index = 0;
+
+    char value;
+    do
+    {
+        u64 bytes_read;
+        bool char_read = read_file(file, &value, 1, &bytes_read);
+        if(!char_read || bytes_read != 1)
+        {
+            if(read_index == 0)
+            {
+                return false;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        if(*bytes - read_index < 2)
+        {
+            *bytes *= 2;
+            char* buffer = *line;
+            buffer = HEAP_REALLOCATE(heap, buffer, *bytes);
+            *line = buffer;
+            if(!buffer)
+            {
+                return false;
+            }
+        }
+
+        (*line)[read_index] = value;
+        read_index += 1;
+    } while(value != '\n');
+
+    (*line)[read_index] = '\0';
+
+    return true;
 }
 
 bool write_file(File* file, const void* data, u64 bytes)
@@ -243,105 +310,364 @@ bool list_files_in_directory(const char* path, Directory* result, Heap* heap)
 
 // Volume Listing...............................................................
 
-static void add_device_if_mounted(VolumeList* list, const char* devname, const char* label, Heap* heap)
+// These notes are copied from the section in "man proc" on
+// /proc/[pid]/mountinfo.
+struct MountInfoEntry
 {
-    FILE* file = setmntent("/proc/mounts", "r");
-    if(!file)
+    int mount_id; // unique identifier of the mount (may be reused after umount)
+    int parent_id; // ID of parent (or of self for the top of the mount tree)
+    dev_t device_id; // value of st_dev for files on filesystem
+    char* root; // root of the mount within the filesystem
+    char* mountpoint; // mount point relative to the process's root
+    char* mount_options; // per mount options
+    char* optional_fields; // zero or more fields of the form "tag[:value]"
+    char* filesystem_type; // name of filesystem of the form "type[.subtype]"
+    char* mount_source; // filesystem specific information or "none"
+    char* super_options; // per super block options
+};
+
+static void destroy_mount_info_entry(MountInfoEntry* entry, Heap* heap)
+{
+    if(entry)
     {
-        return;
+        SAFE_HEAP_DEALLOCATE(heap, entry->root);
+        SAFE_HEAP_DEALLOCATE(heap, entry->mountpoint);
+        SAFE_HEAP_DEALLOCATE(heap, entry->mount_options);
+        SAFE_HEAP_DEALLOCATE(heap, entry->optional_fields);
+        SAFE_HEAP_DEALLOCATE(heap, entry->filesystem_type);
+        SAFE_HEAP_DEALLOCATE(heap, entry->mount_source);
+        SAFE_HEAP_DEALLOCATE(heap, entry->super_options);
+    }
+}
+
+static bool get_int(const char* original, const char** after, int* result)
+{
+    return string_to_int_extra(original, const_cast<char**>(after), 0, result);
+}
+
+static char* get_string(const char* line, const char* separator, const char** after, Heap* heap)
+{
+    const char* space = find_string(line, separator);
+    if(space)
+    {
+        ptrdiff_t count = space - line;
+        // Always skip past the separator even if there's nothing to return.
+        *after = space + string_size(separator);
+        if(count > 0)
+        {
+            return copy_chars_to_heap(line, count, heap);
+        }
+    }
+    return nullptr;
+}
+
+// This gets *and* decodes a path string. The kernel encodes the following
+// characters as a backslash and three octal digits: space ' ', tab '\t',
+// backslash '\\', and line feed '\n'.
+static char* get_path(const char* line, const char** after, Heap* heap)
+{
+    // Find the ending space ' ' first, so we can figure out how much room to
+    // allocate for the path up-front. The only encoded part is the octal
+    // sequences, which are a fixed size. So the output will always be the same
+    // or shorter than the encoded path.
+    int count = find_char(line, ' ');
+    if(count == invalid_index)
+    {
+        return nullptr;
     }
 
-    struct mntent entry;
-    const int buffer_cap = 1024;
-    char buffer[buffer_cap];
-    while(getmntent_r(file, &entry, buffer, buffer_cap))
+    char* path = HEAP_ALLOCATE(heap, char, count + 1);
+    if(path)
     {
-        if(strings_match(entry.mnt_type, MNTTYPE_SWAP))
+        // Copy the characters to the path until the ending space is reached.
+        // Also replace any octal sequences with the encoded character.
+        for(int i = 0, j = 0; i <= count; j += 1)
         {
-            continue;
-        }
-
-        if(strings_match(devname, entry.mnt_fsname))
-        {
-            const char* path = entry.mnt_dir;
-            if(!label)
+            switch(line[i])
             {
-                label = path;
-            }
+                case ' ':
+                {
+                    path[j] = '\0';
+                    *after = &line[i + 1];
+                    return path;
+                }
+                case '\\':
+                {
+                    // All octal sequences must be one backslash and exactly
+                    // three digits.
+                    if(i + 4 >= count)
+                    {
+                        HEAP_DEALLOCATE(heap, path);
+                        return nullptr;
+                    }
 
-            Volume volume = {};
-            volume.label = copy_string_to_heap(label, heap);
-            volume.path = copy_string_to_heap(path, heap);
-            ARRAY_ADD(list->volumes, volume, heap);
-            break;
+                    char c = (line[i + 1] - '0') << 6;
+                    c |= (line[i + 2] - '0') << 3;
+                    c |= (line[i + 3] - '0');
+                    i += 4;
+                    path[j] = c;
+
+                    break;
+                }
+                default:
+                {
+                    path[j] = line[i];
+                    i += 1;
+                    break;
+                }
+            }
         }
+        HEAP_DEALLOCATE(heap, path);
     }
 
-    endmntent(file);
+    return nullptr;
+}
+
+static bool parse_entry(const char* line, MountInfoEntry* entry, Heap* heap)
+{
+    bool got = get_int(line, &line, &entry->mount_id);
+    if(!got)
+    {
+        return false;
+    }
+
+    got = get_int(line, &line, &entry->parent_id);
+    if(!got)
+    {
+        return false;
+    }
+
+    // device_id written "major:minor"
+    int major;
+    got = get_int(line, &line, &major);
+    if(!got)
+    {
+        return false;
+    }
+    if(*line != ':')
+    {
+        return false;
+    }
+    line += 1;
+    int minor;
+    got = get_int(line, &line, &minor);
+    if(!got)
+    {
+        return false;
+    }
+    entry->device_id = makedev(major, minor);
+
+    // Make sure not to call get_path starting with a space.
+    if(*line != ' ')
+    {
+        return false;
+    }
+    line += 1;
+
+    entry->root = get_path(line, &line, heap);
+    if(!entry->root)
+    {
+        return false;
+    }
+
+    entry->mountpoint = get_path(line, &line, heap);
+    if(!entry->mountpoint)
+    {
+        return false;
+    }
+
+    entry->mount_options = get_string(line, " ", &line, heap);
+    if(!entry->mount_options)
+    {
+        return false;
+    }
+
+    entry->optional_fields = get_string(line, "- ", &line, heap);
+
+    entry->filesystem_type = get_string(line, " ", &line, heap);
+    if(!entry->filesystem_type)
+    {
+        return false;
+    }
+
+    entry->mount_source = get_path(line, &line, heap);
+    if(!entry->mount_source)
+    {
+        return false;
+    }
+
+    entry->super_options = get_string(line, "\n", &line, heap);
+    if(!entry->super_options)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+static bool get_mount_info_entry(File* file, MountInfoEntry* entry, Heap* heap)
+{
+    bool parsed = false;
+
+    // Get the next line in the /proc/self/mountinfo file and pass it to
+    // parse_entry. Keep the cleanup here so parse_entry can quit at any time
+    // and assume it'll be taken care of here safely.
+    u64 line_bytes;
+    char* line = nullptr;
+    bool got = read_line(file, &line, &line_bytes, heap);
+    if(got)
+    {
+        parsed = parse_entry(line, entry, heap);
+        if(!parsed)
+        {
+            destroy_mount_info_entry(entry, heap);
+        }
+        HEAP_DEALLOCATE(heap, line);
+    }
+
+    return parsed;
+}
+
+// udev disallows certain characters in its strings and encodes them by
+// replacing "potentially unsafe" characters with their hexadecimal value
+// preceded by \x, like \x20. Since backslash is used for this, it also has
+// to be replaced by its own code \x5C.
+static char* decode_label(const char* encoded, Heap* heap)
+{
+    // Since the encoding replaces characters with a fixed-size sequence, the
+    // output has to be either the same size or smaller. So allocating space
+    // the same size as the encoded version is always going to be enough.
+    int end = string_size(encoded);
+    char* label = HEAP_ALLOCATE(heap, char, end + 1);
+
+    // Find any 4-byte sequences starting with \x to replace. Otherwise, copy
+    // as you go.
+    int j = 0;
+    for(int i = 0; i < end; j += 1)
+    {
+        if(i <= end - 4 && encoded[i] == '\\' && encoded[i + 1] == 'x')
+        {
+            int value;
+            bool success = string_to_int_extra(&encoded[i + 2], nullptr, 16, &value);
+            if(success)
+            {
+                label[j] = value;
+            }
+            i += 4;
+        }
+        else
+        {
+            label[j] = encoded[i];
+            i += 1;
+        }
+    }
+    label[j] = '\0';
+
+    return label;
+}
+
+static char* get_label(const char* device_path, Heap* heap)
+{
+    char* label = nullptr;
+
+    char* canonical_device = realpath(device_path, nullptr);
+    if(canonical_device)
+    {
+        // Find an entry in the directory /dev/disk/by-label that links to a device
+        // file with a matching "real" path. Its filename will be the desired label.
+        //
+        // The /dev/disk/by-label directory is managed by udev, a device manager
+        // for the kernel.
+        const char* by_label = "/dev/disk/by-label";
+        DIR* directory = opendir(by_label);
+        if(directory)
+        {
+            for(;;)
+            {
+                struct dirent* entry = readdir(directory);
+                if(!entry)
+                {
+                    break;
+                }
+                const char* name = entry->d_name;
+                if(strings_match(name, ".") || strings_match(name, ".."))
+                {
+                    // Skip the entries for the directory itself and its parent.
+                    continue;
+                }
+                if(entry->d_type == DT_LNK)
+                {
+                    char* link_path = append_to_path(by_label, name, heap);
+                    char* path = realpath(link_path, nullptr);
+                    bool matches = strings_match(path, canonical_device);
+                    HEAP_DEALLOCATE(heap, link_path);
+                    free(path);
+                    if(matches)
+                    {
+                        // The filename is an encoded version of the label that
+                        // corresponds to the udev device property
+                        // ENV{ID_FS_LABEL_ENC}.
+                        label = decode_label(name, heap);
+                    }
+                }
+            }
+            closedir(directory);
+        }
+        free(canonical_device);
+    }
+
+    return label;
 }
 
 bool list_volumes(VolumeList* list, Heap* heap)
 {
-    *list = {};
-
-    blkid_cache cache = nullptr;
-    int result = blkid_get_cache(&cache, nullptr);
-    if(result != 0)
+    // First try to use /proc/self/mountinfo and fallback to listing from
+    // /etc/mtab if it's not available.
+    File* file = open_file("/proc/self/mountinfo", FileOpenMode::Read, heap);
+    if(file)
     {
-        return false;
-    }
-
-    result = blkid_probe_all(cache);
-    if(result != 0)
-    {
-        blkid_put_cache(cache);
-        return false;
-    }
-
-    blkid_dev device;
-    blkid_dev_iterate it = blkid_dev_iterate_begin(cache);
-    while(blkid_dev_next(it, &device) == 0)
-    {
-        device = blkid_verify(cache, device);
-        if(!device)
+        for(;;)
         {
-            continue;
-        }
-
-        const char* devname = blkid_dev_devname(device);
-        if(access(devname, F_OK))
-        {
-            continue;
-        }
-
-        const char* device_type = nullptr;
-        const char* label = nullptr;
-
-        blkid_tag_iterate tag = blkid_tag_iterate_begin(device);
-        const char* type;
-        const char* value;
-        while(blkid_tag_next(tag, &type, &value) == 0)
-        {
-            if(strings_match(type, "TYPE"))
+            MountInfoEntry entry = {};
+            bool got = get_mount_info_entry(file, &entry, heap);
+            if(!got)
             {
-                device_type = value;
+                break;
             }
-            else if(strings_match(type, "LABEL"))
+            if(string_starts_with(entry.mount_source, "/dev/"))
             {
-                label = value;
+                Volume volume;
+                volume.path = copy_string_to_heap(entry.mountpoint, heap);
+                volume.label = get_label(entry.mount_source, heap);
+                ARRAY_ADD(list->volumes, volume, heap);
             }
+            destroy_mount_info_entry(&entry, heap);
         }
-        blkid_tag_iterate_end(tag);
-
-        if(device_type)
+        close_file(file);
+    }
+    else
+    {
+        FILE* mtab_file = setmntent(_PATH_MOUNTED, "r");
+        if(mtab_file)
         {
-            add_device_if_mounted(list, devname, label, heap);
+            for(;;)
+            {
+                struct mntent* entry = getmntent(mtab_file);
+                if(!entry)
+                {
+                    break;
+                }
+                if(string_starts_with(entry->mnt_fsname, "/dev/"))
+                {
+                    Volume volume;
+                    volume.path = copy_string_to_heap(entry->mnt_dir, heap);
+                    volume.label = get_label(entry->mnt_fsname, heap);
+                    ARRAY_ADD(list->volumes, volume, heap);
+                }
+            }
+            endmntent(mtab_file);
         }
     }
-    blkid_dev_iterate_end(it);
-
-    blkid_put_cache(cache);
-
     return true;
 }
 
@@ -683,10 +1009,58 @@ bool list_files_in_directory(const char* path, Directory* result, Heap* heap)
 
 // Volume Listing...............................................................
 
+static wchar_t* get_path_chain(const wchar_t* volume_name, Heap* heap)
+{
+    // Ask for the volume path names and just guess an arbitrary size for it.
+    int count = 50;
+    wchar_t* path_chain = HEAP_ALLOCATE(heap, wchar_t, count);
+    DWORD char_count;
+    BOOL got = GetVolumePathNamesForVolumeNameW(volume_name, path_chain, count, &char_count);
+    if(got)
+    {
+        return path_chain;
+    }
+
+    // If it wasn't enough room, resize the space to the amount passed back in
+    // char_count and try again.
+    DWORD error = GetLastError();
+    if(error == ERROR_MORE_DATA)
+    {
+        count = char_count;
+        path_chain = HEAP_REALLOCATE(heap, path_chain, count);
+        got = GetVolumePathNamesForVolumeNameW(volume_name, path_chain, count, &char_count);
+        if(got)
+        {
+            return path_chain;
+        }
+    }
+
+    // If that didn't work out.
+    HEAP_DEALLOCATE(heap, path_chain);
+
+    return nullptr;
+}
+
+static char* get_label(const wchar_t* path_chain, Heap* heap)
+{
+    const int label_cap = MAX_PATH + 1;
+    wchar_t label[label_cap];
+    BOOL got = GetVolumeInformationW(path_chain, label, label_cap, nullptr, nullptr, nullptr, nullptr, 0);
+    if(got)
+    {
+        return wide_char_to_utf8(label, heap);
+    }
+    return nullptr;
+}
+
+static bool is_volume_ready(const wchar_t* name)
+{
+    BOOL result = GetVolumeInformationW(name, nullptr, 0, nullptr, nullptr, nullptr, nullptr, 0);
+    return result && GetLastError() != ERROR_NOT_READY;
+}
+
 bool list_volumes(VolumeList* list, Heap* heap)
 {
-    *list = {};
-
     const int volume_name_cap = 50;
     wchar_t volume_name[volume_name_cap];
     HANDLE handle = FindFirstVolumeW(volume_name, volume_name_cap);
@@ -698,55 +1072,28 @@ bool list_volumes(VolumeList* list, Heap* heap)
     BOOL found;
     do
     {
-        DWORD char_count;
-        int path_chain_cap = 50;
-        wchar_t* path_chain = HEAP_ALLOCATE(heap, wchar_t, path_chain_cap);
-        BOOL got = GetVolumePathNamesForVolumeNameW(volume_name, path_chain, path_chain_cap, &char_count);
-        if(!got)
+        if(is_volume_ready(volume_name))
         {
-            DWORD error = GetLastError();
-            if(error == ERROR_MORE_DATA)
-            {
-                path_chain_cap = char_count;
-                path_chain = HEAP_REALLOCATE(heap, path_chain, path_chain_cap);
-                got = GetVolumePathNamesForVolumeNameW(volume_name, path_chain, path_chain_cap, &char_count);
-                if(!got)
-                {
-                    destroy_volume_list(list, heap);
-                    HEAP_DEALLOCATE(heap, path_chain);
-                    return false;
-                }
-            }
-            else
+            wchar_t* path_chain = get_path_chain(volume_name, heap);
+            if(!path_chain)
             {
                 destroy_volume_list(list, heap);
-                HEAP_DEALLOCATE(heap, path_chain);
                 return false;
             }
-        }
 
-        const int label_cap = MAX_PATH + 1;
-        wchar_t label[label_cap];
-        got = GetVolumeInformationW(path_chain, label, label_cap, nullptr, nullptr, nullptr, nullptr, 0);
+            Volume volume;
+            volume.path = wide_char_to_utf8(path_chain, heap);
+            volume.label = get_label(path_chain, heap);
+            if(!volume.label)
+            {
+                volume.label = copy_string_to_heap(volume.path, heap);
+            }
+            ARRAY_ADD(list->volumes, volume, heap);
 
-        Volume volume = {};
-        if(got)
-        {
-            volume.label = wide_char_to_utf8(label, heap);
+            HEAP_DEALLOCATE(heap, path_chain);
         }
-        else
-        {
-            volume.label = wide_char_to_utf8(path_chain, heap);
-        }
-        char* path = wide_char_to_utf8(path_chain, heap);
-        replace_chars(path, '\\', '/');
-        volume.path = path;
-        ARRAY_ADD(list->volumes, volume, heap);
-        
-        HEAP_DEALLOCATE(heap, path_chain);
-
         found = FindNextVolumeW(handle, volume_name, volume_name_cap);
-    } while(found);
+    } while(!found);
 
     DWORD error = GetLastError();
     FindVolumeClose(handle);
