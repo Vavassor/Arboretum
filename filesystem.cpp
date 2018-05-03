@@ -662,6 +662,10 @@ bool list_volumes(VolumeList* list, Heap* heap)
                     Volume volume;
                     volume.path = copy_string_to_heap(entry->mnt_dir, heap);
                     volume.label = get_label(entry->mnt_fsname, heap);
+                    if(!volume.label)
+                    {
+                        volume.label = copy_string_to_heap(volume.path, heap);
+                    }
                     ARRAY_ADD(list->volumes, volume, heap);
                 }
             }
@@ -1081,8 +1085,11 @@ bool list_volumes(VolumeList* list, Heap* heap)
                 return false;
             }
 
+            char* path = wide_char_to_utf8(path_chain, heap);
+            replace_chars(path, '\\', '/');
+
             Volume volume;
-            volume.path = wide_char_to_utf8(path_chain, heap);
+            volume.path = path;
             volume.label = get_label(path_chain, heap);
             if(!volume.label)
             {
@@ -1093,7 +1100,7 @@ bool list_volumes(VolumeList* list, Heap* heap)
             HEAP_DEALLOCATE(heap, path_chain);
         }
         found = FindNextVolumeW(handle, volume_name, volume_name_cap);
-    } while(!found);
+    } while(found);
 
     DWORD error = GetLastError();
     FindVolumeClose(handle);
