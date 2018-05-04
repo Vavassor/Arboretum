@@ -13,6 +13,7 @@ void create_mesh(Mesh* mesh)
     pool_create(&mesh->edge_pool, sizeof(Edge), 4096);
     pool_create(&mesh->vertex_pool, sizeof(Vertex), 4096);
     pool_create(&mesh->link_pool, sizeof(Link), 8192);
+    pool_create(&mesh->border_pool, sizeof(Link), 8192);
 
     mesh->faces_count = 0;
     mesh->edges_count = 0;
@@ -25,6 +26,7 @@ void destroy_mesh(Mesh* mesh)
     pool_destroy(&mesh->edge_pool);
     pool_destroy(&mesh->vertex_pool);
     pool_destroy(&mesh->link_pool);
+    pool_destroy(&mesh->border_pool);
 }
 
 Vertex* add_vertex(Mesh* mesh, Vector3 position)
@@ -104,9 +106,8 @@ static void remove_spoke(Edge* edge, Vertex* vertex)
 
 static bool edge_contains_vertices(Edge* edge, Vertex* a, Vertex* b)
 {
-    return
-        (edge->vertices[0] == a && edge->vertices[1] == b) ||
-        (edge->vertices[1] == a && edge->vertices[0] == b);
+    return (edge->vertices[0] == a && edge->vertices[1] == b)
+        || (edge->vertices[1] == a && edge->vertices[0] == b);
 }
 
 static Edge* get_edge_spoked_from_vertex(Vertex* hub, Vertex* vertex)
@@ -155,23 +156,37 @@ static Edge* add_edge_if_nonexistant(Mesh* mesh, Vertex* start, Vertex* end)
     }
 }
 
+static Link* add_link(Mesh* mesh, Vertex* vertex, Edge* edge, Face* face)
+{
+    Link* link = POOL_ALLOCATE(&mesh->link_pool, Link);
+    link->vertex = vertex;
+    link->edge = edge;
+    link->face = face;
+
+    return link;
+}
+
 static bool is_boundary(Link* link)
 {
-    return link == link->twin;
+    return link == link->next_fin;
 }
 
 static void make_boundary(Link* link)
 {
-    link->twin = link;
+    link->next_fin = link;
+    link->prior_fin = link;
 }
 
-static void add_twin(Link* link, Edge* edge)
+static void add_fin(Link* link, Edge* edge)
 {
     Link* existing_link = edge->any_link;
     if(existing_link)
     {
-        link->twin = edge->any_link;
-        existing_link->twin = link;
+        link->prior_fin = existing_link;
+        link->next_fin = existing_link->next_fin;
+
+        existing_link->next_fin->prior_fin = link;
+        existing_link->next_fin = link;
     }
     else
     {
@@ -181,7 +196,7 @@ static void add_twin(Link* link, Edge* edge)
     link->edge = edge;
 }
 
-static void remove_twin(Link* link, Edge* edge)
+static void remove_fin(Link* link, Edge* edge)
 {
     if(is_boundary(link))
     {
@@ -192,12 +207,37 @@ static void remove_twin(Link* link, Edge* edge)
     {
         if(edge->any_link == link)
         {
-            edge->any_link = link->twin;
+            edge->any_link = link->next_fin;
         }
-        make_boundary(link->twin);
+        link->next_fin->prior_fin = link->prior_fin;
+        link->prior_fin->next_fin = link->next_fin;
     }
-    link->twin = nullptr;
+    link->next_fin = nullptr;
+    link->prior_fin = nullptr;
     link->edge = nullptr;
+}
+
+Link* add_border_to_face(Mesh* mesh, Vertex* vertex, Edge* edge, Face* face)
+{
+    Link* link = add_link(mesh, vertex, edge, face);
+    add_fin(link, edge);
+
+    Border* border = POOL_ALLOCATE(&mesh->border_pool, Border);
+    border->first = link;
+    border->last = link;
+    border->next = nullptr;
+    border->prior = face->last_border;
+    if(!face->first_border)
+    {
+        face->first_border = border;
+    }
+    if(face->last_border)
+    {
+        face->last_border->next = border;
+    }
+    face->last_border = border;
+
+    return link;
 }
 
 Face* add_face(Mesh* mesh, Vertex** vertices, Edge** edges, int edges_count)
@@ -206,19 +246,12 @@ Face* add_face(Mesh* mesh, Vertex** vertices, Edge** edges, int edges_count)
     face->edges = edges_count;
 
     // Create each link in the face and chain it to the previous.
-    Link* first = POOL_ALLOCATE(&mesh->link_pool, Link);
-    first->vertex = vertices[0];
-    first->face = face;
-    add_twin(first, edges[0]);
-    face->link = first;
-
+    Link* first = add_border_to_face(mesh, vertices[0], edges[0], face);
     Link* prior = first;
     for(int i = 1; i < face->edges; ++i)
     {
-        Link* link = POOL_ALLOCATE(&mesh->link_pool, Link);
-        link->vertex = vertices[i];
-        link->face = face;
-        add_twin(link, edges[i]);
+        Link* link = add_link(mesh, vertices[i], edges[i], face);
+        add_fin(link, edges[i]);
 
         prior->next = link;
         link->prior = prior;
@@ -268,51 +301,63 @@ Face* connect_disconnected_vertices_and_add_face(Mesh* mesh, Vertex** vertices, 
 
 static void remove_face(Mesh* mesh, Face* face)
 {
-    Link* link = face->link;
-    Link* first = link;
-    do
+    Border* next_border;
+    for(Border* border = face->first_border; border; border = next_border)
     {
-        remove_twin(link, link->edge);
-        Link* next = link->next;
-        pool_deallocate(&mesh->link_pool, link);
-        link = next;
-    } while(link != first);
+        next_border = border->next;
+        Link* first = border->first;
+        Link* link = first;
+        do
+        {
+            Link* next = link->next;
+            remove_fin(link, link->edge);
+            pool_deallocate(&mesh->link_pool, link);
+            link = next;
+        } while(link != first);
+        pool_deallocate(&mesh->border_pool, border);
+    }
     pool_deallocate(&mesh->face_pool, face);
     mesh->faces_count -= 1;
 }
 
 static void remove_face_and_its_unlinked_edges_and_vertices(Mesh* mesh, Face* face)
 {
-    Link* first = face->link;
-    Link* link = first;
-    do
+    Border* next_border;
+    for(Border* border = face->first_border; border; border = next_border)
     {
-        Edge* edge = link->edge;
-        remove_twin(link, edge);
-        Link* next = link->next;
-        pool_deallocate(&mesh->link_pool, link);
-        if(!edge->any_link)
+        next_border = border->next;
+        Link* first = border->first;
+        Link* link = first;
+        do
         {
-            Vertex* vertices[2];
-            vertices[0] = edge->vertices[0];
-            vertices[1] = edge->vertices[1];
-            remove_spoke(edge, vertices[0]);
-            remove_spoke(edge, vertices[1]);
-            pool_deallocate(&mesh->edge_pool, edge);
-            mesh->edges_count -= 1;
-            if(!vertices[0]->any_edge)
+            Link* next = link->next;
+            Edge* edge = link->edge;
+            remove_fin(link, edge);
+            pool_deallocate(&mesh->link_pool, link);
+            if(!edge->any_link)
             {
-                pool_deallocate(&mesh->vertex_pool, vertices[0]);
-                mesh->vertices_count -= 1;
+                Vertex* vertices[2];
+                vertices[0] = edge->vertices[0];
+                vertices[1] = edge->vertices[1];
+                remove_spoke(edge, vertices[0]);
+                remove_spoke(edge, vertices[1]);
+                pool_deallocate(&mesh->edge_pool, edge);
+                mesh->edges_count -= 1;
+                if(!vertices[0]->any_edge)
+                {
+                    pool_deallocate(&mesh->vertex_pool, vertices[0]);
+                    mesh->vertices_count -= 1;
+                }
+                if(!vertices[1]->any_edge)
+                {
+                    pool_deallocate(&mesh->vertex_pool, vertices[1]);
+                    mesh->vertices_count -= 1;
+                }
             }
-            if(!vertices[1]->any_edge)
-            {
-                pool_deallocate(&mesh->vertex_pool, vertices[1]);
-                mesh->vertices_count -= 1;
-            }
-        }
-        link = next;
-    } while(link != first);
+            link = next;
+        } while(link != first);
+        pool_deallocate(&mesh->border_pool, border);
+    }
     pool_deallocate(&mesh->face_pool, face);
     mesh->faces_count -= 1;
 }
@@ -341,40 +386,53 @@ static void remove_vertex(Mesh* mesh, Vertex* vertex)
 
 static void reverse_face_winding(Face* face)
 {
-    Link* first = face->link;
-    Link* link = first;
-    Link* prior_twin = link->prior->twin;
-    bool boundary_prior = is_boundary(prior_twin);
-    Edge* prior_edge = link->prior->edge;
-    do
+    for(Border* border = face->first_border; border; border = border->next)
     {
-        Link* twin = link->twin;
-        bool boundary = is_boundary(twin);
-        if(boundary_prior)
+        Link* first = border->first;
+        Link* link = first;
+        Link* prior_next_fin = link->prior->next_fin;
+        Link* prior_prior_fin = link->prior->prior_fin;
+        bool boundary_prior = is_boundary(prior_next_fin);
+        Edge* prior_edge = link->prior->edge;
+        do
         {
-            make_boundary(link);
-        }
-        else
-        {
-            link->twin = prior_twin;
-            prior_twin->twin = link;
-        }
-        prior_twin = twin;
-        boundary_prior = boundary;
+            Link* next_fin = link->next_fin;
+            Link* prior_fin = link->prior_fin;
+            bool boundary = is_boundary(next_fin);
 
-        Edge* edge = link->edge;
-        if(edge->any_link == link)
-        {
-            edge->any_link = link->next;
-        }
-        link->edge = prior_edge;
-        prior_edge = edge;
+            // Reverse the fins.
+            if(boundary_prior)
+            {
+                make_boundary(link);
+            }
+            else
+            {
+                link->next_fin = prior_next_fin;
+                link->prior_fin = prior_prior_fin;
+                prior_next_fin->prior_fin = link;
+                prior_prior_fin->next_fin = link;
+            }
+            prior_next_fin = next_fin;
+            prior_prior_fin = prior_fin;
+            boundary_prior = boundary;
 
-        Link* temp = link->next;
-        link->next = link->prior;
-        link->prior = temp;
-        link = temp;
-    } while(link != first);
+            // Rotate the edge's reference to the link loop forward one link
+            // and rotate the link's reference backward one edge.
+            Edge* edge = link->edge;
+            if(edge->any_link == link)
+            {
+                edge->any_link = link->next;
+            }
+            link->edge = prior_edge;
+            prior_edge = edge;
+
+            // Reverse the link itself.
+            Link* temp = link->next;
+            link->next = link->prior;
+            link->prior = temp;
+            link = temp;
+        } while(link != first);
+    }
 }
 
 static void flip_face_normal(Face* face)
@@ -415,7 +473,7 @@ static void compute_vertex_normal(Vertex* vertex)
 static void compute_face_normal(Face* face)
 {
     // This uses Newell's Method to compute the polygon normal.
-    Link* link = face->link;
+    Link* link = face->first_border->first;
     Link* first = link;
     Vector3 prior = link->prior->vertex->position;
     Vector3 current = link->vertex->position;
@@ -510,7 +568,7 @@ void triangulate(Mesh* mesh, Heap* heap, VertexPNC** out_vertices, int* out_vert
         {
             ARRAY_RESERVE(vertices, 3, heap);
             ARRAY_RESERVE(indices, 3, heap);
-            Link* link = face->link;
+            Link* link = face->first_border->first;
             for(int i = 0; i < 3; i += 1)
             {
                 VertexPNC vertex;
@@ -529,9 +587,12 @@ void triangulate(Mesh* mesh, Heap* heap, VertexPNC** out_vertices, int* out_vert
         // used as a base for ear indexing.
         u16 base_index = ARRAY_COUNT(vertices);
 
+        // @Incomplete: Holes in faces aren't yet supported!
+        ASSERT(!face->first_border->next);
+
         // Copy all of the vertices in the face.
         ARRAY_RESERVE(vertices, face->edges, heap);
-        Link* link = face->link;
+        Link* link = face->first_border->first;
         for(int i = 0; i < face->edges; i += 1)
         {
             VertexPNC vertex;
@@ -548,7 +609,7 @@ void triangulate(Mesh* mesh, Heap* heap, VertexPNC** out_vertices, int* out_vert
         ASSERT(face->edges <= max_vertices_per_face);
         Matrix3 m = orthogonal_basis(face->normal);
         Matrix3 mi = transpose(m);
-        link = face->link;
+        link = face->first_border->first;
         for(int i = 0; i < face->edges; i += 1)
         {
             Vector3 p = link->vertex->position;
@@ -726,13 +787,16 @@ void move_faces(Mesh* mesh, Selection* selection, Vector3 translation)
     for(int i = 0; i < selection->parts_count; i += 1)
     {
         Face* face = static_cast<Face*>(selection->parts[i]);
-        Link* first = face->link;
-        Link* link = first;
-        do
+        for(Border* border = face->first_border; border; border = border->next)
         {
-            link->vertex->position += translation;
-            link = link->next;
-        } while(link != first);
+            Link* first = border->first;
+            Link* link = first;
+            do
+            {
+                link->vertex->position += translation;
+                link = link->next;
+            } while(link != first);
+        }
     }
 
     update_normals(mesh);
@@ -796,6 +860,18 @@ static void map_add(VertexMap* map, Vertex* key, Vertex* value)
     map->pairs[index].value = value;
 }
 
+static bool is_edge_on_selection_boundary(Selection* selection, Link* link)
+{
+    for(Link* fin = link->next_fin; fin != link; fin = fin->next_fin)
+    {
+        if(face_selected(selection, fin->face))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 void extrude(Mesh* mesh, Selection* selection, float distance, Stack* stack)
 {
     ASSERT(selection->type == Selection::Type::Face);
@@ -817,11 +893,15 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Stack* stack)
     for(int i = 0; i < selection->parts_count; i += 1)
     {
         Face* face = static_cast<Face*>(selection->parts[i]);
-        Link* first = face->link;
+
+        // @Incomplete: Holes in faces aren't yet supported!
+        ASSERT(!face->first_border->next);
+
+        Link* first = face->first_border->first;
         Link* link = first;
         do
         {
-            if(is_boundary(link) || !face_selected(selection, link->twin->face))
+            if(is_edge_on_selection_boundary(selection, link))
             {
                 // Add vertices only where they haven't been added already.
                 Vertex* start = link->vertex;
@@ -861,9 +941,13 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Stack* stack)
     for(int i = 0; i < selection->parts_count; i += 1)
     {
         Face* face = static_cast<Face*>(selection->parts[i]);
+
+        // @Incomplete: Holes in faces aren't yet supported!
+        ASSERT(!face->first_border->next);
+
         const int vertices_count = face->edges;
         Vertex** vertices = STACK_ALLOCATE(stack, Vertex*, vertices_count);
-        Link* link = face->link;
+        Link* link = face->first_border->first;
         for(int j = 0; j < vertices_count; j += 1)
         {
             vertices[j] = map_find(&map, link->vertex);
@@ -881,13 +965,16 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Stack* stack)
 
 void colour_just_the_one_face(Face* face, Vector3 colour)
 {
-    Link* first = face->link;
-    Link* link = first;
-    do
+    for(Border* border = face->first_border; border; border = border->next)
     {
-        link->colour = colour;
-        link = link->next;
-    } while(link != first);
+        Link* first = border->first;
+        Link* link = first;
+        do
+        {
+            link->colour = colour;
+            link = link->next;
+        } while(link != first);
+    }
 }
 
 void colour_all_faces(Mesh* mesh, Vector3 colour)

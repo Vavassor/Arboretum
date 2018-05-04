@@ -501,8 +501,11 @@ namespace jan {
 
 static void project_face_onto_plane(Face* face, Vector2* vertices)
 {
+    // @Incomplete: Holes in faces aren't yet supported!
+    ASSERT(!face->first_border->next);
+
     Matrix3 mi = transpose(orthogonal_basis(face->normal));
-    Link* first = face->link;
+    Link* first = face->first_border->first;
     Link* link = first;
     int i = 0;
     do
@@ -519,8 +522,11 @@ Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance, Stack* st
     Face* result = nullptr;
     FOR_EACH_IN_POOL(Face, face, mesh->face_pool)
     {
+        // @Incomplete: Holes in faces aren't yet supported!
+        ASSERT(!face->first_border->next);
+
         Vector3 intersection;
-        bool intersected = intersect_ray_plane_one_sided(ray.origin, ray.direction, face->link->vertex->position, face->normal, &intersection);
+        bool intersected = intersect_ray_plane_one_sided(ray.origin, ray.direction, face->first_border->first->vertex->position, face->normal, &intersection);
         if(intersected)
         {
             float distance = squared_distance(ray.origin, intersection);

@@ -41,17 +41,28 @@ struct Link
     Vector3 colour;
     Link* next;
     Link* prior;
-    Link* twin;
+    Link* next_fin;
+    Link* prior_fin;
     Vertex* vertex;
     Edge* edge;
     Face* face;
 };
 
+struct Border
+{
+    Border* next;
+    Border* prior;
+    Link* first;
+    Link* last;
+};
+
 struct Face
 {
-    Link* link;
     Vector3 normal;
+    Border* first_border;
+    Border* last_border;
     int edges;
+    int borders_count;
 };
 
 struct Mesh
@@ -60,6 +71,7 @@ struct Mesh
     Pool edge_pool;
     Pool vertex_pool;
     Pool link_pool;
+    Pool border_pool;
     int faces_count;
     int edges_count;
     int vertices_count;

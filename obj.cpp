@@ -555,7 +555,13 @@ bool save_file(const char* path, jan::Mesh* mesh, Heap* heap)
         i += copied;
         line_left -= copied;
 
-        jan::Link* first = face->link;
+        // @Incomplete: This outputs a filled face without any holes that might
+        // be in it. .obj doesn't support holes, so the most reasonable way to
+        // handle this would be to detect if the face has holes and, if it does,
+        // split it into multiple faces.
+        ASSERT(!face->first_border->next);
+
+        jan::Link* first = face->first_border->first;
         jan::Link* link = first;
         do
         {
