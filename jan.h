@@ -77,6 +77,16 @@ struct Mesh
     int vertices_count;
 };
 
+struct Part
+{
+    union
+    {
+        Vertex* vertex;
+        Edge* edge;
+        Face* face;
+    };
+};
+
 struct Selection
 {
     enum class Type
@@ -87,7 +97,7 @@ struct Selection
     };
 
     Heap* heap;
-    void** parts;
+    Part* parts;
     int parts_count;
     Type type;
 };
@@ -104,7 +114,7 @@ void colour_just_the_one_face(Face* face, Vector3 colour);
 void colour_all_faces(Mesh* mesh, Vector3 colour);
 void colour_selection(Mesh* mesh, Selection* selection, Vector3 colour);
 void move_faces(Mesh* mesh, Selection* selection, Vector3 translation);
-void extrude(Mesh* mesh, Selection* selection, float distance, Stack* stack);
+void extrude(Mesh* mesh, Selection* selection, float distance, Heap* heap, Stack* stack);
 void triangulate(Mesh* mesh, Heap* heap, VertexPNC** out_vertices, int* out_vertices_count, u16** out_indices, int* out_indices_count);
 
 void create_selection(Selection* selection, Heap* heap);

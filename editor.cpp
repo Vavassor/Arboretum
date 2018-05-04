@@ -177,7 +177,7 @@ bool editor_start_up(Platform* platform)
         jan::make_a_weird_face(mesh, &scratch);
 
         jan::Selection selection = jan::select_all(mesh, &heap);
-        jan::extrude(mesh, &selection, 0.6f, &scratch);
+        jan::extrude(mesh, &selection, 0.6f, &heap, &scratch);
         jan::destroy_selection(&selection);
 
         jan::colour_all_faces(mesh, vector3_cyan);

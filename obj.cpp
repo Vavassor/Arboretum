@@ -1,13 +1,14 @@
 #include "obj.h"
 
-#include "assert.h"
-#include "jan.h"
-#include "filesystem.h"
-#include "memory.h"
-#include "logging.h"
-#include "string_utilities.h"
 #include "array2.h"
+#include "assert.h"
+#include "filesystem.h"
+#include "jan.h"
+#include "logging.h"
+#include "map.h"
 #include "math_basics.h"
+#include "memory.h"
+#include "string_utilities.h"
 
 namespace obj {
 
@@ -452,64 +453,6 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
     return !error_occurred;
 }
 
-struct VertexMap
-{
-    struct Pair
-    {
-        jan::Vertex* key;
-        int value;
-    };
-
-    Pair* pairs;
-    int count;
-    int cap;
-};
-
-static void map_create(VertexMap* map, int cap, Heap* heap)
-{
-    map->pairs = HEAP_ALLOCATE(heap, VertexMap::Pair, cap);
-    map->count = 0;
-    map->cap = cap;
-}
-
-static void map_destroy(VertexMap* map, Heap* heap)
-{
-    HEAP_DEALLOCATE(heap, map->pairs);
-}
-
-static upointer hash_pointer(void* pointer)
-{
-    upointer shift = log2(static_cast<double>(1 + sizeof(pointer)));
-    return reinterpret_cast<upointer>(pointer) >> shift;
-}
-
-static int map_find(VertexMap* map, jan::Vertex* key)
-{
-    int first = hash_pointer(key) % map->cap;
-    int index = first;
-    while(map->pairs[index].value && map->pairs[index].key != key)
-    {
-        index = (index + 1) % map->cap;
-        if(index == first)
-        {
-            return 0;
-        }
-    }
-    return map->pairs[index].value;
-}
-
-static void map_add(VertexMap* map, jan::Vertex* key, int value)
-{
-    ASSERT(map->count < map->cap);
-    int index = hash_pointer(key) % map->cap;
-    while(map->pairs[index].value)
-    {
-        index = (index + 1) % map->cap;
-    }
-    map->pairs[index].key = key;
-    map->pairs[index].value = value;
-}
-
 static bool vertex_attached_to_face(jan::Vertex* vertex)
 {
     return vertex->any_edge && vertex->any_edge->any_link;
@@ -522,7 +465,7 @@ bool save_file(const char* path, jan::Mesh* mesh, Heap* heap)
     const int line_size = 128;
     char line[line_size];
 
-    VertexMap map;
+    Map map;
     map_create(&map, mesh->vertices_count, heap);
 
     int index = 1;
@@ -537,7 +480,8 @@ bool save_file(const char* path, jan::Mesh* mesh, Heap* heap)
         format_string(line, line_size, "v %.6f %.6f %.6f\n", v.x, v.y, v.z);
         write_file(file, line, string_size(line));
 
-        map_add(&map, vertex, index);
+        void* value = reinterpret_cast<void*>(index);
+        map_add(&map, vertex, value, heap);
         index += 1;
     }
 
@@ -565,7 +509,9 @@ bool save_file(const char* path, jan::Mesh* mesh, Heap* heap)
         jan::Link* link = first;
         do
         {
-            int index = map_find(&map, link->vertex);
+            void* value;
+            map_get(&map, link->vertex, &value);
+            upointer index = reinterpret_cast<upointer>(value);
             char text[22];
             text[0] = ' ';
             int_to_string(text + 1, 21, index);

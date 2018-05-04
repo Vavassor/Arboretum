@@ -3,6 +3,7 @@
 #include "array2.h"
 #include "assert.h"
 #include "int_utilities.h"
+#include "map.h"
 #include "math_basics.h"
 
 namespace jan {
@@ -717,8 +718,7 @@ static bool face_selected(Selection* selection, Face* face)
 {
     for(int i = 0; i < selection->parts_count; i += 1)
     {
-        Face* selected = static_cast<Face*>(selection->parts[i]);
-        if(selected == face)
+        if(selection->parts[i].face == face)
         {
             return true;
         }
@@ -732,12 +732,12 @@ Selection select_all(Mesh* mesh, Heap* heap)
     create_selection(&selection, heap);
     selection.type = Selection::Type::Face;
     selection.parts_count = mesh->faces_count;
-    selection.parts = HEAP_ALLOCATE(selection.heap, void*, selection.parts_count);
+    selection.parts = HEAP_ALLOCATE(selection.heap, Part, selection.parts_count);
 
     int i = 0;
     FOR_EACH_IN_POOL(Face, face, mesh->face_pool)
     {
-        selection.parts[i] = face;
+        selection.parts[i].face = face;
         i += 1;
     }
 
@@ -748,7 +748,7 @@ static void add_face_to_selection(Selection* selection, Face* face)
 {
     selection->type = Selection::Type::Face;
     selection->parts = HEAP_REALLOCATE(selection->heap, selection->parts, selection->parts_count + 1);
-    selection->parts[selection->parts_count] = face;
+    selection->parts[selection->parts_count].face = face;
     selection->parts_count += 1;
 }
 
@@ -757,7 +757,7 @@ static void remove_face_from_selection(Selection* selection, Face* face)
     int found_index = -1;
     for(int i = 0; i < selection->parts_count; i += 1)
     {
-        if(static_cast<Face*>(selection->parts[i]) == face)
+        if(selection->parts[i].face == face)
         {
             found_index = i;
             break;
@@ -786,7 +786,7 @@ void move_faces(Mesh* mesh, Selection* selection, Vector3 translation)
 {
     for(int i = 0; i < selection->parts_count; i += 1)
     {
-        Face* face = static_cast<Face*>(selection->parts[i]);
+        Face* face = selection->parts[i].face;
         for(Border* border = face->first_border; border; border = border->next)
         {
             Link* first = border->first;
@@ -802,64 +802,6 @@ void move_faces(Mesh* mesh, Selection* selection, Vector3 translation)
     update_normals(mesh);
 }
 
-// This is just a fixed-size linearly-probed hash map.
-struct VertexMap
-{
-    struct Pair
-    {
-        Vertex* key;
-        Vertex* value;
-    };
-    Pair* pairs;
-    int count;
-    int cap;
-};
-
-static void map_create(VertexMap* map, int cap, Stack* stack)
-{
-    map->pairs = STACK_ALLOCATE(stack, VertexMap::Pair, cap);
-    map->count = 0;
-    map->cap = cap;
-}
-
-static void map_destroy(VertexMap* map, Stack* stack)
-{
-    STACK_DEALLOCATE(stack, map->pairs);
-}
-
-static upointer hash_pointer(void* pointer)
-{
-    upointer shift = log2(static_cast<double>(1 + sizeof(pointer)));
-    return reinterpret_cast<upointer>(pointer) >> shift;
-}
-
-static Vertex* map_find(VertexMap* map, Vertex* key)
-{
-    int first = hash_pointer(key) % map->cap;
-    int index = first;
-    while(map->pairs[index].value && map->pairs[index].key != key)
-    {
-        index = (index + 1) % map->cap;
-        if(index == first)
-        {
-            return nullptr;
-        }
-    }
-    return map->pairs[index].value;
-}
-
-static void map_add(VertexMap* map, Vertex* key, Vertex* value)
-{
-    ASSERT(map->count < map->cap);
-    int index = hash_pointer(key) % map->cap;
-    while(map->pairs[index].value)
-    {
-        index = (index + 1) % map->cap;
-    }
-    map->pairs[index].key = key;
-    map->pairs[index].value = value;
-}
-
 static bool is_edge_on_selection_boundary(Selection* selection, Link* link)
 {
     for(Link* fin = link->next_fin; fin != link; fin = fin->next_fin)
@@ -872,7 +814,7 @@ static bool is_edge_on_selection_boundary(Selection* selection, Link* link)
     return true;
 }
 
-void extrude(Mesh* mesh, Selection* selection, float distance, Stack* stack)
+void extrude(Mesh* mesh, Selection* selection, float distance, Heap* heap, Stack* stack)
 {
     ASSERT(selection->type == Selection::Type::Face);
 
@@ -880,19 +822,19 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Stack* stack)
     Vector3 average_direction = vector3_zero;
     for(int i = 0; i < selection->parts_count; i += 1)
     {
-        Face* face = static_cast<Face*>(selection->parts[i]);
+        Face* face = selection->parts[i].face;
         average_direction += face->normal;
     }
     Vector3 extrusion = distance * normalise(average_direction);
 
     // Use a map to redirect vertices to their extruded double when it's
     // already been added.
-    VertexMap map;
-    map_create(&map, mesh->vertices_count, stack);
+    Map map;
+    map_create(&map, mesh->vertices_count, heap);
 
     for(int i = 0; i < selection->parts_count; i += 1)
     {
-        Face* face = static_cast<Face*>(selection->parts[i]);
+        Face* face = selection->parts[i].face;
 
         // @Incomplete: Holes in faces aren't yet supported!
         ASSERT(!face->first_border->next);
@@ -906,27 +848,27 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Stack* stack)
                 // Add vertices only where they haven't been added already.
                 Vertex* start = link->vertex;
                 Vertex* end = link->next->vertex;
-                if(!map_find(&map, start))
+                if(!map_get(&map, start, nullptr))
                 {
                     Vector3 position = start->position + extrusion;
                     Vertex* vertex = add_vertex(mesh, position);
                     add_edge(mesh, start, vertex);
-                    map_add(&map, start, vertex);
+                    map_add(&map, start, vertex, heap);
                 }
-                if(!map_find(&map, end))
+                if(!map_get(&map, end, nullptr))
                 {
                     Vector3 position = end->position + extrusion;
                     Vertex* vertex = add_vertex(mesh, position);
                     add_edge(mesh, end, vertex);
-                    map_add(&map, end, vertex);
+                    map_add(&map, end, vertex, heap);
                 }
 
                 // Add the extruded side face for this edge.
                 Vertex* vertices[4];
                 vertices[0] = start;
                 vertices[1] = end;
-                vertices[2] = map_find(&map, end);
-                vertices[3] = map_find(&map, start);
+                map_get(&map, end, reinterpret_cast<void**>(&vertices[2]));
+                map_get(&map, start, reinterpret_cast<void**>(&vertices[3]));
                 Edge* edges[4];
                 edges[0] = link->edge;
                 edges[1] = vertices[2]->any_edge;
@@ -940,7 +882,7 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Stack* stack)
 
     for(int i = 0; i < selection->parts_count; i += 1)
     {
-        Face* face = static_cast<Face*>(selection->parts[i]);
+        Face* face = selection->parts[i].face;
 
         // @Incomplete: Holes in faces aren't yet supported!
         ASSERT(!face->first_border->next);
@@ -950,7 +892,7 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Stack* stack)
         Link* link = face->first_border->first;
         for(int j = 0; j < vertices_count; j += 1)
         {
-            vertices[j] = map_find(&map, link->vertex);
+            map_get(&map, link->vertex, reinterpret_cast<void**>(&vertices[j]));
             link = link->next;
         }
         connect_disconnected_vertices_and_add_face(mesh, vertices, vertices_count, stack);
@@ -958,7 +900,7 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Stack* stack)
         STACK_DEALLOCATE(stack, vertices);
     }
 
-    map_destroy(&map, stack);
+    map_destroy(&map, heap);
 
     update_normals(mesh);
 }
@@ -991,7 +933,7 @@ void colour_selection(Mesh* mesh, Selection* selection, Vector3 colour)
     {
         for(int i = 0; i < selection->parts_count; i += 1)
         {
-            Face* face = static_cast<Face*>(selection->parts[i]);
+            Face* face = selection->parts[i].face;
             colour_just_the_one_face(face, colour);
         }
     }

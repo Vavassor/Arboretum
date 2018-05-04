@@ -122,7 +122,7 @@ bool map_get(Map* map, void* key, void** value)
         {
             return false;
         }
-        else
+        else if(value)
         {
             *value = map->values[overflow_index];
             return true;
@@ -133,7 +133,7 @@ bool map_get(Map* map, void* key, void** value)
     int slot = find_slot(map->keys, map->cap, key, hash);
 
     bool got = map->keys[slot] == key;
-    if(got)
+    if(got && value)
     {
         *value = map->values[slot];
     }
