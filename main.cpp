@@ -560,7 +560,7 @@ LocaleId match_closest_locale_id(const char* locale)
 bool main_start_up()
 {
     // Set the locale.
-    char* locale = setlocale(LC_ALL, "zh_CN.UTF-8");
+    char* locale = setlocale(LC_ALL, "");
     if(!locale)
     {
         LOG_ERROR("Failed to set the locale.");

@@ -2,6 +2,7 @@
 
 #include "array2.h"
 #include "assert.h"
+#include "asset_paths.h"
 #include "camera.h"
 #include "colours.h"
 #include "file_pick_dialog.h"
@@ -185,8 +186,6 @@ bool editor_start_up(Platform* platform)
         video::Object* video_object = video::get_object(dodecahedron->video_object);
         video::object_update_mesh(video_object, mesh, &heap);
 
-        obj::save_file("weird.obj", mesh, &heap);
-
         Vector3 position = {2.0f, 0.0f, 0.0f};
         Quaternion orientation = axis_angle_rotation(vector3_unit_x, pi / 4.0f);
         dodecahedron->orientation = orientation;
@@ -200,7 +199,9 @@ bool editor_start_up(Platform* platform)
         Object* test_model = add_object(&lady, &heap);
         jan::Mesh* mesh = &test_model->mesh;
 
-        obj::load_file("test.obj", mesh, &heap, &scratch);
+        char* path = get_model_path_by_name("test.obj", &scratch);
+        obj::load_file(path, mesh, &heap, &scratch);
+        STACK_DEALLOCATE(&scratch, path);
         jan::colour_all_faces(mesh, vector3_yellow);
 
         Vector3 position = {-2.0f, 0.0f, 0.0f};
@@ -216,7 +217,9 @@ bool editor_start_up(Platform* platform)
 
     // Fonts
     {
-        bmfont::load_font(&font, "droid_12.fnt", &heap, &scratch);
+        char* path = get_font_path_by_name("droid_12.fnt", &scratch);
+        bmfont::load_font(&font, path, &heap, &scratch);
+        STACK_DEALLOCATE(&scratch, path);
         video::set_up_font(&font);
         ui_context.theme.font = &font;
     }

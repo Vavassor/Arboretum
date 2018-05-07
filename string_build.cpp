@@ -61,6 +61,30 @@ char* append_to_path(const char* path, const char* segment, Heap* heap)
     return extended;
 }
 
+void append_string(char** buffer, const char* string, Stack* stack)
+{
+    int buffer_size;
+    if(*buffer)
+    {
+        buffer_size = string_size(*buffer);
+    }
+    else
+    {
+        buffer_size = 0;
+    }
+
+    int extra = string_size(string);
+    int append_at = buffer_size;
+    buffer_size += extra;
+
+    char* result = *buffer;
+    result = STACK_REALLOCATE(stack, result, buffer_size + 1);
+    copy_memory(&result[append_at], string, extra);
+    result[buffer_size] = '\0';
+
+    *buffer = result;
+}
+
 char* insert_string(const char* string, const char* insert, int index, Heap* heap)
 {
     int outer_size = string_size(string);

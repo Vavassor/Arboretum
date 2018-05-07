@@ -4,6 +4,6 @@
 #include "gl_core_3_3.h"
 
 struct Stack;
-GLuint load_shader_program(const char* vertex_source, const char* fragment_source, Stack* stack);
+GLuint load_shader_program(const char* vertex_name, const char* fragment_name, Stack* stack);
 
 #endif // SHADER_H_

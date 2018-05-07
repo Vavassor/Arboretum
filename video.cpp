@@ -1,6 +1,7 @@
 #include "video.h"
 
 #include "assert.h"
+#include "asset_paths.h"
 #include "array2.h"
 #include "bmfont.h"
 #include "bmp.h"
@@ -34,221 +35,6 @@
 #include "stb_image.h"
 
 namespace video {
-
-const char* lit_vertex_source = R"(
-#version 330
-
-layout(location = 0) in vec3 position;
-layout(location = 1) in vec3 normal;
-layout(location = 2) in vec4 colour;
-
-uniform mat4x4 model_view_projection;
-uniform mat4x4 normal_matrix;
-
-out vec3 surface_normal;
-out vec3 surface_colour;
-
-void main()
-{
-    gl_Position = model_view_projection * vec4(position, 1.0);
-    surface_normal = (normal_matrix * vec4(normal, 0.0)).xyz;
-    surface_colour = colour.rgb;
-}
-)";
-
-const char* lit_fragment_source = R"(
-#version 330
-
-layout(location = 0) out vec4 output_colour;
-
-uniform vec3 light_direction;
-
-in vec3 surface_normal;
-in vec3 surface_colour;
-
-float half_lambert(vec3 n, vec3 l)
-{
-    return 0.5 * dot(n, l) + 0.5;
-}
-
-float lambert(vec3 n, vec3 l)
-{
-    return max(dot(n, l), 0.0);
-}
-
-void main()
-{
-    float light = half_lambert(surface_normal, light_direction);
-    output_colour = vec4(surface_colour * vec3(light), 1.0);
-}
-)";
-
-const char* vertex_source_vertex_colour = R"(
-#version 330
-
-layout(location = 0) in vec3 position;
-layout(location = 2) in vec4 colour;
-
-uniform mat4x4 model_view_projection;
-
-out vec4 surface_colour;
-
-void main()
-{
-    gl_Position = model_view_projection * vec4(position, 1.0);
-    surface_colour = colour;
-}
-)";
-
-const char* fragment_source_vertex_colour = R"(
-#version 330
-
-layout(location = 0) out vec4 output_colour;
-
-in vec4 surface_colour;
-
-void main()
-{
-    output_colour = surface_colour;
-}
-)";
-
-const char* vertex_source_texture_only = R"(
-#version 330
-
-layout(location = 0) in vec3 position;
-layout(location = 3) in vec2 texcoord;
-
-uniform mat4x4 model_view_projection;
-
-out vec2 surface_texcoord;
-
-void main()
-{
-    gl_Position = model_view_projection * vec4(position, 1.0);
-    surface_texcoord = texcoord;
-}
-)";
-
-const char* fragment_source_texture_only = R"(
-#version 330
-
-uniform sampler2D texture;
-
-layout(location = 0) out vec4 output_colour;
-
-in vec2 surface_texcoord;
-
-void main()
-{
-    output_colour = vec4(texture2D(texture, surface_texcoord).rgb, 1.0);
-}
-)";
-
-
-const char* vertex_source_font = R"(
-#version 330
-
-layout(location = 0) in vec3 position;
-layout(location = 3) in vec2 texcoord;
-
-uniform mat4x4 model_view_projection;
-
-out vec2 surface_texcoord;
-
-void main()
-{
-    gl_Position = model_view_projection * vec4(position, 1.0);
-    surface_texcoord = texcoord;
-}
-)";
-
-const char* fragment_source_font = R"(
-#version 330
-
-uniform sampler2D texture;
-uniform vec3 text_colour;
-
-layout(location = 0) out vec4 output_colour;
-
-in vec2 surface_texcoord;
-
-void main()
-{
-    vec4 colour = texture2D(texture, surface_texcoord);
-    colour.rgb *= text_colour;
-    output_colour = colour;
-}
-)";
-
-const char* vertex_source_halo = R"(
-#version 330
-
-layout(location = 0) in vec3 position;
-
-uniform mat4x4 model_view_projection;
-
-void main()
-{
-    gl_Position = model_view_projection * vec4(position, 1.0);
-}
-)";
-
-const char* fragment_source_halo = R"(
-#version 330
-
-layout(location = 0) out vec4 output_colour;
-
-uniform vec4 halo_colour;
-
-void main()
-{
-    output_colour = halo_colour;
-}
-)";
-
-const char* vertex_source_screen_pattern = R"(
-#version 330
-
-layout(location = 0) in vec3 position;
-layout(location = 2) in vec4 colour;
-
-uniform mat4x4 model_view_projection;
-
-out vec3 surface_texcoord;
-out vec4 surface_colour;
-
-void main()
-{
-    vec4 surface_position = model_view_projection * vec4(position, 1.0);
-    gl_Position = surface_position;
-    surface_texcoord = vec3(surface_position.xy, surface_position.w);
-    surface_colour = colour;
-}
-)";
-
-const char* fragment_source_screen_pattern = R"(
-#version 330
-
-uniform sampler2D texture;
-uniform vec2 pattern_scale;
-uniform vec2 viewport_dimensions;
-uniform vec2 texture_dimensions;
-
-layout(location = 0) out vec4 output_colour;
-
-in vec3 surface_texcoord;
-in vec4 surface_colour;
-
-void main()
-{
-    vec2 screen_texcoord = surface_texcoord.xy / surface_texcoord.z;
-    screen_texcoord *= viewport_dimensions;
-    screen_texcoord /= texture_dimensions;
-    screen_texcoord *= pattern_scale;
-    output_colour = surface_colour * texture2D(texture, screen_texcoord);
-}
-)";
 
 struct Object
 {
@@ -690,7 +476,7 @@ bool system_start_up()
     }
 
     // Vertex Colour Shader
-    shader_vertex_colour.program = load_shader_program(vertex_source_vertex_colour, fragment_source_vertex_colour, &scratch);
+    shader_vertex_colour.program = load_shader_program("Vertex Colour.vs", "Vertex Colour.fs", &scratch);
     if(shader_vertex_colour.program == 0)
     {
         LOG_ERROR("The vertex colour shader failed to load.");
@@ -701,7 +487,7 @@ bool system_start_up()
     }
 
     // Texture Only Shader
-    shader_texture_only.program = load_shader_program(vertex_source_texture_only, fragment_source_texture_only, &scratch);
+    shader_texture_only.program = load_shader_program("Texture Only.vs", "Texture Only.fs", &scratch);
     if(shader_texture_only.program == 0)
     {
         LOG_ERROR("The texture-only shader failed to load.");
@@ -717,7 +503,7 @@ bool system_start_up()
     }
 
     // Font Shader
-    shader_font.program = load_shader_program(vertex_source_font, fragment_source_font, &scratch);
+    shader_font.program = load_shader_program("Font.vs", "Font.fs", &scratch);
     if(shader_font.program == 0)
     {
         LOG_ERROR("The font shader failed to load.");
@@ -736,7 +522,7 @@ bool system_start_up()
     }
 
     // Lit Shader
-    shader_lit.program = load_shader_program(lit_vertex_source, lit_fragment_source, &scratch);
+    shader_lit.program = load_shader_program("Lit.vs", "Lit.fs", &scratch);
     if(shader_lit.program == 0)
     {
         LOG_ERROR("The lit shader failed to load.");
@@ -750,7 +536,7 @@ bool system_start_up()
     }
 
     // Halo Shader
-    shader_halo.program = load_shader_program(vertex_source_halo, fragment_source_halo, &scratch);
+    shader_halo.program = load_shader_program("Halo.vs", "Halo.fs", &scratch);
     if(shader_halo.program == 0)
     {
         LOG_ERROR("The halo shader failed to load.");
@@ -763,7 +549,7 @@ bool system_start_up()
     }
 
     // Screen Pattern Shader
-    shader_screen_pattern.program = load_shader_program(vertex_source_screen_pattern, fragment_source_screen_pattern, &scratch);
+    shader_screen_pattern.program = load_shader_program("Screen Pattern.vs", "Screen Pattern.fs", &scratch);
     if(shader_screen_pattern.program == 0)
     {
         LOG_ERROR("The screen pattern shader failed to load.");
@@ -792,9 +578,10 @@ bool system_start_up()
 
     // Hatch pattern texture
     {
-        const char* path = "polka_dot.png";
+        char* path = get_image_path_by_name("polka_dot.png", &scratch);
         Bitmap bitmap;
         bitmap.pixels = stbi_load(path, &bitmap.width, &bitmap.height, &bitmap.bytes_per_pixel, STBI_default);
+        STACK_DEALLOCATE(&scratch, path);
         hatch_pattern = upload_bitmap(&bitmap);
         stbi_image_free(bitmap.pixels);
 
@@ -1337,16 +1124,6 @@ void system_update(UpdateState* update, Platform* platform)
     glDepthMask(GL_TRUE);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
-
-    // Output a test screenshot.
-    if(input::get_key_tapped(input::Key::F12))
-    {
-        int pixels_count = viewport.x * viewport.y;
-        Pixel24* pixels = STACK_ALLOCATE(&scratch, Pixel24, pixels_count);
-        glReadPixels(0, 0, viewport.x, viewport.y, GL_BGR, GL_UNSIGNED_BYTE, pixels);
-        bmp::write_file("test.bmp", reinterpret_cast<const u8*>(pixels), viewport.x, viewport.y, &scratch);
-        STACK_DEALLOCATE(&scratch, pixels);
-    }
 }
 
 void resize_viewport(Int2 dimensions, double dots_per_millimeter, float fov)
@@ -1385,9 +1162,11 @@ void set_up_font(bmfont::Font* font)
 {
     for(int i = 0; i < font->pages_count; i += 1)
     {
-        const char* path = font->pages[i].bitmap_filename;
+        char* filename = font->pages[i].bitmap_filename;
+        char* path = get_image_path_by_name(filename, &scratch);
         Bitmap bitmap;
         bitmap.pixels = stbi_load(path, &bitmap.width, &bitmap.height, &bitmap.bytes_per_pixel, STBI_default);
+        STACK_DEALLOCATE(&scratch, filename);
         font_textures[i] = upload_bitmap(&bitmap);
         stbi_image_free(bitmap.pixels);
     }

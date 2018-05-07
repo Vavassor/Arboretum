@@ -1,5 +1,6 @@
 #include "platform.h"
 
+#include "asset_paths.h"
 #include "loc.h"
 
 void create_stack(Platform* platform)
@@ -35,7 +36,9 @@ bool load_localized_text(Platform* platform)
     platform->nonlocalized_text.app_name = "Arboretum";
 
     const char* filename = get_filename_for_locale_id(platform->locale_id);
-    bool loaded = loc::load_file(platform, filename);
+    char* path = get_locale_path_by_name(filename, &platform->stack);
+    bool loaded = loc::load_file(platform, path);
+    STACK_DEALLOCATE(&platform->stack, path);
 
     return loaded;
 }

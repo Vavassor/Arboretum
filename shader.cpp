@@ -1,5 +1,7 @@
 #include "shader.h"
 
+#include "asset_paths.h"
+#include "filesystem.h"
 #include "logging.h"
 #include "memory.h"
 #include "string_utilities.h"
@@ -43,7 +45,7 @@ GLuint load_shader(GLenum type, const char* source, Stack* stack)
     return shader;
 }
 
-GLuint load_shader_program(const char* vertex_source, const char* fragment_source, Stack* stack)
+GLuint load_shader_program_sources(const char* vertex_source, const char* fragment_source, Stack* stack)
 {
     GLuint program;
 
@@ -106,6 +108,35 @@ GLuint load_shader_program(const char* vertex_source, const char* fragment_sourc
 
     glDeleteShader(vertex_shader);
     glDeleteShader(fragment_shader);
+
+    return program;
+}
+
+GLuint load_shader_program(const char* vertex_name, const char* fragment_name, Stack* stack)
+{
+    char* vertex_path = get_shader_path_by_name(vertex_name, stack);
+    char* fragment_path = get_shader_path_by_name(fragment_name, stack);
+
+    GLuint program = 0;
+
+    void* contents;
+    u64 vertex_source_size;
+    bool loaded_vertex = load_whole_file(vertex_path, &contents, &vertex_source_size, stack);
+    char* vertex_source = static_cast<char*>(contents);
+
+    u64 fragment_source_size;
+    bool loaded_fragment = load_whole_file(fragment_path, &contents, &fragment_source_size, stack);
+    char* fragment_source = static_cast<char*>(contents);
+
+    if(loaded_vertex && loaded_fragment)
+    {
+        program = load_shader_program_sources(vertex_source, fragment_source, stack);
+    }
+
+    STACK_DEALLOCATE(stack, fragment_source);
+    STACK_DEALLOCATE(stack, vertex_source);
+    STACK_DEALLOCATE(stack, fragment_path);
+    STACK_DEALLOCATE(stack, vertex_path);
 
     return program;
 }
