@@ -10,17 +10,11 @@
 
 namespace immediate {
 
-enum class DrawMode
-{
-    None,
-    Lines,
-    Triangles,
-};
-
 enum class VertexType
 {
     None,
     Colour,
+    Line,
     Texture,
 };
 
@@ -29,7 +23,7 @@ struct Context;
 namespace
 {
     const int context_vertices_cap = 8192;
-    const int context_vertex_type_count = 2;
+    const int context_vertex_type_count = 3;
     Context* context;
 }
 
@@ -39,14 +33,15 @@ struct Context
     {
         VertexPC vertices[context_vertices_cap];
         VertexPT vertices_textured[context_vertices_cap];
+        LineVertex line_vertices[context_vertices_cap];
     };
     Matrix4 view_projection;
+    Matrix4 projection;
     Vector3 text_colour;
     GLuint vertex_arrays[context_vertex_type_count];
     GLuint buffers[context_vertex_type_count];
     GLuint shaders[context_vertex_type_count];
     int filled;
-    DrawMode draw_mode;
     BlendMode blend_mode;
     VertexType vertex_type;
     bool blend_mode_changed;
@@ -75,6 +70,24 @@ void context_create(Heap* heap)
     glBindVertexArray(c->vertex_arrays[1]);
     glBindBuffer(GL_ARRAY_BUFFER, c->buffers[1]);
 
+    glBufferData(GL_ARRAY_BUFFER, sizeof(c->line_vertices), nullptr, GL_DYNAMIC_DRAW);
+
+    offset0 = reinterpret_cast<GLvoid*>(offsetof(LineVertex, start));
+    offset1 = reinterpret_cast<GLvoid*>(offsetof(LineVertex, end));
+    GLvoid* offset2 = reinterpret_cast<GLvoid*>(offsetof(LineVertex, colour));
+    GLvoid* offset3 = reinterpret_cast<GLvoid*>(offsetof(LineVertex, side));
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(LineVertex), offset0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(LineVertex), offset1);
+    glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(LineVertex), offset2);
+    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(LineVertex), offset3);
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(2);
+    glEnableVertexAttribArray(3);
+
+    glBindVertexArray(c->vertex_arrays[2]);
+    glBindBuffer(GL_ARRAY_BUFFER, c->buffers[2]);
+
     glBufferData(GL_ARRAY_BUFFER, sizeof(c->vertices_textured), nullptr, GL_DYNAMIC_DRAW);
 
     offset0 = reinterpret_cast<GLvoid*>(offsetof(VertexPT, position));
@@ -100,6 +113,7 @@ void context_destroy(Heap* heap)
 void set_matrices(Matrix4 view, Matrix4 projection)
 {
     context->view_projection = projection * view;
+    context->projection = projection;
 }
 
 void set_shader(GLuint program)
@@ -107,9 +121,14 @@ void set_shader(GLuint program)
     context->shaders[0] = program;
 }
 
-void set_textured_shader(GLuint program)
+void set_line_shader(GLuint program)
 {
     context->shaders[1] = program;
+}
+
+void set_textured_shader(GLuint program)
+{
+    context->shaders[2] = program;
 }
 
 void set_blend_mode(BlendMode mode)
@@ -139,20 +158,10 @@ void stop_clip_area()
     glDisable(GL_SCISSOR_TEST);
 }
 
-static GLenum get_mode(DrawMode draw_mode)
-{
-    switch(draw_mode)
-    {
-        default:
-        case DrawMode::Lines:     return GL_LINES;
-        case DrawMode::Triangles: return GL_TRIANGLES;
-    }
-}
-
 void draw()
 {
     Context* c = context;
-    if(c->filled == 0 || c->draw_mode == DrawMode::None || c->vertex_type == VertexType::None)
+    if(c->filled == 0 || c->vertex_type == VertexType::None)
     {
         return;
     }
@@ -193,12 +202,20 @@ void draw()
             shader = c->shaders[0];
             break;
         }
-        case VertexType::Texture:
+        case VertexType::Line:
         {
             glBindBuffer(GL_ARRAY_BUFFER, c->buffers[1]);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(VertexPT) * c->filled, c->vertices_textured, GL_DYNAMIC_DRAW);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(LineVertex) * c->filled, c->line_vertices, GL_DYNAMIC_DRAW);
             glBindVertexArray(c->vertex_arrays[1]);
             shader = c->shaders[1];
+            break;
+        }
+        case VertexType::Texture:
+        {
+            glBindBuffer(GL_ARRAY_BUFFER, c->buffers[2]);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(VertexPT) * c->filled, c->vertices_textured, GL_DYNAMIC_DRAW);
+            glBindVertexArray(c->vertex_arrays[2]);
+            shader = c->shaders[2];
             break;
         }
     }
@@ -213,9 +230,14 @@ void draw()
         glUniform3fv(location, 1, &c->text_colour[0]);
     }
 
-    glDrawArrays(get_mode(c->draw_mode), 0, c->filled);
+    location = glGetUniformLocation(shader, "projection");
+    if(location != -1)
+    {
+        glUniform1f(location, c->projection[0]);
+    }
 
-    c->draw_mode = DrawMode::None;
+    glDrawArrays(GL_TRIANGLES, 0, c->filled);
+
     set_blend_mode(BlendMode::None);
     set_text_colour(vector3_white);
     c->vertex_type = VertexType::None;
@@ -225,21 +247,23 @@ void draw()
 void add_line(Vector3 start, Vector3 end, Vector4 colour)
 {
     Context* c = context;
-    ASSERT(c->draw_mode == DrawMode::Lines || c->draw_mode == DrawMode::None);
-    ASSERT(c->vertex_type == VertexType::Colour || c->vertex_type == VertexType::None);
-    ASSERT(c->filled + 2 < context_vertices_cap);
+    ASSERT(c->vertex_type == VertexType::Line || c->vertex_type == VertexType::None);
+    ASSERT(c->filled + 6 < context_vertices_cap);
     u32 colour_u32 = rgba_to_u32(colour);
-    c->vertices[c->filled + 0] = {start, colour_u32};
-    c->vertices[c->filled + 1] = {end, colour_u32};
-    c->filled += 2;
-    c->draw_mode = DrawMode::Lines;
-    c->vertex_type = VertexType::Colour;
+    Vector3 behind = end + (end - start);
+    c->line_vertices[c->filled + 0] = {start, end, colour_u32, -1.0f};
+    c->line_vertices[c->filled + 1] = {start, end, colour_u32, 1.0f};
+    c->line_vertices[c->filled + 2] = {end, behind, colour_u32, -1.0f};
+    c->line_vertices[c->filled + 3] = {end, behind, colour_u32, -1.0f};
+    c->line_vertices[c->filled + 4] = {start, end, colour_u32, 1.0f};
+    c->line_vertices[c->filled + 5] = {end, behind, colour_u32, 1.0f};
+    c->filled += 6;
+    c->vertex_type = VertexType::Line;
 }
 
 void add_triangle(Triangle* triangle, Vector4 colour)
 {
     Context* c = context;
-    ASSERT(c->draw_mode == DrawMode::Triangles || c->draw_mode == DrawMode::None);
     ASSERT(c->vertex_type == VertexType::Colour || c->vertex_type == VertexType::None);
     ASSERT(c->filled + 3 < context_vertices_cap);
     for(int i = 0; i < 3; ++i)
@@ -248,7 +272,6 @@ void add_triangle(Triangle* triangle, Vector4 colour)
         c->vertices[c->filled + i].colour = rgba_to_u32(colour);
     }
     c->filled += 3;
-    c->draw_mode = DrawMode::Triangles;
     c->vertex_type = VertexType::Colour;
 }
 
@@ -267,7 +290,6 @@ void add_wire_rect(Rect rect, Vector4 colour)
 void add_quad(Quad* quad, Vector4 colour)
 {
     Context* c = context;
-    ASSERT(c->draw_mode == DrawMode::Triangles || c->draw_mode == DrawMode::None);
     ASSERT(c->vertex_type == VertexType::Colour || c->vertex_type == VertexType::None);
     ASSERT(c->filled + 6 < context_vertices_cap);
     c->vertices[c->filled + 0].position = quad->vertices[0];
@@ -281,14 +303,12 @@ void add_quad(Quad* quad, Vector4 colour)
         c->vertices[c->filled + i].colour = rgba_to_u32(colour);
     }
     c->filled += 6;
-    c->draw_mode = DrawMode::Triangles;
     c->vertex_type = VertexType::Colour;
 }
 
 void add_quad_textured(Quad* quad, Rect texture_rect)
 {
     Context* c = context;
-    ASSERT(c->draw_mode == DrawMode::Triangles || c->draw_mode == DrawMode::None);
     ASSERT(c->vertex_type == VertexType::Texture || c->vertex_type == VertexType::None);
     ASSERT(c->filled + 6 < context_vertices_cap);
     c->vertices_textured[c->filled + 0].position = quad->vertices[0];
@@ -311,7 +331,6 @@ void add_quad_textured(Quad* quad, Rect texture_rect)
     c->vertices_textured[c->filled + 4].texcoord = texcoord_to_u32(texcoords[2]);
     c->vertices_textured[c->filled + 5].texcoord = texcoord_to_u32(texcoords[3]);
     c->filled += 6;
-    c->draw_mode = DrawMode::Triangles;
     c->vertex_type = VertexType::Texture;
 }
 

@@ -267,6 +267,7 @@ bool system_start_up()
 
     immediate::context_create(&heap);
     immediate::set_shader(shader_vertex_colour.program);
+    immediate::set_line_shader(shader_line.program);
     immediate::set_textured_shader(shader_font.program);
 
     return true;
