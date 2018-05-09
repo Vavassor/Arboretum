@@ -527,46 +527,41 @@ void make_a_weird_face(Mesh* mesh, Stack* stack)
     compute_face_normal(face);
 }
 
-void make_wireframe(Mesh* mesh, Heap* heap, VertexPNC** out_vertices, u16** out_indices)
+void make_wireframe(Mesh* mesh, Heap* heap, LineVertex** out_vertices, u16** out_indices)
 {
-    VertexPNC* vertices = nullptr;
+    LineVertex* vertices = nullptr;
     u16* indices = nullptr;
-
-    Map map;
-    map_create(&map, mesh->vertices_count, heap);
 
     FOR_EACH_IN_POOL(Edge, edge, mesh->edge_pool)
     {
-        for(int i = 0; i < 2; i += 1)
-        {
-            Vertex* vertex = edge->vertices[i];
+        Vertex* vertex = edge->vertices[0];
+        Vertex* other = edge->vertices[1];
 
-            u16 index;
+        Vector3 start = vertex->position;
+        Vector3 end = other->position;
+        Vector3 behind = end + (end - start);
 
-            void* value;
-            bool got = map_get(&map, vertex, &value);
-            if(got)
-            {
-                index = reinterpret_cast<uintptr_t>(value);
-            }
-            else
-            {
-                index = ARRAY_COUNT(vertices);
+        float left = -1.0f;
+        float right = 1.0f;
 
-                VertexPNC another;
-                another.position = vertex->position;
-                another.normal = vertex->normal;
-                another.colour = rgb_to_u32(vertex->any_edge->any_link->colour);
-                ARRAY_ADD(vertices, another, heap);
+        u16 base = ARRAY_COUNT(vertices);
 
-                map_add(&map, vertex, reinterpret_cast<void*>(index), heap);
-            }
+        LineVertex v0 = {start, end, left};
+        LineVertex v1 = {start, end, right};
+        LineVertex v2 = {end, behind, left};
+        LineVertex v3 = {end, behind, right};
+        ARRAY_ADD(vertices, v0, heap);
+        ARRAY_ADD(vertices, v1, heap);
+        ARRAY_ADD(vertices, v2, heap);
+        ARRAY_ADD(vertices, v3, heap);
 
-            ARRAY_ADD(indices, index, heap);
-        }
+        ARRAY_ADD(indices, base, heap);
+        ARRAY_ADD(indices, base + 1, heap);
+        ARRAY_ADD(indices, base + 2, heap);
+        ARRAY_ADD(indices, base + 2, heap);
+        ARRAY_ADD(indices, base + 1, heap);
+        ARRAY_ADD(indices, base + 3, heap);
     }
-
-    map_destroy(&map, heap);
 
     *out_vertices = vertices;
     *out_indices = indices;

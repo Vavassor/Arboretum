@@ -117,7 +117,7 @@ void colour_all_faces(Mesh* mesh, Vector3 colour);
 void colour_selection(Mesh* mesh, Selection* selection, Vector3 colour);
 void move_faces(Mesh* mesh, Selection* selection, Vector3 translation);
 void extrude(Mesh* mesh, Selection* selection, float distance, Heap* heap, Stack* stack);
-void make_wireframe(Mesh* mesh, Heap* heap, VertexPNC** vertices, u16** indices);
+void make_wireframe(Mesh* mesh, Heap* heap, LineVertex** vertices, u16** indices);
 void triangulate(Mesh* mesh, Heap* heap, VertexPNC** vertices, u16** indices);
 void triangulate_selection(Mesh* mesh, Selection* selection, Heap* heap, VertexPNC** vertices, u16** indices);
 

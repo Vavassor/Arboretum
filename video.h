@@ -52,6 +52,12 @@ struct UpdateState
     DenseMapId selection_wireframe_id;
 };
 
+enum class VertexLayout
+{
+    PNC,
+    Line,
+};
+
 bool system_start_up();
 void system_shut_down(bool functions_loaded);
 void system_update(UpdateState* update, Platform* platform);
@@ -64,7 +70,7 @@ void object_update_selection(Object* object, jan::Mesh* mesh, jan::Selection* se
 void object_update_wireframe(Object* object, jan::Mesh* mesh, Heap* heap);
 void object_set_model(Object* object, Matrix4 model);
 
-DenseMapId add_object();
+DenseMapId add_object(VertexLayout vertex_layout);
 void remove_object(DenseMapId id);
 Object* get_object(DenseMapId id);
 void set_up_font(bmfont::Font* font);

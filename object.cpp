@@ -9,7 +9,7 @@ void object_create(Object* object)
     object->position = vector3_zero;
     object->orientation = quaternion_identity;
 
-    object->video_object = video::add_object();
+    object->video_object = video::add_object(video::VertexLayout::PNC);
 }
 
 void object_destroy(Object* object)

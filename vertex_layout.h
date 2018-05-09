@@ -23,6 +23,13 @@ struct VertexPT
     u32 texcoord;
 };
 
+struct LineVertex
+{
+    Vector3 start;
+    Vector3 end;
+    float side;
+};
+
 u32 rgb_to_u32(Vector3 c);
 u32 rgba_to_u32(Vector4 c);
 Vector4 u32_to_rgba(u32 u);

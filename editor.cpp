@@ -753,8 +753,8 @@ static void update_face_mode()
 
 static void enter_face_mode()
 {
-    selection_id = video::add_object();
-    selection_wireframe_id = video::add_object();
+    selection_id = video::add_object(video::VertexLayout::PNC);
+    selection_wireframe_id = video::add_object(video::VertexLayout::Line);
 
     // Set the selection's transform to match the selected mesh.
     Object* object = &lady.objects[selected_object_index];

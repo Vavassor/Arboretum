@@ -45,11 +45,13 @@ struct Object
     GLuint buffers[2];
     GLuint vertex_array;
     int indices_count;
+    VertexLayout vertex_layout;
 };
 
-void object_create(Object* object)
+void object_create(Object* object, VertexLayout vertex_layout)
 {
     object->model = matrix4_identity;
+    object->vertex_layout = vertex_layout;
 
     glGenVertexArrays(1, &object->vertex_array);
     glGenBuffers(2, object->buffers);
@@ -57,16 +59,37 @@ void object_create(Object* object)
     // Set up the vertex array.
     glBindVertexArray(object->vertex_array);
 
-    const int vertex_size = sizeof(VertexPNC);
-    GLvoid* offset1 = reinterpret_cast<GLvoid*>(offsetof(VertexPNC, normal));
-    GLvoid* offset2 = reinterpret_cast<GLvoid*>(offsetof(VertexPNC, colour));
-    glBindBuffer(GL_ARRAY_BUFFER, object->buffers[0]);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertex_size, nullptr);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, vertex_size, offset1);
-    glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, vertex_size, offset2);
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-    glEnableVertexAttribArray(2);
+    switch(object->vertex_layout)
+    {
+        case VertexLayout::PNC:
+        {
+            const int vertex_size = sizeof(VertexPNC);
+            GLvoid* offset1 = reinterpret_cast<GLvoid*>(offsetof(VertexPNC, normal));
+            GLvoid* offset2 = reinterpret_cast<GLvoid*>(offsetof(VertexPNC, colour));
+            glBindBuffer(GL_ARRAY_BUFFER, object->buffers[0]);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertex_size, nullptr);
+            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, vertex_size, offset1);
+            glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, vertex_size, offset2);
+            glEnableVertexAttribArray(0);
+            glEnableVertexAttribArray(1);
+            glEnableVertexAttribArray(2);
+            break;
+        }
+        case VertexLayout::Line:
+        {
+            const int vertex_size = sizeof(LineVertex);
+            GLvoid* offset1 = reinterpret_cast<GLvoid*>(offsetof(LineVertex, end));
+            GLvoid* offset2 = reinterpret_cast<GLvoid*>(offsetof(LineVertex, side));
+            glBindBuffer(GL_ARRAY_BUFFER, object->buffers[0]);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertex_size, nullptr);
+            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, vertex_size, offset1);
+            glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, vertex_size, offset2);
+            glEnableVertexAttribArray(0);
+            glEnableVertexAttribArray(1);
+            glEnableVertexAttribArray(2);
+            break;
+        }
+    }
 
     glBindVertexArray(0);
 }
@@ -122,6 +145,26 @@ static void object_finish_update(Object* object, Heap* heap, VertexPNC* vertices
     ARRAY_DESTROY(indices, heap);
 }
 
+static void object_update_lines(Object* object, Heap* heap, LineVertex* vertices, u16* indices)
+{
+    glBindVertexArray(object->vertex_array);
+
+    const int vertex_size = sizeof(LineVertex);
+    GLsizei vertices_size = vertex_size * ARRAY_COUNT(vertices);
+    glBindBuffer(GL_ARRAY_BUFFER, object->buffers[0]);
+    glBufferData(GL_ARRAY_BUFFER, vertices_size, vertices, GL_DYNAMIC_DRAW);
+
+    GLsizei indices_size = sizeof(u16) * ARRAY_COUNT(indices);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, object->buffers[1]);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_size, indices, GL_DYNAMIC_DRAW);
+    object->indices_count = ARRAY_COUNT(indices);
+
+    glBindVertexArray(0);
+
+    ARRAY_DESTROY(vertices, heap);
+    ARRAY_DESTROY(indices, heap);
+}
+
 void object_update_mesh(Object* object, jan::Mesh* mesh, Heap* heap)
 {
     VertexPNC* vertices;
@@ -142,11 +185,11 @@ void object_update_selection(Object* object, jan::Mesh* mesh, jan::Selection* se
 
 void object_update_wireframe(Object* object, jan::Mesh* mesh, Heap* heap)
 {
-    VertexPNC* vertices;
+    LineVertex* vertices;
     u16* indices;
     jan::make_wireframe(mesh, heap, &vertices, &indices);
 
-    object_finish_update(object, heap, vertices, indices);
+    object_update_lines(object, heap, vertices, indices);
 }
 
 static void object_set_matrices(Object* object, Matrix4 view, Matrix4 projection)
@@ -461,6 +504,16 @@ namespace
         GLint halo_colour;
     } shader_halo;
 
+    struct
+    {
+        GLuint program;
+        GLint line_colour;
+        GLint line_width;
+        GLint model_view_projection;
+        GLint projection;
+        GLint viewport_dimensions;
+    } shader_line;
+
     Object sky;
     DenseMap objects;
 
@@ -538,7 +591,7 @@ bool system_start_up()
 
         glUseProgram(shader_font.program);
         glUniform1i(shader_font.texture, 0);
-        const Vector3 text_colour = vector3_one;
+        const Vector3 text_colour = vector3_white;
         glUniform3fv(shader_font.text_colour, 1, &text_colour[0]);
     }
 
@@ -591,10 +644,30 @@ bool system_start_up()
         glUniform2fv(shader_screen_pattern.pattern_scale, 1, &pattern_scale[0]);
     }
 
+    // Line Shader
+    shader_line.program = load_shader_program("Line.vs", "Line.fs", &scratch);
+    if(shader_line.program == 0)
+    {
+        LOG_ERROR("The line shader failed to load.");
+        return false;
+    }
+    {
+        GLuint program = shader_line.program;
+        shader_line.line_colour = glGetUniformLocation(program, "line_colour");
+        shader_line.line_width = glGetUniformLocation(program, "line_width");
+        shader_line.model_view_projection = glGetUniformLocation(program, "model_view_projection");
+        shader_line.projection = glGetUniformLocation(program, "projection");
+        shader_line.viewport_dimensions = glGetUniformLocation(program, "viewport");
+
+        glUseProgram(shader_line.program);
+        glUniform4fv(shader_line.line_colour, 1, &vector4_white[0]);
+        glUniform1f(shader_line.line_width, 4.0f);
+    }
+
     create(&objects, &heap);
 
     // Sky
-    object_create(&sky);
+    object_create(&sky, VertexLayout::PNC);
     object_generate_sky(&sky, &scratch);
 
     // Hatch pattern texture
@@ -630,6 +703,7 @@ void system_shut_down(bool functions_loaded)
         glDeleteProgram(shader_lit.program);
         glDeleteProgram(shader_halo.program);
         glDeleteProgram(shader_screen_pattern.program);
+        glDeleteProgram(shader_line.program);
 
         for(int i = 0; i < 1; i += 1)
         {
@@ -943,28 +1017,33 @@ static void draw_object_with_halo(ObjectLady* lady, int index, Vector4 colour)
     glDisable(GL_STENCIL_TEST);
 }
 
-static void draw_selection_object(Object object, Object wireframe)
+static void draw_selection_object(Object object, Object wireframe, Matrix4 projection)
 {
-    glUseProgram(shader_halo.program);
-
     const Vector4 colour = {1.0f, 0.5f, 0.0f, 0.8f};
-    glUniform4fv(shader_halo.halo_colour, 1, &colour[0]);
 
     // Draw the wireframe.
+    glUseProgram(shader_line.program);
+
     glDepthFunc(GL_LEQUAL);
 
-    glEnable(GL_POLYGON_OFFSET_LINE);
-    glPolygonOffset(0.0f, -1.0f);
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(-1.0f, -1.0f);
 
-    glUniformMatrix4fv(shader_halo.model_view_projection, 1, GL_TRUE, wireframe.model_view_projection.elements);
+    glUniformMatrix4fv(shader_line.model_view_projection, 1, GL_TRUE, wireframe.model_view_projection.elements);
+    glUniform1f(shader_line.projection, projection[0]);
+    glUniform4fv(shader_line.line_colour, 1, &colour[0]);
     glBindVertexArray(wireframe.vertex_array);
-    glDrawElements(GL_LINES, wireframe.indices_count, GL_UNSIGNED_SHORT, nullptr);
+    glDrawElements(GL_TRIANGLES, wireframe.indices_count, GL_UNSIGNED_SHORT, nullptr);
 
     // Draw selected faces.
+    glUseProgram(shader_halo.program);
+
+    glUniform4fv(shader_halo.halo_colour, 1, &colour[0]);
+
     glDepthFunc(GL_EQUAL);
     glDepthMask(GL_FALSE);
 
-    glDisable(GL_POLYGON_OFFSET_LINE);
+    glDisable(GL_POLYGON_OFFSET_FILL);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -1055,7 +1134,7 @@ void system_update(UpdateState* update, Platform* platform)
     {
         Object object = *get_object(selection_id);
         Object wireframe = *get_object(selection_wireframe_id);
-        draw_selection_object(object, wireframe);
+        draw_selection_object(object, wireframe, projection);
     }
 
     glUseProgram(shader_lit.program);
@@ -1203,13 +1282,16 @@ void resize_viewport(Int2 dimensions, double dots_per_millimeter, float fov)
     // Update any shaders that use the viewport dimensions.
     glUseProgram(shader_screen_pattern.program);
     glUniform2f(shader_screen_pattern.viewport_dimensions, width, height);
+
+    glUseProgram(shader_line.program);
+    glUniform2f(shader_line.viewport_dimensions, width, height);
 }
 
-DenseMapId add_object()
+DenseMapId add_object(VertexLayout vertex_layout)
 {
     DenseMapId id = add(&objects, &heap);
     Object* object = look_up(&objects, id);
-    object_create(object);
+    object_create(object, vertex_layout);
     return id;
 }
 
