@@ -1,6 +1,6 @@
 #include "object.h"
 
-extern const int object_id_none = 0;
+#include "video_object.h"
 
 void object_create(Object* object)
 {

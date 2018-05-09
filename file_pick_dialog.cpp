@@ -9,6 +9,7 @@
 #include "sorting.h"
 #include "string_build.h"
 #include "string_utilities.h"
+#include "video_object.h"
 
 static bool record_is_before(DirectoryRecord a, DirectoryRecord b)
 {

@@ -2,15 +2,13 @@
 #define VIDEO_H_
 
 #include "camera.h"
+#include "dense_map.h"
 #include "int2.h"
-#include "sized_types.h"
 
 struct Heap;
 struct MoveTool;
 struct ObjectLady;
 struct Platform;
-
-typedef u32 DenseMapId;
 
 namespace bmfont {
 
@@ -62,13 +60,6 @@ bool system_start_up();
 void system_shut_down(bool functions_loaded);
 void system_update(UpdateState* update, Platform* platform);
 void resize_viewport(Int2 dimensions, double dots_per_millimeter, float fov);
-
-void object_create(Object* object);
-void object_destroy(Object* object);
-void object_update_mesh(Object* object, jan::Mesh* mesh, Heap* heap);
-void object_update_selection(Object* object, jan::Mesh* mesh, jan::Selection* selection, Heap* heap);
-void object_update_wireframe(Object* object, jan::Mesh* mesh, Heap* heap);
-void object_set_model(Object* object, Matrix4 model);
 
 DenseMapId add_object(VertexLayout vertex_layout);
 void remove_object(DenseMapId id);

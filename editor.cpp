@@ -5,6 +5,7 @@
 #include "asset_paths.h"
 #include "camera.h"
 #include "colours.h"
+#include "dense_map.h"
 #include "file_pick_dialog.h"
 #include "float_utilities.h"
 #include "history.h"
@@ -20,6 +21,7 @@
 #include "string_utilities.h"
 #include "ui.h"
 #include "vector_math.h"
+#include "video_object.h"
 
 enum class Mode
 {
