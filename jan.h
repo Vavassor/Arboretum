@@ -48,6 +48,8 @@ struct Link
     Face* face;
 };
 
+// A Border corresponds to a boundary edge. So, either an outer edge of a face
+// or an edge of a hole in a face.
 struct Border
 {
     Border* next;
@@ -115,7 +117,9 @@ void colour_all_faces(Mesh* mesh, Vector3 colour);
 void colour_selection(Mesh* mesh, Selection* selection, Vector3 colour);
 void move_faces(Mesh* mesh, Selection* selection, Vector3 translation);
 void extrude(Mesh* mesh, Selection* selection, float distance, Heap* heap, Stack* stack);
-void triangulate(Mesh* mesh, Heap* heap, VertexPNC** out_vertices, int* out_vertices_count, u16** out_indices, int* out_indices_count);
+void make_wireframe(Mesh* mesh, Heap* heap, VertexPNC** vertices, u16** indices);
+void triangulate(Mesh* mesh, Heap* heap, VertexPNC** vertices, u16** indices);
+void triangulate_selection(Mesh* mesh, Selection* selection, Heap* heap, VertexPNC** vertices, u16** indices);
 
 void create_selection(Selection* selection, Heap* heap);
 void destroy_selection(Selection* selection);

@@ -102,30 +102,51 @@ static void object_set_surface(Object* object, VertexPNC* vertices, int vertices
     glBindVertexArray(0);
 }
 
-void object_update_mesh(Object* object, jan::Mesh* mesh, Heap* heap)
+static void object_finish_update(Object* object, Heap* heap, VertexPNC* vertices, u16* indices)
 {
-    VertexPNC* vertices;
-    int vertices_count;
-    u16* indices;
-    int indices_count;
-    jan::triangulate(mesh, heap, &vertices, &vertices_count, &indices, &indices_count);
-
     glBindVertexArray(object->vertex_array);
 
     const int vertex_size = sizeof(VertexPNC);
-    GLsizei vertices_size = vertex_size * vertices_count;
+    GLsizei vertices_size = vertex_size * ARRAY_COUNT(vertices);
     glBindBuffer(GL_ARRAY_BUFFER, object->buffers[0]);
     glBufferData(GL_ARRAY_BUFFER, vertices_size, vertices, GL_DYNAMIC_DRAW);
 
-    GLsizei indices_size = sizeof(u16) * indices_count;
+    GLsizei indices_size = sizeof(u16) * ARRAY_COUNT(indices);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, object->buffers[1]);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_size, indices, GL_DYNAMIC_DRAW);
-    object->indices_count = indices_count;
+    object->indices_count = ARRAY_COUNT(indices);
 
     glBindVertexArray(0);
 
     ARRAY_DESTROY(vertices, heap);
     ARRAY_DESTROY(indices, heap);
+}
+
+void object_update_mesh(Object* object, jan::Mesh* mesh, Heap* heap)
+{
+    VertexPNC* vertices;
+    u16* indices;
+    jan::triangulate(mesh, heap, &vertices, &indices);
+
+    object_finish_update(object, heap, vertices, indices);
+}
+
+void object_update_selection(Object* object, jan::Mesh* mesh, jan::Selection* selection, Heap* heap)
+{
+    VertexPNC* vertices;
+    u16* indices;
+    jan::triangulate_selection(mesh, selection, heap, &vertices, &indices);
+
+    object_finish_update(object, heap, vertices, indices);
+}
+
+void object_update_wireframe(Object* object, jan::Mesh* mesh, Heap* heap)
+{
+    VertexPNC* vertices;
+    u16* indices;
+    jan::make_wireframe(mesh, heap, &vertices, &indices);
+
+    object_finish_update(object, heap, vertices, indices);
 }
 
 static void object_set_matrices(Object* object, Matrix4 view, Matrix4 projection)
@@ -381,7 +402,7 @@ static void remove(DenseMap* map, DenseMapId id, Heap* heap)
     remove_pair(map, id, index);
 
     int moved_index = ARRAY_COUNT(map->array);
-    if(moved_index != 0)
+    if(moved_index != index)
     {
         DenseMapId moved_id = look_up_id(map, moved_index);
         remove_pair(map, moved_id, moved_index);
@@ -922,6 +943,42 @@ static void draw_object_with_halo(ObjectLady* lady, int index, Vector4 colour)
     glDisable(GL_STENCIL_TEST);
 }
 
+static void draw_selection_object(Object object, Object wireframe)
+{
+    glUseProgram(shader_halo.program);
+
+    const Vector4 colour = {1.0f, 0.5f, 0.0f, 0.8f};
+    glUniform4fv(shader_halo.halo_colour, 1, &colour[0]);
+
+    // Draw the wireframe.
+    glDepthFunc(GL_LEQUAL);
+
+    glEnable(GL_POLYGON_OFFSET_LINE);
+    glPolygonOffset(0.0f, -1.0f);
+
+    glUniformMatrix4fv(shader_halo.model_view_projection, 1, GL_TRUE, wireframe.model_view_projection.elements);
+    glBindVertexArray(wireframe.vertex_array);
+    glDrawElements(GL_LINES, wireframe.indices_count, GL_UNSIGNED_SHORT, nullptr);
+
+    // Draw selected faces.
+    glDepthFunc(GL_EQUAL);
+    glDepthMask(GL_FALSE);
+
+    glDisable(GL_POLYGON_OFFSET_LINE);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glUniformMatrix4fv(shader_halo.model_view_projection, 1, GL_TRUE, object.model_view_projection.elements);
+    glBindVertexArray(object.vertex_array);
+    glDrawElements(GL_TRIANGLES, object.indices_count, GL_UNSIGNED_SHORT, nullptr);
+
+    // Reset to defaults.
+    glDisable(GL_BLEND);
+    glDepthFunc(GL_LESS);
+    glDepthMask(GL_TRUE);
+}
+
 void system_update(UpdateState* update, Platform* platform)
 {
     Camera* camera = update->camera;
@@ -934,6 +991,8 @@ void system_update(UpdateState* update, Platform* platform)
     ObjectLady* lady = update->lady;
     int hovered_object_index = update->hovered_object_index;
     int selected_object_index = update->selected_object_index;
+    DenseMapId selection_id = update->selection_id;
+    DenseMapId selection_wireframe_id = update->selection_wireframe_id;
 
     Matrix4 projection;
 
@@ -970,7 +1029,7 @@ void system_update(UpdateState* update, Platform* platform)
     // Draw all unselected models.
     for(int i = 0; i < ARRAY_COUNT(lady->objects); i += 1)
     {
-        if(i == selected_object_index || i == hovered_object_index)
+        if(i == hovered_object_index || i == selected_object_index)
         {
             continue;
         }
@@ -982,13 +1041,21 @@ void system_update(UpdateState* update, Platform* platform)
     }
 
     // Draw the selected and hovered models.
-    if(selected_object_index != invalid_index)
+    if(is_valid_index(selected_object_index))
     {
         draw_object_with_halo(lady, selected_object_index, vector4_white);
     }
-    if(hovered_object_index != invalid_index && hovered_object_index != selected_object_index)
+    if(is_valid_index(hovered_object_index) && hovered_object_index != selected_object_index)
     {
         draw_object_with_halo(lady, hovered_object_index, vector4_yellow);
+    }
+
+    // Draw the selection itself.
+    if(selection_id)
+    {
+        Object object = *get_object(selection_id);
+        Object wireframe = *get_object(selection_wireframe_id);
+        draw_selection_object(object, wireframe);
     }
 
     glUseProgram(shader_lit.program);

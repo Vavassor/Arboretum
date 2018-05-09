@@ -57,6 +57,8 @@ namespace
     int hovered_object_index;
     int selected_object_index;
     jan::Selection selection;
+    DenseMapId selection_id;
+    DenseMapId selection_wireframe_id;
 
     bmfont::Font font;
 
@@ -123,7 +125,7 @@ static void select_mesh(int index)
 {
     jan::destroy_selection(&selection);
 
-    if(index != invalid_index)
+    if(is_valid_index(index))
     {
         jan::create_selection(&selection, &heap);
         selection.type = jan::Selection::Type::Face;
@@ -660,7 +662,7 @@ static void update_object_mode(Platform* platform)
     }
 
     // Center the move tool in the selected object, if needed.
-    if(selected_object_index != invalid_index)
+    if(is_valid_index(selected_object_index))
     {
         Object object = lady.objects[selected_object_index];
         Vector3 position = object.position;
@@ -683,7 +685,7 @@ static void update_object_mode(Platform* platform)
         {
             redo(&history, &lady, &heap);
         }
-        if(selected_object_index != invalid_index && input::get_hotkey_tapped(input::Function::Delete))
+        if(is_valid_index(selected_object_index) && input::get_hotkey_tapped(input::Function::Delete))
         {
             delete_object(platform);
         }
@@ -724,44 +726,55 @@ static void update_face_mode()
         Vector2 move_velocity = pointwise_multiply(move_speed, mouse.velocity);
         Vector3 move = (move_velocity.x * right) + (move_velocity.y * up);
         move_faces(mesh, &selection, move);
+
+        video::Object* video_object = video::get_object(object->video_object);
+        video::object_update_mesh(video_object, mesh, &heap);
     }
 
     // Cast a ray from the mouse to the test model.
     {
-        jan::colour_all_faces(mesh, vector3_yellow);
-        jan::colour_selection(mesh, &selection, vector3_cyan);
-
         Matrix4 model = compose_transform(object->position, object->orientation, vector3_one);
         Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
         Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
         ray = transform_ray(ray, inverse_transform(model));
         jan::Face* face = first_face_hit_by_ray(mesh, ray, nullptr, &scratch);
-        if(face)
+        if(face && input::get_key_tapped(input::Key::F))
         {
-            if(input::get_key_tapped(input::Key::F))
-            {
-                toggle_face_in_selection(&selection, face);
-                jan::colour_just_the_one_face(face, vector3_cyan);
-            }
-            else
-            {
-                jan::colour_just_the_one_face(face, vector3_red);
-            }
+            toggle_face_in_selection(&selection, face);
         }
-        video::Object* video_object = video::get_object(object->video_object);
-        video::object_update_mesh(video_object, mesh, &heap);
+
+        video::Object* video_object = video::get_object(selection_id);
+        video::object_update_selection(video_object, mesh, &selection, &heap);
+
+        video_object = video::get_object(selection_wireframe_id);
+        video::object_update_wireframe(video_object, mesh, &heap);
     }
+}
+
+static void enter_face_mode()
+{
+    selection_id = video::add_object();
+    selection_wireframe_id = video::add_object();
+
+    // Set the selection's transform to match the selected mesh.
+    Object* object = &lady.objects[selected_object_index];
+    Matrix4 model = compose_transform(object->position, object->orientation, vector3_one);
+
+    video::Object* video_object = video::get_object(selection_id);
+    video::object_set_model(video_object, model);
+
+    video_object = video::get_object(selection_wireframe_id);
+    video::object_set_model(video_object, model);
 }
 
 static void exit_face_mode()
 {
-    Object* object = &lady.objects[selected_object_index];
-    jan::Mesh* mesh = &object->mesh;
-
-    jan::colour_all_faces(mesh, vector3_yellow);
-    video::Object* video_object = video::get_object(object->video_object);
-    video::object_update_mesh(video_object, mesh, &heap);
     destroy_selection(&selection);
+
+    video::remove_object(selection_id);
+    video::remove_object(selection_wireframe_id);
+    selection_id = 0;
+    selection_wireframe_id = 0;
 }
 
 static void request_mode_change(Mode requested_mode)
@@ -788,6 +801,14 @@ static void request_mode_change(Mode requested_mode)
             break;
         }
         case Mode::Face:
+        {
+            if(is_valid_index(selected_object_index))
+            {
+                enter_face_mode();
+                mode = requested_mode;
+            }
+            break;
+        }
         case Mode::Edge:
         case Mode::Vertex:
         {
@@ -959,6 +980,8 @@ void editor_update(Platform* platform)
     update.lady = &lady;
     update.hovered_object_index = hovered_object_index;
     update.selected_object_index = selected_object_index;
+    update.selection_id = selection_id;
+    update.selection_wireframe_id = selection_wireframe_id;
 
     video::system_update(&update, platform);
 }

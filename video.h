@@ -21,6 +21,7 @@ struct Font;
 namespace jan {
 
 struct Mesh;
+struct Selection;
 
 } // namespace jan
 
@@ -47,6 +48,8 @@ struct UpdateState
     ObjectLady* lady;
     int hovered_object_index;
     int selected_object_index;
+    DenseMapId selection_id;
+    DenseMapId selection_wireframe_id;
 };
 
 bool system_start_up();
@@ -57,6 +60,8 @@ void resize_viewport(Int2 dimensions, double dots_per_millimeter, float fov);
 void object_create(Object* object);
 void object_destroy(Object* object);
 void object_update_mesh(Object* object, jan::Mesh* mesh, Heap* heap);
+void object_update_selection(Object* object, jan::Mesh* mesh, jan::Selection* selection, Heap* heap);
+void object_update_wireframe(Object* object, jan::Mesh* mesh, Heap* heap);
 void object_set_model(Object* object, Matrix4 model);
 
 DenseMapId add_object();

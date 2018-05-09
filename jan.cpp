@@ -527,6 +527,51 @@ void make_a_weird_face(Mesh* mesh, Stack* stack)
     compute_face_normal(face);
 }
 
+void make_wireframe(Mesh* mesh, Heap* heap, VertexPNC** out_vertices, u16** out_indices)
+{
+    VertexPNC* vertices = nullptr;
+    u16* indices = nullptr;
+
+    Map map;
+    map_create(&map, mesh->vertices_count, heap);
+
+    FOR_EACH_IN_POOL(Edge, edge, mesh->edge_pool)
+    {
+        for(int i = 0; i < 2; i += 1)
+        {
+            Vertex* vertex = edge->vertices[i];
+
+            u16 index;
+
+            void* value;
+            bool got = map_get(&map, vertex, &value);
+            if(got)
+            {
+                index = reinterpret_cast<uintptr_t>(value);
+            }
+            else
+            {
+                index = ARRAY_COUNT(vertices);
+
+                VertexPNC another;
+                another.position = vertex->position;
+                another.normal = vertex->normal;
+                another.colour = rgb_to_u32(vertex->any_edge->any_link->colour);
+                ARRAY_ADD(vertices, another, heap);
+
+                map_add(&map, vertex, reinterpret_cast<void*>(index), heap);
+            }
+
+            ARRAY_ADD(indices, index, heap);
+        }
+    }
+
+    map_destroy(&map, heap);
+
+    *out_vertices = vertices;
+    *out_indices = indices;
+}
+
 static float signed_double_area(Vector2 v0, Vector2 v1, Vector2 v2)
 {
     return (v0.x - v2.x) * (v1.y - v2.y) - (v1.x - v2.x) * (v0.y - v2.y);
@@ -557,147 +602,169 @@ static bool is_clockwise(Vector2* vertices, int vertices_count)
     return d < 0.0f;
 }
 
-void triangulate(Mesh* mesh, Heap* heap, VertexPNC** out_vertices, int* out_vertices_count, u16** out_indices, int* out_indices_count)
+static void triangulate_face(Face* face, Heap* heap, VertexPNC** vertices_array, u16** indices_array)
 {
-    VertexPNC* vertices = nullptr;
-    u16* indices = nullptr;
+    VertexPNC* vertices = *vertices_array;
+    u16* indices = *indices_array;
 
-    FOR_EACH_IN_POOL(Face, face, mesh->face_pool)
+    // The face is already a triangle.
+    if(face->edges == 3)
     {
-        // The face is already a triangle.
-        if(face->edges == 3)
-        {
-            ARRAY_RESERVE(vertices, 3, heap);
-            ARRAY_RESERVE(indices, 3, heap);
-            Link* link = face->first_border->first;
-            for(int i = 0; i < 3; i += 1)
-            {
-                VertexPNC vertex;
-                vertex.position = link->vertex->position;
-                vertex.normal = face->normal;
-                vertex.colour = rgb_to_u32(link->colour);
-                int index = ARRAY_COUNT(vertices);
-                ARRAY_ADD(vertices, vertex, heap);
-                ARRAY_ADD(indices, index, heap);
-                link = link->next;
-            }
-            continue;
-        }
-
-        // Save the index before adding any vertices for this face so it can be
-        // used as a base for ear indexing.
-        u16 base_index = ARRAY_COUNT(vertices);
-
-        // @Incomplete: Holes in faces aren't yet supported!
-        ASSERT(!face->first_border->next);
-
-        // Copy all of the vertices in the face.
-        ARRAY_RESERVE(vertices, face->edges, heap);
+        ARRAY_RESERVE(vertices, 3, heap);
+        ARRAY_RESERVE(indices, 3, heap);
         Link* link = face->first_border->first;
-        for(int i = 0; i < face->edges; i += 1)
+        for(int i = 0; i < 3; i += 1)
         {
             VertexPNC vertex;
             vertex.position = link->vertex->position;
             vertex.normal = face->normal;
             vertex.colour = rgb_to_u32(link->colour);
+            int index = ARRAY_COUNT(vertices);
             ARRAY_ADD(vertices, vertex, heap);
+            ARRAY_ADD(indices, index, heap);
             link = link->next;
         }
+        *vertices_array = vertices;
+        *indices_array = indices;
+        return;
+    }
 
-        // Project vertices onto a plane to produce 2D coordinates.
-        const int max_vertices_per_face = 8;
-        Vector2 projected[max_vertices_per_face];
-        ASSERT(face->edges <= max_vertices_per_face);
-        Matrix3 m = orthogonal_basis(face->normal);
-        Matrix3 mi = transpose(m);
-        link = face->first_border->first;
-        for(int i = 0; i < face->edges; i += 1)
+    // Save the index before adding any vertices for this face so it can be
+    // used as a base for ear indexing.
+    u16 base_index = ARRAY_COUNT(vertices);
+
+    // @Incomplete: Holes in faces aren't yet supported!
+    ASSERT(!face->first_border->next);
+
+    // Copy all of the vertices in the face.
+    ARRAY_RESERVE(vertices, face->edges, heap);
+    Link* link = face->first_border->first;
+    for(int i = 0; i < face->edges; i += 1)
+    {
+        VertexPNC vertex;
+        vertex.position = link->vertex->position;
+        vertex.normal = face->normal;
+        vertex.colour = rgb_to_u32(link->colour);
+        ARRAY_ADD(vertices, vertex, heap);
+        link = link->next;
+    }
+
+    // Project vertices onto a plane to produce 2D coordinates.
+    const int max_vertices_per_face = 8;
+    Vector2 projected[max_vertices_per_face];
+    ASSERT(face->edges <= max_vertices_per_face);
+    Matrix3 m = orthogonal_basis(face->normal);
+    Matrix3 mi = transpose(m);
+    link = face->first_border->first;
+    for(int i = 0; i < face->edges; i += 1)
+    {
+        Vector3 p = link->vertex->position;
+        projected[i] = mi * p;
+        link = link->next;
+    }
+
+    // The projection may reverse the winding of the triangle. Reversing
+    // the projected vertices would be the most obvious way to handle this
+    // case. However, this would mean the projected and unprojected vertices
+    // would no longer have the same index. So, reverse the order that the
+    // chains are used to index the projected vertices later during
+    // ear-finding.
+    bool reverse_winding = false;
+    if(!is_clockwise(projected, face->edges))
+    {
+        reverse_winding = true;
+    }
+
+    // Keep vertex chains to walk both ways around the polygon.
+    int l[max_vertices_per_face];
+    int r[max_vertices_per_face];
+    for(int i = 0; i < face->edges; i += 1)
+    {
+        l[i] = mod(i - 1, face->edges);
+        r[i] = mod(i + 1, face->edges);
+    }
+
+    // A polygon always has exactly n - 2 triangles, where n is the number
+    // of edges in the polygon.
+    ARRAY_RESERVE(indices, 3 * (face->edges - 2), heap);
+
+    // Walk the right loop and find ears to triangulate using each of those
+    // vertices.
+    int j = face->edges - 1;
+    int triangles_this_face = 0;
+    while(triangles_this_face < face->edges - 2)
+    {
+        j = r[j];
+
+        Vector2 v[3];
+        if(reverse_winding)
         {
-            Vector3 p = link->vertex->position;
-            projected[i] = mi * p;
-            link = link->next;
+            v[0] = projected[r[j]];
+            v[1] = projected[j];
+            v[2] = projected[l[j]];
+        }
+        else
+        {
+            v[0] = projected[l[j]];
+            v[1] = projected[j];
+            v[2] = projected[r[j]];
         }
 
-        // The projection may reverse the winding of the triangle. Reversing
-        // the projected vertices would be the most obvious way to handle this
-        // case. However, this would mean the projected and unprojected vertices
-        // would no longer have the same index. So, reverse the order that the
-        // chains are used to index the projected vertices later during
-        // ear-finding.
-        bool reverse_winding = false;
-        if(!is_clockwise(projected, face->edges))
+        if(is_clockwise(v[0], v[1], v[2]))
         {
-            reverse_winding = true;
+            continue;
         }
 
-        // Keep vertex chains to walk both ways around the polygon.
-        int l[max_vertices_per_face];
-        int r[max_vertices_per_face];
-        for(int i = 0; i < face->edges; i += 1)
+        bool in_triangle = false;
+        for(int k = 0; k < face->edges; k += 1)
         {
-            l[i] = mod(i - 1, face->edges);
-            r[i] = mod(i + 1, face->edges);
+            Vector2 point = projected[k];
+            if(k != l[j] && k != j && k != r[j] && point_in_triangle(v[0], v[1], v[2], point))
+            {
+                in_triangle = true;
+                break;
+            }
         }
-
-        // A polygon always has exactly n - 2 triangles, where n is the number
-        // of edges in the polygon.
-        ARRAY_RESERVE(indices, 3 * (face->edges - 2), heap);
-
-        // Walk the right loop and find ears to triangulate using each of those
-        // vertices.
-        int j = face->edges - 1;
-        int triangles_this_face = 0;
-        while(triangles_this_face < face->edges - 2)
+        if(!in_triangle)
         {
-            j = r[j];
+            // An ear has been found.
+            ARRAY_ADD(indices, base_index + l[j], heap);
+            ARRAY_ADD(indices, base_index + j, heap);
+            ARRAY_ADD(indices, base_index + r[j], heap);
+            triangles_this_face += 1;
 
-            Vector2 v[3];
-            if(reverse_winding)
-            {
-                v[0] = projected[r[j]];
-                v[1] = projected[j];
-                v[2] = projected[l[j]];
-            }
-            else
-            {
-                v[0] = projected[l[j]];
-                v[1] = projected[j];
-                v[2] = projected[r[j]];
-            }
-
-            if(is_clockwise(v[0], v[1], v[2]))
-            {
-                continue;
-            }
-
-            bool in_triangle = false;
-            for(int k = 0; k < face->edges; k += 1)
-            {
-                Vector2 point = projected[k];
-                if(k != l[j] && k != j && k != r[j] && point_in_triangle(v[0], v[1], v[2], point))
-                {
-                    in_triangle = true;
-                    break;
-                }
-            }
-            if(!in_triangle)
-            {
-                // An ear has been found.
-                ARRAY_ADD(indices, base_index + l[j], heap);
-                ARRAY_ADD(indices, base_index + j, heap);
-                ARRAY_ADD(indices, base_index + r[j], heap);
-                triangles_this_face += 1;
-
-                l[r[j]] = l[j];
-                r[l[j]] = r[j];
-            }
+            l[r[j]] = l[j];
+            r[l[j]] = r[j];
         }
     }
 
-    *out_vertices = vertices;
-    *out_vertices_count = ARRAY_COUNT(vertices);
-    *out_indices = indices;
-    *out_indices_count = ARRAY_COUNT(indices);
+    *vertices_array = vertices;
+    *indices_array = indices;
+}
+
+void triangulate(Mesh* mesh, Heap* heap, VertexPNC** vertices, u16** indices)
+{
+    *vertices = nullptr;
+    *indices = nullptr;
+
+    FOR_EACH_IN_POOL(Face, face, mesh->face_pool)
+    {
+        triangulate_face(face, heap, vertices, indices);
+    }
+}
+
+void triangulate_selection(Mesh* mesh, Selection* selection, Heap* heap, VertexPNC** vertices, u16** indices)
+{
+    ASSERT(selection->type == Selection::Type::Face);
+
+    *vertices = nullptr;
+    *indices = nullptr;
+
+    for(int i = 0; i < selection->parts_count; i += 1)
+    {
+        Face* face = selection->parts[i].face;
+        triangulate_face(face, heap, vertices, indices);
+    }
 }
 
 void create_selection(Selection* selection, Heap* heap)
