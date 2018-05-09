@@ -39,14 +39,17 @@ void object_create(Object* object, VertexLayout vertex_layout)
         {
             const int vertex_size = sizeof(LineVertex);
             GLvoid* offset1 = reinterpret_cast<GLvoid*>(offsetof(LineVertex, end));
-            GLvoid* offset2 = reinterpret_cast<GLvoid*>(offsetof(LineVertex, side));
+            GLvoid* offset2 = reinterpret_cast<GLvoid*>(offsetof(LineVertex, colour));
+            GLvoid* offset3 = reinterpret_cast<GLvoid*>(offsetof(LineVertex, side));
             glBindBuffer(GL_ARRAY_BUFFER, object->buffers[0]);
             glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertex_size, nullptr);
             glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, vertex_size, offset1);
-            glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, vertex_size, offset2);
+            glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, vertex_size, offset2);
+            glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, vertex_size, offset3);
             glEnableVertexAttribArray(0);
             glEnableVertexAttribArray(1);
             glEnableVertexAttribArray(2);
+            glEnableVertexAttribArray(3);
             break;
         }
     }
@@ -145,9 +148,11 @@ void object_update_selection(Object* object, jan::Mesh* mesh, jan::Selection* se
 
 void object_update_wireframe(Object* object, jan::Mesh* mesh, Heap* heap)
 {
+    const Vector4 colour = {1.0f, 0.5f, 0.0f, 0.8f};
+
     LineVertex* vertices;
     u16* indices;
-    jan::make_wireframe(mesh, heap, &vertices, &indices);
+    jan::make_wireframe(mesh, heap, colour, &vertices, &indices);
 
     object_update_lines(object, heap, vertices, indices);
 }

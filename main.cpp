@@ -1030,13 +1030,13 @@ static void handle_event(XEvent event)
                     {
                         break;
                     }
+                    [[fallthrough]]
                     case XLookupBoth:
                     {
                         if(key_sym == XK_BackSpace || key_sym == XK_Delete || key_sym == XK_Return)
                         {
                             break;
                         }
-                        // fall-through on purpose
                     }
                     case XLookupChars:
                     {

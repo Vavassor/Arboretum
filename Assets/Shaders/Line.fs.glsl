@@ -2,10 +2,10 @@
 
 layout(location = 0) out vec4 output_colour;
 
-uniform vec4 line_colour;
+in vec4 surface_colour;
 
 void main()
 {
-    output_colour = line_colour;
+    output_colour = surface_colour;
 }
 

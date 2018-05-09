@@ -527,7 +527,7 @@ void make_a_weird_face(Mesh* mesh, Stack* stack)
     compute_face_normal(face);
 }
 
-void make_wireframe(Mesh* mesh, Heap* heap, LineVertex** out_vertices, u16** out_indices)
+void make_wireframe(Mesh* mesh, Heap* heap, Vector4 colour, LineVertex** out_vertices, u16** out_indices)
 {
     LineVertex* vertices = nullptr;
     u16* indices = nullptr;
@@ -541,15 +541,16 @@ void make_wireframe(Mesh* mesh, Heap* heap, LineVertex** out_vertices, u16** out
         Vector3 end = other->position;
         Vector3 behind = end + (end - start);
 
+        u32 colour_value = rgba_to_u32(colour);
         float left = -1.0f;
         float right = 1.0f;
 
         u16 base = ARRAY_COUNT(vertices);
 
-        LineVertex v0 = {start, end, left};
-        LineVertex v1 = {start, end, right};
-        LineVertex v2 = {end, behind, left};
-        LineVertex v3 = {end, behind, right};
+        LineVertex v0 = {start, end, colour_value, left};
+        LineVertex v1 = {start, end, colour_value, right};
+        LineVertex v2 = {end, behind, colour_value, left};
+        LineVertex v3 = {end, behind, colour_value, right};
         ARRAY_ADD(vertices, v0, heap);
         ARRAY_ADD(vertices, v1, heap);
         ARRAY_ADD(vertices, v2, heap);

@@ -2,12 +2,15 @@
 
 layout(location = 0) in vec3 start;
 layout(location = 1) in vec3 end;
-layout(location = 2) in float side;
+layout(location = 2) in vec4 colour;
+layout(location = 3) in float side;
 
 uniform mat4x4 model_view_projection;
 uniform vec2 viewport;
 uniform float projection;
 uniform float line_width;
+
+out vec4 surface_colour;
 
 void main()
 {
@@ -32,5 +35,7 @@ void main()
     a_projected.xy += lateral * side;
 
     gl_Position = a_projected;
+
+    surface_colour = colour;
 }
 

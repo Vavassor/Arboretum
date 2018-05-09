@@ -27,6 +27,7 @@ struct LineVertex
 {
     Vector3 start;
     Vector3 end;
+    u32 colour;
     float side;
 };
 

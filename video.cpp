@@ -92,7 +92,6 @@ namespace
     struct
     {
         GLuint program;
-        GLint line_colour;
         GLint line_width;
         GLint model_view_projection;
         GLint projection;
@@ -238,14 +237,12 @@ bool system_start_up()
     }
     {
         GLuint program = shader_line.program;
-        shader_line.line_colour = glGetUniformLocation(program, "line_colour");
         shader_line.line_width = glGetUniformLocation(program, "line_width");
         shader_line.model_view_projection = glGetUniformLocation(program, "model_view_projection");
         shader_line.projection = glGetUniformLocation(program, "projection");
         shader_line.viewport_dimensions = glGetUniformLocation(program, "viewport");
 
         glUseProgram(shader_line.program);
-        glUniform4fv(shader_line.line_colour, 1, &vector4_white[0]);
         glUniform1f(shader_line.line_width, 4.0f);
     }
 
@@ -454,11 +451,11 @@ static void draw_move_tool_vectors(MoveTool* tool)
 
     Vector3 reference = tool->reference_position;
 
-    if(tool->selected_axis != invalid_index)
+    if(is_valid_index(tool->selected_axis))
     {
         draw_arrow(reference, tool->position, shaft_radius, head_height, head_radius);
     }
-    else if(tool->selected_plane != invalid_index)
+    else if(is_valid_index(tool->selected_plane))
     {
         draw_arrow(reference, tool->position, shaft_radius, head_height, head_radius);
 
@@ -616,7 +613,6 @@ static void draw_selection_object(Object object, Object wireframe, Matrix4 proje
 
     glUniformMatrix4fv(shader_line.model_view_projection, 1, GL_TRUE, wireframe.model_view_projection.elements);
     glUniform1f(shader_line.projection, projection[0]);
-    glUniform4fv(shader_line.line_colour, 1, &colour[0]);
     glBindVertexArray(wireframe.vertex_array);
     glDrawElements(GL_TRIANGLES, wireframe.indices_count, GL_UNSIGNED_SHORT, nullptr);
 
@@ -732,7 +728,7 @@ void system_update(UpdateState* update, Platform* platform)
     }
 
     // move tool
-    if(selected_object_index != invalid_index)
+    if(is_valid_index(selected_object_index))
     {
         Matrix4 model = compose_transform(move_tool->position, move_tool->orientation, set_all_vector3(move_tool->scale));
         Matrix4 view = look_at_matrix(camera->position, camera->target, vector3_unit_z);
