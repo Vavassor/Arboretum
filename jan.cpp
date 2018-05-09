@@ -218,7 +218,7 @@ static void remove_fin(Link* link, Edge* edge)
     link->edge = nullptr;
 }
 
-Link* add_border_to_face(Mesh* mesh, Vertex* vertex, Edge* edge, Face* face)
+static Link* add_border_to_face(Mesh* mesh, Vertex* vertex, Edge* edge, Face* face)
 {
     Link* link = add_link(mesh, vertex, edge, face);
     add_fin(link, edge);
@@ -300,7 +300,7 @@ Face* connect_disconnected_vertices_and_add_face(Mesh* mesh, Vertex** vertices, 
     return face;
 }
 
-static void remove_face(Mesh* mesh, Face* face)
+void remove_face(Mesh* mesh, Face* face)
 {
     Border* next_border;
     for(Border* border = face->first_border; border; border = next_border)
@@ -321,7 +321,7 @@ static void remove_face(Mesh* mesh, Face* face)
     mesh->faces_count -= 1;
 }
 
-static void remove_face_and_its_unlinked_edges_and_vertices(Mesh* mesh, Face* face)
+void remove_face_and_its_unlinked_edges_and_vertices(Mesh* mesh, Face* face)
 {
     Border* next_border;
     for(Border* border = face->first_border; border; border = next_border)
@@ -363,7 +363,7 @@ static void remove_face_and_its_unlinked_edges_and_vertices(Mesh* mesh, Face* fa
     mesh->faces_count -= 1;
 }
 
-static void remove_edge(Mesh* mesh, Edge* edge)
+void remove_edge(Mesh* mesh, Edge* edge)
 {
     while(edge->any_link)
     {
@@ -375,7 +375,7 @@ static void remove_edge(Mesh* mesh, Edge* edge)
     mesh->edges_count -= 1;
 }
 
-static void remove_vertex(Mesh* mesh, Vertex* vertex)
+void remove_vertex(Mesh* mesh, Vertex* vertex)
 {
     while(vertex->any_edge)
     {
@@ -847,6 +847,8 @@ void toggle_face_in_selection(Selection* selection, Face* face)
 
 void move_faces(Mesh* mesh, Selection* selection, Vector3 translation)
 {
+    ASSERT(selection->type == Selection::Type::Face);
+
     for(int i = 0; i < selection->parts_count; i += 1)
     {
         Face* face = selection->parts[i].face;
@@ -863,6 +865,17 @@ void move_faces(Mesh* mesh, Selection* selection, Vector3 translation)
     }
 
     update_normals(mesh);
+}
+
+void flip_face_normals(Mesh* mesh, Selection* selection)
+{
+    ASSERT(selection->type == Selection::Type::Face);
+
+    for(int i = 0; i < selection->parts_count; i += 1)
+    {
+        Face* face = selection->parts[i].face;
+        flip_face_normal(face);
+    }
 }
 
 static bool is_edge_on_selection_boundary(Selection* selection, Link* link)

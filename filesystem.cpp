@@ -69,7 +69,7 @@ bool save_whole_file(const char* path, const void* contents, u64 bytes, Stack* s
     ssize_t written = write(file, contents, bytes);
     int closed = close(file);
 
-    return closed != -1 && written == bytes;
+    return closed != -1 && static_cast<u64>(written) == bytes;
 }
 
 struct File
@@ -202,7 +202,7 @@ bool read_line(File* file, char** line, u64* bytes, Heap* heap)
 bool write_file(File* file, const void* data, u64 bytes)
 {
     s64 written = write(file->descriptor, data, bytes);
-    return written == bytes;
+    return static_cast<u64>(written) == bytes;
 }
 
 void write_to_standard_output(const char* text, bool error)

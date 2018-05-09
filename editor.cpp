@@ -105,22 +105,6 @@ static void action_stop(Action action)
     }
 }
 
-static const char* action_as_string(Action action)
-{
-    switch(action)
-    {
-        default:
-        case Action::None:         return "None";
-        case Action::Zoom_Camera:  return "Zoom_Camera";
-        case Action::Orbit_Camera: return "Orbit_Camera";
-        case Action::Pan_Camera:   return "Pan_Camera";
-        case Action::Select:       return "Select";
-        case Action::Move:         return "Move";
-        case Action::Rotate:       return "Rotate";
-        case Action::Scale:        return "Scale";
-    }
-}
-
 // Selection State..............................................................
 
 static void select_mesh(int index)

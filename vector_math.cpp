@@ -353,7 +353,10 @@ Vector3 perp(Vector3 v)
     bool ym = (1 ^ xm) & szy;
     bool zm = 1 ^ (xm & ym);
 
-    Vector3 m = {xm, ym, zm};
+    Vector3 m;
+    m.x = static_cast<float>(xm);
+    m.y = static_cast<float>(ym);
+    m.z = static_cast<float>(zm);
 
     return cross(v, m);
 }
