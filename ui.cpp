@@ -1528,7 +1528,7 @@ static Vector2 compute_cursor_position(TextBlock* text_block, Vector2 dimensions
         bool found = map_get(&text_block->glyph_map, key, &value);
         if(found)
         {
-            upointer glyph_index = reinterpret_cast<upointer>(value);
+            uintptr_t glyph_index = reinterpret_cast<uintptr_t>(value);
             Glyph glyph = text_block->glyphs[glyph_index];
             position = glyph.baseline_start;
         }
@@ -2134,7 +2134,7 @@ static int find_beginning_of_line(TextBlock* text_block, int start_index)
     bool found = map_get(&text_block->glyph_map, key, &value);
     if(found)
     {
-        upointer glyph_index = reinterpret_cast<upointer>(value);
+        uintptr_t glyph_index = reinterpret_cast<uintptr_t>(value);
         Glyph first = text_block->glyphs[glyph_index];
         float first_y = first.baseline_start.y;
         for(int i = glyph_index - 1; i >= 0; i -= 1)
@@ -2160,7 +2160,7 @@ static int find_end_of_line(TextBlock* text_block, int start_index)
     bool found = map_get(&text_block->glyph_map, key, &value);
     if(found)
     {
-        upointer glyph_index = reinterpret_cast<upointer>(value);
+        uintptr_t glyph_index = reinterpret_cast<uintptr_t>(value);
         Glyph first = text_block->glyphs[glyph_index];
         float first_y = first.baseline_start.y;
         for(int i = glyph_index + 1; i < text_block->glyphs_count; i += 1)

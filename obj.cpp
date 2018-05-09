@@ -511,7 +511,7 @@ bool save_file(const char* path, jan::Mesh* mesh, Heap* heap)
         {
             void* value;
             map_get(&map, link->vertex, &value);
-            upointer index = reinterpret_cast<upointer>(value);
+            uintptr_t index = reinterpret_cast<uintptr_t>(value);
             char text[22];
             text[0] = ' ';
             int_to_string(text + 1, 21, index);

@@ -13,8 +13,6 @@ typedef int16_t s16;
 typedef int32_t s32;
 typedef int64_t s64;
 
-typedef uintptr_t upointer;
-
 #define U64_MAX UINT64_MAX
 
 #endif // SIZED_TYPES_H_

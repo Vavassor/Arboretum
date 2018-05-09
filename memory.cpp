@@ -88,7 +88,7 @@ void move_memory(void* to, const void* from, u64 bytes)
 
 static bool is_aligned(const void* memory, u16 alignment)
 {
-    upointer address = reinterpret_cast<upointer>(memory);
+    uintptr_t address = reinterpret_cast<uintptr_t>(memory);
     return ~(address & (alignment - 1));
 }
 
@@ -125,7 +125,7 @@ void* stack_allocate(Stack* stack, u32 bytes)
     // If Intel AVX-512 support is added, this should be bumped up to 64 bytes
     // to align accesses for its 512-bit registers.
     const u32 alignment = 32;
-    upointer address = reinterpret_cast<upointer>(top + header_size);
+    uintptr_t address = reinterpret_cast<uintptr_t>(top + header_size);
     u32 adjustment = alignment - (address & (alignment - 1));
     if(adjustment == alignment)
     {
@@ -434,7 +434,7 @@ static u32 assimilate_down(Heap* heap, u32 c, u32 freemask)
 
 static u32 index_from_pointer(void* base, void* p, u32 size)
 {
-    return (reinterpret_cast<upointer>(p) - reinterpret_cast<upointer>(base)) / size;
+    return (reinterpret_cast<uintptr_t>(p) - reinterpret_cast<uintptr_t>(base)) / size;
 }
 
 void* heap_reallocate(Heap* heap, void* memory, u32 bytes)

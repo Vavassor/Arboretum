@@ -1460,7 +1460,7 @@ static void process_specifier(FormatContext* context, va_list* arguments)
             ASSERT(context->length == Length::Unspecified);
 
             void* value = va_arg(*arguments, void*);
-            upointer address = reinterpret_cast<upointer>(value);
+            uintptr_t address = reinterpret_cast<uintptr_t>(value);
 
             char int_buffer[int_buffer_size];
             s64_to_string(int_buffer, int_buffer_size, address, 16);
