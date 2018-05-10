@@ -25,8 +25,8 @@ struct VertexPT
 
 struct LineVertex
 {
-    Vector3 start;
-    Vector3 end;
+    Vector3 position;
+    Vector3 direction;
     u32 colour;
     float side;
 };

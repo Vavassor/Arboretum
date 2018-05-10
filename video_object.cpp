@@ -38,11 +38,12 @@ void object_create(Object* object, VertexLayout vertex_layout)
         case VertexLayout::Line:
         {
             const int vertex_size = sizeof(LineVertex);
-            GLvoid* offset1 = reinterpret_cast<GLvoid*>(offsetof(LineVertex, end));
+            GLvoid* offset0 = reinterpret_cast<GLvoid*>(offsetof(LineVertex, position));
+            GLvoid* offset1 = reinterpret_cast<GLvoid*>(offsetof(LineVertex, direction));
             GLvoid* offset2 = reinterpret_cast<GLvoid*>(offsetof(LineVertex, colour));
             GLvoid* offset3 = reinterpret_cast<GLvoid*>(offsetof(LineVertex, side));
             glBindBuffer(GL_ARRAY_BUFFER, object->buffers[0]);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertex_size, nullptr);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertex_size, offset0);
             glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, vertex_size, offset1);
             glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, vertex_size, offset2);
             glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, vertex_size, offset3);

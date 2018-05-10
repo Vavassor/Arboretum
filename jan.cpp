@@ -539,7 +539,7 @@ void make_wireframe(Mesh* mesh, Heap* heap, Vector4 colour, LineVertex** out_ver
 
         Vector3 start = vertex->position;
         Vector3 end = other->position;
-        Vector3 behind = end + (end - start);
+        Vector3 direction = end - start;
 
         u32 colour_value = rgba_to_u32(colour);
         float left = -1.0f;
@@ -547,10 +547,10 @@ void make_wireframe(Mesh* mesh, Heap* heap, Vector4 colour, LineVertex** out_ver
 
         u16 base = ARRAY_COUNT(vertices);
 
-        LineVertex v0 = {start, end, colour_value, left};
-        LineVertex v1 = {start, end, colour_value, right};
-        LineVertex v2 = {end, behind, colour_value, left};
-        LineVertex v3 = {end, behind, colour_value, right};
+        LineVertex v0 = {start, direction, colour_value, left};
+        LineVertex v1 = {start, direction, colour_value, right};
+        LineVertex v2 = {end, direction, colour_value, left};
+        LineVertex v3 = {end, direction, colour_value, right};
         ARRAY_ADD(vertices, v0, heap);
         ARRAY_ADD(vertices, v1, heap);
         ARRAY_ADD(vertices, v2, heap);

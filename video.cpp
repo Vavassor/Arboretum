@@ -94,7 +94,7 @@ namespace
         GLuint program;
         GLint line_width;
         GLint model_view_projection;
-        GLint projection;
+        GLint projection_factor;
         GLint viewport_dimensions;
     } shader_line;
 
@@ -239,7 +239,7 @@ bool system_start_up()
         GLuint program = shader_line.program;
         shader_line.line_width = glGetUniformLocation(program, "line_width");
         shader_line.model_view_projection = glGetUniformLocation(program, "model_view_projection");
-        shader_line.projection = glGetUniformLocation(program, "projection");
+        shader_line.projection_factor = glGetUniformLocation(program, "projection_factor");
         shader_line.viewport_dimensions = glGetUniformLocation(program, "viewport");
 
         glUseProgram(shader_line.program);
@@ -613,7 +613,7 @@ static void draw_selection_object(Object object, Object wireframe, Matrix4 proje
     glPolygonOffset(-1.0f, -1.0f);
 
     glUniformMatrix4fv(shader_line.model_view_projection, 1, GL_TRUE, wireframe.model_view_projection.elements);
-    glUniform1f(shader_line.projection, projection[0]);
+    glUniform1f(shader_line.projection_factor, projection[0]);
     glBindVertexArray(wireframe.vertex_array);
     glDrawElements(GL_TRIANGLES, wireframe.indices_count, GL_UNSIGNED_SHORT, nullptr);
 
