@@ -95,6 +95,8 @@ namespace
         GLint line_width;
         GLint model_view_projection;
         GLint projection_factor;
+        GLint texture;
+        GLint texture_dimensions;
         GLint viewport_dimensions;
     } shader_line;
 
@@ -108,6 +110,7 @@ namespace
 
     GLuint font_textures[1];
     GLuint hatch_pattern;
+    GLuint line_pattern;
 }
 
 bool system_start_up()
@@ -240,10 +243,13 @@ bool system_start_up()
         shader_line.line_width = glGetUniformLocation(program, "line_width");
         shader_line.model_view_projection = glGetUniformLocation(program, "model_view_projection");
         shader_line.projection_factor = glGetUniformLocation(program, "projection_factor");
+        shader_line.texture = glGetUniformLocation(program, "texture");
+        shader_line.texture_dimensions = glGetUniformLocation(program, "texture_dimensions");
         shader_line.viewport_dimensions = glGetUniformLocation(program, "viewport");
 
         glUseProgram(shader_line.program);
-        glUniform1f(shader_line.line_width, 4.0f);
+        glUniform1f(shader_line.line_width, 3.0f);
+        glUniform1i(shader_line.texture, 0);
     }
 
     create(&objects, &heap);
@@ -263,6 +269,19 @@ bool system_start_up()
 
         glUseProgram(shader_screen_pattern.program);
         glUniform2f(shader_screen_pattern.texture_dimensions, bitmap.width, bitmap.height);
+    }
+
+    // Line pattern texture
+    {
+        char* path = get_image_path_by_name("Dot.png", &scratch);
+        Bitmap bitmap;
+        bitmap.pixels = stbi_load(path, &bitmap.width, &bitmap.height, &bitmap.bytes_per_pixel, STBI_default);
+        STACK_DEALLOCATE(&scratch, path);
+        line_pattern = upload_bitmap(&bitmap);
+        stbi_image_free(bitmap.pixels);
+
+        glUseProgram(shader_line.program);
+        glUniform2f(shader_line.texture_dimensions, bitmap.width, bitmap.height);
     }
 
     immediate::context_create(&heap);
@@ -293,6 +312,7 @@ void system_shut_down(bool functions_loaded)
             glDeleteTextures(1, &font_textures[i]);
         }
         glDeleteTextures(1, &hatch_pattern);
+        glDeleteTextures(1, &line_pattern);
 
         object_destroy(&sky);
 
@@ -604,19 +624,6 @@ static void draw_selection_object(Object object, Object wireframe, Matrix4 proje
 {
     const Vector4 colour = {1.0f, 0.5f, 0.0f, 0.8f};
 
-    // Draw the wireframe.
-    glUseProgram(shader_line.program);
-
-    glDepthFunc(GL_LEQUAL);
-
-    glEnable(GL_POLYGON_OFFSET_FILL);
-    glPolygonOffset(-1.0f, -1.0f);
-
-    glUniformMatrix4fv(shader_line.model_view_projection, 1, GL_TRUE, wireframe.model_view_projection.elements);
-    glUniform1f(shader_line.projection_factor, projection[0]);
-    glBindVertexArray(wireframe.vertex_array);
-    glDrawElements(GL_TRIANGLES, wireframe.indices_count, GL_UNSIGNED_SHORT, nullptr);
-
     // Draw selected faces.
     glUseProgram(shader_halo.program);
 
@@ -625,8 +632,6 @@ static void draw_selection_object(Object object, Object wireframe, Matrix4 proje
     glDepthFunc(GL_EQUAL);
     glDepthMask(GL_FALSE);
 
-    glDisable(GL_POLYGON_OFFSET_FILL);
-
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -634,7 +639,25 @@ static void draw_selection_object(Object object, Object wireframe, Matrix4 proje
     glBindVertexArray(object.vertex_array);
     glDrawElements(GL_TRIANGLES, object.indices_count, GL_UNSIGNED_SHORT, nullptr);
 
+    // Draw the wireframe.
+    glUseProgram(shader_line.program);
+
+    glDepthFunc(GL_LEQUAL);
+
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(-1.0f, -1.0f);
+
+    glActiveTexture(GL_TEXTURE0 + 0);
+    glBindTexture(GL_TEXTURE_2D, line_pattern);
+    glBindSampler(0, linear_repeat);
+
+    glUniformMatrix4fv(shader_line.model_view_projection, 1, GL_TRUE, wireframe.model_view_projection.elements);
+    glUniform1f(shader_line.projection_factor, projection[0]);
+    glBindVertexArray(wireframe.vertex_array);
+    glDrawElements(GL_TRIANGLES, wireframe.indices_count, GL_UNSIGNED_SHORT, nullptr);
+
     // Reset to defaults.
+    glDisable(GL_POLYGON_OFFSET_FILL);
     glDisable(GL_BLEND);
     glDepthFunc(GL_LESS);
     glDepthMask(GL_TRUE);

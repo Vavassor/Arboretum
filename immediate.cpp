@@ -75,15 +75,18 @@ void context_create(Heap* heap)
     offset0 = reinterpret_cast<GLvoid*>(offsetof(LineVertex, position));
     offset1 = reinterpret_cast<GLvoid*>(offsetof(LineVertex, direction));
     GLvoid* offset2 = reinterpret_cast<GLvoid*>(offsetof(LineVertex, colour));
-    GLvoid* offset3 = reinterpret_cast<GLvoid*>(offsetof(LineVertex, side));
+    GLvoid* offset3 = reinterpret_cast<GLvoid*>(offsetof(LineVertex, texcoord));
+    GLvoid* offset4 = reinterpret_cast<GLvoid*>(offsetof(LineVertex, side));
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(LineVertex), offset0);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(LineVertex), offset1);
     glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(LineVertex), offset2);
-    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(LineVertex), offset3);
+    glVertexAttribPointer(3, 2, GL_UNSIGNED_SHORT, GL_TRUE, sizeof(LineVertex), offset3);
+    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, sizeof(LineVertex), offset4);
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
     glEnableVertexAttribArray(3);
+    glEnableVertexAttribArray(4);
 
     glBindVertexArray(c->vertex_arrays[2]);
     glBindBuffer(GL_ARRAY_BUFFER, c->buffers[2]);
@@ -250,13 +253,20 @@ void add_line(Vector3 start, Vector3 end, Vector4 colour)
     ASSERT(c->vertex_type == VertexType::Line || c->vertex_type == VertexType::None);
     ASSERT(c->filled + 6 < context_vertices_cap);
     u32 colour_u32 = rgba_to_u32(colour);
+    u32 texcoords[4] =
+    {
+        texcoord_to_u32({0.0f, 0.0f}),
+        texcoord_to_u32({0.0f, 1.0f}),
+        texcoord_to_u32({1.0f, 1.0f}),
+        texcoord_to_u32({1.0f, 0.0f}),
+    };
     Vector3 direction = end - start;
-    c->line_vertices[c->filled + 0] = {start, direction, colour_u32, -1.0f};
-    c->line_vertices[c->filled + 1] = {start, direction, colour_u32, 1.0f};
-    c->line_vertices[c->filled + 2] = {end, -direction, colour_u32, 1.0f};
-    c->line_vertices[c->filled + 3] = {end, -direction, colour_u32, 1.0f};
-    c->line_vertices[c->filled + 4] = {start, direction, colour_u32, 1.0f};
-    c->line_vertices[c->filled + 5] = {end, -direction, colour_u32, -1.0f};
+    c->line_vertices[c->filled + 0] = {start, direction, colour_u32, texcoords[1], -1.0f};
+    c->line_vertices[c->filled + 1] = {start, direction, colour_u32, texcoords[2], 1.0f};
+    c->line_vertices[c->filled + 2] = {end, -direction, colour_u32, texcoords[0], 1.0f};
+    c->line_vertices[c->filled + 3] = {end, -direction, colour_u32, texcoords[0], 1.0f};
+    c->line_vertices[c->filled + 4] = {start, direction, colour_u32, texcoords[2], 1.0f};
+    c->line_vertices[c->filled + 5] = {end, -direction, colour_u32, texcoords[3], -1.0f};
     c->filled += 6;
     c->vertex_type = VertexType::Line;
 }

@@ -532,6 +532,14 @@ void make_wireframe(Mesh* mesh, Heap* heap, Vector4 colour, LineVertex** out_ver
     LineVertex* vertices = nullptr;
     u16* indices = nullptr;
 
+    const u32 texcoords[4] =
+    {
+        texcoord_to_u32({0.0f, 0.0f}),
+        texcoord_to_u32({0.0f, 1.0f}),
+        texcoord_to_u32({1.0f, 1.0f}),
+        texcoord_to_u32({1.0f, 0.0f}),
+    };
+
     FOR_EACH_IN_POOL(Edge, edge, mesh->edge_pool)
     {
         Vertex* vertex = edge->vertices[0];
@@ -547,20 +555,20 @@ void make_wireframe(Mesh* mesh, Heap* heap, Vector4 colour, LineVertex** out_ver
 
         u16 base = ARRAY_COUNT(vertices);
 
-        LineVertex v0 = {start, direction, colour_value, left};
-        LineVertex v1 = {start, direction, colour_value, right};
-        LineVertex v2 = {end, direction, colour_value, left};
-        LineVertex v3 = {end, direction, colour_value, right};
+        LineVertex v0 = {end, -direction, colour_value, texcoords[0], right};
+        LineVertex v1 = {start, direction, colour_value, texcoords[1], left};
+        LineVertex v2 = {start, direction, colour_value, texcoords[2], right};
+        LineVertex v3 = {end, -direction, colour_value, texcoords[3], left};
         ARRAY_ADD(vertices, v0, heap);
         ARRAY_ADD(vertices, v1, heap);
         ARRAY_ADD(vertices, v2, heap);
         ARRAY_ADD(vertices, v3, heap);
 
-        ARRAY_ADD(indices, base, heap);
         ARRAY_ADD(indices, base + 1, heap);
         ARRAY_ADD(indices, base + 2, heap);
+        ARRAY_ADD(indices, base + 0, heap);
+        ARRAY_ADD(indices, base + 0, heap);
         ARRAY_ADD(indices, base + 2, heap);
-        ARRAY_ADD(indices, base + 1, heap);
         ARRAY_ADD(indices, base + 3, heap);
     }
 

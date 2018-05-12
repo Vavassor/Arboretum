@@ -3,14 +3,17 @@
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec3 direction;
 layout(location = 2) in vec4 colour;
-layout(location = 3) in float side;
+layout(location = 3) in vec2 texcoord;
+layout(location = 4) in float side;
 
-uniform mat4x4 model_view_projection;
-uniform vec2 viewport;
-uniform float projection_factor;
 uniform float line_width;
+uniform mat4x4 model_view_projection;
+uniform float projection_factor;
+uniform vec2 texture_dimensions;
+uniform vec2 viewport;
 
 out vec4 surface_colour;
+noperspective out vec2 surface_texcoord;
 
 vec4 clip_to_image_plane(vec4 f, vec4 b)
 {
@@ -28,7 +31,7 @@ void main()
     
     vec4 start = model_view_projection * vec4(position, 1.0);
     vec4 end = model_view_projection * vec4(position + direction, 1.0);
-    
+
     // If either endpoint of the line segment is behind the camera.
     if(end.w < 0.0)
     {
@@ -48,14 +51,22 @@ void main()
     vec2 lateral = vec2(-screen_direction.y, screen_direction.x);
     lateral.x /= aspect;
 
-    float pixel_width_ratio = 1.0 / (viewport.x * projection_factor);
+    float pixel_width_ratio = 2.0 / (viewport.x * projection_factor);
     float pixel_width = start.w * pixel_width_ratio;
-    lateral *= 0.5 * pixel_width * line_width;
-
+    float cotangent_fov_over_2 = projection_factor * aspect;
+    lateral *= 0.5 * pixel_width * line_width * cotangent_fov_over_2;
+    
     start.xy += lateral * side;
 
     gl_Position = start;
-
+    
+    float texture_aspect = texture_dimensions.x / texture_dimensions.y;
+    
+    float screen_distance = distance(viewport.y * a, viewport.y * b);
+    float texel_distance = screen_distance * texture_aspect / line_width;
+    float texcoord_scale = 0.5 * texel_distance;
+    
+    surface_texcoord = vec2(texcoord.x, texcoord.y * texcoord_scale);
     surface_colour = colour;
 }
 

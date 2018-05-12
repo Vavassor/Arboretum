@@ -28,6 +28,7 @@ struct LineVertex
     Vector3 position;
     Vector3 direction;
     u32 colour;
+    u32 texcoord;
     float side;
 };
 
