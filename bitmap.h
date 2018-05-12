@@ -4,9 +4,16 @@
 #include "gl_core_3_3.h"
 #include "sized_types.h"
 
+struct Heap;
+
 struct Pixel8
 {
     u8 r;
+};
+
+struct Pixel16
+{
+    u8 r, g;
 };
 
 struct Pixel24
@@ -28,5 +35,8 @@ struct Bitmap
 };
 
 GLuint upload_bitmap(Bitmap* bitmap);
+GLuint upload_bitmap_with_mipmaps(Bitmap* bitmap, Heap* heap);
+int get_mipmap_level_count(int width, int height);
+Bitmap generate_mipmap(Bitmap* bitmap, Heap* heap);
 
 #endif // BITMAP_H_

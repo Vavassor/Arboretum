@@ -42,6 +42,7 @@ namespace
 {
     GLuint nearest_repeat;
     GLuint linear_repeat;
+    GLuint linear_mipmap_repeat;
 
     struct
     {
@@ -134,6 +135,12 @@ bool system_start_up()
         glSamplerParameteri(linear_repeat, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glSamplerParameteri(linear_repeat, GL_TEXTURE_WRAP_S, GL_REPEAT);
         glSamplerParameteri(linear_repeat, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+        glGenSamplers(1, &linear_mipmap_repeat);
+        glSamplerParameteri(linear_mipmap_repeat, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glSamplerParameteri(linear_mipmap_repeat, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glSamplerParameteri(linear_mipmap_repeat, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glSamplerParameteri(linear_mipmap_repeat, GL_TEXTURE_WRAP_T, GL_REPEAT);
     }
 
     // Vertex Colour Shader
@@ -248,7 +255,7 @@ bool system_start_up()
         shader_line.viewport_dimensions = glGetUniformLocation(program, "viewport");
 
         glUseProgram(shader_line.program);
-        glUniform1f(shader_line.line_width, 3.0f);
+        glUniform1f(shader_line.line_width, 4.0f);
         glUniform1i(shader_line.texture, 0);
     }
 
@@ -277,7 +284,7 @@ bool system_start_up()
         Bitmap bitmap;
         bitmap.pixels = stbi_load(path, &bitmap.width, &bitmap.height, &bitmap.bytes_per_pixel, STBI_default);
         STACK_DEALLOCATE(&scratch, path);
-        line_pattern = upload_bitmap(&bitmap);
+        line_pattern = upload_bitmap_with_mipmaps(&bitmap, &heap);
         stbi_image_free(bitmap.pixels);
 
         glUseProgram(shader_line.program);
@@ -298,6 +305,7 @@ void system_shut_down(bool functions_loaded)
     {
         glDeleteSamplers(1, &nearest_repeat);
         glDeleteSamplers(1, &linear_repeat);
+        glDeleteSamplers(1, &linear_mipmap_repeat);
 
         glDeleteProgram(shader_vertex_colour.program);
         glDeleteProgram(shader_texture_only.program);
@@ -649,7 +657,7 @@ static void draw_selection_object(Object object, Object wireframe, Matrix4 proje
 
     glActiveTexture(GL_TEXTURE0 + 0);
     glBindTexture(GL_TEXTURE_2D, line_pattern);
-    glBindSampler(0, linear_repeat);
+    glBindSampler(0, linear_mipmap_repeat);
 
     glUniformMatrix4fv(shader_line.model_view_projection, 1, GL_TRUE, wireframe.model_view_projection.elements);
     glUniform1f(shader_line.projection_factor, projection[0]);
