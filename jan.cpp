@@ -704,7 +704,7 @@ static bool locally_inside(Vector2 a0, Vector2 a1, Vector2 a2, Vector2 b)
     }
 }
 
-static int count_border_edges(Border* border)
+int count_border_edges(Border* border)
 {
     int count = 0;
     Link* first = border->first;

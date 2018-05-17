@@ -124,6 +124,7 @@ void move_faces(Mesh* mesh, Selection* selection, Vector3 translation);
 void flip_face_normals(Mesh* mesh, Selection* selection);
 void extrude(Mesh* mesh, Selection* selection, float distance, Heap* heap, Stack* stack);
 void make_wireframe(Mesh* mesh, Heap* heap, Vector4 colour, LineVertex** vertices, u16** indices);
+int count_border_edges(Border* border);
 void triangulate(Mesh* mesh, Heap* heap, VertexPNC** vertices, u16** indices);
 void triangulate_selection(Mesh* mesh, Selection* selection, Heap* heap, VertexPNC** vertices, u16** indices);
 

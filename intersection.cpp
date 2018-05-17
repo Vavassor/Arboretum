@@ -499,18 +499,14 @@ Vector3 closest_ray_point(Ray ray, Vector3 point)
 
 namespace jan {
 
-static void project_face_onto_plane(Face* face, Vector2* vertices)
+static void project_border_onto_plane(Border* border, Matrix3 transform, Vector2* vertices)
 {
-    // @Incomplete: Holes in faces aren't yet supported!
-    // ASSERT(!face->first_border->next);
-
-    Matrix3 mi = transpose(orthogonal_basis(face->normal));
-    Link* first = face->first_border->first;
+    Link* first = border->first;
     Link* link = first;
     int i = 0;
     do
     {
-        vertices[i] = mi * link->vertex->position;
+        vertices[i] = transform * link->vertex->position;
         i += 1;
         link = link->next;
     } while(link != first);
@@ -522,11 +518,9 @@ Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance, Stack* st
     Face* result = nullptr;
     FOR_EACH_IN_POOL(Face, face, mesh->face_pool)
     {
-        // @Incomplete: Holes in faces aren't yet supported!
-        // ASSERT(!face->first_border->next);
-
         Vector3 intersection;
-        bool intersected = intersect_ray_plane_one_sided(ray.origin, ray.direction, face->first_border->first->vertex->position, face->normal, &intersection);
+        Vector3 any_point = face->first_border->first->vertex->position;
+        bool intersected = intersect_ray_plane_one_sided(ray.origin, ray.direction, any_point, face->normal, &intersection);
         if(intersected)
         {
             float distance = squared_distance(ray.origin, intersection);
@@ -535,15 +529,33 @@ Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance, Stack* st
                 Matrix3 mi = transpose(orthogonal_basis(face->normal));
                 Vector2 point = mi * intersection;
 
-                Vector2* projected = STACK_ALLOCATE(stack, Vector2, face->edges);
-                project_face_onto_plane(face, projected);
+                bool on_face = false;
 
-                if(point_in_polygon(point, projected, face->edges))
+                for(Border* border = face->first_border; border; border = border->next)
+                {
+                    int edges = count_border_edges(border);
+                    Vector2* projected = STACK_ALLOCATE(stack, Vector2, edges);
+                    project_border_onto_plane(border, mi, projected);
+                    if(point_in_polygon(point, projected, edges))
+                    {
+                        if(border == face->first_border)
+                        {
+                            on_face = true;
+                        }
+                        else
+                        {
+                            on_face = false;
+                            break;
+                        }
+                    }
+                    STACK_DEALLOCATE(stack, projected);
+                }
+
+                if(on_face)
                 {
                     closest = distance;
                     result = face;
                 }
-                STACK_DEALLOCATE(stack, projected);
             }
         }
     }
