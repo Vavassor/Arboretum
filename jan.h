@@ -116,6 +116,7 @@ void remove_face(Mesh* mesh, Face* face);
 void remove_face_and_its_unlinked_edges_and_vertices(Mesh* mesh, Face* face);
 void update_normals(Mesh* mesh);
 void make_a_weird_face(Mesh* mesh, Stack* stack);
+void make_a_face_with_holes(Mesh* mesh, Stack* stack);
 void colour_just_the_one_face(Face* face, Vector3 colour);
 void colour_all_faces(Mesh* mesh, Vector3 colour);
 void colour_selection(Mesh* mesh, Selection* selection, Vector3 colour);

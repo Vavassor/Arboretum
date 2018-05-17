@@ -2,9 +2,13 @@
 
 #include "array2.h"
 #include "assert.h"
+#include "float_utilities.h"
 #include "int_utilities.h"
+#include "invalid_index.h"
+#include "logging.h"
 #include "map.h"
 #include "math_basics.h"
+#include "sorting.h"
 
 namespace jan {
 
@@ -238,18 +242,17 @@ static Link* add_border_to_face(Mesh* mesh, Vertex* vertex, Edge* edge, Face* fa
     }
     face->last_border = border;
 
+    face->borders_count += 1;
+
     return link;
 }
 
-Face* add_face(Mesh* mesh, Vertex** vertices, Edge** edges, int edges_count)
+static void add_and_link_border(Mesh* mesh, Face* face, Vertex** vertices, Edge** edges, int edges_count)
 {
-    Face* face = POOL_ALLOCATE(&mesh->face_pool, Face);
-    face->edges = edges_count;
-
     // Create each link in the face and chain it to the previous.
     Link* first = add_border_to_face(mesh, vertices[0], edges[0], face);
     Link* prior = first;
-    for(int i = 1; i < face->edges; ++i)
+    for(int i = 1; i < edges_count; i += 1)
     {
         Link* link = add_link(mesh, vertices[i], edges[i], face);
         add_fin(link, edges[i]);
@@ -262,6 +265,14 @@ Face* add_face(Mesh* mesh, Vertex** vertices, Edge** edges, int edges_count)
     // Connect the ends to close the loop.
     first->prior = prior;
     prior->next = first;
+}
+
+Face* add_face(Mesh* mesh, Vertex** vertices, Edge** edges, int edges_count)
+{
+    Face* face = POOL_ALLOCATE(&mesh->face_pool, Face);
+    face->edges = edges_count;
+
+    add_and_link_border(mesh, face, vertices, edges, edges_count);
 
     mesh->faces_count += 1;
 
@@ -298,6 +309,21 @@ Face* connect_disconnected_vertices_and_add_face(Mesh* mesh, Vertex** vertices, 
     STACK_DEALLOCATE(stack, edges);
 
     return face;
+}
+
+static void connect_vertices_and_add_hole(Mesh* mesh, Face* face, Vertex** vertices, int vertices_count, Stack* stack)
+{
+    Edge** edges = STACK_ALLOCATE(stack, Edge*, vertices_count);
+    int end = vertices_count - 1;
+    for(int i = 0; i < end; i += 1)
+    {
+        edges[i] = add_edge(mesh, vertices[i], vertices[i + 1]);
+    }
+    edges[end] = add_edge(mesh, vertices[end], vertices[0]);
+
+    add_and_link_border(mesh, face, vertices, edges, vertices_count);
+
+    STACK_DEALLOCATE(stack, edges);
 }
 
 void remove_face(Mesh* mesh, Face* face)
@@ -527,6 +553,63 @@ void make_a_weird_face(Mesh* mesh, Stack* stack)
     compute_face_normal(face);
 }
 
+void make_a_face_with_holes(Mesh* mesh, Stack* stack)
+{
+    const int vertices_count = 7;
+    Vector3 positions[vertices_count] =
+    {
+        {+1.016774f, -0.128711f, 0.0f},
+        {+1.005646f, +1.246329f, 0.0f},
+        {-0.160719f, -0.121287f, 0.0f},
+        {-0.744234f, +1.375802f, 0.0f},
+        {-2.254874f, +0.459116f, 0.0f},
+        {-1.812329f, -0.432525f, 0.0f},
+        {+0.000000f, -1.000000f, 0.0f},
+    };
+
+    Vertex* vertices[vertices_count];
+    for(int i = 0; i < vertices_count; i += 1)
+    {
+        vertices[i] = add_vertex(mesh, positions[i]);
+    }
+
+    Face* face = connect_vertices_and_add_face(mesh, vertices, vertices_count, stack);
+
+    compute_face_normal(face);
+
+    Vector3 hole0_positions[5] =
+    {
+        {-0.543713f, -0.318739f, 0.0f},
+        {-0.716260f, -0.565462f, 0.0f},
+        {-1.659353f, -0.253382f, 0.0f},
+        {-1.602318f, +0.377146f, 0.0f},
+        {-0.852411f, +0.512023f, 0.0f},
+    };
+
+    for(int i = 0; i < 5; i += 1)
+    {
+        vertices[i] = add_vertex(mesh, hole0_positions[i]);
+    }
+
+    connect_vertices_and_add_hole(mesh, face, vertices, 5, stack);
+
+    Vector3 hole1_positions[5] =
+    {
+        {+0.502821f, +0.337892f, 0.0f},
+        {+0.755197f, +0.412048f, 0.0f},
+        {+0.717627f, +0.185694f, 0.0f},
+        {+0.579880f, +0.063448f, 0.0f},
+        {+0.361475f, +0.204754f, 0.0f},
+    };
+
+    for(int i = 0; i < 5; i += 1)
+    {
+        vertices[i] = add_vertex(mesh, hole1_positions[i]);
+    }
+
+    connect_vertices_and_add_hole(mesh, face, vertices, 5, stack);
+}
+
 void make_wireframe(Mesh* mesh, Heap* heap, Vector4 colour, LineVertex** out_vertices, u16** out_indices)
 {
     LineVertex* vertices = nullptr;
@@ -606,65 +689,345 @@ static bool is_clockwise(Vector2* vertices, int vertices_count)
     return d < 0.0f;
 }
 
+// Diagonal from ⟨a1,b⟩ is between ⟨a1,a0⟩ and ⟨a1,a2⟩
+static bool locally_inside(Vector2 a0, Vector2 a1, Vector2 a2, Vector2 b)
+{
+    if(signed_double_area(a0, a1, a2) < 0)
+    {
+        return signed_double_area(a1, b, a2) >= 0
+            && signed_double_area(a1, a0, b) >= 0;
+    }
+    else
+    {
+        return signed_double_area(a1, b, a0) < 0
+            || signed_double_area(a1, a2, b) < 0;
+    }
+}
+
+static int count_border_edges(Border* border)
+{
+    int count = 0;
+    Link* first = border->first;
+    Link* link = first;
+    do
+    {
+        count += 1;
+        link = link->next;
+    } while(link != first);
+    return count;
+}
+
+struct FlatLoop
+{
+    VertexPNC* vertices;
+    Vector2* positions;
+    int edges;
+    int rightmost;
+};
+
+static int get_rightmost(Vector2* positions, int positions_count)
+{
+    int rightmost = 0;
+    float max = -infinity;
+    for(int i = 0; i < positions_count; i += 1)
+    {
+        if(positions[i].x > max)
+        {
+            max = positions[i].x;
+            rightmost = i;
+        }
+    }
+    return rightmost;
+}
+
+static int find_bridge_to_hole(FlatLoop* loop, FlatLoop* hole)
+{
+    int rightmost = hole->rightmost;
+    Vector2 h = hole->positions[rightmost];
+
+    // Find the closest possible point on an edge to bridge to.
+    int candidate = invalid_index;
+    float min = infinity;
+    for(int i = 0; i < loop->edges; i += 1)
+    {
+        int i_next = (i + 1) % loop->edges;
+        Vector2 e0 = loop->positions[i_next];
+        Vector2 e1 = loop->positions[i];
+
+        if(h.y <= e0.y && h.y >= e1.y && e1.y != e0.y)
+        {
+            // intersection coordinate of a ray pointing in the positive-x
+            // direction
+            float x = e0.x + (h.y - e0.y) * (e1.x - e0.x) / (e1.y - e0.y);
+
+            if(x >= h.x && x < min)
+            {
+                min = x;
+                if(x == h.x)
+                {
+                    if(h.y == e0.y)
+                    {
+                        return i;
+                    }
+                    if(h.y == e1.y)
+                    {
+                        return i_next;
+                    }
+                }
+                if(e0.x < e1.x)
+                {
+                    candidate = i;
+                }
+                else
+                {
+                    candidate = i_next;
+                }
+            }
+        }
+    }
+
+    if(!is_valid_index(candidate))
+    {
+        return invalid_index;
+    }
+
+    if(h.x == min)
+    {
+        return mod(candidate - 1, loop->edges);
+    }
+
+    // Take a triangle between the intersection point, the hole vertex, and the
+    // endpoint of the intersected edge of the outer polygon.
+    Vector2 m = loop->positions[candidate];
+
+    Vector2 v[3];
+    v[1].x = m.x;
+    if(h.y < m.y)
+    {
+        v[0].x = h.x;
+        v[2].x = min;
+    }
+    else
+    {
+        v[0].x = min;
+        v[2].x = h.x;
+    }
+    v[0].y = h.y;
+    v[1].y = m.y;
+    v[2].y = h.y;
+
+    // Find vertices in the triangle of edges that would block the view between
+    // the hole vertex and the outer polygon vertex. If there are points found,
+    // choose the one that minimizes the angle between the x-direction ray and
+    // the ray from hole vertex to connection vertex. Also, if there are
+    // multiple of those, choose the closest.
+    float mx = m.x;
+    float max = -infinity;
+    for(int i = 0; i < loop->edges; i += 1)
+    {
+        Vector2 p = loop->positions[i];
+        if(h.x >= p.x && p.x >= mx && h.x != p.x && point_in_triangle(v[0], v[1], v[2], p))
+        {
+            float current = abs(h.y - p.y) / (h.x - p.x);
+            m = loop->positions[candidate];
+
+            int i_prior = mod(i - 1, loop->edges);
+            int i_next = mod(i + 1, loop->edges);
+            Vector2 prior = loop->positions[i_prior];
+            Vector2 next = loop->positions[i_next];
+
+            if((current > max || (current == max && p.x < m.x)) && locally_inside(prior, p, next, h))
+            {
+                candidate = i;
+                max = current;
+            }
+        }
+    }
+
+    return candidate;
+}
+
+static void bridge_hole(FlatLoop* loop, int bridge_index, FlatLoop* hole, Heap* heap)
+{
+    int original_edges = loop->edges;
+
+    loop->edges += hole->edges + 2;
+    loop->positions = HEAP_REALLOCATE(heap, loop->positions, loop->edges);
+    loop->vertices = HEAP_REALLOCATE(heap, loop->vertices, loop->edges);
+
+    int count = original_edges - bridge_index;
+    move_memory(&loop->positions[bridge_index + hole->edges + 2], &loop->positions[bridge_index], sizeof(*loop->positions) * count);
+    move_memory(&loop->vertices[bridge_index + hole->edges + 2], &loop->vertices[bridge_index], sizeof(*loop->vertices) * count);
+
+    int to_end = hole->edges - hole->rightmost;
+    copy_memory(&loop->positions[bridge_index + 1], &hole->positions[hole->rightmost], sizeof(*hole->positions) * to_end);
+    copy_memory(&loop->vertices[bridge_index + 1], &hole->vertices[hole->rightmost], sizeof(*hole->vertices) * to_end);
+
+    copy_memory(&loop->positions[bridge_index + to_end + 1], hole->positions, sizeof(*hole->positions) * (hole->rightmost + 1));
+    copy_memory(&loop->vertices[bridge_index + to_end + 1], hole->vertices, sizeof(*hole->vertices) * (hole->rightmost + 1));
+
+    for(int start = bridge_index + 1, end = bridge_index + 1 + hole->edges + 1- 1; start < end; start += 1, end -= 1)
+    {
+        SWAP(loop->positions[start], loop->positions[end]);
+        SWAP(loop->vertices[start], loop->vertices[end]);
+    }
+}
+
+static bool is_right(FlatLoop l0, FlatLoop l1)
+{
+    return l0.positions[l0.rightmost].x > l1.positions[l1.rightmost].x;
+}
+
+DEFINE_QUICK_SORT(FlatLoop, is_right, by_rightmost);
+
+static FlatLoop eliminate_holes(Face* face, Heap* heap)
+{
+    Matrix3 transform = transpose(orthogonal_basis(face->normal));
+
+    FlatLoop* queue = HEAP_ALLOCATE(heap, FlatLoop, face->borders_count - 1);
+    int added = 0;
+    for(Border* border = face->first_border->next; border; border = border->next)
+    {
+        int edges = count_border_edges(border);
+        Vector2* projected = HEAP_ALLOCATE(heap, Vector2, edges);
+        VertexPNC* vertices = HEAP_ALLOCATE(heap, VertexPNC, edges);
+        Link* link = border->first;
+        for(int i = 0; i < edges; i += 1)
+        {
+            projected[i] = transform * link->vertex->position;
+            vertices[i].position = link->vertex->position;
+            vertices[i].normal = face->normal;
+            vertices[i].colour = rgb_to_u32(link->colour);
+            link = link->next;
+        }
+
+        if(!is_clockwise(projected, edges))
+        {
+            for(int start = 0, end = edges - 1; start < end; start += 1, end -= 1)
+            {
+                SWAP(projected[start], projected[end]);
+                SWAP(vertices[start], vertices[end]);
+            }
+        }
+
+        int rightmost = get_rightmost(projected, edges);
+
+        queue[added].positions = projected;
+        queue[added].vertices = vertices;
+        queue[added].edges = edges;
+        queue[added].rightmost = rightmost;
+        added += 1;
+    }
+
+    quick_sort_by_rightmost(queue, added);
+
+    FlatLoop loop;
+    loop.edges = face->edges;
+    Vector2* projected = HEAP_ALLOCATE(heap, Vector2, loop.edges);
+    VertexPNC* vertices = HEAP_ALLOCATE(heap, VertexPNC, loop.edges);
+    Link* link = face->first_border->first;
+    for(int i = 0; i < loop.edges; i += 1)
+    {
+        projected[i] = transform * link->vertex->position;
+        vertices[i].position = link->vertex->position;
+        vertices[i].normal = face->normal;
+        vertices[i].colour = rgb_to_u32(link->colour);
+        link = link->next;
+    }
+    loop.positions = projected;
+    loop.vertices = vertices;
+
+    for(int i = 0; i < added; i += 1)
+    {
+        int index = find_bridge_to_hole(&loop, &queue[i]);
+        if(is_valid_index(index))
+        {
+            // This gives up and doesn't include the hole in the final polygon.
+            // It makes sense for triangulation for display, but may not be
+            // appropriate fallback if this code is reused for eliminating
+            // holes on export!
+            bridge_hole(&loop, index, &queue[i], heap);
+        }
+    }
+
+    for(int i = 0; i < added; i += 1)
+    {
+        HEAP_DEALLOCATE(heap, queue[i].positions);
+        HEAP_DEALLOCATE(heap, queue[i].vertices);
+    }
+
+    HEAP_DEALLOCATE(heap, queue);
+
+    return loop;
+}
+
+static bool is_triangle_vertex(Vector2 v0, Vector2 v1, Vector2 v2, Vector2 point)
+{
+    return exactly_equals(v0, point) || exactly_equals(v1, point) || exactly_equals(v2, point);
+}
+
 static void triangulate_face(Face* face, Heap* heap, VertexPNC** vertices_array, u16** indices_array)
 {
     VertexPNC* vertices = *vertices_array;
     u16* indices = *indices_array;
 
-    // The face is already a triangle.
-    if(face->edges == 3)
+    FlatLoop loop;
+    if(face->borders_count > 1)
     {
-        ARRAY_RESERVE(vertices, 3, heap);
-        ARRAY_RESERVE(indices, 3, heap);
-        Link* link = face->first_border->first;
-        for(int i = 0; i < 3; i += 1)
+        loop = eliminate_holes(face, heap);
+    }
+    else
+    {
+        // The face is already a triangle.
+        if(face->edges == 3)
         {
-            VertexPNC vertex;
-            vertex.position = link->vertex->position;
-            vertex.normal = face->normal;
-            vertex.colour = rgb_to_u32(link->colour);
-            int index = ARRAY_COUNT(vertices);
-            ARRAY_ADD(vertices, vertex, heap);
-            ARRAY_ADD(indices, index, heap);
+            ARRAY_RESERVE(vertices, 3, heap);
+            ARRAY_RESERVE(indices, 3, heap);
+            Link* link = face->first_border->first;
+            for(int i = 0; i < 3; i += 1)
+            {
+                VertexPNC vertex;
+                vertex.position = link->vertex->position;
+                vertex.normal = face->normal;
+                vertex.colour = rgb_to_u32(link->colour);
+                int index = ARRAY_COUNT(vertices);
+                ARRAY_ADD(vertices, vertex, heap);
+                ARRAY_ADD(indices, index, heap);
+                link = link->next;
+            }
+            *vertices_array = vertices;
+            *indices_array = indices;
+            return;
+        }
+
+        // Project vertices onto a plane to produce 2D coordinates. Also, copy
+        // over all the vertices.
+        loop.edges = face->edges;
+        loop.positions = HEAP_ALLOCATE(heap, Vector2, loop.edges);
+        loop.vertices = HEAP_ALLOCATE(heap, VertexPNC, loop.edges);
+        Matrix3 m = orthogonal_basis(face->normal);
+        Matrix3 mi = transpose(m);
+        Link* link = face->first_border->first;
+        for(int i = 0; i < loop.edges; i += 1)
+        {
+            loop.positions[i] = mi * link->vertex->position;
+            loop.vertices[i].position = link->vertex->position;
+            loop.vertices[i].normal = face->normal;
+            loop.vertices[i].colour = rgb_to_u32(link->colour);
             link = link->next;
         }
-        *vertices_array = vertices;
-        *indices_array = indices;
-        return;
     }
 
     // Save the index before adding any vertices for this face so it can be
     // used as a base for ear indexing.
     u16 base_index = ARRAY_COUNT(vertices);
 
-    // @Incomplete: Holes in faces aren't yet supported!
-    ASSERT(!face->first_border->next);
-
     // Copy all of the vertices in the face.
-    ARRAY_RESERVE(vertices, face->edges, heap);
-    Link* link = face->first_border->first;
-    for(int i = 0; i < face->edges; i += 1)
+    ARRAY_RESERVE(vertices, loop.edges, heap);
+    for(int i = 0; i < loop.edges; i += 1)
     {
-        VertexPNC vertex;
-        vertex.position = link->vertex->position;
-        vertex.normal = face->normal;
-        vertex.colour = rgb_to_u32(link->colour);
+        VertexPNC vertex = loop.vertices[i];
         ARRAY_ADD(vertices, vertex, heap);
-        link = link->next;
-    }
-
-    // Project vertices onto a plane to produce 2D coordinates.
-    const int max_vertices_per_face = 8;
-    Vector2 projected[max_vertices_per_face];
-    ASSERT(face->edges <= max_vertices_per_face);
-    Matrix3 m = orthogonal_basis(face->normal);
-    Matrix3 mi = transpose(m);
-    link = face->first_border->first;
-    for(int i = 0; i < face->edges; i += 1)
-    {
-        Vector3 p = link->vertex->position;
-        projected[i] = mi * p;
-        link = link->next;
     }
 
     // The projection may reverse the winding of the triangle. Reversing
@@ -674,44 +1037,44 @@ static void triangulate_face(Face* face, Heap* heap, VertexPNC** vertices_array,
     // chains are used to index the projected vertices later during
     // ear-finding.
     bool reverse_winding = false;
-    if(!is_clockwise(projected, face->edges))
+    if(!is_clockwise(loop.positions, loop.edges))
     {
         reverse_winding = true;
     }
 
     // Keep vertex chains to walk both ways around the polygon.
-    int l[max_vertices_per_face];
-    int r[max_vertices_per_face];
-    for(int i = 0; i < face->edges; i += 1)
+    int* l = HEAP_ALLOCATE(heap, int, loop.edges);
+    int* r = HEAP_ALLOCATE(heap, int, loop.edges);
+    for(int i = 0; i < loop.edges; i += 1)
     {
-        l[i] = mod(i - 1, face->edges);
-        r[i] = mod(i + 1, face->edges);
+        l[i] = mod(i - 1, loop.edges);
+        r[i] = mod(i + 1, loop.edges);
     }
 
     // A polygon always has exactly n - 2 triangles, where n is the number
     // of edges in the polygon.
-    ARRAY_RESERVE(indices, 3 * (face->edges - 2), heap);
+    ARRAY_RESERVE(indices, 3 * (loop.edges - 2), heap);
 
     // Walk the right loop and find ears to triangulate using each of those
     // vertices.
-    int j = face->edges - 1;
+    int j = loop.edges - 1;
     int triangles_this_face = 0;
-    while(triangles_this_face < face->edges - 2)
+    while(triangles_this_face < loop.edges - 2)
     {
         j = r[j];
 
         Vector2 v[3];
         if(reverse_winding)
         {
-            v[0] = projected[r[j]];
-            v[1] = projected[j];
-            v[2] = projected[l[j]];
+            v[0] = loop.positions[r[j]];
+            v[1] = loop.positions[j];
+            v[2] = loop.positions[l[j]];
         }
         else
         {
-            v[0] = projected[l[j]];
-            v[1] = projected[j];
-            v[2] = projected[r[j]];
+            v[0] = loop.positions[l[j]];
+            v[1] = loop.positions[j];
+            v[2] = loop.positions[r[j]];
         }
 
         if(is_clockwise(v[0], v[1], v[2]))
@@ -720,10 +1083,11 @@ static void triangulate_face(Face* face, Heap* heap, VertexPNC** vertices_array,
         }
 
         bool in_triangle = false;
-        for(int k = 0; k < face->edges; k += 1)
+        for(int k = 0; k < loop.edges; k += 1)
         {
-            Vector2 point = projected[k];
-            if(k != l[j] && k != j && k != r[j] && point_in_triangle(v[0], v[1], v[2], point))
+            Vector2 point = loop.positions[k];
+            if(!is_triangle_vertex(v[0], v[1], v[2], point)
+                && point_in_triangle(v[0], v[1], v[2], point))
             {
                 in_triangle = true;
                 break;
@@ -741,6 +1105,11 @@ static void triangulate_face(Face* face, Heap* heap, VertexPNC** vertices_array,
             r[l[j]] = r[j];
         }
     }
+
+    HEAP_DEALLOCATE(heap, loop.positions);
+    HEAP_DEALLOCATE(heap, loop.vertices);
+    HEAP_DEALLOCATE(heap, l);
+    HEAP_DEALLOCATE(heap, r);
 
     *vertices_array = vertices;
     *indices_array = indices;

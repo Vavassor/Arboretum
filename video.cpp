@@ -280,7 +280,7 @@ bool system_start_up()
 
     // Line pattern texture
     {
-        char* path = get_image_path_by_name("Dot.png", &scratch);
+        char* path = get_image_path_by_name("Line Feathering.png", &scratch);
         Bitmap bitmap;
         bitmap.pixels = stbi_load(path, &bitmap.width, &bitmap.height, &bitmap.bytes_per_pixel, STBI_default);
         STACK_DEALLOCATE(&scratch, path);
@@ -527,14 +527,16 @@ void draw_rotate_tool(bool silhouetted)
     Vector4 y_axis_colour = {0.3569f, 1.0f, 0.0f, 1.0f};
     Vector4 z_axis_colour = {0.0863f, 0.0314f, 1.0f, 1.0f};
 
-    immediate::add_arc(vector3_zero, vector3_unit_x, pi_over_2, -pi_over_2, radius, width, x_axis_colour);
-    immediate::add_arc(vector3_zero, -vector3_unit_x, pi_over_2, pi, radius, width, x_axis_colour);
+    Vector3 center = {-1.0f, 2.0f, 0.0f};
 
-    immediate::add_arc(vector3_zero, vector3_unit_y, pi_over_2, -pi_over_2, radius, width, y_axis_colour);
-    immediate::add_arc(vector3_zero, -vector3_unit_y, pi_over_2, pi, radius, width, y_axis_colour);
+    immediate::add_arc(center, vector3_unit_x, pi_over_2, -pi_over_2, radius, width, x_axis_colour);
+    immediate::add_arc(center, -vector3_unit_x, pi_over_2, pi, radius, width, x_axis_colour);
 
-    immediate::add_arc(vector3_zero, vector3_unit_z, pi_over_2, pi_over_2, radius, width, z_axis_colour);
-    immediate::add_arc(vector3_zero, -vector3_unit_z, pi_over_2, 0.0f, radius, width, z_axis_colour);
+    immediate::add_arc(center, vector3_unit_y, pi_over_2, -pi_over_2, radius, width, y_axis_colour);
+    immediate::add_arc(center, -vector3_unit_y, pi_over_2, pi, radius, width, y_axis_colour);
+
+    immediate::add_arc(center, vector3_unit_z, pi_over_2, pi_over_2, radius, width, z_axis_colour);
+    immediate::add_arc(center, -vector3_unit_z, pi_over_2, 0.0f, radius, width, z_axis_colour);
 
     immediate::draw();
 }

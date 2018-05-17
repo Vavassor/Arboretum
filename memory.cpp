@@ -261,6 +261,7 @@ void* pool_allocate(Pool* pool)
     void* next_free = pool->free_list;
     pool->free_list = static_cast<void**>(*pool->free_list);
     mark_block_status(pool, next_free, PoolBlockStatus::Used);
+    *reinterpret_cast<void**>(next_free) = nullptr;
     return next_free;
 }
 

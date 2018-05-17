@@ -150,6 +150,11 @@ Vector2 max2(Vector2 a, Vector2 b)
     return result;
 }
 
+bool exactly_equals(Vector2 v0, Vector2 v1)
+{
+    return v0.x == v1.x && v0.y == v1.y;
+}
+
 extern const Vector3 vector3_zero   = {0.0f, 0.0f, 0.0f};
 extern const Vector3 vector3_one    = {1.0f, 1.0f, 1.0f};
 extern const Vector3 vector3_unit_x = {1.0f, 0.0f, 0.0f};

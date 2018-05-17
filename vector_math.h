@@ -36,6 +36,7 @@ Vector2 pointwise_divide(Vector2 v0, Vector2 v1);
 Vector2 lerp(Vector2 v0, Vector2 v1, float t);
 Vector2 min2(Vector2 a, Vector2 b);
 Vector2 max2(Vector2 a, Vector2 b);
+bool exactly_equals(Vector2 v0, Vector2 v1);
 
 struct Vector3
 {

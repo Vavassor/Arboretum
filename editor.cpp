@@ -182,6 +182,22 @@ bool editor_start_up(Platform* platform)
         add_object_to_history(&history, dodecahedron, &heap);
     }
 
+    // Cheese
+    {
+        Object* cheese = add_object(&lady, &heap);
+        jan::Mesh* mesh = &cheese->mesh;
+
+        jan::make_a_face_with_holes(mesh, &scratch);
+
+        video::Object* video_object = video::get_object(cheese->video_object);
+        video::object_update_mesh(video_object, mesh, &heap);
+
+        Vector3 position = {0.0f, -2.0f, 0.0f};
+        object_set_position(cheese, position);
+
+        add_object_to_history(&history, cheese, &heap);
+    }
+
     // Test Model
     {
         Object* test_model = add_object(&lady, &heap);
