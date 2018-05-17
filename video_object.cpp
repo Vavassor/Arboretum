@@ -97,14 +97,14 @@ static void object_finish_update(Object* object, Heap* heap, VertexPNC* vertices
     glBindVertexArray(object->vertex_array);
 
     const int vertex_size = sizeof(VertexPNC);
-    GLsizei vertices_size = vertex_size * ARRAY_COUNT(vertices);
+    GLsizei vertices_size = vertex_size * array_count(vertices);
     glBindBuffer(GL_ARRAY_BUFFER, object->buffers[0]);
     glBufferData(GL_ARRAY_BUFFER, vertices_size, vertices, GL_DYNAMIC_DRAW);
 
-    GLsizei indices_size = sizeof(u16) * ARRAY_COUNT(indices);
+    GLsizei indices_size = sizeof(u16) * array_count(indices);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, object->buffers[1]);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_size, indices, GL_DYNAMIC_DRAW);
-    object->indices_count = ARRAY_COUNT(indices);
+    object->indices_count = array_count(indices);
 
     glBindVertexArray(0);
 
@@ -117,14 +117,14 @@ static void object_update_lines(Object* object, Heap* heap, LineVertex* vertices
     glBindVertexArray(object->vertex_array);
 
     const int vertex_size = sizeof(LineVertex);
-    GLsizei vertices_size = vertex_size * ARRAY_COUNT(vertices);
+    GLsizei vertices_size = vertex_size * array_count(vertices);
     glBindBuffer(GL_ARRAY_BUFFER, object->buffers[0]);
     glBufferData(GL_ARRAY_BUFFER, vertices_size, vertices, GL_DYNAMIC_DRAW);
 
-    GLsizei indices_size = sizeof(u16) * ARRAY_COUNT(indices);
+    GLsizei indices_size = sizeof(u16) * array_count(indices);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, object->buffers[1]);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_size, indices, GL_DYNAMIC_DRAW);
-    object->indices_count = ARRAY_COUNT(indices);
+    object->indices_count = array_count(indices);
 
     glBindVertexArray(0);
 

@@ -57,7 +57,7 @@ static void filter_directory(Directory* directory, const char** extensions, int 
     ARRAY_DESTROY(directory->records, heap);
 
     directory->records = filtered;
-    directory->records_count = ARRAY_COUNT(filtered);
+    directory->records_count = array_count(filtered);
 }
 
 static void list_directory(FilePickDialog* dialog, const char* directory, ui::Context* context, Platform* platform, Heap* heap)

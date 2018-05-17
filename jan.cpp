@@ -636,7 +636,7 @@ void make_wireframe(Mesh* mesh, Heap* heap, Vector4 colour, LineVertex** out_ver
         float left = -1.0f;
         float right = 1.0f;
 
-        u16 base = ARRAY_COUNT(vertices);
+        u16 base = array_count(vertices);
 
         LineVertex v0 = {end, -direction, colour_value, texcoords[0], right};
         LineVertex v1 = {start, direction, colour_value, texcoords[1], left};
@@ -990,7 +990,7 @@ static void triangulate_face(Face* face, Heap* heap, VertexPNC** vertices_array,
                 vertex.position = link->vertex->position;
                 vertex.normal = face->normal;
                 vertex.colour = rgb_to_u32(link->colour);
-                int index = ARRAY_COUNT(vertices);
+                int index = array_count(vertices);
                 ARRAY_ADD(vertices, vertex, heap);
                 ARRAY_ADD(indices, index, heap);
                 link = link->next;
@@ -1020,7 +1020,7 @@ static void triangulate_face(Face* face, Heap* heap, VertexPNC** vertices_array,
 
     // Save the index before adding any vertices for this face so it can be
     // used as a base for ear indexing.
-    u16 base_index = ARRAY_COUNT(vertices);
+    u16 base_index = array_count(vertices);
 
     // Copy all of the vertices in the face.
     ARRAY_RESERVE(vertices, loop.edges, heap);

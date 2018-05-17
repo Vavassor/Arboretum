@@ -276,7 +276,7 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
         }
         else if(strings_match(keyword, "f"))
         {
-            int base_index = ARRAY_COUNT(multi_indices);
+            int base_index = array_count(multi_indices);
             int indices_in_face = 0;
 
             char* token = next_token(&stream, stack);
@@ -293,18 +293,18 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
                 index.texcoord = index.position;
                 index.normal = index.position;
 
-                index.position = fix_index(index.position, ARRAY_COUNT(positions));
+                index.position = fix_index(index.position, array_count(positions));
                 bool success_texcoord = true;
                 bool success_normal = true;
                 if(texcoord_index)
                 {
                     success_texcoord = string_to_int(texcoord_index, &index.texcoord);
-                    index.texcoord = fix_index(index.texcoord, ARRAY_COUNT(texcoords));
+                    index.texcoord = fix_index(index.texcoord, array_count(texcoords));
                 }
                 if(normal_index)
                 {
                     success_normal = string_to_int(normal_index, &index.normal);
-                    index.normal = fix_index(index.normal, ARRAY_COUNT(normals));
+                    index.normal = fix_index(index.normal, array_count(normals));
                 }
                 ARRAY_ADD(multi_indices, index, heap);
 
@@ -335,7 +335,7 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
                 Face face;
                 face.base_index = base_index;
                 face.sides = indices_in_face;
-                face.material_index = ARRAY_COUNT(materials) - 1;
+                face.material_index = array_count(materials) - 1;
                 ARRAY_ADD(faces, face, heap);
             }
         }
@@ -386,7 +386,7 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
 
     STACK_DEALLOCATE(stack, contents);
 
-    error_occurred = error_occurred || ARRAY_COUNT(positions) == 0;
+    error_occurred = error_occurred || array_count(positions) == 0;
 
     // Now that the file is finished processing, open the material library and
     // match up its contents to the stored material data.
@@ -398,8 +398,8 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
     {
         jan::Mesh mesh;
         jan::create_mesh(&mesh);
-        jan::Vertex** seen = STACK_ALLOCATE(stack, jan::Vertex*, ARRAY_COUNT(positions));
-        for(int i = 0; i < ARRAY_COUNT(faces); i += 1)
+        jan::Vertex** seen = STACK_ALLOCATE(stack, jan::Vertex*, array_count(positions));
+        for(int i = 0; i < array_count(faces); i += 1)
         {
             Face obj_face = faces[i];
             jan::Vertex** vertices = STACK_ALLOCATE(stack, jan::Vertex*, obj_face.sides);
@@ -433,7 +433,7 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
 
     // Cleanup
 
-    for(int i = 0; i < ARRAY_COUNT(materials); i += 1)
+    for(int i = 0; i < array_count(materials); i += 1)
     {
         HEAP_DEALLOCATE(heap, materials[i].name);
     }

@@ -620,7 +620,7 @@ static void update_object_mode(Platform* platform)
         // Casually raycast against every triangle in the scene.
         float closest = infinity;
         hovered_object_index = invalid_index;
-        for(int i = 0; i < ARRAY_COUNT(lady.objects); i += 1)
+        for(int i = 0; i < array_count(lady.objects); i += 1)
         {
             Object* object = &lady.objects[i];
             jan::Mesh* mesh = &object->mesh;
@@ -697,7 +697,7 @@ static void update_object_mode(Platform* platform)
 static void update_face_mode()
 {
     ASSERT(selected_object_index != invalid_index);
-    ASSERT(selected_object_index >= 0 && selected_object_index < ARRAY_COUNT(lady.objects));
+    ASSERT(selected_object_index >= 0 && selected_object_index < array_count(lady.objects));
 
     Object* object = &lady.objects[selected_object_index];
     jan::Mesh* mesh = &object->mesh;

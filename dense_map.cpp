@@ -42,7 +42,7 @@ static void add_pair(DenseMap* map, DenseMapId id, int index, Heap* heap)
 
 DenseMapId add(DenseMap* map, Heap* heap)
 {
-    int index = ARRAY_COUNT(map->array);
+    int index = array_count(map->array);
     DenseMapId id = generate_id(map);
 
     Object nobody = {};
@@ -90,7 +90,7 @@ void remove(DenseMap* map, DenseMapId id, Heap* heap)
 
     remove_pair(map, id, index);
 
-    int moved_index = ARRAY_COUNT(map->array);
+    int moved_index = array_count(map->array);
     if(moved_index != index)
     {
         DenseMapId moved_id = look_up_id(map, moved_index);

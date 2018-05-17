@@ -288,7 +288,7 @@ void destroy_toplevel_container(Context* context, Item* item, Heap* heap)
     destroy_container(&item->container, heap);
 
     // Find the container and overwrite it with the container on the end.
-    int count = ARRAY_COUNT(context->toplevel_containers);
+    int count = array_count(context->toplevel_containers);
     for(int i = 0; i < count; i += 1)
     {
         Item* next = context->toplevel_containers[i];
@@ -2575,7 +2575,7 @@ static void update_non_item_specific_keyboard_input(Context* context)
         bool backward = input::get_key_modified_by_shift(input::Key::Tab);
 
         ASSERT(context->tab_navigation_list);
-        ASSERT(ARRAY_COUNT(context->tab_navigation_list) > 0);
+        ASSERT(array_count(context->tab_navigation_list) > 0);
 
         if(!context->focused_item)
         {
@@ -2591,7 +2591,7 @@ static void update_non_item_specific_keyboard_input(Context* context)
         else
         {
             int found_index = invalid_index;
-            int count = ARRAY_COUNT(context->tab_navigation_list);
+            int count = array_count(context->tab_navigation_list);
 
             for(int i = 0; i < count; i += 1)
             {

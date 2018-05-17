@@ -4,9 +4,19 @@
 #include "int_utilities.h"
 #include "memory.h"
 
+int array_count(void* array)
+{
+    return (array) ? array_header_(array)->count : 0;
+}
+
+int array_cap(void* array)
+{
+    return (array) ? array_header_(array)->cap : 0;
+}
+
 void* resize_array(void* array, int count, int element_size, Heap* heap)
 {
-    int cap = MAX(1 + 2 * ARRAY_CAP(array), count);
+    int cap = MAX(1 + 2 * array_cap(array), count);
     int bytes = offsetof(ArrayHeader, elements) + (element_size * cap);
 
     ArrayHeader* header;
@@ -17,7 +27,7 @@ void* resize_array(void* array, int count, int element_size, Heap* heap)
     }
     else
     {
-        header = static_cast<ArrayHeader*>(heap_reallocate(heap, ARRAY_HEADER_(array), bytes));
+        header = static_cast<ArrayHeader*>(heap_reallocate(heap, array_header_(array), bytes));
     }
     header->cap = cap;
     ASSERT(count <= cap);
@@ -27,7 +37,7 @@ void* resize_array(void* array, int count, int element_size, Heap* heap)
 
 void* resize_array(void* array, int count, int element_size, Stack* stack)
 {
-    int cap = MAX(1 + 2 * ARRAY_CAP(array), count);
+    int cap = MAX(1 + 2 * array_cap(array), count);
     int bytes = offsetof(ArrayHeader, elements) + (element_size * cap);
 
     ArrayHeader* header;
@@ -38,10 +48,20 @@ void* resize_array(void* array, int count, int element_size, Stack* stack)
     }
     else
     {
-        header = static_cast<ArrayHeader*>(stack_reallocate(stack, ARRAY_HEADER_(array), bytes));
+        header = static_cast<ArrayHeader*>(stack_reallocate(stack, array_header_(array), bytes));
     }
     header->cap = cap;
     ASSERT(count <= cap);
 
     return header->elements;
+}
+
+ArrayHeader* array_header_(void* array)
+{
+    return reinterpret_cast<ArrayHeader*>(reinterpret_cast<u8*>(array) - offsetof(ArrayHeader, elements));
+}
+
+bool array_fits_(void* array, int extra)
+{
+    return array_count(array) + (extra) <= array_cap(array);
 }
