@@ -190,6 +190,100 @@ bool intersect_ray_sphere(Ray ray, Sphere sphere, Vector3* intersection)
     }
 }
 
+static bool intersect_ray_endcap(Ray ray, Vector3 center, float radius, Vector3* intersection)
+{
+    Vector3 to_center = center - ray.origin;
+    float radius2 = radius * radius;
+    float t_axis = dot(to_center, ray.direction);
+    float distance2 = squared_length(to_center) - (t_axis * t_axis);
+    if(distance2 > radius2)
+    {
+        return false;
+    }
+
+    float t_intersect = sqrt(radius2 - distance2);
+    float t[2];
+    t[0] = t_axis - t_intersect;
+    t[1] = t_axis + t_intersect;
+
+    if(t[0] > t[1])
+    {
+        float temp = t[0];
+        t[0] = t[1];
+        t[1] = temp;
+    }
+
+    if(t[0] < 0.0f)
+    {
+        t[0] = t[1];
+        if(t[0] < 0.0f)
+        {
+            return false;
+        }
+    }
+
+    *intersection = (t[0] * ray.direction) + ray.origin;
+
+    return true;
+}
+
+bool intersect_ray_capsule(Ray ray, Capsule capsule, Vector3* intersection)
+{
+    float radius = capsule.radius;
+    Vector3 center = (capsule.start + capsule.end) / 2.0f;
+    float half_length = distance(center, capsule.end);
+
+    Vector3 forward = normalise(capsule.end - capsule.start);
+    Vector3 right = normalise(perp(forward));
+    Vector3 up = normalise(cross(forward, right));
+    Matrix4 view = view_matrix(right, up, forward, center);
+    Vector3 dilation = {radius, radius, half_length};
+    Matrix4 transform = dilation_matrix(reciprocal(dilation)) * view;
+
+    Ray cylinder_ray = transform_ray(ray, transform);
+    Vector3 origin = cylinder_ray.origin;
+    Vector3 direction = cylinder_ray.direction;
+
+    float dx = direction.x;
+    float dy = direction.y;
+    float ox = origin.x;
+    float oy = origin.y;
+
+    float a = (dx * dx) + (dy * dy);
+    float b = (2.0f * ox * dx) + (2.0f * oy * dy);
+    float c = (ox * ox) + (oy * oy) - 1.0f;
+
+    float t0, t1;
+    if(!solve_quadratic_equation(a, b, c, &t0, &t1))
+    {
+        return false;
+    }
+    float z0 = (t0 * direction.z) + origin.z;
+
+    if(z0 < -1.0f)
+    {
+        return intersect_ray_endcap(ray, capsule.start, radius, intersection);
+    }
+    else if(z0 >= -1.0f && z0 <= 1.0f)
+    {
+        if(t0 <= 0.0f)
+        {
+            return false;
+        }
+        else
+        {
+            *intersection = (ray.direction * t0) + ray.origin;
+            return true;
+        }
+    }
+    else if(z0 > 1.0f)
+    {
+        return intersect_ray_endcap(ray, capsule.end, radius, intersection);
+    }
+
+    return false;
+}
+
 bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Vector3* intersection)
 {
     float radius = cylinder.radius;

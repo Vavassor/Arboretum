@@ -201,7 +201,7 @@ void object_update_wireframe(Object* object, jan::Mesh* mesh, Heap* heap)
 
 void object_update_pointcloud(Object* object, jan::Mesh* mesh, Heap* heap)
 {
-    const Vector4 colour = {1.0f, 0.5f, 0.0f, 0.8f};
+    const Vector4 colour = {1.0f, 0.5f, 0.0f, 1.0f};
 
     PointVertex* vertices;
     u16* indices;
