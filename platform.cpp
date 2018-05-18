@@ -28,8 +28,10 @@ bool load_localized_text(Platform* platform)
     platform->localized_text.file_pick_dialog_filesystem = "Filesystem";
     platform->localized_text.file_pick_dialog_export = "Export";
     platform->localized_text.file_pick_dialog_import = "Import";
+    platform->localized_text.main_menu_enter_edge_mode = "Edge Mode";
     platform->localized_text.main_menu_enter_face_mode = "Face Mode";
     platform->localized_text.main_menu_enter_object_mode = "Object Mode";
+    platform->localized_text.main_menu_enter_vertex_mode = "Vertex Mode";
     platform->localized_text.main_menu_export_file = "Export .obj";
     platform->localized_text.main_menu_import_file = "Import .obj";
 

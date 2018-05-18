@@ -593,6 +593,64 @@ Vector3 closest_ray_point(Ray ray, Vector3 point)
 
 namespace jan {
 
+Vertex* first_vertex_hit_by_ray(Mesh* mesh, Ray ray, float hit_radius, float* vertex_distance)
+{
+    float closest = infinity;
+    Vertex* result = nullptr;
+
+    FOR_EACH_IN_POOL(Vertex, vertex, mesh->vertex_pool)
+    {
+        Sphere sphere = {vertex->position, hit_radius};
+        Vector3 intersection;
+        bool hit = intersect_ray_sphere(ray, sphere, &intersection);
+        if(hit)
+        {
+            float distance = squared_distance(ray.origin, intersection);
+            if(distance < closest)
+            {
+                closest = distance;
+                result = vertex;
+            }
+        }
+    }
+
+    if(vertex_distance)
+    {
+        *vertex_distance = closest;
+    }
+
+    return result;
+}
+
+Edge* first_edge_hit_by_ray(Mesh* mesh, Ray ray, float hit_radius, float* edge_distance)
+{
+    float closest = infinity;
+    Edge* result = nullptr;
+
+    FOR_EACH_IN_POOL(Edge, edge, mesh->edge_pool)
+    {
+        Capsule capsule = {edge->vertices[0]->position, edge->vertices[1]->position, hit_radius};
+        Vector3 intersection;
+        bool hit = intersect_ray_capsule(ray, capsule, &intersection);
+        if(hit)
+        {
+            float distance = squared_distance(ray.origin, intersection);
+            if(distance < closest)
+            {
+                closest = distance;
+                result = edge;
+            }
+        }
+    }
+
+    if(edge_distance)
+    {
+        *edge_distance = closest;
+    }
+
+    return result;
+}
+
 static void project_border_onto_plane(Border* border, Matrix3 transform, Vector2* vertices)
 {
     Link* first = border->first;
@@ -610,6 +668,7 @@ Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance, Stack* st
 {
     float closest = infinity;
     Face* result = nullptr;
+
     FOR_EACH_IN_POOL(Face, face, mesh->face_pool)
     {
         Vector3 intersection;
@@ -653,10 +712,12 @@ Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance, Stack* st
             }
         }
     }
+
     if(face_distance)
     {
         *face_distance = closest;
     }
+
     return result;
 }
 

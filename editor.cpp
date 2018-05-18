@@ -70,6 +70,8 @@ namespace
     ui::Id import_button_id;
     ui::Id export_button_id;
     ui::Id object_mode_button_id;
+    ui::Id vertex_mode_button_id;
+    ui::Id edge_mode_button_id;
     ui::Id face_mode_button_id;
 
     struct
@@ -262,7 +264,7 @@ bool editor_start_up(Platform* platform)
         main_menu->container.alignment = ui::Alignment::Start;
         main_menu->container.justification = ui::Justification::Start;
 
-        const int items_in_row = 4;
+        const int items_in_row = 6;
         ui::add_row(&main_menu->container, items_in_row, &ui_context, &heap);
 
         main_menu->container.items[0].type = ui::ItemType::Button;
@@ -288,6 +290,18 @@ bool editor_start_up(Platform* platform)
         main_menu->container.items[3].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
         ui::set_text(&main_menu->container.items[3].button.text_block, platform->localized_text.main_menu_enter_face_mode, &heap);
         face_mode_button_id = main_menu->container.items[3].id;
+
+        main_menu->container.items[4].type = ui::ItemType::Button;
+        main_menu->container.items[4].button.enabled = true;
+        main_menu->container.items[4].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+        ui::set_text(&main_menu->container.items[4].button.text_block, platform->localized_text.main_menu_enter_edge_mode, &heap);
+        edge_mode_button_id = main_menu->container.items[4].id;
+
+        main_menu->container.items[5].type = ui::ItemType::Button;
+        main_menu->container.items[5].button.enabled = true;
+        main_menu->container.items[5].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+        ui::set_text(&main_menu->container.items[5].button.text_block, platform->localized_text.main_menu_enter_vertex_mode, &heap);
+        vertex_mode_button_id = main_menu->container.items[5].id;
     }
 
     // Move tool
@@ -695,6 +709,47 @@ static void update_object_mode(Platform* platform)
     }
 }
 
+static void enter_edge_mode()
+{
+    selection_wireframe_id = video::add_object(video::VertexLayout::Line);
+
+    Object* object = &lady.objects[selected_object_index];
+    Matrix4 model = compose_transform(object->position, object->orientation, vector3_one);
+
+    video::Object* video_object = video::get_object(selection_wireframe_id);
+    video::object_set_model(video_object, model);
+}
+
+static void exit_edge_mode()
+{
+    video::remove_object(selection_wireframe_id);
+    selection_wireframe_id = 0;
+}
+
+static void update_edge_mode()
+{
+    ASSERT(selected_object_index != invalid_index);
+    ASSERT(selected_object_index >= 0 && selected_object_index < array_count(lady.objects));
+
+    const float touch_radius = 0.1f;
+
+    Object* object = &lady.objects[selected_object_index];
+    jan::Mesh* mesh = &object->mesh;
+
+    update_camera_controls();
+
+    Matrix4 model = compose_transform(object->position, object->orientation, vector3_one);
+    Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
+    Matrix4 projection = perspective_projection_matrix(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
+
+    Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
+    ray = transform_ray(ray, inverse_transform(model));
+    jan::Edge* edge = first_edge_hit_by_ray(mesh, ray, touch_radius, nullptr);
+
+    video::Object* video_object = video::get_object(selection_wireframe_id);
+    video::object_update_wireframe_selection(video_object, mesh, edge, &heap);
+}
+
 static void update_face_mode()
 {
     ASSERT(selected_object_index != invalid_index);
@@ -749,9 +804,6 @@ static void update_face_mode()
         video::Object* video_object = video::get_object(selection_id);
         video::object_update_selection(video_object, mesh, &selection, &heap);
 
-        video_object = video::get_object(selection_pointcloud_id);
-        video::object_update_pointcloud(video_object, mesh, &heap);
-
         video_object = video::get_object(selection_wireframe_id);
         video::object_update_wireframe(video_object, mesh, &heap);
     }
@@ -760,7 +812,6 @@ static void update_face_mode()
 static void enter_face_mode()
 {
     selection_id = video::add_object(video::VertexLayout::PNC);
-    selection_pointcloud_id = video::add_object(video::VertexLayout::Point);
     selection_wireframe_id = video::add_object(video::VertexLayout::Line);
 
     // Set the selection's transform to match the selected mesh.
@@ -768,9 +819,6 @@ static void enter_face_mode()
     Matrix4 model = compose_transform(object->position, object->orientation, vector3_one);
 
     video::Object* video_object = video::get_object(selection_id);
-    video::object_set_model(video_object, model);
-
-    video_object = video::get_object(selection_pointcloud_id);
     video::object_set_model(video_object, model);
 
     video_object = video::get_object(selection_wireframe_id);
@@ -782,29 +830,136 @@ static void exit_face_mode()
     destroy_selection(&selection);
 
     video::remove_object(selection_id);
-    video::remove_object(selection_pointcloud_id);
     video::remove_object(selection_wireframe_id);
     selection_id = 0;
-    selection_pointcloud_id = 0;
     selection_wireframe_id = 0;
+}
+
+static void enter_vertex_mode()
+{
+    selection_pointcloud_id = video::add_object(video::VertexLayout::Point);
+
+    Object* object = &lady.objects[selected_object_index];
+    Matrix4 model = compose_transform(object->position, object->orientation, vector3_one);
+
+    video::Object* video_object = video::get_object(selection_pointcloud_id);
+    video::object_set_model(video_object, model);
+}
+
+static void exit_vertex_mode()
+{
+    video::remove_object(selection_pointcloud_id);
+    selection_pointcloud_id = 0;
+}
+
+static void update_vertex_mode()
+{
+    ASSERT(selected_object_index != invalid_index);
+    ASSERT(selected_object_index >= 0 && selected_object_index < array_count(lady.objects));
+
+    const float touch_radius = 0.1f;
+
+    Object* object = &lady.objects[selected_object_index];
+    jan::Mesh* mesh = &object->mesh;
+
+    update_camera_controls();
+
+    Matrix4 model = compose_transform(object->position, object->orientation, vector3_one);
+    Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
+    Matrix4 projection = perspective_projection_matrix(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
+
+    Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
+    ray = transform_ray(ray, inverse_transform(model));
+    jan::Vertex* vertex = first_vertex_hit_by_ray(mesh, ray, touch_radius, nullptr);
+
+    video::Object* video_object = video::get_object(selection_pointcloud_id);
+    video::object_update_pointcloud_selection(video_object, mesh, vertex, &heap);
 }
 
 static void request_mode_change(Mode requested_mode)
 {
     switch(requested_mode)
     {
+        case Mode::Edge:
+        {
+            if(is_valid_index(selected_object_index))
+            {
+                switch(mode)
+                {
+                    case Mode::Edge:
+                    {
+                        break;
+                    }
+                    case Mode::Face:
+                    {
+                        exit_face_mode();
+                        break;
+                    }
+                    case Mode::Vertex:
+                    {
+                        exit_vertex_mode();
+                        break;
+                    }
+                    case Mode::Object:
+                    {
+                        break;
+                    }
+                }
+                enter_edge_mode();
+                mode = requested_mode;
+            }
+            break;
+        }
+        case Mode::Face:
+        {
+            if(is_valid_index(selected_object_index))
+            {
+                switch(mode)
+                {
+                    case Mode::Edge:
+                    {
+                        exit_edge_mode();
+                        break;
+                    }
+                    case Mode::Face:
+                    {
+                        break;
+                    }
+                    case Mode::Vertex:
+                    {
+                        exit_vertex_mode();
+                        break;
+                    }
+                    case Mode::Object:
+                    {
+                        break;
+                    }
+                }
+                enter_face_mode();
+                mode = requested_mode;
+            }
+            break;
+        }
         case Mode::Object:
         {
             switch(mode)
             {
+                case Mode::Edge:
+                {
+                    exit_edge_mode();
+                    break;
+                }
                 case Mode::Face:
                 {
                     exit_face_mode();
                     break;
                 }
-                case Mode::Object:
-                case Mode::Edge:
                 case Mode::Vertex:
+                {
+                    exit_vertex_mode();
+                    break;
+                }
+                case Mode::Object:
                 {
                     break;
                 }
@@ -812,20 +967,32 @@ static void request_mode_change(Mode requested_mode)
             mode = requested_mode;
             break;
         }
-        case Mode::Face:
-        {
-            if(is_valid_index(selected_object_index))
-            {
-                enter_face_mode();
-                mode = requested_mode;
-            }
-            break;
-        }
-        case Mode::Edge:
         case Mode::Vertex:
         {
             if(is_valid_index(selected_object_index))
             {
+                switch(mode)
+                {
+                    case Mode::Edge:
+                    {
+                        exit_edge_mode();
+                        break;
+                    }
+                    case Mode::Face:
+                    {
+                        exit_face_mode();
+                        break;
+                    }
+                    case Mode::Vertex:
+                    {
+                        break;
+                    }
+                    case Mode::Object:
+                    {
+                        break;
+                    }
+                }
+                enter_vertex_mode();
                 mode = requested_mode;
             }
             break;
@@ -896,13 +1063,21 @@ void editor_update(Platform* platform)
                         dialog.type = DialogType::Export;
                         open_dialog(&dialog, &ui_context, platform, &heap);
                     }
-                    else if(id == object_mode_button_id)
+                    else if(id == edge_mode_button_id)
                     {
-                        request_mode_change(Mode::Object);
+                        request_mode_change(Mode::Edge);
                     }
                     else if(id == face_mode_button_id)
                     {
                         request_mode_change(Mode::Face);
+                    }
+                    else if(id == object_mode_button_id)
+                    {
+                        request_mode_change(Mode::Object);
+                    }
+                    else if(id == vertex_mode_button_id)
+                    {
+                        request_mode_change(Mode::Vertex);
                     }
                     break;
                 }
@@ -926,9 +1101,9 @@ void editor_update(Platform* platform)
     {
         switch(mode)
         {
-            case Mode::Object:
+            case Mode::Edge:
             {
-                update_object_mode(platform);
+                update_edge_mode();
                 break;
             }
             case Mode::Face:
@@ -936,12 +1111,14 @@ void editor_update(Platform* platform)
                 update_face_mode();
                 break;
             }
-            case Mode::Edge:
+            case Mode::Object:
             {
+                update_object_mode(platform);
                 break;
             }
             case Mode::Vertex:
             {
+                update_vertex_mode();
                 break;
             }
         }

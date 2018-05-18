@@ -610,10 +610,10 @@ void make_a_face_with_holes(Mesh* mesh, Stack* stack)
     connect_vertices_and_add_hole(mesh, face, vertices, 5, stack);
 }
 
-void make_pointcloud(Mesh* mesh, Heap* heap, Vector4 colour, PointVertex** out_vertices, u16** out_indices)
+static void add_to_pointcloud(Vertex* vertex, Vector4 colour, Heap* heap, PointVertex** out_vertices, u16** out_indices)
 {
-    PointVertex* vertices = nullptr;
-    u16* indices = nullptr;
+    PointVertex* vertices = *out_vertices;
+    u16* indices = *out_indices;
 
     const u32 texcoords[4] =
     {
@@ -631,34 +631,59 @@ void make_pointcloud(Mesh* mesh, Heap* heap, Vector4 colour, PointVertex** out_v
     };
     u32 colour_value = rgba_to_u32(colour);
 
-    FOR_EACH_IN_POOL(Vertex, vertex, mesh->vertex_pool)
+    u16 base_index = array_count(vertices);
+
+    Vector3 center = vertex->position;
+    for(int i = 0; i < 4; i += 1)
     {
-        Vector3 center = vertex->position;
-
-        u16 base_index = array_count(vertices);
-
-        for(int i = 0; i < 4; i += 1)
-        {
-            PointVertex v = {center, offsets[i], colour_value, texcoords[i]};
-            ARRAY_ADD(vertices, v, heap);
-        }
-
-        ARRAY_ADD(indices, base_index + 0, heap);
-        ARRAY_ADD(indices, base_index + 1, heap);
-        ARRAY_ADD(indices, base_index + 2, heap);
-        ARRAY_ADD(indices, base_index + 0, heap);
-        ARRAY_ADD(indices, base_index + 2, heap);
-        ARRAY_ADD(indices, base_index + 3, heap);
+        PointVertex v = {center, offsets[i], colour_value, texcoords[i]};
+        ARRAY_ADD(vertices, v, heap);
     }
+
+    ARRAY_ADD(indices, base_index + 0, heap);
+    ARRAY_ADD(indices, base_index + 1, heap);
+    ARRAY_ADD(indices, base_index + 2, heap);
+    ARRAY_ADD(indices, base_index + 0, heap);
+    ARRAY_ADD(indices, base_index + 2, heap);
+    ARRAY_ADD(indices, base_index + 3, heap);
 
     *out_vertices = vertices;
     *out_indices = indices;
 }
 
-void make_wireframe(Mesh* mesh, Heap* heap, Vector4 colour, LineVertex** out_vertices, u16** out_indices)
+void make_pointcloud(Mesh* mesh, Heap* heap, Vector4 colour, PointVertex** vertices, u16** indices)
 {
-    LineVertex* vertices = nullptr;
-    u16* indices = nullptr;
+    *vertices = nullptr;
+    *indices = nullptr;
+
+    FOR_EACH_IN_POOL(Vertex, vertex, mesh->vertex_pool)
+    {
+        add_to_pointcloud(vertex, colour, heap, vertices, indices);
+    }
+}
+
+void make_pointcloud_selection(Mesh* mesh, Vector4 colour, Vertex* hovered, Vector4 hover_colour, Heap* heap, PointVertex** vertices, u16** indices)
+{
+    *vertices = nullptr;
+    *indices = nullptr;
+
+    FOR_EACH_IN_POOL(Vertex, vertex, mesh->vertex_pool)
+    {
+        if(vertex == hovered)
+        {
+            add_to_pointcloud(vertex, hover_colour, heap, vertices, indices);
+        }
+        else
+        {
+            add_to_pointcloud(vertex, colour, heap, vertices, indices);
+        }
+    }
+}
+
+static void delineate_edge(Edge* edge, Vector4 colour, Heap* heap, LineVertex** out_vertices, u16** out_indices)
+{
+    LineVertex* vertices = *out_vertices;
+    u16* indices = *out_indices;
 
     const u32 texcoords[4] =
     {
@@ -669,39 +694,65 @@ void make_wireframe(Mesh* mesh, Heap* heap, Vector4 colour, LineVertex** out_ver
     };
     u32 colour_value = rgba_to_u32(colour);
 
-    FOR_EACH_IN_POOL(Edge, edge, mesh->edge_pool)
-    {
-        Vertex* vertex = edge->vertices[0];
-        Vertex* other = edge->vertices[1];
+    Vertex* vertex = edge->vertices[0];
+    Vertex* other = edge->vertices[1];
 
-        Vector3 start = vertex->position;
-        Vector3 end = other->position;
-        Vector3 direction = end - start;
+    Vector3 start = vertex->position;
+    Vector3 end = other->position;
+    Vector3 direction = end - start;
 
-        float left = -1.0f;
-        float right = 1.0f;
+    float left = -1.0f;
+    float right = 1.0f;
 
-        u16 base = array_count(vertices);
+    u16 base = array_count(vertices);
 
-        LineVertex v0 = {end, -direction, colour_value, texcoords[0], right};
-        LineVertex v1 = {start, direction, colour_value, texcoords[1], left};
-        LineVertex v2 = {start, direction, colour_value, texcoords[2], right};
-        LineVertex v3 = {end, -direction, colour_value, texcoords[3], left};
-        ARRAY_ADD(vertices, v0, heap);
-        ARRAY_ADD(vertices, v1, heap);
-        ARRAY_ADD(vertices, v2, heap);
-        ARRAY_ADD(vertices, v3, heap);
+    LineVertex v0 = {end, -direction, colour_value, texcoords[0], right};
+    LineVertex v1 = {start, direction, colour_value, texcoords[1], left};
+    LineVertex v2 = {start, direction, colour_value, texcoords[2], right};
+    LineVertex v3 = {end, -direction, colour_value, texcoords[3], left};
+    ARRAY_ADD(vertices, v0, heap);
+    ARRAY_ADD(vertices, v1, heap);
+    ARRAY_ADD(vertices, v2, heap);
+    ARRAY_ADD(vertices, v3, heap);
 
-        ARRAY_ADD(indices, base + 1, heap);
-        ARRAY_ADD(indices, base + 2, heap);
-        ARRAY_ADD(indices, base + 0, heap);
-        ARRAY_ADD(indices, base + 0, heap);
-        ARRAY_ADD(indices, base + 2, heap);
-        ARRAY_ADD(indices, base + 3, heap);
-    }
+    ARRAY_ADD(indices, base + 1, heap);
+    ARRAY_ADD(indices, base + 2, heap);
+    ARRAY_ADD(indices, base + 0, heap);
+    ARRAY_ADD(indices, base + 0, heap);
+    ARRAY_ADD(indices, base + 2, heap);
+    ARRAY_ADD(indices, base + 3, heap);
 
     *out_vertices = vertices;
     *out_indices = indices;
+}
+
+void make_wireframe(Mesh* mesh, Heap* heap, Vector4 colour, LineVertex** vertices, u16** indices)
+{
+    *vertices = nullptr;
+    *indices = nullptr;
+
+    FOR_EACH_IN_POOL(Edge, edge, mesh->edge_pool)
+    {
+        delineate_edge(edge, colour, heap, vertices, indices);
+    }
+}
+
+void make_wireframe_selection(Mesh* mesh, Heap* heap, Vector4 colour, Edge* hovered, Vector4 hover_colour, LineVertex** vertices, u16** indices)
+{
+    *vertices = nullptr;
+    *indices = nullptr;
+
+    FOR_EACH_IN_POOL(Edge, edge, mesh->edge_pool)
+    {
+        if(edge == hovered)
+        {
+            delineate_edge(edge, hover_colour, heap, vertices, indices);
+        }
+        else
+        {
+            delineate_edge(edge, colour, heap, vertices, indices);
+        }
+    }
 }
 
 static float signed_double_area(Vector2 v0, Vector2 v1, Vector2 v2)

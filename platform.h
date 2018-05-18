@@ -24,8 +24,10 @@ struct Platform
         const char* file_pick_dialog_filesystem;
         const char* file_pick_dialog_export;
         const char* file_pick_dialog_import;
+        const char* main_menu_enter_edge_mode;
         const char* main_menu_enter_face_mode;
         const char* main_menu_enter_object_mode;
+        const char* main_menu_enter_vertex_mode;
         const char* main_menu_export_file;
         const char* main_menu_import_file;
     } localized_text;

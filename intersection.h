@@ -56,8 +56,12 @@ struct Stack;
 namespace jan {
 
 struct Mesh;
+struct Vertex;
+struct Edge;
 struct Face;
 
+Vertex* first_vertex_hit_by_ray(Mesh* mesh, Ray ray, float hit_radius, float* vertex_distance);
+Edge* first_edge_hit_by_ray(Mesh* mesh, Ray ray, float hit_radius, float* edge_distance);
 Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance, Stack* stack);
 
 } // namespace jan

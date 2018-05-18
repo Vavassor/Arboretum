@@ -673,7 +673,7 @@ static void draw_object_with_halo(ObjectLady* lady, int index, Vector4 colour)
     glDisable(GL_STENCIL_TEST);
 }
 
-static void draw_selection_object(Object object, Object pointcloud, Object wireframe, Matrix4 projection)
+static void draw_selection_object(Object* object, Object* pointcloud, Object* wireframe, Matrix4 projection)
 {
     const Vector4 colour = {1.0f, 0.5f, 0.0f, 0.8f};
 
@@ -688,9 +688,12 @@ static void draw_selection_object(Object object, Object pointcloud, Object wiref
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    glUniformMatrix4fv(shader_halo.model_view_projection, 1, GL_TRUE, object.model_view_projection.elements);
-    glBindVertexArray(object.vertex_array);
-    glDrawElements(GL_TRIANGLES, object.indices_count, GL_UNSIGNED_SHORT, nullptr);
+    if(object)
+    {
+        glUniformMatrix4fv(shader_halo.model_view_projection, 1, GL_TRUE, object->model_view_projection.elements);
+        glBindVertexArray(object->vertex_array);
+        glDrawElements(GL_TRIANGLES, object->indices_count, GL_UNSIGNED_SHORT, nullptr);
+    }
 
     // Draw the wireframe.
     glUseProgram(shader_line.program);
@@ -704,10 +707,13 @@ static void draw_selection_object(Object object, Object pointcloud, Object wiref
     glBindTexture(GL_TEXTURE_2D, line_pattern);
     glBindSampler(0, linear_mipmap_repeat);
 
-    glUniformMatrix4fv(shader_line.model_view_projection, 1, GL_TRUE, wireframe.model_view_projection.elements);
-    glUniform1f(shader_line.projection_factor, projection[0]);
-    glBindVertexArray(wireframe.vertex_array);
-    glDrawElements(GL_TRIANGLES, wireframe.indices_count, GL_UNSIGNED_SHORT, nullptr);
+    if(wireframe)
+    {
+        glUniformMatrix4fv(shader_line.model_view_projection, 1, GL_TRUE, wireframe->model_view_projection.elements);
+        glUniform1f(shader_line.projection_factor, projection[0]);
+        glBindVertexArray(wireframe->vertex_array);
+        glDrawElements(GL_TRIANGLES, wireframe->indices_count, GL_UNSIGNED_SHORT, nullptr);
+    }
 
     // Draw the pointcloud.
     glUseProgram(shader_point.program);
@@ -718,10 +724,13 @@ static void draw_selection_object(Object object, Object pointcloud, Object wiref
     glBindTexture(GL_TEXTURE_2D, point_pattern);
     glBindSampler(0, linear_mipmap_repeat);
 
-    glUniformMatrix4fv(shader_point.model_view_projection, 1, GL_TRUE, pointcloud.model_view_projection.elements);
-    glUniform1f(shader_point.projection_factor, projection[0]);
-    glBindVertexArray(pointcloud.vertex_array);
-    glDrawElements(GL_TRIANGLES, pointcloud.indices_count, GL_UNSIGNED_SHORT, nullptr);
+    if(pointcloud)
+    {
+        glUniformMatrix4fv(shader_point.model_view_projection, 1, GL_TRUE, pointcloud->model_view_projection.elements);
+        glUniform1f(shader_point.projection_factor, projection[0]);
+        glBindVertexArray(pointcloud->vertex_array);
+        glDrawElements(GL_TRIANGLES, pointcloud->indices_count, GL_UNSIGNED_SHORT, nullptr);
+    }
 
     // Reset to defaults.
     glDisable(GL_POLYGON_OFFSET_FILL);
@@ -854,11 +863,26 @@ void system_update(UpdateState* update, Platform* platform)
     }
 
     // Draw the selection itself.
-    if(selection_id)
+    if(selection_id || selection_pointcloud_id || selection_wireframe_id)
     {
-        Object object = *get_object(selection_id);
-        Object pointcloud = *get_object(selection_pointcloud_id);
-        Object wireframe = *get_object(selection_wireframe_id);
+        Object* object = nullptr;
+        if(selection_id)
+        {
+            object = get_object(selection_id);
+        }
+
+        Object* pointcloud = nullptr;
+        if(selection_pointcloud_id)
+        {
+            pointcloud = get_object(selection_pointcloud_id);
+        }
+
+        Object* wireframe = nullptr;
+        if(selection_wireframe_id)
+        {
+            wireframe = get_object(selection_wireframe_id);
+        }
+
         draw_selection_object(object, pointcloud, wireframe, projection);
     }
 
