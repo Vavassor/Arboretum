@@ -610,6 +610,51 @@ void make_a_face_with_holes(Mesh* mesh, Stack* stack)
     connect_vertices_and_add_hole(mesh, face, vertices, 5, stack);
 }
 
+void make_pointcloud(Mesh* mesh, Heap* heap, Vector4 colour, PointVertex** out_vertices, u16** out_indices)
+{
+    PointVertex* vertices = nullptr;
+    u16* indices = nullptr;
+
+    const u32 texcoords[4] =
+    {
+        texcoord_to_u32({0.0f, 0.0f}),
+        texcoord_to_u32({1.0f, 0.0f}),
+        texcoord_to_u32({1.0f, 1.0f}),
+        texcoord_to_u32({0.0f, 1.0f}),
+    };
+    const Vector2 offsets[4] =
+    {
+        {-1.0f, -1.0f},
+        {+1.0f, -1.0f},
+        {+1.0f, +1.0f},
+        {-1.0f, +1.0f},
+    };
+    u32 colour_value = rgba_to_u32(colour);
+
+    FOR_EACH_IN_POOL(Vertex, vertex, mesh->vertex_pool)
+    {
+        Vector3 center = vertex->position;
+
+        u16 base_index = array_count(vertices);
+
+        for(int i = 0; i < 4; i += 1)
+        {
+            PointVertex v = {center, offsets[i], colour_value, texcoords[i]};
+            ARRAY_ADD(vertices, v, heap);
+        }
+
+        ARRAY_ADD(indices, base_index + 0, heap);
+        ARRAY_ADD(indices, base_index + 1, heap);
+        ARRAY_ADD(indices, base_index + 2, heap);
+        ARRAY_ADD(indices, base_index + 0, heap);
+        ARRAY_ADD(indices, base_index + 2, heap);
+        ARRAY_ADD(indices, base_index + 3, heap);
+    }
+
+    *out_vertices = vertices;
+    *out_indices = indices;
+}
+
 void make_wireframe(Mesh* mesh, Heap* heap, Vector4 colour, LineVertex** out_vertices, u16** out_indices)
 {
     LineVertex* vertices = nullptr;
@@ -622,6 +667,7 @@ void make_wireframe(Mesh* mesh, Heap* heap, Vector4 colour, LineVertex** out_ver
         texcoord_to_u32({1.0f, 1.0f}),
         texcoord_to_u32({1.0f, 0.0f}),
     };
+    u32 colour_value = rgba_to_u32(colour);
 
     FOR_EACH_IN_POOL(Edge, edge, mesh->edge_pool)
     {
@@ -632,7 +678,6 @@ void make_wireframe(Mesh* mesh, Heap* heap, Vector4 colour, LineVertex** out_ver
         Vector3 end = other->position;
         Vector3 direction = end - start;
 
-        u32 colour_value = rgba_to_u32(colour);
         float left = -1.0f;
         float right = 1.0f;
 
@@ -856,21 +901,18 @@ static void bridge_hole(FlatLoop* loop, int bridge_index, FlatLoop* hole, Heap* 
     loop->vertices = HEAP_REALLOCATE(heap, loop->vertices, loop->edges);
 
     int count = original_edges - bridge_index;
-    move_memory(&loop->positions[bridge_index + hole->edges + 2], &loop->positions[bridge_index], sizeof(*loop->positions) * count);
-    move_memory(&loop->vertices[bridge_index + hole->edges + 2], &loop->vertices[bridge_index], sizeof(*loop->vertices) * count);
+    MOVE_ARRAY(&loop->positions[bridge_index + hole->edges + 2], &loop->positions[bridge_index], count);
+    MOVE_ARRAY(&loop->vertices[bridge_index + hole->edges + 2], &loop->vertices[bridge_index], count);
 
     int to_end = hole->edges - hole->rightmost;
-    copy_memory(&loop->positions[bridge_index + 1], &hole->positions[hole->rightmost], sizeof(*hole->positions) * to_end);
-    copy_memory(&loop->vertices[bridge_index + 1], &hole->vertices[hole->rightmost], sizeof(*hole->vertices) * to_end);
+    MOVE_ARRAY(&loop->positions[bridge_index + 1], &hole->positions[hole->rightmost], to_end);
+    MOVE_ARRAY(&loop->vertices[bridge_index + 1], &hole->vertices[hole->rightmost], to_end);
 
-    copy_memory(&loop->positions[bridge_index + to_end + 1], hole->positions, sizeof(*hole->positions) * (hole->rightmost + 1));
-    copy_memory(&loop->vertices[bridge_index + to_end + 1], hole->vertices, sizeof(*hole->vertices) * (hole->rightmost + 1));
+    MOVE_ARRAY(&loop->positions[bridge_index + to_end + 1], hole->positions, hole->rightmost + 1);
+    MOVE_ARRAY(&loop->vertices[bridge_index + to_end + 1], hole->vertices, hole->rightmost + 1);
 
-    for(int start = bridge_index + 1, end = bridge_index + 1 + hole->edges + 1- 1; start < end; start += 1, end -= 1)
-    {
-        SWAP(loop->positions[start], loop->positions[end]);
-        SWAP(loop->vertices[start], loop->vertices[end]);
-    }
+    REVERSE_ARRAY(&loop->positions[bridge_index + 1], hole->edges + 1);
+    REVERSE_ARRAY(&loop->vertices[bridge_index + 1], hole->edges + 1);
 }
 
 static bool is_right(FlatLoop l0, FlatLoop l1)
@@ -903,11 +945,8 @@ static FlatLoop eliminate_holes(Face* face, Heap* heap)
 
         if(!is_clockwise(projected, edges))
         {
-            for(int start = 0, end = edges - 1; start < end; start += 1, end -= 1)
-            {
-                SWAP(projected[start], projected[end]);
-                SWAP(vertices[start], vertices[end]);
-            }
+            REVERSE_ARRAY(projected, edges);
+            REVERSE_ARRAY(vertices, edges);
         }
 
         int rightmost = get_rightmost(projected, edges);
@@ -940,12 +979,12 @@ static FlatLoop eliminate_holes(Face* face, Heap* heap)
     for(int i = 0; i < added; i += 1)
     {
         int index = find_bridge_to_hole(&loop, &queue[i]);
+        // If a bridge isn't found, it doesn't include the hole in the final
+        // polygon. This makes sense for triangulation for display, but may not
+        // be appropriate fallback if this code is reused for eliminating
+        // holes on export!
         if(is_valid_index(index))
         {
-            // This gives up and doesn't include the hole in the final polygon.
-            // It makes sense for triangulation for display, but may not be
-            // appropriate fallback if this code is reused for eliminating
-            // holes on export!
             bridge_hole(&loop, index, &queue[i], heap);
         }
     }

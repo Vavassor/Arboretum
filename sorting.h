@@ -127,4 +127,11 @@
         }\
     }
 
+#define REVERSE_ARRAY(array, count) \
+    do \
+    { \
+        for(int start = 0, end = (count) - 1; start < end; start += 1, end -= 1) \
+            SWAP((array)[start], (array)[end]); \
+    } while(0)
+
 #endif // SORTING_H_

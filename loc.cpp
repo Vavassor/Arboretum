@@ -259,7 +259,7 @@ static bool process_next_entry(Stream* stream, Platform* platform, Stack* stack)
 bool load_file(Platform* platform, const char* path)
 {
     Stack stack = {};
-    stack_create(&stack, KIBIBYTES(16));
+    stack_create(&stack, capobytes(16));
 
     void* contents;
     u64 file_size;

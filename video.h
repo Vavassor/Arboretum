@@ -47,12 +47,14 @@ struct UpdateState
     int hovered_object_index;
     int selected_object_index;
     DenseMapId selection_id;
+    DenseMapId selection_pointcloud_id;
     DenseMapId selection_wireframe_id;
 };
 
 enum class VertexLayout
 {
     PNC,
+    Point,
     Line,
 };
 

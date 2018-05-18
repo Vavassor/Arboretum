@@ -35,6 +35,24 @@ void object_create(Object* object, VertexLayout vertex_layout)
             glEnableVertexAttribArray(2);
             break;
         }
+        case VertexLayout::Point:
+        {
+            const int vertex_size = sizeof(PointVertex);
+            GLvoid* offset0 = reinterpret_cast<GLvoid*>(offsetof(PointVertex, position));
+            GLvoid* offset1 = reinterpret_cast<GLvoid*>(offsetof(PointVertex, direction));
+            GLvoid* offset2 = reinterpret_cast<GLvoid*>(offsetof(PointVertex, colour));
+            GLvoid* offset3 = reinterpret_cast<GLvoid*>(offsetof(PointVertex, texcoord));
+            glBindBuffer(GL_ARRAY_BUFFER, object->buffers[0]);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertex_size, offset0);
+            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, vertex_size, offset1);
+            glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, vertex_size, offset2);
+            glVertexAttribPointer(3, 2, GL_UNSIGNED_SHORT, GL_TRUE, vertex_size, offset3);
+            glEnableVertexAttribArray(0);
+            glEnableVertexAttribArray(1);
+            glEnableVertexAttribArray(2);
+            glEnableVertexAttribArray(3);
+            break;
+        }
         case VertexLayout::Line:
         {
             const int vertex_size = sizeof(LineVertex);
@@ -112,6 +130,26 @@ static void object_finish_update(Object* object, Heap* heap, VertexPNC* vertices
     ARRAY_DESTROY(indices, heap);
 }
 
+static void object_update_points(Object* object, Heap* heap, PointVertex* vertices, u16* indices)
+{
+    glBindVertexArray(object->vertex_array);
+
+    const int vertex_size = sizeof(PointVertex);
+    GLsizei vertices_size = vertex_size * array_count(vertices);
+    glBindBuffer(GL_ARRAY_BUFFER, object->buffers[0]);
+    glBufferData(GL_ARRAY_BUFFER, vertices_size, vertices, GL_DYNAMIC_DRAW);
+
+    GLsizei indices_size = sizeof(u16) * array_count(indices);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, object->buffers[1]);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_size, indices, GL_DYNAMIC_DRAW);
+    object->indices_count = array_count(indices);
+
+    glBindVertexArray(0);
+
+    ARRAY_DESTROY(vertices, heap);
+    ARRAY_DESTROY(indices, heap);
+}
+
 static void object_update_lines(Object* object, Heap* heap, LineVertex* vertices, u16* indices)
 {
     glBindVertexArray(object->vertex_array);
@@ -159,6 +197,17 @@ void object_update_wireframe(Object* object, jan::Mesh* mesh, Heap* heap)
     jan::make_wireframe(mesh, heap, colour, &vertices, &indices);
 
     object_update_lines(object, heap, vertices, indices);
+}
+
+void object_update_pointcloud(Object* object, jan::Mesh* mesh, Heap* heap)
+{
+    const Vector4 colour = {1.0f, 0.5f, 0.0f, 0.8f};
+
+    PointVertex* vertices;
+    u16* indices;
+    jan::make_pointcloud(mesh, heap, colour, &vertices, &indices);
+
+    object_update_points(object, heap, vertices, indices);
 }
 
 void object_set_matrices(Object* object, Matrix4 view, Matrix4 projection)

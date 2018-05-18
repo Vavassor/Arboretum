@@ -60,6 +60,7 @@ namespace
     int selected_object_index;
     jan::Selection selection;
     DenseMapId selection_id;
+    DenseMapId selection_pointcloud_id;
     DenseMapId selection_wireframe_id;
 
     bmfont::Font font;
@@ -140,8 +141,8 @@ void clear_object_from_hover_and_selection(ObjectId id, Platform* platform)
 
 bool editor_start_up(Platform* platform)
 {
-    stack_create(&scratch, MEBIBYTES(16));
-    heap_create(&heap, MEBIBYTES(16));
+    stack_create(&scratch, uptibytes(1));
+    heap_create(&heap, uptibytes(1));
 
     hovered_object_index = invalid_index;
     selected_object_index = invalid_index;
@@ -748,6 +749,9 @@ static void update_face_mode()
         video::Object* video_object = video::get_object(selection_id);
         video::object_update_selection(video_object, mesh, &selection, &heap);
 
+        video_object = video::get_object(selection_pointcloud_id);
+        video::object_update_pointcloud(video_object, mesh, &heap);
+
         video_object = video::get_object(selection_wireframe_id);
         video::object_update_wireframe(video_object, mesh, &heap);
     }
@@ -756,6 +760,7 @@ static void update_face_mode()
 static void enter_face_mode()
 {
     selection_id = video::add_object(video::VertexLayout::PNC);
+    selection_pointcloud_id = video::add_object(video::VertexLayout::Point);
     selection_wireframe_id = video::add_object(video::VertexLayout::Line);
 
     // Set the selection's transform to match the selected mesh.
@@ -763,6 +768,9 @@ static void enter_face_mode()
     Matrix4 model = compose_transform(object->position, object->orientation, vector3_one);
 
     video::Object* video_object = video::get_object(selection_id);
+    video::object_set_model(video_object, model);
+
+    video_object = video::get_object(selection_pointcloud_id);
     video::object_set_model(video_object, model);
 
     video_object = video::get_object(selection_wireframe_id);
@@ -774,8 +782,10 @@ static void exit_face_mode()
     destroy_selection(&selection);
 
     video::remove_object(selection_id);
+    video::remove_object(selection_pointcloud_id);
     video::remove_object(selection_wireframe_id);
     selection_id = 0;
+    selection_pointcloud_id = 0;
     selection_wireframe_id = 0;
 }
 
@@ -983,6 +993,7 @@ void editor_update(Platform* platform)
     update.hovered_object_index = hovered_object_index;
     update.selected_object_index = selected_object_index;
     update.selection_id = selection_id;
+    update.selection_pointcloud_id = selection_pointcloud_id;
     update.selection_wireframe_id = selection_wireframe_id;
 
     video::system_update(&update, platform);

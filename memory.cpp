@@ -86,6 +86,31 @@ void move_memory(void* to, const void* from, u64 bytes)
     }
 }
 
+u64 kilobytes(u64 count)
+{
+    return 1000 * count;
+}
+
+u64 megabytes(u64 count)
+{
+    return 1000 * kilobytes(count);
+}
+
+u64 ezlabytes(u64 count)
+{
+    return 256 * count;
+}
+
+u64 capobytes(u64 count)
+{
+    return 256 * ezlabytes(count);
+}
+
+u64 uptibytes(u64 count)
+{
+    return 256 * capobytes(count);
+}
+
 static bool is_aligned(const void* memory, u16 alignment)
 {
     uintptr_t address = reinterpret_cast<uintptr_t>(memory);

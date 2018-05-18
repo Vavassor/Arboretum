@@ -101,6 +101,16 @@ namespace
         GLint viewport_dimensions;
     } shader_line;
 
+    struct
+    {
+        GLuint program;
+        GLint point_radius;
+        GLint model_view_projection;
+        GLint projection_factor;
+        GLint texture;
+        GLint viewport_dimensions;
+    } shader_point;
+
     Object sky;
     DenseMap objects;
 
@@ -112,6 +122,7 @@ namespace
     GLuint font_textures[1];
     GLuint hatch_pattern;
     GLuint line_pattern;
+    GLuint point_pattern;
 }
 
 bool system_start_up()
@@ -119,8 +130,8 @@ bool system_start_up()
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
 
-    stack_create(&scratch, MEBIBYTES(16));
-    heap_create(&heap, MEBIBYTES(16));
+    stack_create(&scratch, uptibytes(1));
+    heap_create(&heap, uptibytes(1));
 
     // Setup samplers.
     {
@@ -259,6 +270,26 @@ bool system_start_up()
         glUniform1i(shader_line.texture, 0);
     }
 
+    // Point Shader
+    shader_point.program = load_shader_program("Point.vs", "Point.fs", &scratch);
+    if(shader_point.program == 0)
+    {
+        LOG_ERROR("The point shader failed to load.");
+        return false;
+    }
+    {
+        GLuint program = shader_point.program;
+        shader_point.point_radius = glGetUniformLocation(program, "point_radius");
+        shader_point.model_view_projection = glGetUniformLocation(program, "model_view_projection");
+        shader_point.projection_factor = glGetUniformLocation(program, "projection_factor");
+        shader_point.texture = glGetUniformLocation(program, "texture");
+        shader_point.viewport_dimensions = glGetUniformLocation(program, "viewport");
+
+        glUseProgram(shader_point.program);
+        glUniform1f(shader_point.point_radius, 4.0f);
+        glUniform1i(shader_point.texture, 0);
+    }
+
     create(&objects, &heap);
 
     // Sky
@@ -291,6 +322,16 @@ bool system_start_up()
         glUniform2f(shader_line.texture_dimensions, bitmap.width, bitmap.height);
     }
 
+    // Point pattern texture
+    {
+        char* path = get_image_path_by_name("Point.png", &scratch);
+        Bitmap bitmap;
+        bitmap.pixels = stbi_load(path, &bitmap.width, &bitmap.height, &bitmap.bytes_per_pixel, STBI_default);
+        STACK_DEALLOCATE(&scratch, path);
+        point_pattern = upload_bitmap_with_mipmaps(&bitmap, &heap);
+        stbi_image_free(bitmap.pixels);
+    }
+
     immediate::context_create(&heap);
     immediate::set_shader(shader_vertex_colour.program);
     immediate::set_line_shader(shader_line.program);
@@ -314,6 +355,7 @@ void system_shut_down(bool functions_loaded)
         glDeleteProgram(shader_halo.program);
         glDeleteProgram(shader_screen_pattern.program);
         glDeleteProgram(shader_line.program);
+        glDeleteProgram(shader_point.program);
 
         for(int i = 0; i < 1; i += 1)
         {
@@ -321,6 +363,7 @@ void system_shut_down(bool functions_loaded)
         }
         glDeleteTextures(1, &hatch_pattern);
         glDeleteTextures(1, &line_pattern);
+        glDeleteTextures(1, &point_pattern);
 
         object_destroy(&sky);
 
@@ -630,7 +673,7 @@ static void draw_object_with_halo(ObjectLady* lady, int index, Vector4 colour)
     glDisable(GL_STENCIL_TEST);
 }
 
-static void draw_selection_object(Object object, Object wireframe, Matrix4 projection)
+static void draw_selection_object(Object object, Object pointcloud, Object wireframe, Matrix4 projection)
 {
     const Vector4 colour = {1.0f, 0.5f, 0.0f, 0.8f};
 
@@ -666,6 +709,20 @@ static void draw_selection_object(Object object, Object wireframe, Matrix4 proje
     glBindVertexArray(wireframe.vertex_array);
     glDrawElements(GL_TRIANGLES, wireframe.indices_count, GL_UNSIGNED_SHORT, nullptr);
 
+    // Draw the pointcloud.
+    glUseProgram(shader_point.program);
+
+    glDisable(GL_POLYGON_OFFSET_FILL);
+
+    glActiveTexture(GL_TEXTURE0 + 0);
+    glBindTexture(GL_TEXTURE_2D, point_pattern);
+    glBindSampler(0, linear_mipmap_repeat);
+
+    glUniformMatrix4fv(shader_point.model_view_projection, 1, GL_TRUE, pointcloud.model_view_projection.elements);
+    glUniform1f(shader_point.projection_factor, projection[0]);
+    glBindVertexArray(pointcloud.vertex_array);
+    glDrawElements(GL_TRIANGLES, pointcloud.indices_count, GL_UNSIGNED_SHORT, nullptr);
+
     // Reset to defaults.
     glDisable(GL_POLYGON_OFFSET_FILL);
     glDisable(GL_BLEND);
@@ -686,6 +743,7 @@ void system_update(UpdateState* update, Platform* platform)
     int hovered_object_index = update->hovered_object_index;
     int selected_object_index = update->selected_object_index;
     DenseMapId selection_id = update->selection_id;
+    DenseMapId selection_pointcloud_id = update->selection_pointcloud_id;
     DenseMapId selection_wireframe_id = update->selection_wireframe_id;
 
     Matrix4 projection;
@@ -744,14 +802,6 @@ void system_update(UpdateState* update, Platform* platform)
         draw_object_with_halo(lady, hovered_object_index, vector4_yellow);
     }
 
-    // Draw the selection itself.
-    if(selection_id)
-    {
-        Object object = *get_object(selection_id);
-        Object wireframe = *get_object(selection_wireframe_id);
-        draw_selection_object(object, wireframe, projection);
-    }
-
     glUseProgram(shader_lit.program);
 
     // rotate tool
@@ -801,6 +851,15 @@ void system_update(UpdateState* update, Platform* platform)
         glDrawElements(GL_TRIANGLES, sky.indices_count, GL_UNSIGNED_SHORT, nullptr);
         glDepthFunc(GL_LESS);
         glDepthRange(0.0, 1.0);
+    }
+
+    // Draw the selection itself.
+    if(selection_id)
+    {
+        Object object = *get_object(selection_id);
+        Object pointcloud = *get_object(selection_pointcloud_id);
+        Object wireframe = *get_object(selection_wireframe_id);
+        draw_selection_object(object, pointcloud, wireframe, projection);
     }
 
     // Draw the little axes in the corner.
@@ -900,6 +959,9 @@ void resize_viewport(Int2 dimensions, double dots_per_millimeter, float fov)
 
     glUseProgram(shader_line.program);
     glUniform2f(shader_line.viewport_dimensions, width, height);
+
+    glUseProgram(shader_point.program);
+    glUniform2f(shader_point.viewport_dimensions, width, height);
 }
 
 DenseMapId add_object(VertexLayout vertex_layout)

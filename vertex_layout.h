@@ -23,6 +23,14 @@ struct VertexPT
     u32 texcoord;
 };
 
+struct PointVertex
+{
+    Vector3 position;
+    Vector2 direction;
+    u32 colour;
+    u32 texcoord;
+};
+
 struct LineVertex
 {
     Vector3 position;

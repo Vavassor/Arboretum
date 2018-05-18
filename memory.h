@@ -11,12 +11,17 @@ void virtual_deallocate(void* memory);
 void set_memory(void* memory, u8 value, u64 bytes);
 void copy_memory(void* RESTRICT to, const void* RESTRICT from, u64 bytes);
 void move_memory(void* to, const void* from, u64 bytes);
+u64 kilobytes(u64 count);
+u64 megabytes(u64 count);
+u64 ezlabytes(u64 count);
+u64 capobytes(u64 count);
+u64 uptibytes(u64 count);
 
 #define SAFE_VIRTUAL_DEALLOCATE(memory)\
     if(memory) {virtual_deallocate(memory); (memory) = nullptr;}
 
-#define KIBIBYTES(x) (1024 * (x))
-#define MEBIBYTES(x) (1024 * KIBIBYTES(x))
+#define MOVE_ARRAY(to, from, count)\
+    move_memory(to, from, (count) * sizeof(*from))
 
 // Stack........................................................................
 
