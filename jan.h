@@ -100,7 +100,6 @@ struct Selection
 
     Heap* heap;
     Part* parts;
-    int parts_count;
     Type type;
 };
 
@@ -124,9 +123,9 @@ void move_faces(Mesh* mesh, Selection* selection, Vector3 translation);
 void flip_face_normals(Mesh* mesh, Selection* selection);
 void extrude(Mesh* mesh, Selection* selection, float distance, Heap* heap, Stack* stack);
 void make_pointcloud(Mesh* mesh, Heap* heap, Vector4 colour, PointVertex** vertices, u16** indices);
-void make_pointcloud_selection(Mesh* mesh, Vector4 colour, Vertex* hovered, Vector4 hover_colour, Heap* heap, PointVertex** vertices, u16** indices);
+void make_pointcloud_selection(Mesh* mesh, Vector4 colour, Vertex* hovered, Vector4 hover_colour, Selection* selection, Vector4 select_colour, Heap* heap, PointVertex** vertices, u16** indices);
 void make_wireframe(Mesh* mesh, Heap* heap, Vector4 colour, LineVertex** vertices, u16** indices);
-void make_wireframe_selection(Mesh* mesh, Heap* heap, Vector4 colour, Edge* hovered, Vector4 hover_colour, LineVertex** vertices, u16** indices);
+void make_wireframe_selection(Mesh* mesh, Heap* heap, Vector4 colour, Edge* hovered, Vector4 hover_colour, Selection* selection, Vector4 select_colour, LineVertex** vertices, u16** indices);
 int count_border_edges(Border* border);
 void triangulate(Mesh* mesh, Heap* heap, VertexPNC** vertices, u16** indices);
 void triangulate_selection(Mesh* mesh, Selection* selection, Heap* heap, VertexPNC** vertices, u16** indices);
@@ -134,7 +133,12 @@ void triangulate_selection(Mesh* mesh, Selection* selection, Heap* heap, VertexP
 void create_selection(Selection* selection, Heap* heap);
 void destroy_selection(Selection* selection);
 Selection select_all(Mesh* mesh, Heap* heap);
+void toggle_edge_in_selection(Selection* selection, Edge* edge);
 void toggle_face_in_selection(Selection* selection, Face* face);
+void toggle_vertex_in_selection(Selection* selection, Vertex* vertex);
+bool edge_selected(Selection* selection, Edge* edge);
+bool face_selected(Selection* selection, Face* face);
+bool vertex_selected(Selection* selection, Vertex* vertex);
 
 } // namespace jan
 

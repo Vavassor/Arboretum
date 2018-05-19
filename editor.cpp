@@ -722,6 +722,8 @@ static void enter_edge_mode()
 
 static void exit_edge_mode()
 {
+    destroy_selection(&selection);
+
     video::remove_object(selection_wireframe_id);
     selection_wireframe_id = 0;
 }
@@ -745,9 +747,39 @@ static void update_edge_mode()
     Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
     ray = transform_ray(ray, inverse_transform(model));
     jan::Edge* edge = first_edge_hit_by_ray(mesh, ray, touch_radius, nullptr);
+    if(edge && input::get_key_tapped(input::Key::F))
+    {
+        toggle_edge_in_selection(&selection, edge);
+    }
 
     video::Object* video_object = video::get_object(selection_wireframe_id);
-    video::object_update_wireframe_selection(video_object, mesh, edge, &heap);
+    video::object_update_wireframe_selection(video_object, mesh, &selection, edge, &heap);
+}
+
+static void enter_face_mode()
+{
+    selection_id = video::add_object(video::VertexLayout::PNC);
+    selection_wireframe_id = video::add_object(video::VertexLayout::Line);
+
+    // Set the selection's transform to match the selected mesh.
+    Object* object = &lady.objects[selected_object_index];
+    Matrix4 model = compose_transform(object->position, object->orientation, vector3_one);
+
+    video::Object* video_object = video::get_object(selection_id);
+    video::object_set_model(video_object, model);
+
+    video_object = video::get_object(selection_wireframe_id);
+    video::object_set_model(video_object, model);
+}
+
+static void exit_face_mode()
+{
+    destroy_selection(&selection);
+
+    video::remove_object(selection_id);
+    video::remove_object(selection_wireframe_id);
+    selection_id = 0;
+    selection_wireframe_id = 0;
 }
 
 static void update_face_mode()
@@ -809,32 +841,6 @@ static void update_face_mode()
     }
 }
 
-static void enter_face_mode()
-{
-    selection_id = video::add_object(video::VertexLayout::PNC);
-    selection_wireframe_id = video::add_object(video::VertexLayout::Line);
-
-    // Set the selection's transform to match the selected mesh.
-    Object* object = &lady.objects[selected_object_index];
-    Matrix4 model = compose_transform(object->position, object->orientation, vector3_one);
-
-    video::Object* video_object = video::get_object(selection_id);
-    video::object_set_model(video_object, model);
-
-    video_object = video::get_object(selection_wireframe_id);
-    video::object_set_model(video_object, model);
-}
-
-static void exit_face_mode()
-{
-    destroy_selection(&selection);
-
-    video::remove_object(selection_id);
-    video::remove_object(selection_wireframe_id);
-    selection_id = 0;
-    selection_wireframe_id = 0;
-}
-
 static void enter_vertex_mode()
 {
     selection_pointcloud_id = video::add_object(video::VertexLayout::Point);
@@ -848,6 +854,8 @@ static void enter_vertex_mode()
 
 static void exit_vertex_mode()
 {
+    destroy_selection(&selection);
+
     video::remove_object(selection_pointcloud_id);
     selection_pointcloud_id = 0;
 }
@@ -871,9 +879,13 @@ static void update_vertex_mode()
     Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
     ray = transform_ray(ray, inverse_transform(model));
     jan::Vertex* vertex = first_vertex_hit_by_ray(mesh, ray, touch_radius, nullptr);
+    if(vertex && input::get_key_tapped(input::Key::F))
+    {
+        toggle_vertex_in_selection(&selection, vertex);
+    }
 
     video::Object* video_object = video::get_object(selection_pointcloud_id);
-    video::object_update_pointcloud_selection(video_object, mesh, vertex, &heap);
+    video::object_update_pointcloud_selection(video_object, mesh, &selection, vertex, &heap);
 }
 
 static void request_mode_change(Mode requested_mode)

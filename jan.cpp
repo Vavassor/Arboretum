@@ -662,7 +662,7 @@ void make_pointcloud(Mesh* mesh, Heap* heap, Vector4 colour, PointVertex** verti
     }
 }
 
-void make_pointcloud_selection(Mesh* mesh, Vector4 colour, Vertex* hovered, Vector4 hover_colour, Heap* heap, PointVertex** vertices, u16** indices)
+void make_pointcloud_selection(Mesh* mesh, Vector4 colour, Vertex* hovered, Vector4 hover_colour, Selection* selection, Vector4 select_colour, Heap* heap, PointVertex** vertices, u16** indices)
 {
     *vertices = nullptr;
     *indices = nullptr;
@@ -673,6 +673,10 @@ void make_pointcloud_selection(Mesh* mesh, Vector4 colour, Vertex* hovered, Vect
         {
             add_to_pointcloud(vertex, hover_colour, heap, vertices, indices);
         }
+        else if(vertex_selected(selection, vertex))
+        {
+            add_to_pointcloud(vertex, select_colour, heap, vertices, indices);
+        }
         else
         {
             add_to_pointcloud(vertex, colour, heap, vertices, indices);
@@ -680,7 +684,7 @@ void make_pointcloud_selection(Mesh* mesh, Vector4 colour, Vertex* hovered, Vect
     }
 }
 
-static void delineate_edge(Edge* edge, Vector4 colour, Heap* heap, LineVertex** out_vertices, u16** out_indices)
+static void add_edge_to_wireframe(Edge* edge, Vector4 colour, Heap* heap, LineVertex** out_vertices, u16** out_indices)
 {
     LineVertex* vertices = *out_vertices;
     u16* indices = *out_indices;
@@ -733,11 +737,11 @@ void make_wireframe(Mesh* mesh, Heap* heap, Vector4 colour, LineVertex** vertice
 
     FOR_EACH_IN_POOL(Edge, edge, mesh->edge_pool)
     {
-        delineate_edge(edge, colour, heap, vertices, indices);
+        add_edge_to_wireframe(edge, colour, heap, vertices, indices);
     }
 }
 
-void make_wireframe_selection(Mesh* mesh, Heap* heap, Vector4 colour, Edge* hovered, Vector4 hover_colour, LineVertex** vertices, u16** indices)
+void make_wireframe_selection(Mesh* mesh, Heap* heap, Vector4 colour, Edge* hovered, Vector4 hover_colour, Selection* selection, Vector4 select_colour, LineVertex** vertices, u16** indices)
 {
     *vertices = nullptr;
     *indices = nullptr;
@@ -746,11 +750,15 @@ void make_wireframe_selection(Mesh* mesh, Heap* heap, Vector4 colour, Edge* hove
     {
         if(edge == hovered)
         {
-            delineate_edge(edge, hover_colour, heap, vertices, indices);
+            add_edge_to_wireframe(edge, hover_colour, heap, vertices, indices);
+        }
+        else if(edge_selected(selection, edge))
+        {
+            add_edge_to_wireframe(edge, select_colour, heap, vertices, indices);
         }
         else
         {
-            delineate_edge(edge, colour, heap, vertices, indices);
+            add_edge_to_wireframe(edge, colour, heap, vertices, indices);
         }
     }
 }
@@ -1223,10 +1231,9 @@ void triangulate_selection(Mesh* mesh, Selection* selection, Heap* heap, VertexP
     *vertices = nullptr;
     *indices = nullptr;
 
-    for(int i = 0; i < selection->parts_count; i += 1)
+    FOR_ALL(selection->parts)
     {
-        Face* face = selection->parts[i].face;
-        triangulate_face(face, heap, vertices, indices);
+        triangulate_face(it->face, heap, vertices, indices);
     }
 }
 
@@ -1239,21 +1246,8 @@ void destroy_selection(Selection* selection)
 {
     if(selection && selection->heap)
     {
-        SAFE_HEAP_DEALLOCATE(selection->heap, selection->parts);
-        selection->parts_count = 0;
+        ARRAY_DESTROY(selection->parts, selection->heap);
     }
-}
-
-static bool face_selected(Selection* selection, Face* face)
-{
-    for(int i = 0; i < selection->parts_count; i += 1)
-    {
-        if(selection->parts[i].face == face)
-        {
-            return true;
-        }
-    }
-    return false;
 }
 
 Selection select_all(Mesh* mesh, Heap* heap)
@@ -1261,31 +1255,74 @@ Selection select_all(Mesh* mesh, Heap* heap)
     Selection selection;
     create_selection(&selection, heap);
     selection.type = Selection::Type::Face;
-    selection.parts_count = mesh->faces_count;
-    selection.parts = HEAP_ALLOCATE(selection.heap, Part, selection.parts_count);
+    selection.parts = nullptr;
 
-    int i = 0;
+    ARRAY_RESERVE(selection.parts, mesh->faces_count, heap);
+
     FOR_EACH_IN_POOL(Face, face, mesh->face_pool)
     {
-        selection.parts[i].face = face;
-        i += 1;
+        Part part;
+        part.face = face;
+        ARRAY_ADD(selection.parts, part, heap);
     }
 
     return selection;
 }
 
-static void add_face_to_selection(Selection* selection, Face* face)
+bool edge_selected(Selection* selection, Edge* edge)
 {
-    selection->type = Selection::Type::Face;
-    selection->parts = HEAP_REALLOCATE(selection->heap, selection->parts, selection->parts_count + 1);
-    selection->parts[selection->parts_count].face = face;
-    selection->parts_count += 1;
+    FOR_ALL(selection->parts)
+    {
+        if(it->edge == edge)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
-static void remove_face_from_selection(Selection* selection, Face* face)
+bool face_selected(Selection* selection, Face* face)
 {
-    int found_index = -1;
-    for(int i = 0; i < selection->parts_count; i += 1)
+    FOR_ALL(selection->parts)
+    {
+        if(it->face == face)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool vertex_selected(Selection* selection, Vertex* vertex)
+{
+    FOR_ALL(selection->parts)
+    {
+        if(it->vertex == vertex)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static int find_edge(Selection* selection, Edge* edge)
+{
+    int found_index = invalid_index;
+    for(int i = 0; i < array_count(selection->parts); i += 1)
+    {
+        if(selection->parts[i].edge == edge)
+        {
+            found_index = i;
+            break;
+        }
+    }
+    return found_index;
+}
+
+static int find_face(Selection* selection, Face* face)
+{
+    int found_index = invalid_index;
+    for(int i = 0; i < array_count(selection->parts); i += 1)
     {
         if(selection->parts[i].face == face)
         {
@@ -1293,22 +1330,68 @@ static void remove_face_from_selection(Selection* selection, Face* face)
             break;
         }
     }
-    if(found_index != -1)
+    return found_index;
+}
+
+static int find_vertex(Selection* selection, Vertex* vertex)
+{
+    int found_index = invalid_index;
+    for(int i = 0; i < array_count(selection->parts); i += 1)
     {
-        selection->parts[found_index] = selection->parts[selection->parts_count - 1];
-        selection->parts_count -= 1;
+        if(selection->parts[i].vertex == vertex)
+        {
+            found_index = i;
+            break;
+        }
+    }
+    return found_index;
+}
+
+void toggle_edge_in_selection(Selection* selection, Edge* edge)
+{
+    int found_index = find_edge(selection, edge);
+    if(is_valid_index(found_index))
+    {
+        ARRAY_REMOVE(selection->parts, &selection->parts[found_index]);
+    }
+    else
+    {
+        selection->type = Selection::Type::Edge;
+        Part part;
+        part.edge = edge;
+        ARRAY_ADD(selection->parts, part, selection->heap);
     }
 }
 
 void toggle_face_in_selection(Selection* selection, Face* face)
 {
-    if(face_selected(selection, face))
+    int found_index = find_face(selection, face);
+    if(is_valid_index(found_index))
     {
-        remove_face_from_selection(selection, face);
+        ARRAY_REMOVE(selection->parts, &selection->parts[found_index]);
     }
     else
     {
-        add_face_to_selection(selection, face);
+        selection->type = Selection::Type::Face;
+        Part part;
+        part.face = face;
+        ARRAY_ADD(selection->parts, part, selection->heap);
+    }
+}
+
+void toggle_vertex_in_selection(Selection* selection, Vertex* vertex)
+{
+    int found_index = find_vertex(selection, vertex);
+    if(is_valid_index(found_index))
+    {
+        ARRAY_REMOVE(selection->parts, &selection->parts[found_index]);
+    }
+    else
+    {
+        selection->type = Selection::Type::Vertex;
+        Part part;
+        part.vertex = vertex;
+        ARRAY_ADD(selection->parts, part, selection->heap);
     }
 }
 
@@ -1316,9 +1399,9 @@ void move_faces(Mesh* mesh, Selection* selection, Vector3 translation)
 {
     ASSERT(selection->type == Selection::Type::Face);
 
-    for(int i = 0; i < selection->parts_count; i += 1)
+    FOR_ALL(selection->parts)
     {
-        Face* face = selection->parts[i].face;
+        Face* face = it->face;
         for(Border* border = face->first_border; border; border = border->next)
         {
             Link* first = border->first;
@@ -1338,10 +1421,9 @@ void flip_face_normals(Mesh* mesh, Selection* selection)
 {
     ASSERT(selection->type == Selection::Type::Face);
 
-    for(int i = 0; i < selection->parts_count; i += 1)
+    FOR_ALL(selection->parts)
     {
-        Face* face = selection->parts[i].face;
-        flip_face_normal(face);
+        flip_face_normal(it->face);
     }
 }
 
@@ -1363,9 +1445,9 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Heap* heap, Stack
 
     // Calculate the vector to extrude all the vertices along.
     Vector3 average_direction = vector3_zero;
-    for(int i = 0; i < selection->parts_count; i += 1)
+    FOR_ALL(selection->parts)
     {
-        Face* face = selection->parts[i].face;
+        Face* face = it->face;
         average_direction += face->normal;
     }
     Vector3 extrusion = distance * normalise(average_direction);
@@ -1375,9 +1457,9 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Heap* heap, Stack
     Map map;
     map_create(&map, mesh->vertices_count, heap);
 
-    for(int i = 0; i < selection->parts_count; i += 1)
+    FOR_ALL(selection->parts)
     {
-        Face* face = selection->parts[i].face;
+        Face* face = it->face;
 
         // @Incomplete: Holes in faces aren't yet supported!
         ASSERT(!face->first_border->next);
@@ -1423,9 +1505,9 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Heap* heap, Stack
         } while(link != first);
     }
 
-    for(int i = 0; i < selection->parts_count; i += 1)
+    FOR_ALL(selection->parts)
     {
-        Face* face = selection->parts[i].face;
+        Face* face = it->face;
 
         // @Incomplete: Holes in faces aren't yet supported!
         ASSERT(!face->first_border->next);
@@ -1474,10 +1556,9 @@ void colour_selection(Mesh* mesh, Selection* selection, Vector3 colour)
 {
     if(selection->type == Selection::Type::Face)
     {
-        for(int i = 0; i < selection->parts_count; i += 1)
+        FOR_ALL(selection->parts)
         {
-            Face* face = selection->parts[i].face;
-            colour_just_the_one_face(face, colour);
+            colour_just_the_one_face(it->face, colour);
         }
     }
 }

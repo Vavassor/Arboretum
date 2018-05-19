@@ -199,14 +199,15 @@ void object_update_wireframe(Object* object, jan::Mesh* mesh, Heap* heap)
     object_update_lines(object, heap, vertices, indices);
 }
 
-void object_update_wireframe_selection(Object* object, jan::Mesh* mesh, jan::Edge* hovered, Heap* heap)
+void object_update_wireframe_selection(Object* object, jan::Mesh* mesh, jan::Selection* selection, jan::Edge* hovered, Heap* heap)
 {
-    const Vector4 colour = {1.0f, 0.5f, 0.0f, 0.8f};
+    const Vector4 colour = {1.0f, 1.0f, 1.0f, 1.0f};
     const Vector4 hover_colour = {0.0f, 1.0f, 1.0f, 1.0f};
+    const Vector4 select_colour = {1.0f, 0.5f, 0.0f, 0.8f};
 
     LineVertex* vertices;
     u16* indices;
-    jan::make_wireframe_selection(mesh, heap, colour, hovered, hover_colour, &vertices, &indices);
+    jan::make_wireframe_selection(mesh, heap, colour, hovered, hover_colour, selection, select_colour, &vertices, &indices);
 
     object_update_lines(object, heap, vertices, indices);
 }
@@ -222,14 +223,15 @@ void object_update_pointcloud(Object* object, jan::Mesh* mesh, Heap* heap)
     object_update_points(object, heap, vertices, indices);
 }
 
-void object_update_pointcloud_selection(Object* object, jan::Mesh* mesh, jan::Vertex* hovered, Heap* heap)
+void object_update_pointcloud_selection(Object* object, jan::Mesh* mesh, jan::Selection* selection, jan::Vertex* hovered, Heap* heap)
 {
-    const Vector4 colour = {1.0f, 0.5f, 0.0f, 1.0f};
+    const Vector4 colour = {1.0f, 1.0f, 1.0f, 1.0f};
     const Vector4 hover_colour = {0.0f, 1.0f, 1.0f, 1.0f};
+    const Vector4 select_colour = {1.0f, 0.5f, 0.0f, 1.0f};
 
     PointVertex* vertices;
     u16* indices;
-    jan::make_pointcloud_selection(mesh, colour, hovered, hover_colour, heap, &vertices, &indices);
+    jan::make_pointcloud_selection(mesh, colour, hovered, hover_colour, selection, select_colour, heap, &vertices, &indices);
 
     object_update_points(object, heap, vertices, indices);
 }
