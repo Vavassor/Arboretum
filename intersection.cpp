@@ -171,29 +171,8 @@ bool intersect_ray_plane(Ray ray, Vector3 origin, Vector3 normal, Vector3* inter
 
 bool intersect_ray_sphere(Ray ray, Sphere sphere, Vector3* intersection)
 {
-    Vector3 origin = (ray.origin - sphere.center) / sphere.radius;
-    Vector3 direction = ray.direction;
-
-    float a = squared_length(direction);
-    float b = dot(2.0f * direction, origin);
-    float c = squared_length(origin) - 1.0f;
-
-    float t0, t1;
-    if(!solve_quadratic_equation(a, b, c, &t0, &t1))
-    {
-        return false;
-    }
-    else
-    {
-        *intersection = (ray.direction * t0) + ray.origin;
-        return true;
-    }
-}
-
-static bool intersect_ray_endcap(Ray ray, Vector3 center, float radius, Vector3* intersection)
-{
-    Vector3 to_center = center - ray.origin;
-    float radius2 = radius * radius;
+    Vector3 to_center = sphere.center - ray.origin;
+    float radius2 = sphere.radius * sphere.radius;
     float t_axis = dot(to_center, ray.direction);
     float distance2 = squared_length(to_center) - (t_axis * t_axis);
     if(distance2 > radius2)
@@ -240,9 +219,9 @@ bool intersect_ray_capsule(Ray ray, Capsule capsule, Vector3* intersection)
     Vector3 dilation = {radius, radius, half_length};
     Matrix4 transform = dilation_matrix(reciprocal(dilation)) * view;
 
-    Ray cylinder_ray = transform_ray(ray, transform);
-    Vector3 origin = cylinder_ray.origin;
-    Vector3 direction = cylinder_ray.direction;
+    Ray capsule_ray = transform_ray(ray, transform);
+    Vector3 origin = capsule_ray.origin;
+    Vector3 direction = capsule_ray.direction;
 
     float dx = direction.x;
     float dy = direction.y;
@@ -262,7 +241,8 @@ bool intersect_ray_capsule(Ray ray, Capsule capsule, Vector3* intersection)
 
     if(z0 < -1.0f)
     {
-        return intersect_ray_endcap(ray, capsule.start, radius, intersection);
+        Sphere sphere = {capsule.start, radius};
+        return intersect_ray_sphere(ray, sphere, intersection);
     }
     else if(z0 >= -1.0f && z0 <= 1.0f)
     {
@@ -272,13 +252,16 @@ bool intersect_ray_capsule(Ray ray, Capsule capsule, Vector3* intersection)
         }
         else
         {
-            *intersection = (ray.direction * t0) + ray.origin;
+            Vector3 point = (direction * t0) + origin;
+            Matrix4 inverse = inverse_view_matrix(view) * dilation_matrix(dilation);
+            *intersection = transform_point(inverse, point);
             return true;
         }
     }
     else if(z0 > 1.0f)
     {
-        return intersect_ray_endcap(ray, capsule.end, radius, intersection);
+        Sphere sphere = {capsule.end, radius};
+        return intersect_ray_sphere(ray, sphere, intersection);
     }
 
     return false;

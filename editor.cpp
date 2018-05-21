@@ -441,7 +441,7 @@ static void update_camera_controls()
 
 static void begin_move(Ray mouse_ray)
 {
-    ASSERT(selected_object_index != invalid_index);
+    ASSERT(is_valid_index(selected_object_index));
     Object object = lady.objects[selected_object_index];
     move_tool.reference_position = object.position;
 
@@ -451,7 +451,7 @@ static void begin_move(Ray mouse_ray)
 
 static void end_move()
 {
-    ASSERT(selected_object_index != invalid_index);
+    ASSERT(is_valid_index(selected_object_index));
     int index = selected_object_index;
     Object object = lady.objects[index];
 
@@ -464,13 +464,13 @@ static void end_move()
 
 static void move(Ray mouse_ray)
 {
-    ASSERT(selected_object_index != invalid_index);
-    ASSERT(move_tool.selected_axis != invalid_index || move_tool.selected_plane != invalid_index);
+    ASSERT(is_valid_index(selected_object_index));
+    ASSERT(is_valid_index(move_tool.selected_axis) || is_valid_index(move_tool.selected_plane));
 
     Object* object = &lady.objects[selected_object_index];
 
     Vector3 point;
-    if(move_tool.selected_axis != invalid_index)
+    if(is_valid_index(move_tool.selected_axis))
     {
         Vector3 axis = vector3_zero;
         axis[move_tool.selected_axis] = 1.0f;
@@ -479,7 +479,7 @@ static void move(Ray mouse_ray)
         Vector3 line_point = object->position - move_tool.reference_offset;
         point = closest_point_on_line(mouse_ray, line_point, line_point + axis);
     }
-    else if(move_tool.selected_plane != invalid_index)
+    else if(is_valid_index(move_tool.selected_plane))
     {
         Vector3 normal = vector3_zero;
         normal[move_tool.selected_plane] = 1.0f;
@@ -520,7 +520,7 @@ static void update_object_mode(Platform* platform)
     Matrix4 projection = perspective_projection_matrix(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
 
     // Update the move tool.
-    if(selected_object_index != invalid_index && action_allowed(Action::Move))
+    if(is_valid_index(selected_object_index) && action_allowed(Action::Move))
     {
         Vector3 scale = set_all_vector3(move_tool.scale);
         Matrix4 model = compose_transform(move_tool.position, move_tool.orientation, scale);
@@ -592,27 +592,27 @@ static void update_object_mode(Platform* platform)
             }
         }
         move_tool.hovered_plane = hovered_plane;
-        if(hovered_plane != invalid_index || move_tool.selected_plane != invalid_index)
+        if(is_valid_index(hovered_plane) || is_valid_index(move_tool.selected_plane))
         {
             move_tool.hovered_axis = invalid_index;
         }
 
         if(input::get_mouse_clicked(input::MouseButton::Left))
         {
-            if(hovered_axis != invalid_index)
+            if(is_valid_index(hovered_axis))
             {
                 move_tool.selected_axis = hovered_axis;
                 begin_move(ray);
                 action_perform(Action::Move);
             }
-            else if(hovered_plane != invalid_index)
+            else if(is_valid_index(hovered_plane))
             {
                 move_tool.selected_plane = hovered_plane;
                 begin_move(ray);
                 action_perform(Action::Move);
             }
         }
-        if(mouse.drag && mouse.button == input::MouseButton::Left && (move_tool.selected_axis != invalid_index || move_tool.selected_plane != invalid_index))
+        if(mouse.drag && mouse.button == input::MouseButton::Left && (is_valid_index(move_tool.selected_axis) || is_valid_index(move_tool.selected_plane)))
         {
             move(ray);
         }
@@ -654,13 +654,13 @@ static void update_object_mode(Platform* platform)
         }
 
         // Update the mouse cursor based on the hover status.
-        if(hovered_object_index != invalid_index)
+        if(is_valid_index(hovered_object_index))
         {
             change_cursor(platform, CursorType::Hand_Pointing);
         }
 
         // Detect selection.
-        if(input::get_mouse_clicked(input::MouseButton::Left) && hovered_object_index != invalid_index)
+        if(input::get_mouse_clicked(input::MouseButton::Left) && is_valid_index(hovered_object_index))
         {
             if(selected_object_index == hovered_object_index)
             {
@@ -746,10 +746,18 @@ static void update_edge_mode()
 
     Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
     ray = transform_ray(ray, inverse_transform(model));
-    jan::Edge* edge = first_edge_hit_by_ray(mesh, ray, touch_radius, nullptr);
-    if(edge && input::get_key_tapped(input::Key::F))
+
+    float distance_to_edge;
+    jan::Edge* edge = first_edge_hit_by_ray(mesh, ray, touch_radius, &distance_to_edge);
+    if(edge)
     {
-        toggle_edge_in_selection(&selection, edge);
+        float distance_to_face = infinity;
+        first_face_hit_by_ray(mesh, ray, &distance_to_face, &scratch);
+
+        if(distance_to_edge < distance_to_face && input::get_mouse_clicked(input::MouseButton::Left))
+        {
+            toggle_edge_in_selection(&selection, edge);
+        }
     }
 
     video::Object* video_object = video::get_object(selection_wireframe_id);
@@ -828,7 +836,7 @@ static void update_face_mode()
         Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
         ray = transform_ray(ray, inverse_transform(model));
         jan::Face* face = first_face_hit_by_ray(mesh, ray, nullptr, &scratch);
-        if(face && input::get_key_tapped(input::Key::F))
+        if(face && input::get_mouse_clicked(input::MouseButton::Left))
         {
             toggle_face_in_selection(&selection, face);
         }
@@ -878,10 +886,18 @@ static void update_vertex_mode()
 
     Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
     ray = transform_ray(ray, inverse_transform(model));
-    jan::Vertex* vertex = first_vertex_hit_by_ray(mesh, ray, touch_radius, nullptr);
-    if(vertex && input::get_key_tapped(input::Key::F))
+
+    float distance_to_vertex;
+    jan::Vertex* vertex = first_vertex_hit_by_ray(mesh, ray, touch_radius, &distance_to_vertex);
+    if(vertex)
     {
-        toggle_vertex_in_selection(&selection, vertex);
+        float distance_to_face;
+        first_face_hit_by_ray(mesh, ray, &distance_to_face, &scratch);
+
+        if(distance_to_vertex <= distance_to_face && input::get_mouse_clicked(input::MouseButton::Left))
+        {
+            toggle_vertex_in_selection(&selection, vertex);
+        }
     }
 
     video::Object* video_object = video::get_object(selection_pointcloud_id);
