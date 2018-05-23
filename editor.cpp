@@ -314,7 +314,7 @@ bool editor_start_up(Platform* platform)
         move_tool.shaft_radius = 0.125f;
         move_tool.head_height = sqrt(3.0f) / 2.0f;
         move_tool.head_radius = 0.5f;
-        move_tool.plane_extent = 0.4f;
+        move_tool.plane_extent = 0.6f;
         move_tool.plane_thickness = 0.05f;
         move_tool.hovered_axis = invalid_index;
         move_tool.hovered_plane = invalid_index;
@@ -730,7 +730,7 @@ static void exit_edge_mode()
 
 static void update_edge_mode()
 {
-    ASSERT(selected_object_index != invalid_index);
+    ASSERT(is_valid_index(selected_object_index));
     ASSERT(selected_object_index >= 0 && selected_object_index < array_count(lady.objects));
 
     const float touch_radius = 0.1f;
@@ -873,7 +873,7 @@ static void update_vertex_mode()
     ASSERT(selected_object_index != invalid_index);
     ASSERT(selected_object_index >= 0 && selected_object_index < array_count(lady.objects));
 
-    const float touch_radius = 0.1f;
+    const float touch_radius = 30.0f;
 
     Object* object = &lady.objects[selected_object_index];
     jan::Mesh* mesh = &object->mesh;
@@ -888,7 +888,7 @@ static void update_vertex_mode()
     ray = transform_ray(ray, inverse_transform(model));
 
     float distance_to_vertex;
-    jan::Vertex* vertex = first_vertex_hit_by_ray(mesh, ray, touch_radius, &distance_to_vertex);
+    jan::Vertex* vertex = first_vertex_hit_by_ray(mesh, ray, touch_radius, viewport.x, &distance_to_vertex);
     if(vertex)
     {
         float distance_to_face;

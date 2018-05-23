@@ -1,10 +1,10 @@
 #include "intersection.h"
 
 #include "assert.h"
+#include "camera.h"
 #include "complex_math.h"
 #include "float_utilities.h"
 #include "jan.h"
-#include "logging.h"
 #include "math_basics.h"
 #include "memory.h"
 #include "restrict.h"
@@ -576,14 +576,19 @@ Vector3 closest_ray_point(Ray ray, Vector3 point)
 
 namespace jan {
 
-Vertex* first_vertex_hit_by_ray(Mesh* mesh, Ray ray, float hit_radius, float* vertex_distance)
+Vertex* first_vertex_hit_by_ray(Mesh* mesh, Ray ray, float hit_radius, float viewport_width, float* vertex_distance)
 {
     float closest = infinity;
     Vertex* result = nullptr;
 
+    float radius = hit_radius / viewport_width;
+
     FOR_EACH_IN_POOL(Vertex, vertex, mesh->vertex_pool)
     {
-        Sphere sphere = {vertex->position, hit_radius};
+        Sphere sphere;
+        sphere.center = vertex->position;
+        sphere.radius = radius * distance_point_plane(vertex->position, ray.origin, ray.direction);
+
         Vector3 intersection;
         bool hit = intersect_ray_sphere(ray, sphere, &intersection);
         if(hit)

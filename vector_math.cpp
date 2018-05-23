@@ -98,6 +98,11 @@ float length(Vector2 v)
     return sqrt(squared_length(v));
 }
 
+float squared_distance(Vector2 v0, Vector2 v1)
+{
+    return squared_length(v1 - v0);
+}
+
 Vector2 normalise(Vector2 v)
 {
     float l = length(v);

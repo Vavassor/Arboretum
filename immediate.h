@@ -37,6 +37,7 @@ void add_wire_rect(Rect rect, Vector4 colour);
 void add_quad(Quad* quad, Vector4 colour);
 void add_quad_textured(Quad* quad, Rect texture_rect);
 void add_wire_quad(Quad* quad, Vector4 colour);
+void add_circle(Vector3 center, Vector3 axis, float radius, Vector4 colour);
 void add_cone(Vector3 base_center, Vector3 axis, float radius, Vector4 side_colour, Vector4 base_colour);
 void add_cylinder(Vector3 start, Vector3 end, float radius, Vector4 colour);
 void add_box(Vector3 center, Vector3 extents, Vector4 colour);

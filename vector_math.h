@@ -29,6 +29,7 @@ Vector2 operator - (Vector2 v);
 Vector2 perp(Vector2 v);
 float squared_length(Vector2 v);
 float length(Vector2 v);
+float squared_distance(Vector2 v0, Vector2 v1);
 Vector2 normalise(Vector2 v);
 float dot(Vector2 v0, Vector2 v1);
 Vector2 pointwise_multiply(Vector2 v0, Vector2 v1);
