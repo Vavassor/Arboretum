@@ -72,6 +72,14 @@ Ray transform_ray(Ray ray, Matrix4 transform)
     return result;
 }
 
+LineSegment transform_line_segment(LineSegment segment, Matrix4 transform)
+{
+    LineSegment result;
+    result.start = transform_point(transform, segment.start);
+    result.end = transform_point(transform, segment.end);
+    return result;
+}
+
 static bool solve_quadratic_equation(float a, float b, float c, float* RESTRICT t0, float* RESTRICT t1)
 {
     float discriminant = (b * b) - (4.0f * a * c);
@@ -574,6 +582,100 @@ Vector3 closest_ray_point(Ray ray, Vector3 point)
     }
 }
 
+static bool intersect_line_segment_cylinder(LineSegment segment, Cylinder cylinder, Vector3* intersection)
+{
+    float radius = cylinder.radius;
+    Vector3 center = (cylinder.start + cylinder.end) / 2.0f;
+    float half_length = distance(center, cylinder.end);
+
+    Vector3 forward = normalise(cylinder.end - cylinder.start);
+    Vector3 right = normalise(perp(forward));
+    Vector3 up = normalise(cross(forward, right));
+    Matrix4 view = view_matrix(right, up, forward, center);
+    Vector3 dilation = {radius, radius, half_length};
+    Matrix4 transform = dilation_matrix(reciprocal(dilation)) * view;
+
+    LineSegment cylinder_segment = transform_line_segment(segment, transform);
+    Vector3 start = cylinder_segment.start;
+    Vector3 direction = cylinder_segment.end - start;
+    float d = length(direction);
+    direction /= d;
+
+    float dx = direction.x;
+    float dy = direction.y;
+    float ox = start.x;
+    float oy = start.y;
+
+    float a = (dx * dx) + (dy * dy);
+    float b = (2.0f * ox * dx) + (2.0f * oy * dy);
+    float c = (ox * ox) + (oy * oy) - 1.0f;
+
+    float t0, t1;
+    if(!solve_quadratic_equation(a, b, c, &t0, &t1))
+    {
+        return false;
+    }
+    float z0 = (t0 * direction.z) + start.z;
+    float z1 = (t1 * direction.z) + start.z;
+
+    if(z0 < -1.0f)
+    {
+        if(z1 < -1.0f)
+        {
+            return false;
+        }
+
+        float t2 = t0 + (t1 - t0) * (z0 + 1.0f) / (z0 - z1);
+        if(t2 <= 0.0f || t2 >= d)
+        {
+            return false;
+        }
+        else
+        {
+            Vector3 point = (direction * t2) + start;
+            Matrix4 inverse = inverse_view_matrix(view) * dilation_matrix(dilation);
+            *intersection = transform_point(inverse, point);
+            return true;
+        }
+    }
+    else if(z0 >= -1.0f && z0 <= 1.0f)
+    {
+        if(t0 <= 0.0f || t0 >= d)
+        {
+            return false;
+        }
+        else
+        {
+            Vector3 point = (direction * t0) + start;
+            Matrix4 inverse = inverse_view_matrix(view) * dilation_matrix(dilation);
+            *intersection = transform_point(inverse, point);
+            return true;
+        }
+    }
+    else if(z0 > 1.0f)
+    {
+        if(z1 > 1.0f)
+        {
+            return false;
+        }
+
+        float t2 = t0 + (t1 - t0) * (z0 - 1.0f) / (z0 - z1);
+        if(t2 <= 0.0f || t2 >= d)
+        {
+            return false;
+        }
+        else
+        {
+            Vector3 point = (direction * t2) + start;
+            Matrix4 inverse = inverse_view_matrix(view) * dilation_matrix(dilation);
+            *intersection = transform_point(inverse, point);
+            return true;
+        }
+    }
+
+    return false;
+}
+
 namespace jan {
 
 Vertex* first_vertex_hit_by_ray(Mesh* mesh, Ray ray, float hit_radius, float viewport_width, float* vertex_distance)
@@ -610,19 +712,29 @@ Vertex* first_vertex_hit_by_ray(Mesh* mesh, Ray ray, float hit_radius, float vie
     return result;
 }
 
-Edge* first_edge_hit_by_ray(Mesh* mesh, Ray ray, float hit_radius, float* edge_distance)
+Edge* first_edge_under_point(Mesh* mesh, Vector2 hit_center, float hit_radius, Matrix4 model_view_projection, Matrix4 inverse, Int2 viewport, Vector3 view_position, Vector3 view_direction, float* edge_distance)
 {
     float closest = infinity;
     Edge* result = nullptr;
 
+    Vector2 ndc_point = viewport_point_to_ndc(hit_center, viewport);
+    Vector3 near = {ndc_point.x, ndc_point.y, -1.0f};
+    Vector3 far = {ndc_point.x, ndc_point.y, +1.0f};
+    Cylinder cylinder = {near, far, hit_radius / viewport.x};
+
     FOR_EACH_IN_POOL(Edge, edge, mesh->edge_pool)
     {
-        Capsule capsule = {edge->vertices[0]->position, edge->vertices[1]->position, hit_radius};
+        LineSegment segment;
+        segment.start = transform_point(model_view_projection, edge->vertices[0]->position);
+        segment.end = transform_point(model_view_projection, edge->vertices[1]->position);
+
         Vector3 intersection;
-        bool hit = intersect_ray_capsule(ray, capsule, &intersection);
+        bool hit = intersect_line_segment_cylinder(segment, cylinder, &intersection);
         if(hit)
         {
-            float distance = squared_distance(ray.origin, intersection);
+            Vector3 world_point = transform_point(inverse, intersection);
+
+            float distance = distance_point_plane(world_point, view_position, view_direction);
             if(distance < closest)
             {
                 closest = distance;

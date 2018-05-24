@@ -1,5 +1,16 @@
 #include "camera.h"
 
+Vector2 viewport_point_to_ndc(Vector2 point, Int2 viewport)
+{
+    float extent_x = viewport.x / 2.0f;
+    float extent_y = viewport.y / 2.0f;
+
+    Vector2 result;
+    result.x = (point.x - extent_x) / extent_x;
+    result.y = -(point.y - extent_y) / extent_y;
+    return result;
+}
+
 Ray ray_from_viewport_point(Vector2 point, Int2 viewport, Matrix4 view, Matrix4 projection, bool orthographic)
 {
     float extent_x = viewport.x / 2.0f;

@@ -2,6 +2,7 @@
 #define INTERSECTION_H_
 
 #include "vector_math.h"
+#include "int2.h"
 
 struct Box
 {
@@ -67,7 +68,7 @@ struct Edge;
 struct Face;
 
 Vertex* first_vertex_hit_by_ray(Mesh* mesh, Ray ray, float hit_radius, float viewport_width, float* vertex_distance);
-Edge* first_edge_hit_by_ray(Mesh* mesh, Ray ray, float hit_radius, float* edge_distance);
+Edge* first_edge_under_point(Mesh* mesh, Vector2 hit_center, float hit_radius, Matrix4 model_view_projection, Matrix4 inverse, Int2 viewport, Vector3 view_position, Vector3 view_direction, float* edge_distance);
 Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance, Stack* stack);
 
 } // namespace jan

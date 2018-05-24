@@ -733,7 +733,7 @@ static void update_edge_mode()
     ASSERT(is_valid_index(selected_object_index));
     ASSERT(selected_object_index >= 0 && selected_object_index < array_count(lady.objects));
 
-    const float touch_radius = 0.1f;
+    const float touch_radius = 30.0f;
 
     Object* object = &lady.objects[selected_object_index];
     jan::Mesh* mesh = &object->mesh;
@@ -743,12 +743,14 @@ static void update_edge_mode()
     Matrix4 model = compose_transform(object->position, object->orientation, vector3_one);
     Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
     Matrix4 projection = perspective_projection_matrix(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
+    Matrix4 model_view_projection = projection * view * model;
+    Matrix4 inverse = inverse_transform(model) * inverse_view_matrix(view) * inverse_perspective_matrix(projection);
 
     Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
     ray = transform_ray(ray, inverse_transform(model));
 
     float distance_to_edge;
-    jan::Edge* edge = first_edge_hit_by_ray(mesh, ray, touch_radius, &distance_to_edge);
+    jan::Edge* edge = first_edge_under_point(mesh, mouse.position, touch_radius, model_view_projection, inverse, viewport, ray.origin, ray.direction, &distance_to_edge);
     if(edge)
     {
         float distance_to_face = infinity;
