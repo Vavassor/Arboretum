@@ -744,10 +744,11 @@ static void update_edge_mode()
     Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
     Matrix4 projection = perspective_projection_matrix(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
     Matrix4 model_view_projection = projection * view * model;
-    Matrix4 inverse = inverse_transform(model) * inverse_view_matrix(view) * inverse_perspective_matrix(projection);
+    Matrix4 inverse_model = inverse_transform(model);
+    Matrix4 inverse = inverse_view_matrix(view) * inverse_perspective_matrix(projection);
 
     Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
-    ray = transform_ray(ray, inverse_transform(model));
+    ray = transform_ray(ray, inverse_model);
 
     float distance_to_edge;
     jan::Edge* edge = first_edge_under_point(mesh, mouse.position, touch_radius, model_view_projection, inverse, viewport, ray.origin, ray.direction, &distance_to_edge);

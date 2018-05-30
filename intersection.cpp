@@ -214,67 +214,6 @@ bool intersect_ray_sphere(Ray ray, Sphere sphere, Vector3* intersection)
     return true;
 }
 
-bool intersect_ray_capsule(Ray ray, Capsule capsule, Vector3* intersection)
-{
-    float radius = capsule.radius;
-    Vector3 center = (capsule.start + capsule.end) / 2.0f;
-    float half_length = distance(center, capsule.end);
-
-    Vector3 forward = normalise(capsule.end - capsule.start);
-    Vector3 right = normalise(perp(forward));
-    Vector3 up = normalise(cross(forward, right));
-    Matrix4 view = view_matrix(right, up, forward, center);
-    Vector3 dilation = {radius, radius, half_length};
-    Matrix4 transform = dilation_matrix(reciprocal(dilation)) * view;
-
-    Ray capsule_ray = transform_ray(ray, transform);
-    Vector3 origin = capsule_ray.origin;
-    Vector3 direction = capsule_ray.direction;
-
-    float dx = direction.x;
-    float dy = direction.y;
-    float ox = origin.x;
-    float oy = origin.y;
-
-    float a = (dx * dx) + (dy * dy);
-    float b = (2.0f * ox * dx) + (2.0f * oy * dy);
-    float c = (ox * ox) + (oy * oy) - 1.0f;
-
-    float t0, t1;
-    if(!solve_quadratic_equation(a, b, c, &t0, &t1))
-    {
-        return false;
-    }
-    float z0 = (t0 * direction.z) + origin.z;
-
-    if(z0 < -1.0f)
-    {
-        Sphere sphere = {capsule.start, radius};
-        return intersect_ray_sphere(ray, sphere, intersection);
-    }
-    else if(z0 >= -1.0f && z0 <= 1.0f)
-    {
-        if(t0 <= 0.0f)
-        {
-            return false;
-        }
-        else
-        {
-            Vector3 point = (direction * t0) + origin;
-            Matrix4 inverse = inverse_view_matrix(view) * dilation_matrix(dilation);
-            *intersection = transform_point(inverse, point);
-            return true;
-        }
-    }
-    else if(z0 > 1.0f)
-    {
-        Sphere sphere = {capsule.end, radius};
-        return intersect_ray_sphere(ray, sphere, intersection);
-    }
-
-    return false;
-}
-
 bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Vector3* intersection)
 {
     float radius = cylinder.radius;

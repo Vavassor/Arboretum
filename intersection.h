@@ -11,13 +11,6 @@ struct Box
     Vector3 extents;
 };
 
-struct Capsule
-{
-    Vector3 start;
-    Vector3 end;
-    float radius;
-};
-
 struct Cone
 {
     Vector3 base_center;
@@ -78,7 +71,6 @@ float distance_point_plane(Vector3 point, Vector3 origin, Vector3 normal);
 Ray transform_ray(Ray ray, Matrix4 transform);
 bool intersect_ray_plane(Ray ray, Vector3 origin, Vector3 normal, Vector3* intersection);
 bool intersect_ray_sphere(Ray ray, Sphere sphere, Vector3* intersection);
-bool intersect_ray_capsule(Ray ray, Capsule capsule, Vector3* intersection);
 bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Vector3* intersection);
 bool intersect_ray_cone(Ray ray, Cone cone, Vector3* intersection);
 bool intersect_ray_torus(Ray ray, Torus torus, Vector3* intersection);
