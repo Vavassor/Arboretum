@@ -38,6 +38,7 @@ Vector2 lerp(Vector2 v0, Vector2 v1, float t);
 Vector2 min2(Vector2 a, Vector2 b);
 Vector2 max2(Vector2 a, Vector2 b);
 bool exactly_equals(Vector2 v0, Vector2 v1);
+float determinant(Vector2 a, Vector2 b);
 
 struct Vector3
 {
@@ -81,10 +82,14 @@ Vector3 reciprocal(Vector3 v);
 Vector3 max3(Vector3 v0, Vector3 v1);
 Vector3 min3(Vector3 v0, Vector3 v1);
 Vector3 perp(Vector3 v);
+Vector3 project(Vector3 a, Vector3 b);
+Vector3 reject(Vector3 a, Vector3 b);
+float angle_between(Vector3 a, Vector3 b);
 bool exactly_equals(Vector3 v0, Vector3 v1);
 bool is_normalised(Vector3 v);
 Vector3 make_vector3(Vector2 v);
 Vector3 set_all_vector3(float x);
+Vector2 extract_vector2(Vector3 v);
 
 struct Vector4
 {

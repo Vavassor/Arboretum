@@ -4,6 +4,7 @@
 #include "assert.h"
 #include "asset_paths.h"
 #include "camera.h"
+#include "closest_point_of_approach.h"
 #include "colours.h"
 #include "dense_map.h"
 #include "file_pick_dialog.h"

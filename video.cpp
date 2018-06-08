@@ -6,6 +6,7 @@
 #include "bitmap.h"
 #include "bmfont.h"
 #include "bmp.h"
+#include "closest_point_of_approach.h"
 #include "colours.h"
 #include "filesystem.h"
 #include "float_utilities.h"
@@ -553,7 +554,7 @@ static void draw_move_tool_vectors(MoveTool* tool)
             }
         }
         normal = tool->orientation * normal;
-        Vector3 corner = project_onto_plane(move, normal) + tool->position;
+        Vector3 corner = reject(move, normal) + tool->position;
         draw_arrow(reference, corner, shaft_radius, head_height, head_radius);
         draw_arrow(corner, tool->position, shaft_radius, head_height, head_radius);
     }
@@ -884,6 +885,63 @@ void system_update(UpdateState* update, Platform* platform)
         }
 
         draw_selection_object(object, pointcloud, wireframe, projection);
+    }
+
+    // Draw rotatory boys
+    {
+        glActiveTexture(GL_TEXTURE0 + 0);
+        glBindTexture(GL_TEXTURE_2D, line_pattern);
+        glBindSampler(0, linear_mipmap_repeat);
+
+        const Vector4 x_axis_colour = {1.0f, 0.0314f, 0.0314f, 1.0f};
+        const Vector4 y_axis_colour = {0.3569f, 1.0f, 0.0f, 1.0f};
+        const Vector4 z_axis_colour = {0.0863f, 0.0314f, 1.0f, 1.0f};
+
+        Vector3 center = {0.0f, -5.0f, 0.0f};
+
+        Disk disks[3] =
+        {
+            {center, vector3_unit_x, 1.0f},
+            {center, vector3_unit_y, 1.0f},
+            {center, vector3_unit_z, 1.0f},
+        };
+
+        Vector3 camera_forward = camera->target - camera->position;
+        Vector3 axes[3] =
+        {
+            closest_disk_plane(disks[0], camera->position, camera_forward) - disks[0].center,
+            closest_disk_plane(disks[1], camera->position, camera_forward) - disks[1].center,
+            closest_disk_plane(disks[2], camera->position, camera_forward) - disks[2].center,
+        };
+
+        glUseProgram(shader_line.program);
+        glUniform1f(shader_line.line_width, 8.0f);
+
+        float angles[3];
+        angles[0] = angle_between(axes[0], -vector3_unit_z);
+        angles[1] = angle_between(axes[1], -vector3_unit_z);
+        angles[2] = angle_between(axes[2], -vector3_unit_y);
+
+        if(axes[0].y < 0.0f)
+        {
+            angles[0] = tau - angles[0];
+        }
+        if(axes[1].x > 0.0f)
+        {
+            angles[1] = tau - angles[1];
+        }
+        if(axes[2].x < 0.0f)
+        {
+            angles[2] = tau - angles[2];
+        }
+
+        immediate::add_wire_arc(center, vector3_unit_x, pi, angles[0], 1.0f, x_axis_colour);
+        immediate::add_wire_arc(center, vector3_unit_y, pi, angles[1], 1.0f, y_axis_colour);
+        immediate::add_wire_arc(center, vector3_unit_z, pi, angles[2], 1.0f, z_axis_colour);
+        immediate::set_blend_mode(immediate::BlendMode::Transparent);
+        immediate::draw();
+
+        glUniform1f(shader_line.line_width, 4.0f);
     }
 
     // Draw the little axes in the corner.

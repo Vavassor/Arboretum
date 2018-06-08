@@ -558,6 +558,30 @@ void add_arc(Vector3 center, Vector3 axis, float angle, float start_angle, float
     }
 }
 
+void add_wire_arc(Vector3 center, Vector3 axis, float angle, float start_angle, float radius, Vector4 colour)
+{
+    const int segments = 11;
+
+    Vector3 arm = normalise(perp(axis));
+    Quaternion orientation = axis_angle_rotation(axis, start_angle);
+    Vector3 medial = orientation * arm;
+    Vector3 direction = normalise(medial);
+    Vector3 start = (radius * direction) + center;
+
+    for(int i = 1; i <= segments; i += 1)
+    {
+        float theta = (i / static_cast<float>(segments) * angle) + start_angle;
+        orientation = axis_angle_rotation(axis, theta);
+        medial = orientation * arm;
+        direction = normalise(medial);
+
+        Vector3 end = (radius * direction) + center;
+        add_line(start, end, colour);
+
+        start = end;
+    }
+}
+
 void draw_opaque_rect(Rect rect, Vector4 colour)
 {
     add_rect(rect, colour);

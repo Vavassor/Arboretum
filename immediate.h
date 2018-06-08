@@ -43,6 +43,7 @@ void add_cylinder(Vector3 start, Vector3 end, float radius, Vector4 colour);
 void add_box(Vector3 center, Vector3 extents, Vector4 colour);
 void add_sphere(Vector3 center, float radius, Vector4 colour);
 void add_arc(Vector3 center, Vector3 axis, float angle, float start_angle, float radius, float width, Vector4 colour);
+void add_wire_arc(Vector3 center, Vector3 axis, float angle, float start_angle, float radius, Vector4 colour);
 
 void draw_opaque_rect(Rect rect, Vector4 colour);
 void draw_transparent_rect(Rect rect, Vector4 colour);

@@ -10,10 +10,16 @@ extern const float infinity = FLT_MAX;
 extern const float tau = 6.28318530717958647692f;
 extern const float pi = 3.14159265358979323846f;
 extern const float pi_over_2 = 1.57079632679489661923f;
+extern const float three_pi_over_2 = 4.71238898038f;
 
 float clamp(float a, float min, float max)
 {
     return fmin(fmax(a, min), max);
+}
+
+float saturate(float a)
+{
+    return fmin(fmax(a, 0.0f), 1.0f);
 }
 
 float lerp(float v0, float v1, float t)

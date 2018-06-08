@@ -25,6 +25,13 @@ struct Cylinder
     float radius;
 };
 
+struct Disk
+{
+    Vector3 center;
+    Vector3 axis;
+    float radius;
+};
+
 struct LineSegment
 {
     Vector3 start;
@@ -75,9 +82,5 @@ bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Vector3* intersection);
 bool intersect_ray_cone(Ray ray, Cone cone, Vector3* intersection);
 bool intersect_ray_torus(Ray ray, Torus torus, Vector3* intersection);
 bool intersect_ray_box(Ray ray, Box box, Vector3* intersection);
-
-Vector3 project_onto_plane(Vector3 v, Vector3 normal);
-Vector3 closest_point_on_line(Ray ray, Vector3 start, Vector3 end);
-Vector3 closest_ray_point(Ray ray, Vector3 point);
 
 #endif // INTERSECTION_H_

@@ -160,6 +160,16 @@ bool exactly_equals(Vector2 v0, Vector2 v1)
     return v0.x == v1.x && v0.y == v1.y;
 }
 
+Vector2 extract_vector2(Vector3 v)
+{
+    return {v.x, v.y};
+}
+
+float determinant(Vector2 a, Vector2 b)
+{
+    return (a.x * b.y) - (a.y * b.x);
+}
+
 extern const Vector3 vector3_zero   = {0.0f, 0.0f, 0.0f};
 extern const Vector3 vector3_one    = {1.0f, 1.0f, 1.0f};
 extern const Vector3 vector3_unit_x = {1.0f, 0.0f, 0.0f};
@@ -369,6 +379,25 @@ Vector3 perp(Vector3 v)
     m.z = static_cast<float>(zm);
 
     return cross(v, m);
+}
+
+Vector3 project(Vector3 a, Vector3 b)
+{
+    float l = squared_length(b);
+    ASSERT(l != 0.0f && isfinite(l));
+    float d = dot(a, b) / l;
+    return d * b;
+}
+
+Vector3 reject(Vector3 a, Vector3 b)
+{
+    return a - project(a, b);
+}
+
+float angle_between(Vector3 a, Vector3 b)
+{
+    float phase = dot(a, b) / (length(a) * length(b));
+    return acos(phase);
 }
 
 bool exactly_equals(Vector3 v0, Vector3 v1)
