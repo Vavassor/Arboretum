@@ -8,6 +8,9 @@
 #include <cstddef>
 #include <cwchar>
 
+using std::isinf;
+using std::isnan;
+
 int string_size(const char* string)
 {
     ASSERT(string);

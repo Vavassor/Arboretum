@@ -1,5 +1,5 @@
-#ifndef MOVE_TOOL_H_
-#define MOVE_TOOL_H_
+#ifndef TOOLS_H_
+#define TOOLS_H_
 
 #include "vector_math.h"
 
@@ -22,4 +22,11 @@ struct MoveTool
     int selected_plane;
 };
 
-#endif // MOVE_TOOL_H_
+struct RotateTool
+{
+    float angles[3];
+    Vector3 position;
+    float radius;
+};
+
+#endif // TOOLS_H_

@@ -14,7 +14,7 @@
 #include "int_utilities.h"
 #include "logging.h"
 #include "math_basics.h"
-#include "move_tool.h"
+#include "tools.h"
 #include "obj.h"
 #include "object_lady.h"
 #include "platform.h"
@@ -55,6 +55,7 @@ namespace
     Action action_in_progress;
     bool translating;
     MoveTool move_tool;
+    RotateTool rotate_tool;
     History history;
 
     int hovered_object_index;
@@ -321,6 +322,12 @@ bool editor_start_up(Platform* platform)
         move_tool.hovered_plane = invalid_index;
         move_tool.selected_axis = invalid_index;
         move_tool.selected_plane = invalid_index;
+    }
+
+    // Rotate tool
+    {
+        rotate_tool.position = vector3_zero;
+        rotate_tool.radius = 1.0f;
     }
 
     return true;
@@ -689,6 +696,54 @@ static void update_object_mode(Platform* platform)
         move_tool.position = object.position;
         move_tool.orientation = object.orientation;
         move_tool.scale = scale;
+    }
+
+    // Update the rotate tool.
+    {
+        Vector3 center = {0.0f, -5.0f, 0.0f};
+        Vector3 normal = normalise(camera.target - camera.position);
+        float radius = 0.2f * distance_point_plane(center, camera.position, normal);
+
+        Disk disks[3] =
+        {
+            {center, vector3_unit_x, radius},
+            {center, vector3_unit_y, radius},
+            {center, vector3_unit_z, radius},
+        };
+
+        Vector3 camera_forward = camera.target - camera.position;
+        Vector3 axes[3] =
+        {
+            closest_disk_plane(disks[0], camera.position, camera_forward) - disks[0].center,
+            closest_disk_plane(disks[1], camera.position, camera_forward) - disks[1].center,
+            closest_disk_plane(disks[2], camera.position, camera_forward) - disks[2].center,
+        };
+
+        float angles[3] =
+        {
+            angle_between(axes[0], -vector3_unit_z),
+            angle_between(axes[1], -vector3_unit_z),
+            angle_between(axes[2], -vector3_unit_y),
+        };
+
+        if(axes[0].y < 0.0f)
+        {
+            angles[0] = tau - angles[0];
+        }
+        if(axes[1].x > 0.0f)
+        {
+            angles[1] = tau - angles[1];
+        }
+        if(axes[2].x < 0.0f)
+        {
+            angles[2] = tau - angles[2];
+        }
+
+        rotate_tool.position = center;
+        rotate_tool.radius = radius;
+        rotate_tool.angles[0] = angles[0];
+        rotate_tool.angles[1] = angles[1];
+        rotate_tool.angles[2] = angles[2];
     }
 
     update_camera_controls();
@@ -1194,6 +1249,7 @@ void editor_update(Platform* platform)
     update.viewport = viewport;
     update.camera = &camera;
     update.move_tool = &move_tool;
+    update.rotate_tool = &rotate_tool;
     update.ui_context = &ui_context;
     update.main_menu = main_menu;
     update.dialog_panel = dialog.panel;

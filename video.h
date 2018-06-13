@@ -9,6 +9,7 @@ struct Heap;
 struct MoveTool;
 struct ObjectLady;
 struct Platform;
+struct RotateTool;
 
 namespace bmfont {
 
@@ -39,6 +40,7 @@ struct UpdateState
     Int2 viewport;
     Camera* camera;
     MoveTool* move_tool;
+    RotateTool* rotate_tool;
     ui::Context* ui_context;
     ui::Item* main_menu;
     ui::Item* dialog_panel;
