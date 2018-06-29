@@ -2,11 +2,12 @@
 #define DENSE_MAP_H_
 
 #include "map.h"
-#include "sized_types.h"
+
+#include <stdint.h>
 
 struct Heap;
 
-typedef u32 DenseMapId;
+typedef uint32_t DenseMapId;
 
 namespace video {
 

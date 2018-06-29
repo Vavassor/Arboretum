@@ -21,7 +21,7 @@ static bool is_power_of_two(unsigned int x)
     return (x != 0) && !(x & (x - 1));
 }
 
-static u32 next_power_of_two(u32 x)
+static uint32_t next_power_of_two(uint32_t x)
 {
     x |= x >> 1;
     x |= x >> 2;
@@ -39,7 +39,7 @@ static bool can_use_bitwise_and_to_cycle(int count)
     return is_power_of_two(count);
 }
 
-static u32 hash_key(u64 key)
+static uint32_t hash_key(uint64_t key)
 {
     key = (~key) + (key << 18); // key = (key << 18) - key - 1;
     key = key ^ (key >> 31);
@@ -66,7 +66,7 @@ void map_create(Map* map, int cap, Heap* heap)
 
     map->keys = HEAP_ALLOCATE(heap, void*, cap + 1);
     map->values = HEAP_ALLOCATE(heap, void*, cap + 1);
-    map->hashes = HEAP_ALLOCATE(heap, u32, cap);
+    map->hashes = HEAP_ALLOCATE(heap, uint32_t, cap);
 
     int overflow_index = cap;
     map->keys[overflow_index] = const_cast<void*>(overflow_empty);
@@ -100,7 +100,7 @@ void map_clear(Map* map)
     map->count = 0;
 }
 
-static int find_slot(void** keys, int cap, void* key, u32 hash)
+static int find_slot(void** keys, int cap, void* key, uint32_t hash)
 {
     ASSERT(can_use_bitwise_and_to_cycle(cap));
 
@@ -129,7 +129,7 @@ bool map_get(Map* map, void* key, void** value)
         }
     }
 
-    u32 hash = hash_key(reinterpret_cast<u64>(key));
+    uint32_t hash = hash_key(reinterpret_cast<uint64_t>(key));
     int slot = find_slot(map->keys, map->cap, key, hash);
 
     bool got = map->keys[slot] == key;
@@ -146,7 +146,7 @@ static void map_grow(Map* map, int cap, Heap* heap)
 
     void** keys = HEAP_ALLOCATE(heap, void*, cap + 1);
     void** values = HEAP_ALLOCATE(heap, void*, cap + 1);
-    u32* hashes = HEAP_ALLOCATE(heap, u32, cap);
+    uint32_t* hashes = HEAP_ALLOCATE(heap, uint32_t, cap);
 
     for(int i = 0; i < prior_cap; i += 1)
     {
@@ -155,7 +155,7 @@ static void map_grow(Map* map, int cap, Heap* heap)
         {
             continue;
         }
-        u32 hash = map->hashes[i];
+        uint32_t hash = map->hashes[i];
         int slot = find_slot(keys, cap, key, hash);
         keys[slot] = key;
         hashes[slot] = hash;
@@ -191,7 +191,7 @@ void map_add(Map* map, void* key, void* value, Heap* heap)
         map_grow(map, 2 * map->cap, heap);
     }
 
-    u32 hash = hash_key(reinterpret_cast<u64>(key));
+    uint32_t hash = hash_key(reinterpret_cast<uint64_t>(key));
     int slot = find_slot(map->keys, map->cap, key, hash);
     map->keys[slot] = key;
     map->values[slot] = value;
@@ -227,7 +227,7 @@ void map_remove(Map* map, void* key)
         return;
     }
 
-    u32 hash = hash_key(reinterpret_cast<u64>(key));
+    uint32_t hash = hash_key(reinterpret_cast<uint64_t>(key));
     int slot = find_slot(map->keys, map->cap, key, hash);
     if(map->keys[slot] == empty)
     {

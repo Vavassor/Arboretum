@@ -2,7 +2,6 @@
 
 #include "assert.h"
 #include "memory.h"
-#include "sized_types.h"
 #include "string_utilities.h"
 #include "unicode.h"
 
@@ -12,7 +11,7 @@
 // for Unicode version 10.0.0
 
 // grapheme_cluster_break table, 25088 bytes
-static const u8 grapheme_cluster_break_stage1[] = {
+static const uint8_t grapheme_cluster_break_stage1[] = {
  0,  1,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, // U+0000
 15, 16,  1, 17,  1,  1,  1, 18, 19, 20, 21, 22, 23, 24,  1,  1, // U+1000
 25,  1,  1,  1,  1,  1, 26, 27,  1,  1,  1,  1, 28, 29,  1,  1, // U+2000
@@ -290,7 +289,7 @@ static const u8 grapheme_cluster_break_stage1[] = {
 // @Optimize: This only uses 5 bits of each value in the table. It could
 // be combined with the second-stage tables from line and word breaking to be
 // more memory-efficient.
-static const u8 grapheme_cluster_break_stage2[] = {
+static const uint8_t grapheme_cluster_break_stage2[] = {
 
 // block 0
  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  2,  3,  3,  1,  3,  3,
@@ -1753,10 +1752,10 @@ static const u8 grapheme_cluster_break_stage2[] = {
 
 GraphemeClusterBreak get_grapheme_cluster_break(char32_t c)
 {
-    const u32 BLOCK_SIZE = 256;
+    const uint32_t BLOCK_SIZE = 256;
     ASSERT(c < 0x110000);
-    u32 block_offset = grapheme_cluster_break_stage1[c / BLOCK_SIZE] * BLOCK_SIZE;
-    u8 value = grapheme_cluster_break_stage2[block_offset + c % BLOCK_SIZE];
+    uint32_t block_offset = grapheme_cluster_break_stage1[c / BLOCK_SIZE] * BLOCK_SIZE;
+    uint8_t value = grapheme_cluster_break_stage2[block_offset + c % BLOCK_SIZE];
 
     ASSERT(value >= 0 && value <= 17);
     return static_cast<GraphemeClusterBreak>(value);

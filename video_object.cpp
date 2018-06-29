@@ -85,7 +85,7 @@ void object_destroy(Object* object)
     glDeleteBuffers(2, object->buffers);
 }
 
-static void object_set_surface(Object* object, VertexPNC* vertices, int vertices_count, u16* indices, int indices_count)
+static void object_set_surface(Object* object, VertexPNC* vertices, int vertices_count, uint16_t* indices, int indices_count)
 {
     glBindVertexArray(object->vertex_array);
 
@@ -102,7 +102,7 @@ static void object_set_surface(Object* object, VertexPNC* vertices, int vertices
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
 
-    GLsizei indices_size = sizeof(u16) * indices_count;
+    GLsizei indices_size = sizeof(uint16_t) * indices_count;
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, object->buffers[1]);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_size, indices, GL_STATIC_DRAW);
     object->indices_count = indices_count;
@@ -110,7 +110,7 @@ static void object_set_surface(Object* object, VertexPNC* vertices, int vertices
     glBindVertexArray(0);
 }
 
-static void object_finish_update(Object* object, Heap* heap, VertexPNC* vertices, u16* indices)
+static void object_finish_update(Object* object, Heap* heap, VertexPNC* vertices, uint16_t* indices)
 {
     glBindVertexArray(object->vertex_array);
 
@@ -119,7 +119,7 @@ static void object_finish_update(Object* object, Heap* heap, VertexPNC* vertices
     glBindBuffer(GL_ARRAY_BUFFER, object->buffers[0]);
     glBufferData(GL_ARRAY_BUFFER, vertices_size, vertices, GL_DYNAMIC_DRAW);
 
-    GLsizei indices_size = sizeof(u16) * array_count(indices);
+    GLsizei indices_size = sizeof(uint16_t) * array_count(indices);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, object->buffers[1]);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_size, indices, GL_DYNAMIC_DRAW);
     object->indices_count = array_count(indices);
@@ -130,7 +130,7 @@ static void object_finish_update(Object* object, Heap* heap, VertexPNC* vertices
     ARRAY_DESTROY(indices, heap);
 }
 
-static void object_update_points(Object* object, Heap* heap, PointVertex* vertices, u16* indices)
+static void object_update_points(Object* object, Heap* heap, PointVertex* vertices, uint16_t* indices)
 {
     glBindVertexArray(object->vertex_array);
 
@@ -139,7 +139,7 @@ static void object_update_points(Object* object, Heap* heap, PointVertex* vertic
     glBindBuffer(GL_ARRAY_BUFFER, object->buffers[0]);
     glBufferData(GL_ARRAY_BUFFER, vertices_size, vertices, GL_DYNAMIC_DRAW);
 
-    GLsizei indices_size = sizeof(u16) * array_count(indices);
+    GLsizei indices_size = sizeof(uint16_t) * array_count(indices);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, object->buffers[1]);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_size, indices, GL_DYNAMIC_DRAW);
     object->indices_count = array_count(indices);
@@ -150,7 +150,7 @@ static void object_update_points(Object* object, Heap* heap, PointVertex* vertic
     ARRAY_DESTROY(indices, heap);
 }
 
-static void object_update_lines(Object* object, Heap* heap, LineVertex* vertices, u16* indices)
+static void object_update_lines(Object* object, Heap* heap, LineVertex* vertices, uint16_t* indices)
 {
     glBindVertexArray(object->vertex_array);
 
@@ -159,7 +159,7 @@ static void object_update_lines(Object* object, Heap* heap, LineVertex* vertices
     glBindBuffer(GL_ARRAY_BUFFER, object->buffers[0]);
     glBufferData(GL_ARRAY_BUFFER, vertices_size, vertices, GL_DYNAMIC_DRAW);
 
-    GLsizei indices_size = sizeof(u16) * array_count(indices);
+    GLsizei indices_size = sizeof(uint16_t) * array_count(indices);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, object->buffers[1]);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_size, indices, GL_DYNAMIC_DRAW);
     object->indices_count = array_count(indices);
@@ -173,7 +173,7 @@ static void object_update_lines(Object* object, Heap* heap, LineVertex* vertices
 void object_update_mesh(Object* object, jan::Mesh* mesh, Heap* heap)
 {
     VertexPNC* vertices;
-    u16* indices;
+    uint16_t* indices;
     jan::triangulate(mesh, heap, &vertices, &indices);
 
     object_finish_update(object, heap, vertices, indices);
@@ -182,7 +182,7 @@ void object_update_mesh(Object* object, jan::Mesh* mesh, Heap* heap)
 void object_update_selection(Object* object, jan::Mesh* mesh, jan::Selection* selection, Heap* heap)
 {
     VertexPNC* vertices;
-    u16* indices;
+    uint16_t* indices;
     jan::triangulate_selection(mesh, selection, heap, &vertices, &indices);
 
     object_finish_update(object, heap, vertices, indices);
@@ -193,7 +193,7 @@ void object_update_wireframe(Object* object, jan::Mesh* mesh, Heap* heap)
     const Float4 colour = {1.0f, 0.5f, 0.0f, 0.8f};
 
     LineVertex* vertices;
-    u16* indices;
+    uint16_t* indices;
     jan::make_wireframe(mesh, heap, colour, &vertices, &indices);
 
     object_update_lines(object, heap, vertices, indices);
@@ -206,7 +206,7 @@ void object_update_wireframe_selection(Object* object, jan::Mesh* mesh, jan::Sel
     const Float4 select_colour = {1.0f, 0.5f, 0.0f, 0.8f};
 
     LineVertex* vertices;
-    u16* indices;
+    uint16_t* indices;
     jan::make_wireframe_selection(mesh, heap, colour, hovered, hover_colour, selection, select_colour, &vertices, &indices);
 
     object_update_lines(object, heap, vertices, indices);
@@ -217,7 +217,7 @@ void object_update_pointcloud(Object* object, jan::Mesh* mesh, Heap* heap)
     const Float4 colour = {1.0f, 0.5f, 0.0f, 1.0f};
 
     PointVertex* vertices;
-    u16* indices;
+    uint16_t* indices;
     jan::make_pointcloud(mesh, heap, colour, &vertices, &indices);
 
     object_update_points(object, heap, vertices, indices);
@@ -230,7 +230,7 @@ void object_update_pointcloud_selection(Object* object, jan::Mesh* mesh, jan::Se
     const Float4 select_colour = {1.0f, 0.5f, 0.0f, 1.0f};
 
     PointVertex* vertices;
-    u16* indices;
+    uint16_t* indices;
     jan::make_pointcloud_selection(mesh, colour, hovered, hover_colour, selection, select_colour, heap, &vertices, &indices);
 
     object_update_points(object, heap, vertices, indices);
@@ -285,7 +285,7 @@ void object_generate_sky(Object* object, Stack* stack)
     vertices[vertices_count - 1].colour = rgb_to_u32(bottom_colour);
 
     int indices_count = 6 * meridians * rings;
-    u16* indices = STACK_ALLOCATE(stack, u16, indices_count);
+    uint16_t* indices = STACK_ALLOCATE(stack, uint16_t, indices_count);
     if(!indices)
     {
         STACK_DEALLOCATE(stack, vertices);

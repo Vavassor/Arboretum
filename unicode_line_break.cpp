@@ -2,7 +2,6 @@
 
 #include "assert.h"
 #include "memory.h"
-#include "sized_types.h"
 #include "string_utilities.h"
 #include "unicode.h"
 
@@ -11,7 +10,7 @@
 // http://www.unicode.org/reports/tr14/ for Unicode version 10.0.0
 
 // line_break table, 36352 bytes
-static const u8 line_break_stage1[] = {
+static const uint8_t line_break_stage1[] = {
  0,  1,  2,  2,  2,  3,  4,  5,  2,  6,  7,  8,  9, 10, 11, 12, // U+0000
 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, // U+0800
 29, 30, 31, 32, 33, 34, 35, 36, 37,  2,  2,  2,  2, 38, 39, 40, // U+1000
@@ -561,7 +560,7 @@ static const u8 line_break_stage1[] = {
 // @Optimize: This only uses 6 bits of each value in the table. It could
 // be combined with the second stage tables from grapheme cluster and word
 // breaking to be more memory-efficient.
-static const u8 line_break_stage2[] = {
+static const uint8_t line_break_stage2[] = {
 
 // block 0
  9,  9,  9,  9,  9,  9,  9,  9,  9,  3, 26,  5,  5, 11,  9,  9,
@@ -2726,10 +2725,10 @@ static const u8 line_break_stage2[] = {
 
 LineBreak get_line_break(char32_t c)
 {
-    const u32 BLOCK_SIZE = 128;
+    const uint32_t BLOCK_SIZE = 128;
     ASSERT(c < 0x110000);
-    u32 block_offset = line_break_stage1[c / BLOCK_SIZE] * BLOCK_SIZE;
-    u8 b = line_break_stage2[block_offset + c % BLOCK_SIZE];
+    uint32_t block_offset = line_break_stage1[c / BLOCK_SIZE] * BLOCK_SIZE;
+    uint8_t b = line_break_stage2[block_offset + c % BLOCK_SIZE];
 
     ASSERT(b >= 0 && b <= 42);
     return static_cast<LineBreak>(b);

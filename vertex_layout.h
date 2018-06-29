@@ -1,50 +1,59 @@
 #ifndef VERTEX_LAYOUT_H_
 #define VERTEX_LAYOUT_H_
 
-#include "vector_math.h"
-#include "sized_types.h"
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
-struct VertexPNC
+#include "vector_math.h"
+
+#include <stdint.h>
+
+typedef struct VertexPNC
 {
     Float3 position;
     Float3 normal;
-    u32 colour;
-};
+    uint32_t colour;
+} VertexPNC;
 
-struct VertexPC
+typedef struct VertexPC
 {
     Float3 position;
-    u32 colour;
-};
+    uint32_t colour;
+} VertexPC;
 
-struct VertexPT
+typedef struct VertexPT
 {
     Float3 position;
-    u32 texcoord;
-};
+    uint32_t texcoord;
+} VertexPT;
 
-struct PointVertex
+typedef struct PointVertex
 {
     Float3 position;
     Float2 direction;
-    u32 colour;
-    u32 texcoord;
-};
+    uint32_t colour;
+    uint32_t texcoord;
+} PointVertex;
 
-struct LineVertex
+typedef struct LineVertex
 {
     Float3 position;
     Float3 direction;
-    u32 colour;
-    u32 texcoord;
+    uint32_t colour;
+    uint32_t texcoord;
     float side;
-};
+} LineVertex;
 
-u32 rgb_to_u32(Float3 c);
-u32 rgba_to_u32(Float4 c);
-Float4 u32_to_rgba(u32 u);
-Float3 u32_to_rgb(u32 u);
+uint32_t rgb_to_u32(Float3 c);
+uint32_t rgba_to_u32(Float4 c);
+Float4 u32_to_rgba(uint32_t u);
+Float3 u32_to_rgb(uint32_t u);
 
-u32 texcoord_to_u32(Float2 v);
+uint32_t texcoord_to_u32(Float2 v);
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
 
 #endif // VERTEX_LAYOUT_H_

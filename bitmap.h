@@ -2,28 +2,29 @@
 #define BITMAP_H_
 
 #include "gl_core_3_3.h"
-#include "sized_types.h"
+
+#include <stdint.h>
 
 struct Heap;
 
 struct Pixel8
 {
-    u8 r;
+    uint8_t r;
 };
 
 struct Pixel16
 {
-    u8 r, g;
+    uint8_t r, g;
 };
 
 struct Pixel24
 {
-    u8 r, g, b;
+    uint8_t r, g, b;
 };
 
 struct Pixel32
 {
-    u8 a, r, g, b;
+    uint8_t a, r, g, b;
 };
 
 struct Bitmap

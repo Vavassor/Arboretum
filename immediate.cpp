@@ -252,8 +252,8 @@ void add_line(Float3 start, Float3 end, Float4 colour)
     Context* c = context;
     ASSERT(c->vertex_type == VertexType::Line || c->vertex_type == VertexType::None);
     ASSERT(c->filled + 6 < context_vertices_cap);
-    u32 colour_u32 = rgba_to_u32(colour);
-    u32 texcoords[4] =
+    uint32_t colour_u32 = rgba_to_u32(colour);
+    uint32_t texcoords[4] =
     {
         texcoord_to_u32({0.0f, 0.0f}),
         texcoord_to_u32({0.0f, 1.0f}),

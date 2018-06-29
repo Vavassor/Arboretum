@@ -1,7 +1,7 @@
 #ifndef MAP_H_
 #define MAP_H_
 
-#include "sized_types.h"
+#include <stdint.h>
 
 struct Heap;
 
@@ -12,7 +12,7 @@ struct Map
 {
     void** keys;
     void** values;
-    u32* hashes;
+    uint32_t* hashes;
     int cap;
     int count;
 };

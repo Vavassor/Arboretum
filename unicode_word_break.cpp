@@ -3,7 +3,6 @@
 #include "assert.h"
 #include "logging.h"
 #include "memory.h"
-#include "sized_types.h"
 #include "string_utilities.h"
 #include "unicode.h"
 
@@ -13,7 +12,7 @@
 // for Unicode version 10.0.0
 
 // word_break table, 31744 bytes
-static const u8 word_break_stage1[] = {
+static const uint8_t word_break_stage1[] = {
  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, // U+0000
 16,  1, 17, 18, 19,  1, 20, 21, 22, 23, 24, 25, 26, 27,  1, 28, // U+1000
 29, 30, 31, 31, 32, 31, 33, 34, 31, 31, 31, 31, 35, 36, 37, 31, // U+2000
@@ -291,7 +290,7 @@ static const u8 word_break_stage1[] = {
 // @Optimize: This only uses 5 bits of each value in the table. It could
 // be combined with the second stage tables from grapheme cluster and line
 // breaking to be more memory-efficient.
-static const u8 word_break_stage2[] = {
+static const uint8_t word_break_stage2[] = {
 
 // block 0
  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  2,  3,  3,  1,  0,  0,
@@ -2222,10 +2221,10 @@ static const u8 word_break_stage2[] = {
 
 WordBreak get_word_break(char32_t c)
 {
-    const u32 BLOCK_SIZE = 256;
+    const uint32_t BLOCK_SIZE = 256;
     ASSERT(c < 0x110000);
-    u32 block_offset = word_break_stage1[c / BLOCK_SIZE] * BLOCK_SIZE;
-    u8 word_break = word_break_stage2[block_offset + c % BLOCK_SIZE];
+    uint32_t block_offset = word_break_stage1[c / BLOCK_SIZE] * BLOCK_SIZE;
+    uint8_t word_break = word_break_stage2[block_offset + c % BLOCK_SIZE];
 
     ASSERT(word_break >= 0 && word_break <= 21);
     return static_cast<WordBreak>(word_break);

@@ -610,12 +610,12 @@ void make_a_face_with_holes(Mesh* mesh, Stack* stack)
     connect_vertices_and_add_hole(mesh, face, vertices, 5, stack);
 }
 
-static void add_to_pointcloud(Vertex* vertex, Float4 colour, Heap* heap, PointVertex** out_vertices, u16** out_indices)
+static void add_to_pointcloud(Vertex* vertex, Float4 colour, Heap* heap, PointVertex** out_vertices, uint16_t** out_indices)
 {
     PointVertex* vertices = *out_vertices;
-    u16* indices = *out_indices;
+    uint16_t* indices = *out_indices;
 
-    const u32 texcoords[4] =
+    const uint32_t texcoords[4] =
     {
         texcoord_to_u32({0.0f, 0.0f}),
         texcoord_to_u32({1.0f, 0.0f}),
@@ -629,9 +629,9 @@ static void add_to_pointcloud(Vertex* vertex, Float4 colour, Heap* heap, PointVe
         {+1.0f, +1.0f},
         {-1.0f, +1.0f},
     };
-    u32 colour_value = rgba_to_u32(colour);
+    uint32_t colour_value = rgba_to_u32(colour);
 
-    u16 base_index = array_count(vertices);
+    uint16_t base_index = array_count(vertices);
 
     Float3 center = vertex->position;
     for(int i = 0; i < 4; i += 1)
@@ -651,7 +651,7 @@ static void add_to_pointcloud(Vertex* vertex, Float4 colour, Heap* heap, PointVe
     *out_indices = indices;
 }
 
-void make_pointcloud(Mesh* mesh, Heap* heap, Float4 colour, PointVertex** vertices, u16** indices)
+void make_pointcloud(Mesh* mesh, Heap* heap, Float4 colour, PointVertex** vertices, uint16_t** indices)
 {
     *vertices = nullptr;
     *indices = nullptr;
@@ -662,7 +662,7 @@ void make_pointcloud(Mesh* mesh, Heap* heap, Float4 colour, PointVertex** vertic
     }
 }
 
-void make_pointcloud_selection(Mesh* mesh, Float4 colour, Vertex* hovered, Float4 hover_colour, Selection* selection, Float4 select_colour, Heap* heap, PointVertex** vertices, u16** indices)
+void make_pointcloud_selection(Mesh* mesh, Float4 colour, Vertex* hovered, Float4 hover_colour, Selection* selection, Float4 select_colour, Heap* heap, PointVertex** vertices, uint16_t** indices)
 {
     *vertices = nullptr;
     *indices = nullptr;
@@ -684,19 +684,19 @@ void make_pointcloud_selection(Mesh* mesh, Float4 colour, Vertex* hovered, Float
     }
 }
 
-static void add_edge_to_wireframe(Edge* edge, Float4 colour, Heap* heap, LineVertex** out_vertices, u16** out_indices)
+static void add_edge_to_wireframe(Edge* edge, Float4 colour, Heap* heap, LineVertex** out_vertices, uint16_t** out_indices)
 {
     LineVertex* vertices = *out_vertices;
-    u16* indices = *out_indices;
+    uint16_t* indices = *out_indices;
 
-    const u32 texcoords[4] =
+    const uint32_t texcoords[4] =
     {
         texcoord_to_u32({0.0f, 0.0f}),
         texcoord_to_u32({0.0f, 1.0f}),
         texcoord_to_u32({1.0f, 1.0f}),
         texcoord_to_u32({1.0f, 0.0f}),
     };
-    u32 colour_value = rgba_to_u32(colour);
+    uint32_t colour_value = rgba_to_u32(colour);
 
     Vertex* vertex = edge->vertices[0];
     Vertex* other = edge->vertices[1];
@@ -708,7 +708,7 @@ static void add_edge_to_wireframe(Edge* edge, Float4 colour, Heap* heap, LineVer
     float left = -1.0f;
     float right = 1.0f;
 
-    u16 base = array_count(vertices);
+    uint16_t base = array_count(vertices);
 
     LineVertex v0 = {end, float3_negate(direction), colour_value, texcoords[0], right};
     LineVertex v1 = {start, direction, colour_value, texcoords[1], left};
@@ -730,7 +730,7 @@ static void add_edge_to_wireframe(Edge* edge, Float4 colour, Heap* heap, LineVer
     *out_indices = indices;
 }
 
-void make_wireframe(Mesh* mesh, Heap* heap, Float4 colour, LineVertex** vertices, u16** indices)
+void make_wireframe(Mesh* mesh, Heap* heap, Float4 colour, LineVertex** vertices, uint16_t** indices)
 {
     *vertices = nullptr;
     *indices = nullptr;
@@ -741,7 +741,7 @@ void make_wireframe(Mesh* mesh, Heap* heap, Float4 colour, LineVertex** vertices
     }
 }
 
-void make_wireframe_selection(Mesh* mesh, Heap* heap, Float4 colour, Edge* hovered, Float4 hover_colour, Selection* selection, Float4 select_colour, LineVertex** vertices, u16** indices)
+void make_wireframe_selection(Mesh* mesh, Heap* heap, Float4 colour, Edge* hovered, Float4 hover_colour, Selection* selection, Float4 select_colour, LineVertex** vertices, uint16_t** indices)
 {
     *vertices = nullptr;
     *indices = nullptr;
@@ -1066,10 +1066,10 @@ static bool is_triangle_vertex(Float2 v0, Float2 v1, Float2 v2, Float2 point)
             || float2_exactly_equals(v2, point);
 }
 
-static void triangulate_face(Face* face, Heap* heap, VertexPNC** vertices_array, u16** indices_array)
+static void triangulate_face(Face* face, Heap* heap, VertexPNC** vertices_array, uint16_t** indices_array)
 {
     VertexPNC* vertices = *vertices_array;
-    u16* indices = *indices_array;
+    uint16_t* indices = *indices_array;
 
     FlatLoop loop;
     if(face->borders_count > 1)
@@ -1120,7 +1120,7 @@ static void triangulate_face(Face* face, Heap* heap, VertexPNC** vertices_array,
 
     // Save the index before adding any vertices for this face so it can be
     // used as a base for ear indexing.
-    u16 base_index = array_count(vertices);
+    uint16_t base_index = array_count(vertices);
 
     // Copy all of the vertices in the face.
     ARRAY_RESERVE(vertices, loop.edges, heap);
@@ -1215,7 +1215,7 @@ static void triangulate_face(Face* face, Heap* heap, VertexPNC** vertices_array,
     *indices_array = indices;
 }
 
-void triangulate(Mesh* mesh, Heap* heap, VertexPNC** vertices, u16** indices)
+void triangulate(Mesh* mesh, Heap* heap, VertexPNC** vertices, uint16_t** indices)
 {
     *vertices = nullptr;
     *indices = nullptr;
@@ -1226,7 +1226,7 @@ void triangulate(Mesh* mesh, Heap* heap, VertexPNC** vertices, u16** indices)
     }
 }
 
-void triangulate_selection(Mesh* mesh, Selection* selection, Heap* heap, VertexPNC** vertices, u16** indices)
+void triangulate_selection(Mesh* mesh, Selection* selection, Heap* heap, VertexPNC** vertices, uint16_t** indices)
 {
     ASSERT(selection->type == Selection::Type::Face);
 

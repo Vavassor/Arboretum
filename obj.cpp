@@ -144,7 +144,7 @@ struct Face
 bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
 {
     void* contents;
-    u64 bytes;
+    uint64_t bytes;
     bool contents_loaded = load_whole_file(path, &contents, &bytes, stack);
     if(!contents_loaded)
     {

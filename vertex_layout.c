@@ -2,16 +2,16 @@
 
 #include "assert.h"
 
-union Pack4x8
+typedef union Pack4x8
 {
     struct
     {
-        u8 r, g, b, a;
+        uint8_t r, g, b, a;
     };
-    u32 packed;
-};
+    uint32_t packed;
+} Pack4x8;
 
-static u32 pack_unorm3x8(Float3 v)
+static uint32_t pack_unorm3x8(Float3 v)
 {
     Pack4x8 u;
     u.r = 0xff * v.x;
@@ -21,7 +21,7 @@ static u32 pack_unorm3x8(Float3 v)
     return u.packed;
 }
 
-static Float3 unpack_unorm3x8(u32 x)
+static Float3 unpack_unorm3x8(uint32_t x)
 {
     Pack4x8 u;
     u.packed = x;
@@ -32,7 +32,7 @@ static Float3 unpack_unorm3x8(u32 x)
     return v;
 }
 
-static u32 pack_unorm4x8(Float4 v)
+static uint32_t pack_unorm4x8(Float4 v)
 {
     Pack4x8 u;
     u.r = 0xff * v.x;
@@ -42,7 +42,7 @@ static u32 pack_unorm4x8(Float4 v)
     return u.packed;
 }
 
-static Float4 unpack_unorm4x8(u32 x)
+static Float4 unpack_unorm4x8(uint32_t x)
 {
     Pack4x8 u;
     u.packed = x;
@@ -54,16 +54,16 @@ static Float4 unpack_unorm4x8(u32 x)
     return v;
 }
 
-static u32 pack_unorm16x2(Float2 v)
+static uint32_t pack_unorm16x2(Float2 v)
 {
     union
     {
         struct
         {
-            u16 x;
-            u16 y;
+            uint16_t x;
+            uint16_t y;
         };
-        u32 packed;
+        uint32_t packed;
     } u;
     u.x = 0xffff * v.x;
     u.y = 0xffff * v.y;
@@ -75,7 +75,7 @@ static bool is_unorm(float x)
     return x >= 0.0f && x <= 1.0f;
 }
 
-u32 rgb_to_u32(Float3 c)
+uint32_t rgb_to_u32(Float3 c)
 {
     ASSERT(is_unorm(c.x));
     ASSERT(is_unorm(c.y));
@@ -83,7 +83,7 @@ u32 rgb_to_u32(Float3 c)
     return pack_unorm3x8(c);
 }
 
-u32 rgba_to_u32(Float4 c)
+uint32_t rgba_to_u32(Float4 c)
 {
     ASSERT(is_unorm(c.x));
     ASSERT(is_unorm(c.y));
@@ -92,17 +92,17 @@ u32 rgba_to_u32(Float4 c)
     return pack_unorm4x8(c);
 }
 
-Float3 u32_to_rgb(u32 u)
+Float3 u32_to_rgb(uint32_t u)
 {
     return unpack_unorm3x8(u);
 }
 
-Float4 u32_to_rgba(u32 u)
+Float4 u32_to_rgba(uint32_t u)
 {
     return unpack_unorm4x8(u);
 }
 
-u32 texcoord_to_u32(Float2 v)
+uint32_t texcoord_to_u32(Float2 v)
 {
     ASSERT(is_unorm(v.x));
     ASSERT(is_unorm(v.y));

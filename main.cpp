@@ -21,7 +21,6 @@
 #include "int_utilities.h"
 #include "logging.h"
 #include "platform.h"
-#include "sized_types.h"
 #include "string_utilities.h"
 #include "video.h"
 
@@ -1182,7 +1181,7 @@ static double get_clock_frequency()
 {
     struct timespec resolution;
     clock_getres(CLOCK_MONOTONIC, &resolution);
-    s64 nanoseconds = resolution.tv_nsec + resolution.tv_sec * 1000000000;
+    int64_t nanoseconds = resolution.tv_nsec + resolution.tv_sec * 1000000000;
     return static_cast<double>(nanoseconds) / 1.0e9;
 }
 
@@ -1190,7 +1189,7 @@ double get_time(double clock_frequency)
 {
     struct timespec timestamp;
     clock_gettime(CLOCK_MONOTONIC, &timestamp);
-    s64 nanoseconds = timestamp.tv_nsec + timestamp.tv_sec * 1000000000;
+    int64_t nanoseconds = timestamp.tv_nsec + timestamp.tv_sec * 1000000000;
     return static_cast<double>(nanoseconds) * clock_frequency;
 }
 
@@ -1198,7 +1197,7 @@ void go_to_sleep(double amount_to_sleep)
 {
     struct timespec requested_time;
     requested_time.tv_sec = 0;
-    requested_time.tv_nsec = static_cast<s64>(1.0e9 * amount_to_sleep);
+    requested_time.tv_nsec = static_cast<int64_t>(1.0e9 * amount_to_sleep);
     clock_nanosleep(CLOCK_MONOTONIC, 0, &requested_time, nullptr);
 }
 
