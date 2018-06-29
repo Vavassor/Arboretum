@@ -1,85 +1,93 @@
 #ifndef FILESYSTEM_H_
 #define FILESYSTEM_H_
 
-#include "sized_types.h"
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
-struct Stack;
-struct Heap;
+#include "memory.h"
 
-bool load_whole_file(const char* path, void** contents, u64* bytes, Stack* stack);
-bool save_whole_file(const char* path, const void* contents, u64 bytes, Stack* stack);
+#include <stdbool.h>
 
-enum class FileOpenMode
+bool load_whole_file(const char* path, void** contents, uint64_t* bytes, Stack* stack);
+bool save_whole_file(const char* path, const void* contents, uint64_t bytes, Stack* stack);
+
+typedef enum FileOpenMode
 {
-    Read,
-    Write_Temporary,
-};
+    FILE_OPEN_MODE_READ,
+    FILE_OPEN_MODE_WRITE_TEMPORARY,
+} FileOpenMode;
 
-struct File;
+typedef struct File File;
+
 File* open_file(const char* path, FileOpenMode open_mode, Heap* heap);
 void close_file(File* file);
 bool make_file_permanent(File* file, const char* path);
-bool read_file(File* file, void* data, u64 bytes, u64* bytes_got);
-bool write_file(File* file, const void* data, u64 bytes);
+bool read_file(File* file, void* data, uint64_t bytes, uint64_t* bytes_got);
+bool write_file(File* file, const void* data, uint64_t bytes);
 
 void write_to_standard_output(const char* text, bool error);
 
 // Directory Listing............................................................
 
-enum class DirectoryRecordType
+typedef enum DirectoryRecordType
 {
-    Unknown,
-    File,
-    Directory,
-};
+    DIRECTORY_RECORD_TYPE_UNKNOWN,
+    DIRECTORY_RECORD_TYPE_FILE,
+    DIRECTORY_RECORD_TYPE_DIRECTORY,
+} DirectoryRecordType;
 
-struct DirectoryRecord
+typedef struct DirectoryRecord
 {
     char* name;
     DirectoryRecordType type;
     bool hidden;
-};
+} DirectoryRecord;
 
-struct Directory
+typedef struct Directory
 {
     DirectoryRecord* records;
     int records_count;
-};
+} Directory;
 
 void destroy_directory(Directory* directory, Heap* heap);
 bool list_files_in_directory(const char* path, Directory* result, Heap* heap);
 
 // Volume Listing...............................................................
 
-struct Volume
+typedef struct Volume
 {
     char* label;
     char* path;
-};
+} Volume;
 
-struct VolumeList
+typedef struct VolumeList
 {
     Volume* volumes;
-};
+} VolumeList;
 
 bool list_volumes(VolumeList* list, Heap* heap);
 void destroy_volume_list(VolumeList* list, Heap* heap);
 
 // User Directories.............................................................
 
-enum UserFolder
+typedef enum UserFolder
 {
-    Cache,
-    Config,
-    Data,
-    Desktop,
-    Documents,
-    Downloads,
-    Music,
-    Pictures,
-    Videos,
-};
+    USER_FOLDER_CACHE,
+    USER_FOLDER_CONFIG,
+    USER_FOLDER_DATA,
+    USER_FOLDER_DESKTOP,
+    USER_FOLDER_DOCUMENTS,
+    USER_FOLDER_DOWNLOADS,
+    USER_FOLDER_MUSIC,
+    USER_FOLDER_PICTURES,
+    USER_FOLDER_VIDEOS,
+} UserFolder;
 
 char* get_user_folder(UserFolder folder, Heap* heap);
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
 
 #endif // FILESYSTEM_H_

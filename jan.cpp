@@ -956,8 +956,8 @@ static void bridge_hole(FlatLoop* loop, int bridge_index, FlatLoop* hole, Heap* 
     int original_edges = loop->edges;
 
     loop->edges += hole->edges + 2;
-    loop->positions = HEAP_REALLOCATE(heap, loop->positions, loop->edges);
-    loop->vertices = HEAP_REALLOCATE(heap, loop->vertices, loop->edges);
+    loop->positions = HEAP_REALLOCATE(heap, loop->positions, Vector2, loop->edges);
+    loop->vertices = HEAP_REALLOCATE(heap, loop->vertices, VertexPNC, loop->edges);
 
     int count = original_edges - bridge_index;
     MOVE_ARRAY(&loop->positions[bridge_index + hole->edges + 2], &loop->positions[bridge_index], count);
@@ -1231,7 +1231,7 @@ void triangulate_selection(Mesh* mesh, Selection* selection, Heap* heap, VertexP
     *vertices = nullptr;
     *indices = nullptr;
 
-    FOR_ALL(selection->parts)
+    FOR_ALL(Part, selection->parts)
     {
         triangulate_face(it->face, heap, vertices, indices);
     }
@@ -1271,7 +1271,7 @@ Selection select_all(Mesh* mesh, Heap* heap)
 
 bool edge_selected(Selection* selection, Edge* edge)
 {
-    FOR_ALL(selection->parts)
+    FOR_ALL(Part, selection->parts)
     {
         if(it->edge == edge)
         {
@@ -1283,7 +1283,7 @@ bool edge_selected(Selection* selection, Edge* edge)
 
 bool face_selected(Selection* selection, Face* face)
 {
-    FOR_ALL(selection->parts)
+    FOR_ALL(Part, selection->parts)
     {
         if(it->face == face)
         {
@@ -1295,7 +1295,7 @@ bool face_selected(Selection* selection, Face* face)
 
 bool vertex_selected(Selection* selection, Vertex* vertex)
 {
-    FOR_ALL(selection->parts)
+    FOR_ALL(Part, selection->parts)
     {
         if(it->vertex == vertex)
         {
@@ -1399,7 +1399,7 @@ void move_faces(Mesh* mesh, Selection* selection, Vector3 translation)
 {
     ASSERT(selection->type == Selection::Type::Face);
 
-    FOR_ALL(selection->parts)
+    FOR_ALL(Part, selection->parts)
     {
         Face* face = it->face;
         for(Border* border = face->first_border; border; border = border->next)
@@ -1421,7 +1421,7 @@ void flip_face_normals(Mesh* mesh, Selection* selection)
 {
     ASSERT(selection->type == Selection::Type::Face);
 
-    FOR_ALL(selection->parts)
+    FOR_ALL(Part, selection->parts)
     {
         flip_face_normal(it->face);
     }
@@ -1445,7 +1445,7 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Heap* heap, Stack
 
     // Calculate the vector to extrude all the vertices along.
     Vector3 average_direction = vector3_zero;
-    FOR_ALL(selection->parts)
+    FOR_ALL(Part, selection->parts)
     {
         Face* face = it->face;
         average_direction += face->normal;
@@ -1457,7 +1457,7 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Heap* heap, Stack
     Map map;
     map_create(&map, mesh->vertices_count, heap);
 
-    FOR_ALL(selection->parts)
+    FOR_ALL(Part, selection->parts)
     {
         Face* face = it->face;
 
@@ -1505,7 +1505,7 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Heap* heap, Stack
         } while(link != first);
     }
 
-    FOR_ALL(selection->parts)
+    FOR_ALL(Part, selection->parts)
     {
         Face* face = it->face;
 
@@ -1556,7 +1556,7 @@ void colour_selection(Mesh* mesh, Selection* selection, Vector3 colour)
 {
     if(selection->type == Selection::Type::Face)
     {
-        FOR_ALL(selection->parts)
+        FOR_ALL(Part, selection->parts)
         {
             colour_just_the_one_face(it->face, colour);
         }

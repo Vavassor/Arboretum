@@ -131,7 +131,7 @@ void destroy_context(Context* context, Heap* heap)
 
     destroy_event_queue(&context->queue, heap);
 
-    FOR_ALL(context->toplevel_containers)
+    FOR_ALL(Item*, context->toplevel_containers)
     {
         Item* item = *it;
         destroy_container(&item->container, heap);
@@ -185,7 +185,7 @@ static Id get_focus_scope(Context* context, Item* item)
         return invalid_id;
     }
 
-    FOR_ALL(context->toplevel_containers)
+    FOR_ALL(Item*, context->toplevel_containers)
     {
         Item* toplevel = *it;
         bool within = in_focus_scope(toplevel, item);
@@ -379,7 +379,7 @@ void set_text(TextBlock* text_block, const char* text, Heap* heap)
     // Glyph count should be based on the mapping of the given text in a
     // particular font instead of the size in bytes.
     int size = MAX(string_size(text), 1);
-    text_block->glyphs = HEAP_REALLOCATE(heap, text_block->glyphs, size);
+    text_block->glyphs = HEAP_REALLOCATE(heap, text_block->glyphs, Glyph, size);
     text_block->glyphs_cap = size;
     map_create(&text_block->glyph_map, size, heap);
 }
@@ -1769,11 +1769,11 @@ static bool detect_hover(Item* item, Vector2 pointer_position, Platform* platfor
             {
                 if(button->enabled)
                 {
-                    change_cursor(platform, CursorType::Arrow);
+                    change_cursor(platform, CURSOR_TYPE_ARROW);
                 }
                 else
                 {
-                    change_cursor(platform, CursorType::Prohibition_Sign);
+                    change_cursor(platform, CURSOR_TYPE_PROHIBITION_SIGN);
                 }
             }
             detected = hovered;
@@ -1802,7 +1802,7 @@ static bool detect_hover(Item* item, Vector2 pointer_position, Platform* platfor
                 if(hovered)
                 {
                     list->hovered_item_index = i;
-                    change_cursor(platform, CursorType::Arrow);
+                    change_cursor(platform, CURSOR_TYPE_ARROW);
                     detected = true;
                 }
             }
@@ -1817,7 +1817,7 @@ static bool detect_hover(Item* item, Vector2 pointer_position, Platform* platfor
             bool hovered = point_in_rect(item->bounds, pointer_position);
             if(hovered)
             {
-                change_cursor(platform, CursorType::I_Beam);
+                change_cursor(platform, CURSOR_TYPE_I_BEAM);
             }
             detected = hovered;
             break;
@@ -1883,17 +1883,17 @@ static bool detect_focus_changes(Context* context, Item* item, Vector2 mouse_pos
 
 static void detect_focus_changes_for_toplevel_containers(Context* context)
 {
-    bool clicked = input::get_mouse_clicked(input::MouseButton::Left)
-        || input::get_mouse_clicked(input::MouseButton::Middle)
-        || input::get_mouse_clicked(input::MouseButton::Right);
+    bool clicked = input_get_mouse_clicked(MOUSE_BUTTON_LEFT)
+            || input_get_mouse_clicked(MOUSE_BUTTON_MIDDLE)
+            || input_get_mouse_clicked(MOUSE_BUTTON_RIGHT);
 
     Vector2 mouse_position;
-    Int2 position = input::get_mouse_position();
+    Int2 position = input_get_mouse_position();
     mouse_position.x = position.x - context->viewport.x / 2.0f;
     mouse_position.y = -(position.y - context->viewport.y / 2.0f);
 
     Item* highest = nullptr;
-    FOR_ALL(context->toplevel_containers)
+    FOR_ALL(Item*, context->toplevel_containers)
     {
         Item* item = *it;
         bool above = point_in_rect(item->bounds, mouse_position);
@@ -1976,17 +1976,17 @@ static bool detect_capture_changes(Context* context, Item* item, Vector2 mouse_p
 
 static void detect_capture_changes_for_toplevel_containers(Context* context, Platform* platform)
 {
-    bool clicked = input::get_mouse_clicked(input::MouseButton::Left)
-        || input::get_mouse_clicked(input::MouseButton::Middle)
-        || input::get_mouse_clicked(input::MouseButton::Right);
+    bool clicked = input_get_mouse_clicked(MOUSE_BUTTON_LEFT)
+            || input_get_mouse_clicked(MOUSE_BUTTON_MIDDLE)
+            || input_get_mouse_clicked(MOUSE_BUTTON_RIGHT);
 
     Vector2 mouse_position;
-    Int2 position = input::get_mouse_position();
+    Int2 position = input_get_mouse_position();
     mouse_position.x = position.x - context->viewport.x / 2.0f;
     mouse_position.y = -(position.y - context->viewport.y / 2.0f);
 
     Item* highest = nullptr;
-    FOR_ALL(context->toplevel_containers)
+    FOR_ALL(Item*, context->toplevel_containers)
     {
         Item* item = *it;
         bool above = point_in_rect(item->bounds, mouse_position);
@@ -2036,7 +2036,7 @@ static void update_added_glyphs(TextBlock* text_block, Vector2 dimensions, Id id
     // particular font instead of the size in bytes.
     Heap* heap = context->heap;
     int glyphs_cap = string_size(text_block->text);
-    text_block->glyphs = HEAP_REALLOCATE(heap, text_block->glyphs, glyphs_cap);
+    text_block->glyphs = HEAP_REALLOCATE(heap, text_block->glyphs, Glyph, glyphs_cap);
     text_block->glyphs_cap = glyphs_cap;
     map_destroy(&text_block->glyph_map, heap);
     map_create(&text_block->glyph_map, glyphs_cap, heap);
@@ -2184,8 +2184,8 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
         {
             Button* button = &item->button;
 
-            bool activated = input::get_key_tapped(input::Key::Space)
-                || input::get_key_tapped(input::Key::Enter);
+            bool activated = input_get_key_tapped(INPUT_KEY_SPACE)
+                    || input_get_key_tapped(INPUT_KEY_ENTER);
 
             if(activated && button->enabled)
             {
@@ -2215,25 +2215,25 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
 
             if(count > 0)
             {
-                if(input::get_key_auto_repeated(input::Key::Down_Arrow))
+                if(input_get_key_auto_repeated(INPUT_KEY_DOWN_ARROW))
                 {
                     list->selected_item_index = (list->selected_item_index + 1) % count;
                     selection_changed = true;
                 }
 
-                if(input::get_key_auto_repeated(input::Key::Up_Arrow))
+                if(input_get_key_auto_repeated(INPUT_KEY_UP_ARROW))
                 {
                     list->selected_item_index = mod(list->selected_item_index - 1, count);
                     selection_changed = true;
                 }
 
-                if(input::get_key_tapped(input::Key::Home))
+                if(input_get_key_tapped(INPUT_KEY_HOME))
                 {
                     list->selected_item_index = 0;
                     selection_changed = true;
                 }
 
-                if(input::get_key_tapped(input::Key::End))
+                if(input_get_key_tapped(INPUT_KEY_END))
                 {
                     list->selected_item_index = count - 1;
                     selection_changed = true;
@@ -2242,20 +2242,20 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                 float item_height = list->items_bounds[0].dimensions.y + list->item_spacing;
                 int items_per_page = round(item->bounds.dimensions.y / item_height);
 
-                if(input::get_key_tapped(input::Key::Page_Up))
+                if(input_get_key_tapped(INPUT_KEY_PAGE_UP))
                 {
                     list->selected_item_index = MAX(list->selected_item_index - items_per_page, 0);
                     selection_changed = true;
                 }
 
-                if(input::get_key_tapped(input::Key::Page_Down))
+                if(input_get_key_tapped(INPUT_KEY_PAGE_DOWN))
                 {
                     list->selected_item_index = MIN(list->selected_item_index + items_per_page, count - 1);
                     selection_changed = true;
                 }
             }
 
-            if((input::get_key_tapped(input::Key::Space) || input::get_key_tapped(input::Key::Enter)) && is_valid_index(list->selected_item_index))
+            if((input_get_key_tapped(INPUT_KEY_SPACE) || input_get_key_tapped(INPUT_KEY_ENTER)) && is_valid_index(list->selected_item_index))
             {
                 selection_changed = true;
                 expand = true;
@@ -2319,16 +2319,16 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
             float line_height = context->theme.font->line_height;
 
             // Type out any new text.
-            char* text_to_add = input::get_composed_text();
+            char* text_to_add = input_get_composed_text();
             insert_text(item, text_to_add, context, platform);
 
             // Record the cursor position before any movement so that change can
             // be detected at a single point after any possible cursor moves.
             int prior_cursor_position = text_input->cursor_position;
 
-            if(input::get_key_auto_repeated(input::Key::Left_Arrow))
+            if(input_get_key_auto_repeated(INPUT_KEY_LEFT_ARROW))
             {
-                if(input::get_key_modified_by_control(input::Key::Left_Arrow))
+                if(input_get_key_modified_by_control(INPUT_KEY_LEFT_ARROW))
                 {
                     text_input->cursor_position = find_prior_beginning_of_word(text_block->text, text_input->cursor_position, context->scratch);
                 }
@@ -2337,15 +2337,15 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                     text_input->cursor_position = find_prior_beginning_of_grapheme_cluster(text_block->text, text_input->cursor_position, context->scratch);
                 }
 
-                if(!input::get_key_modified_by_shift(input::Key::Left_Arrow))
+                if(!input_get_key_modified_by_shift(INPUT_KEY_LEFT_ARROW))
                 {
                     text_input->selection_start = text_input->cursor_position;
                 }
             }
 
-            if(input::get_key_auto_repeated(input::Key::Right_Arrow))
+            if(input_get_key_auto_repeated(INPUT_KEY_RIGHT_ARROW))
             {
-                if(input::get_key_modified_by_control(input::Key::Right_Arrow))
+                if(input_get_key_modified_by_control(INPUT_KEY_RIGHT_ARROW))
                 {
                     text_input->cursor_position = find_next_end_of_word(text_block->text, text_input->cursor_position, context->scratch);
                 }
@@ -2354,13 +2354,13 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                     text_input->cursor_position = find_next_end_of_grapheme_cluster(text_block->text, text_input->cursor_position, context->scratch);
                 }
 
-                if(!input::get_key_modified_by_shift(input::Key::Right_Arrow))
+                if(!input_get_key_modified_by_shift(INPUT_KEY_RIGHT_ARROW))
                 {
                     text_input->selection_start = text_input->cursor_position;
                 }
             }
 
-            if(input::get_key_auto_repeated(input::Key::Up_Arrow))
+            if(input_get_key_auto_repeated(INPUT_KEY_UP_ARROW))
             {
                 Vector2 position = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
                 position.y += line_height;
@@ -2370,14 +2370,14 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                 {
                     text_input->cursor_position = index;
 
-                    if(!input::get_key_modified_by_shift(input::Key::Up_Arrow))
+                    if(!input_get_key_modified_by_shift(INPUT_KEY_UP_ARROW))
                     {
                         text_input->selection_start = text_input->cursor_position;
                     }
                 }
             }
 
-            if(input::get_key_auto_repeated(input::Key::Down_Arrow))
+            if(input_get_key_auto_repeated(INPUT_KEY_DOWN_ARROW))
             {
                 Vector2 position = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
                 position.y -= line_height;
@@ -2387,16 +2387,16 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                 {
                     text_input->cursor_position = index;
 
-                    if(!input::get_key_modified_by_shift(input::Key::Down_Arrow))
+                    if(!input_get_key_modified_by_shift(INPUT_KEY_DOWN_ARROW))
                     {
                         text_input->selection_start = text_input->cursor_position;
                     }
                 }
             }
 
-            if(input::get_key_tapped(input::Key::Home))
+            if(input_get_key_tapped(INPUT_KEY_HOME))
             {
-                if(input::get_key_modified_by_control(input::Key::Home))
+                if(input_get_key_modified_by_control(INPUT_KEY_HOME))
                 {
                     text_input->cursor_position = 0;
                 }
@@ -2404,15 +2404,15 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                 {
                     text_input->cursor_position = find_beginning_of_line(text_block, text_input->cursor_position);
                 }
-                if(!input::get_key_modified_by_shift(input::Key::Home))
+                if(!input_get_key_modified_by_shift(INPUT_KEY_HOME))
                 {
                     text_input->selection_start = text_input->cursor_position;
                 }
             }
 
-            if(input::get_key_tapped(input::Key::End))
+            if(input_get_key_tapped(INPUT_KEY_END))
             {
-                if(input::get_key_modified_by_control(input::Key::End))
+                if(input_get_key_modified_by_control(INPUT_KEY_END))
                 {
                     text_input->cursor_position = string_size(text_block->text);
                 }
@@ -2420,13 +2420,13 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                 {
                     text_input->cursor_position = find_end_of_line(text_block, text_input->cursor_position);
                 }
-                if(!input::get_key_modified_by_shift(input::Key::End))
+                if(!input_get_key_modified_by_shift(INPUT_KEY_END))
                 {
                     text_input->selection_start = text_input->cursor_position;
                 }
             }
 
-            if(input::get_key_auto_repeated(input::Key::Delete))
+            if(input_get_key_auto_repeated(INPUT_KEY_DELETE))
             {
                 int start;
                 int end;
@@ -2458,7 +2458,7 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                 text_input->selection_start = new_position;
             }
 
-            if(input::get_key_auto_repeated(input::Key::Backspace))
+            if(input_get_key_auto_repeated(INPUT_KEY_BACKSPACE))
             {
                 int start;
                 int end;
@@ -2482,18 +2482,18 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                 text_input->selection_start = new_position;
             }
 
-            if(input::get_hotkey_tapped(input::Function::Select_All))
+            if(input_get_hotkey_tapped(INPUT_FUNCTION_SELECT_ALL))
             {
                 text_input->cursor_position = 0;
                 text_input->selection_start = string_size(text_block->text);
             }
 
-            if(input::get_hotkey_tapped(input::Function::Copy))
+            if(input_get_hotkey_tapped(INPUT_FUNCTION_COPY))
             {
                 copy_selected_text(text_input, platform, context->heap);
             }
 
-            if(input::get_hotkey_tapped(input::Function::Cut))
+            if(input_get_hotkey_tapped(INPUT_FUNCTION_CUT))
             {
                 bool copied = copy_selected_text(text_input, platform, context->heap);
                 if(copied)
@@ -2502,7 +2502,7 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
                 }
             }
 
-            if(input::get_hotkey_tapped(input::Function::Paste))
+            if(input_get_hotkey_tapped(INPUT_FUNCTION_PASTE))
             {
                 request_paste_from_clipboard(platform);
             }
@@ -2561,7 +2561,7 @@ static void build_tab_navigation_list(Context* context)
 {
     ARRAY_DESTROY(context->tab_navigation_list, context->heap);
 
-    FOR_ALL(context->toplevel_containers)
+    FOR_ALL(Item*, context->toplevel_containers)
     {
         Item* toplevel = *it;
         build_tab_navigation_list(context, toplevel);
@@ -2570,9 +2570,9 @@ static void build_tab_navigation_list(Context* context)
 
 static void update_non_item_specific_keyboard_input(Context* context)
 {
-    if(input::get_key_auto_repeated(input::Key::Tab))
+    if(input_get_key_auto_repeated(INPUT_KEY_TAB))
     {
-        bool backward = input::get_key_modified_by_shift(input::Key::Tab);
+        bool backward = input_get_key_modified_by_shift(INPUT_KEY_TAB);
 
         ASSERT(context->tab_navigation_list);
         ASSERT(array_count(context->tab_navigation_list) > 0);
@@ -2627,7 +2627,7 @@ static void update_pointer_input(Item* item, Context* context, Platform* platfor
         case ItemType::Button:
         {
             Button* button = &item->button;
-            if(button->hovered && input::get_mouse_clicked(input::MouseButton::Left) && button->enabled)
+            if(button->hovered && input_get_mouse_clicked(MOUSE_BUTTON_LEFT) && button->enabled)
             {
                 Event event;
                 event.type = EventType::Button;
@@ -2651,11 +2651,11 @@ static void update_pointer_input(Item* item, Context* context, Platform* platfor
 
             float line_height = context->theme.font->line_height;
 
-            Int2 velocity = input::get_mouse_scroll_velocity();
+            Int2 velocity = input_get_mouse_scroll_velocity();
             const float speed = 0.17f;
             scroll(item, speed * velocity.y, line_height);
 
-            if(is_valid_index(list->hovered_item_index) && input::get_mouse_clicked(input::MouseButton::Left))
+            if(is_valid_index(list->hovered_item_index) && input_get_mouse_clicked(MOUSE_BUTTON_LEFT))
             {
                 list->selected_item_index = list->hovered_item_index;
 
@@ -2677,12 +2677,12 @@ static void update_pointer_input(Item* item, Context* context, Platform* platfor
             TextBlock* text_block = &text_input->text_block;
             float line_height = context->theme.font->line_height;
 
-            bool clicked = input::get_mouse_clicked(input::MouseButton::Left);
-            bool dragged = !clicked && input::get_mouse_pressed(input::MouseButton::Left);
+            bool clicked = input_get_mouse_clicked(MOUSE_BUTTON_LEFT);
+            bool dragged = !clicked && input_get_mouse_pressed(MOUSE_BUTTON_LEFT);
             if(clicked || dragged)
             {
                 Vector2 mouse_position;
-                Int2 position = input::get_mouse_position();
+                Int2 position = input_get_mouse_position();
                 mouse_position.x = position.x - context->viewport.x / 2.0f;
                 mouse_position.y = -(position.y - context->viewport.y / 2.0f);
 

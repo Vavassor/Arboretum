@@ -81,7 +81,7 @@ namespace
         Vector2 position;
         Vector2 velocity;
         float scroll_velocity_y;
-        input::MouseButton button;
+        MouseButton button;
         bool drag;
     } mouse;
 
@@ -136,7 +136,7 @@ void clear_object_from_hover_and_selection(ObjectId id, Platform* platform)
     object = &lady.objects[hovered_object_index];
     if(object->id == id)
     {
-        change_cursor(platform, CursorType::Arrow);
+        change_cursor(platform, CURSOR_TYPE_ARROW);
         hovered_object_index = invalid_index;
     }
 }
@@ -387,7 +387,7 @@ static void update_camera_controls()
     {
         switch(mouse.button)
         {
-            case input::MouseButton::Left:
+            case MOUSE_BUTTON_LEFT:
             {
                 const Vector2 orbit_speed = {0.01f, 0.01f};
                 Vector2 angular_velocity = pointwise_multiply(orbit_speed, -mouse.velocity);
@@ -409,7 +409,7 @@ static void update_camera_controls()
                 action_perform(Action::Orbit_Camera);
                 break;
             }
-            case input::MouseButton::Right:
+            case MOUSE_BUTTON_RIGHT:
             {
                 // Cast rays into world space corresponding to the mouse
                 // position for this frame and the frame prior.
@@ -605,7 +605,7 @@ static void update_object_mode(Platform* platform)
             move_tool.hovered_axis = invalid_index;
         }
 
-        if(input::get_mouse_clicked(input::MouseButton::Left))
+        if(input_get_mouse_clicked(MOUSE_BUTTON_LEFT))
         {
             if(is_valid_index(hovered_axis))
             {
@@ -620,7 +620,7 @@ static void update_object_mode(Platform* platform)
                 action_perform(Action::Move);
             }
         }
-        if(mouse.drag && mouse.button == input::MouseButton::Left && (is_valid_index(move_tool.selected_axis) || is_valid_index(move_tool.selected_plane)))
+        if(mouse.drag && mouse.button == MOUSE_BUTTON_LEFT && (is_valid_index(move_tool.selected_axis) || is_valid_index(move_tool.selected_plane)))
         {
             move(ray);
         }
@@ -664,11 +664,11 @@ static void update_object_mode(Platform* platform)
         // Update the mouse cursor based on the hover status.
         if(is_valid_index(hovered_object_index))
         {
-            change_cursor(platform, CursorType::Hand_Pointing);
+            change_cursor(platform, CURSOR_TYPE_HAND_POINTING);
         }
 
         // Detect selection.
-        if(input::get_mouse_clicked(input::MouseButton::Left) && is_valid_index(hovered_object_index))
+        if(input_get_mouse_clicked(MOUSE_BUTTON_LEFT) && is_valid_index(hovered_object_index))
         {
             if(selected_object_index == hovered_object_index)
             {
@@ -750,15 +750,15 @@ static void update_object_mode(Platform* platform)
 
     if(action_in_progress == Action::None)
     {
-        if(input::get_hotkey_tapped(input::Function::Undo))
+        if(input_get_hotkey_tapped(INPUT_FUNCTION_UNDO))
         {
             undo(&history, &lady, &heap, platform);
         }
-        if(input::get_hotkey_tapped(input::Function::Redo))
+        if(input_get_hotkey_tapped(INPUT_FUNCTION_REDO))
         {
             redo(&history, &lady, &heap);
         }
-        if(is_valid_index(selected_object_index) && input::get_hotkey_tapped(input::Function::Delete))
+        if(is_valid_index(selected_object_index) && input_get_hotkey_tapped(INPUT_FUNCTION_DELETE))
         {
             delete_object(platform);
         }
@@ -813,7 +813,7 @@ static void update_edge_mode()
         float distance_to_face = infinity;
         first_face_hit_by_ray(mesh, ray, &distance_to_face, &scratch);
 
-        if(distance_to_edge < distance_to_face && input::get_mouse_clicked(input::MouseButton::Left))
+        if(distance_to_edge < distance_to_face && input_get_mouse_clicked(MOUSE_BUTTON_LEFT))
         {
             toggle_edge_in_selection(&selection, edge);
         }
@@ -858,7 +858,7 @@ static void update_face_mode()
     jan::Mesh* mesh = &object->mesh;
     Matrix4 projection = perspective_projection_matrix(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
 
-    if(input::get_key_tapped(input::Key::G))
+    if(input_get_key_tapped(INPUT_KEY_G))
     {
         translating = !translating;
     }
@@ -871,7 +871,7 @@ static void update_face_mode()
     // Translation of faces.
     if(translating)
     {
-        Int2 velocity = input::get_mouse_velocity();
+        Int2 velocity = input_get_mouse_velocity();
         mouse.velocity.x = velocity.x;
         mouse.velocity.y = velocity.y;
 
@@ -895,7 +895,7 @@ static void update_face_mode()
         Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
         ray = transform_ray(ray, inverse_transform(model));
         jan::Face* face = first_face_hit_by_ray(mesh, ray, nullptr, &scratch);
-        if(face && input::get_mouse_clicked(input::MouseButton::Left))
+        if(face && input_get_mouse_clicked(MOUSE_BUTTON_LEFT))
         {
             toggle_face_in_selection(&selection, face);
         }
@@ -953,7 +953,7 @@ static void update_vertex_mode()
         float distance_to_face;
         first_face_hit_by_ray(mesh, ray, &distance_to_face, &scratch);
 
-        if(distance_to_vertex <= distance_to_face && input::get_mouse_clicked(input::MouseButton::Left))
+        if(distance_to_vertex <= distance_to_face && input_get_mouse_clicked(MOUSE_BUTTON_LEFT))
         {
             toggle_vertex_in_selection(&selection, vertex);
         }
@@ -1090,22 +1090,22 @@ static void request_mode_change(Mode requested_mode)
 void editor_update(Platform* platform)
 {
     // Interpret user input.
-    if(input::get_mouse_clicked(input::MouseButton::Left))
+    if(input_get_mouse_clicked(MOUSE_BUTTON_LEFT))
     {
         mouse.drag = true;
-        mouse.button = input::MouseButton::Left;
+        mouse.button = MOUSE_BUTTON_LEFT;
     }
-    if(input::get_mouse_clicked(input::MouseButton::Right))
+    if(input_get_mouse_clicked(MOUSE_BUTTON_RIGHT))
     {
         mouse.drag = true;
-        mouse.button = input::MouseButton::Right;
+        mouse.button = MOUSE_BUTTON_RIGHT;
     }
     if(mouse.drag)
     {
-        if(input::get_mouse_pressed(input::MouseButton::Left)
-            || input::get_mouse_pressed(input::MouseButton::Right))
+        if(input_get_mouse_pressed(MOUSE_BUTTON_LEFT)
+                || input_get_mouse_pressed(MOUSE_BUTTON_RIGHT))
         {
-            Int2 velocity = input::get_mouse_velocity();
+            Int2 velocity = input_get_mouse_velocity();
             mouse.velocity.x = velocity.x;
             mouse.velocity.y = velocity.y;
         }
@@ -1115,12 +1115,12 @@ void editor_update(Platform* platform)
         }
     }
     {
-        Int2 position = input::get_mouse_position();
+        Int2 position = input_get_mouse_position();
         mouse.position.x = position.x;
         mouse.position.y = position.y;
 
         const float scroll_speed = 0.15f;
-        Int2 scroll_velocity = input::get_mouse_scroll_velocity();
+        Int2 scroll_velocity = input_get_mouse_scroll_velocity();
         mouse.scroll_velocity_y = scroll_speed * scroll_velocity.y;
     }
 
@@ -1214,7 +1214,7 @@ void editor_update(Platform* platform)
     // Reset the mouse cursor if nothing is hovered.
     if(!ui_context.anything_hovered && hovered_object_index == invalid_index)
     {
-        change_cursor(platform, CursorType::Arrow);
+        change_cursor(platform, CURSOR_TYPE_ARROW);
     }
 
     // Clean up the history.

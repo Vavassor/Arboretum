@@ -3,11 +3,8 @@
 #include "array2.h"
 #include "filesystem.h"
 #include "memory.h"
-#include "platform.h"
 #include "string_build.h"
 #include "string_utilities.h"
-
-namespace loc {
 
 static bool is_space_or_tab_ascii(char c)
 {
@@ -34,11 +31,11 @@ static bool is_valid_in_name(char c)
     return is_alphabetic_ascii(c) || is_numeric_ascii(c) || c == '_';
 }
 
-struct Stream
+typedef struct Stream
 {
     const char* buffer;
     bool error_occurred;
-};
+} Stream;
 
 static bool stream_has_more(Stream* stream)
 {
@@ -97,7 +94,7 @@ static char* get_name(Stream* stream, Stack* stack)
 
 static char* get_entry(Stream* stream, Stack* stack)
 {
-    char* entry = nullptr;
+    char* entry = NULL;
 
     int i;
     for(i = 0; stream->buffer[i]; i += 1)
@@ -135,7 +132,7 @@ static char* get_entry(Stream* stream, Stack* stack)
                     else
                     {
                         ARRAY_DESTROY_STACK(entry, stack);
-                        return nullptr;
+                        return NULL;
                     }
                 } while(stream->buffer[i]);
             }
@@ -146,7 +143,7 @@ static char* get_entry(Stream* stream, Stack* stack)
             else if(c != '\n')
             {
                 ARRAY_DESTROY_STACK(entry, stack);
-                return nullptr;
+                return NULL;
             }
         }
         else
@@ -166,14 +163,15 @@ static char* get_entry(Stream* stream, Stack* stack)
     return entry;
 }
 
+#define TABLE_COUNT 7
+
 static bool add_localized_text(Platform* platform, const char* name, const char* entry)
 {
-    const int table_count = 7;
     struct
     {
         const char* name;
         const char** text;
-    } table[table_count] =
+    } table[TABLE_COUNT] =
     {
         {"app_name",                    &platform->nonlocalized_text.app_name},
         {"file_pick_dialog_import",     &platform->localized_text.file_pick_dialog_import},
@@ -184,7 +182,7 @@ static bool add_localized_text(Platform* platform, const char* name, const char*
         {"main_menu_import_file",       &platform->localized_text.main_menu_import_file},
     };
 
-    for(int i = 0; i < table_count; i += 1)
+    for(int i = 0; i < TABLE_COUNT; i += 1)
     {
         if(strings_match(table[i].name, name))
         {
@@ -254,21 +252,19 @@ static bool process_next_entry(Stream* stream, Platform* platform, Stack* stack)
     return start_found && end_found && added && end_of_line_clean;
 }
 
-
-
-bool load_file(Platform* platform, const char* path)
+bool loc_load_file(Platform* platform, const char* path)
 {
     Stack stack = {};
     stack_create(&stack, capobytes(16));
 
     void* contents;
-    u64 file_size;
+    uint64_t file_size;
     bool loaded = load_whole_file(path, &contents, &file_size, &stack);
 
     if(loaded)
     {
         Stream stream;
-        stream.buffer = static_cast<const char*>(contents);
+        stream.buffer = (const char*) contents;
         stream.error_occurred = false;
         bool processed_fine = true;
 
@@ -288,5 +284,3 @@ bool load_file(Platform* platform, const char* path)
 
     return loaded;
 }
-
-} // namespace loc

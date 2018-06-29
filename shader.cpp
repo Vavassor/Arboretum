@@ -120,11 +120,11 @@ GLuint load_shader_program(const char* vertex_name, const char* fragment_name, S
     GLuint program = 0;
 
     void* contents;
-    u64 vertex_source_size;
+    uint64_t vertex_source_size;
     bool loaded_vertex = load_whole_file(vertex_path, &contents, &vertex_source_size, stack);
     char* vertex_source = static_cast<char*>(contents);
 
-    u64 fragment_source_size;
+    uint64_t fragment_source_size;
     bool loaded_fragment = load_whole_file(fragment_path, &contents, &fragment_source_size, stack);
     char* fragment_source = static_cast<char*>(contents);
 

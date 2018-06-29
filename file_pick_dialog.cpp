@@ -13,11 +13,11 @@
 
 static bool record_is_before(DirectoryRecord a, DirectoryRecord b)
 {
-    if(a.type == DirectoryRecordType::Directory && b.type == DirectoryRecordType::File)
+    if(a.type == DIRECTORY_RECORD_TYPE_DIRECTORY && b.type == DIRECTORY_RECORD_TYPE_FILE)
     {
         return true;
     }
-    if(a.type == DirectoryRecordType::File && b.type == DirectoryRecordType::Directory)
+    if(a.type == DIRECTORY_RECORD_TYPE_FILE && b.type == DIRECTORY_RECORD_TYPE_DIRECTORY)
     {
         return false;
     }
@@ -37,7 +37,7 @@ static void filter_directory(Directory* directory, const char** extensions, int 
         {
             continue;
         }
-        if(record.type == DirectoryRecordType::File)
+        if(record.type == DIRECTORY_RECORD_TYPE_FILE)
         {
             for(int j = 0; j < extensions_count; j += 1)
             {
@@ -187,7 +187,7 @@ static void list_directory(FilePickDialog* dialog, const char* directory, ui::Co
 
 void open_dialog(FilePickDialog* dialog, ui::Context* context, Platform* platform, Heap* heap)
 {
-    const char* default_path = get_user_folder(UserFolder::Documents, heap);
+    const char* default_path = get_user_folder(USER_FOLDER_DOCUMENTS, heap);
 
     dialog->enabled = true;
 
@@ -275,7 +275,7 @@ static void touch_record(FilePickDialog* dialog, int record_index, bool expand, 
     DirectoryRecord record = dialog->directory.records[record_index];
     switch(record.type)
     {
-        case DirectoryRecordType::Directory:
+        case DIRECTORY_RECORD_TYPE_DIRECTORY:
         {
             switch(dialog->type)
             {
@@ -310,7 +310,7 @@ static void touch_record(FilePickDialog* dialog, int record_index, bool expand, 
             }
             break;
         }
-        case DirectoryRecordType::File:
+        case DIRECTORY_RECORD_TYPE_FILE:
         {
             dialog->record_selected = record_index;
             dialog->pick->enabled = true;

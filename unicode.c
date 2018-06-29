@@ -112,9 +112,9 @@ int utf8_to_utf32(const char* from, int from_size, char32_t* to, int to_size)
 // https://unicode.org/Public/UNIDATA/PropList.txt
 bool is_whitespace(char32_t codepoint)
 {
-    return (codepoint >= U'\u0009' && codepoint <= U'\u000d') // <control-0009>..<control-000D>
-        || codepoint == U'\u0020'                             // SPACE
-        || codepoint == U'\u0085'                             // <control-0085>
+    return (codepoint >= 0x0009 && codepoint <= 0x000d)       // <control-0009>..<control-000D>
+        || codepoint == U' '                                  // SPACE
+        || codepoint == 0x0085                                // <control-0085>
         || codepoint == U'\u00a0'                             // NO-BREAK SPACE
         || codepoint == U'\u1680'                             // OGHAM SPACE MARK
         || (codepoint >= U'\u2000' && codepoint <= U'\u200a') // EN QUAD..HAIR SPACE
@@ -127,10 +127,10 @@ bool is_whitespace(char32_t codepoint)
 
 bool is_newline(char32_t codepoint)
 {
-    return (codepoint >= U'\u000a' && codepoint <= U'\u000d') // <control-000a>..<control-000d>
-        || codepoint == U'\u0085'                             // <control-0085>
-        || codepoint == U'\u2028'                             // LINE SEPARATOR
-        || codepoint == U'\u2029';                            // PARAGRAPH SEPARATOR
+    return (codepoint >= 0x000a && codepoint <= 0x000d) // <control-000a>..<control-000d>
+        || codepoint == 0x0085                          // <control-0085>
+        || codepoint == U'\u2028'                       // LINE SEPARATOR
+        || codepoint == U'\u2029';                      // PARAGRAPH SEPARATOR
 }
 
 // This is based on the Default_Ignorable_Code_Point property in Unicode

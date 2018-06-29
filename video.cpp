@@ -769,7 +769,7 @@ void system_update(UpdateState* update, Platform* platform)
 
         view = look_at_matrix(camera->position, camera->target, vector3_unit_z);
 
-        FOR_ALL(objects.array)
+        FOR_ALL(Object, objects.array)
         {
             object_set_matrices(it, view, projection);
         }

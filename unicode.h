@@ -1,7 +1,13 @@
 #ifndef UNICODE_H_
 #define UNICODE_H_
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #include "invalid_index.h"
+
+#include <uchar.h>
 
 int utf8_codepoint_count(const char* s);
 char32_t utf8_get_codepoint(const char* string, int* bytes_read);
@@ -14,5 +20,9 @@ int utf8_to_utf32(const char* from, int from_size, char32_t* to, int to_size);
 bool is_whitespace(char32_t codepoint);
 bool is_newline(char32_t codepoint);
 bool is_default_ignorable(char32_t codepoint);
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
 
 #endif // UNICODE_H_

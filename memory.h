@@ -51,8 +51,8 @@ void stack_deallocate(Stack* stack, void* memory);
 #define STACK_ALLOCATE(stack, type, count) \
     ((type*) stack_allocate(stack, sizeof(type) * (count)))
 
-#define STACK_REALLOCATE(stack, memory, count) \
-    ((decltype(memory)) stack_reallocate(stack, memory, sizeof(*(memory)) * (count)))
+#define STACK_REALLOCATE(stack, memory, type, count) \
+    ((type*) stack_reallocate(stack, memory, sizeof(*(memory)) * (count)))
 
 #define STACK_DEALLOCATE(stack, memory) \
     stack_deallocate(stack, memory)
@@ -150,8 +150,8 @@ HeapInfo heap_get_info(Heap* heap);
 #define HEAP_ALLOCATE(heap, type, count) \
     ((type*) heap_allocate(heap, sizeof(type) * (count)))
 
-#define HEAP_REALLOCATE(heap, array, count) \
-    ((decltype(array)) heap_reallocate(heap, array, sizeof(*(array)) * (count)))
+#define HEAP_REALLOCATE(heap, array, type, count) \
+    ((type*) heap_reallocate(heap, array, sizeof(*(array)) * (count)))
 
 #define HEAP_DEALLOCATE(heap, array) \
     heap_deallocate(heap, array)

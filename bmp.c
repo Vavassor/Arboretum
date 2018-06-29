@@ -3,21 +3,52 @@
 #include "filesystem.h"
 #include "memory.h"
 
-namespace bmp {
+#pragma pack(push, bmp, 1)
+
+typedef struct BmpFileHeader
+{
+    char type[2];
+    uint32_t size;
+    uint16_t reserved1;
+    uint16_t reserved2;
+    uint32_t offset;
+} BmpFileHeader;
+
+typedef struct BmpInfoHeader
+{
+    uint32_t size;
+    int32_t width;
+    int32_t height;
+    uint16_t planes;
+    uint16_t bits_per_pixel;
+    uint32_t compression;
+    uint32_t image_size;
+    int32_t pixels_per_meter_x;
+    int32_t pixels_per_meter_y;
+    uint32_t colours_used;
+    uint32_t important_colours;
+} BmpInfoHeader;
+
+#pragma pack(pop, bmp)
+
+typedef enum Compression
+{
+    COMPRESSION_NONE = 0,
+} Compression;
 
 static unsigned int pad_multiple_of_four(unsigned int x)
 {
     return (x + 3) & ~0x3;
 }
 
-bool write_file(const char* path, const u8* pixels, int width, int height, Stack* stack)
+bool bmp_write_file(const char* path, const uint8_t* pixels, int width, int height, Stack* stack)
 {
     unsigned int bytes_per_pixel = 3;
     unsigned int padded_width = pad_multiple_of_four(width);
     unsigned int pixel_data_size = bytes_per_pixel * padded_width * height;
     int row_padding = padded_width - width;
 
-    InfoHeader info;
+    BmpInfoHeader info;
     info.size = sizeof(info);
     info.width = width;
     info.height = height; // negative indicates rows are ordered top-to-bottom
@@ -30,7 +61,7 @@ bool write_file(const char* path, const u8* pixels, int width, int height, Stack
     info.colours_used = 0;
     info.important_colours = 0;
 
-    FileHeader header;
+    BmpFileHeader header;
     header.type[0] = 'B';
     header.type[1] = 'M';
     header.size = sizeof(header) + sizeof(info) + pixel_data_size;
@@ -39,9 +70,9 @@ bool write_file(const char* path, const u8* pixels, int width, int height, Stack
     header.offset = sizeof(header) + sizeof(info);
 
     // Create the file in-memory;
-    u64 file_size = header.size;
-    u8* file_contents = static_cast<u8*>(virtual_allocate(file_size));
-    u8* hand = file_contents;
+    uint64_t file_size = header.size;
+    uint8_t* file_contents = (uint8_t*) virtual_allocate(file_size);
+    uint8_t* hand = file_contents;
 
     copy_memory(hand, &header, sizeof(header));
     hand += sizeof(header);
@@ -50,7 +81,7 @@ bool write_file(const char* path, const u8* pixels, int width, int height, Stack
 
     for(int i = 0; i < height; ++i)
     {
-        u64 row_size = bytes_per_pixel * width;
+        uint64_t row_size = bytes_per_pixel * width;
         copy_memory(hand, &pixels[bytes_per_pixel * width * i], row_size);
         hand += row_size;
         set_memory(hand, 0, row_padding);
@@ -63,5 +94,3 @@ bool write_file(const char* path, const u8* pixels, int width, int height, Stack
 
     return true;
 }
-
-} // namespace bmp

@@ -3,9 +3,7 @@
 
 #include "vector_math.h"
 #include "geometry.h"
-
-struct Stack;
-struct Heap;
+#include "memory.h"
 
 namespace bmfont {
 

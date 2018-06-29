@@ -1,13 +1,19 @@
 #ifndef LOC_H_
 #define LOC_H_
 
-struct Platform;
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+#include "platform.h"
+
+#include <stdbool.h>
 
 // Localized Text File (.loc)
-namespace loc {
+bool loc_load_file(Platform* platform, const char* path);
 
-bool load_file(Platform* platform, const char* path);
-
-} // namespace loc
+#if defined(__cplusplus)
+} // extern "C"
+#endif
 
 #endif // LOC_H_

@@ -1,7 +1,6 @@
 #include "string_build.h"
 
 #include "assert.h"
-#include "memory.h"
 #include "string_utilities.h"
 
 char* copy_chars_to_heap(const char* original, int original_size, Heap* heap)
@@ -78,7 +77,7 @@ void append_string(char** buffer, const char* string, Stack* stack)
     buffer_size += extra;
 
     char* result = *buffer;
-    result = STACK_REALLOCATE(stack, result, buffer_size + 1);
+    result = STACK_REALLOCATE(stack, result, char, buffer_size + 1);
     copy_memory(&result[append_at], string, extra);
     result[buffer_size] = '\0';
 

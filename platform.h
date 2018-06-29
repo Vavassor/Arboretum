@@ -1,23 +1,27 @@
 #ifndef PLATFORM_H_
 #define PLATFORM_H_
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #include "memory.h"
 
-enum class CursorType
+typedef enum CursorType
 {
-    Arrow,
-    Hand_Pointing,
-    I_Beam,
-    Prohibition_Sign,
-};
+    CURSOR_TYPE_ARROW,
+    CURSOR_TYPE_HAND_POINTING,
+    CURSOR_TYPE_I_BEAM,
+    CURSOR_TYPE_PROHIBITION_SIGN,
+} CursorType;
 
-enum class LocaleId
+typedef enum LocaleId
 {
-    Default,
-    en_US,
-};
+    LOCALE_ID_DEFAULT,
+    LOCALE_ID_en_US,
+} LocaleId;
 
-struct Platform
+typedef struct Platform
 {
     struct
     {
@@ -40,7 +44,7 @@ struct Platform
     Stack stack;
 
     LocaleId locale_id;
-};
+} Platform;
 
 void change_cursor(Platform* platform, CursorType type);
 void begin_composed_text(Platform* platform);
@@ -52,5 +56,9 @@ void request_paste_from_clipboard(Platform* platform);
 void create_stack(Platform* platform);
 void destroy_stack(Platform* platform);
 bool load_localized_text(Platform* platform);
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
 
 #endif // PLATFORM_H_

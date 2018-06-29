@@ -1,13 +1,13 @@
 #include "filesystem.h"
 
 #include "array2.h"
-#include "logging.h"
 #include "memory.h"
 #include "platform_definitions.h"
 #include "string_utilities.h"
 #include "string_build.h"
 
 #if defined(OS_LINUX)
+#define __USE_GNU
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -17,7 +17,7 @@
 #include <pwd.h>
 #include <stdlib.h>
 
-bool load_whole_file(const char* path, void** contents, u64* bytes, Stack* stack)
+bool load_whole_file(const char* path, void** contents, uint64_t* bytes, Stack* stack)
 {
     int flag = O_RDONLY;
     mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
@@ -28,15 +28,15 @@ bool load_whole_file(const char* path, void** contents, u64* bytes, Stack* stack
     }
 
     off_t end = lseek(file, 0, SEEK_END);
-    u64 file_size = end;
+    uint64_t file_size = end;
     off_t start = lseek(file, 0, SEEK_SET);
-    if(end == static_cast<off_t>(-1) || start == static_cast<off_t>(-1))
+    if(end == ((off_t) -1) || start == ((off_t) -1))
     {
         close(file);
         return false;
     }
 
-    u8* file_contents = STACK_ALLOCATE(stack, u8, file_size + 1);
+    uint8_t* file_contents = STACK_ALLOCATE(stack, uint8_t, file_size + 1);
     ssize_t bytes_read = read(file, file_contents, file_size);
     int closed = close(file);
     if(bytes_read == -1 || closed == -1)
@@ -54,9 +54,9 @@ bool load_whole_file(const char* path, void** contents, u64* bytes, Stack* stack
     return true;
 }
 
-bool save_whole_file(const char* path, const void* contents, u64 bytes, Stack* stack)
+bool save_whole_file(const char* path, const void* contents, uint64_t bytes, Stack* stack)
 {
-    static_cast<void>(stack);
+    (void) stack;
 
     int flag = O_WRONLY | O_CREAT | O_TRUNC;
     mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
@@ -69,7 +69,7 @@ bool save_whole_file(const char* path, const void* contents, u64 bytes, Stack* s
     ssize_t written = write(file, contents, bytes);
     int closed = close(file);
 
-    return closed != -1 && static_cast<u64>(written) == bytes;
+    return closed != -1 && ((uint64_t) written) == bytes;
 }
 
 struct File
@@ -78,22 +78,19 @@ struct File
     int descriptor;
 };
 
-namespace
-{
-    const char* os_temp_path = "/tmp";
-}
+static const char* os_temp_path = "/tmp";
 
 File* open_file(const char* path, FileOpenMode open_mode, Heap* heap)
 {
     int flag;
     switch(open_mode)
     {
-        case FileOpenMode::Read:
+        case FILE_OPEN_MODE_READ:
         {
             flag = O_RDONLY;
             break;
         }
-        case FileOpenMode::Write_Temporary:
+        case FILE_OPEN_MODE_WRITE_TEMPORARY:
         {
             flag = O_TMPFILE | O_WRONLY;
             if(!path)
@@ -107,7 +104,7 @@ File* open_file(const char* path, FileOpenMode open_mode, Heap* heap)
     int descriptor = open(path, flag, mode);
     if(descriptor == -1)
     {
-        return nullptr;
+        return NULL;
     }
 
     File* file = HEAP_ALLOCATE(heap, File, 1);
@@ -136,7 +133,7 @@ bool make_file_permanent(File* file, const char* path)
     return result == 0;
 }
 
-bool read_file(File* file, void* data, u64 bytes, u64* bytes_got)
+bool read_file(File* file, void* data, uint64_t bytes, uint64_t* bytes_got)
 {
     ssize_t bytes_read = read(file->descriptor, data, bytes);
     if(bytes_read != -1)
@@ -147,7 +144,7 @@ bool read_file(File* file, void* data, u64 bytes, u64* bytes_got)
     return false;
 }
 
-bool read_line(File* file, char** line, u64* bytes, Heap* heap)
+bool read_line(File* file, char** line, uint64_t* bytes, Heap* heap)
 {
     if(!*line)
     {
@@ -164,7 +161,7 @@ bool read_line(File* file, char** line, u64* bytes, Heap* heap)
     char value;
     do
     {
-        u64 bytes_read;
+        uint64_t bytes_read;
         bool char_read = read_file(file, &value, 1, &bytes_read);
         if(!char_read || bytes_read != 1)
         {
@@ -182,7 +179,7 @@ bool read_line(File* file, char** line, u64* bytes, Heap* heap)
         {
             *bytes *= 2;
             char* buffer = *line;
-            buffer = HEAP_REALLOCATE(heap, buffer, *bytes);
+            buffer = HEAP_REALLOCATE(heap, buffer, char, *bytes);
             *line = buffer;
             if(!buffer)
             {
@@ -199,10 +196,10 @@ bool read_line(File* file, char** line, u64* bytes, Heap* heap)
     return true;
 }
 
-bool write_file(File* file, const void* data, u64 bytes)
+bool write_file(File* file, const void* data, uint64_t bytes)
 {
-    s64 written = write(file->descriptor, data, bytes);
-    return static_cast<u64>(written) == bytes;
+    int64_t written = write(file->descriptor, data, bytes);
+    return ((uint64_t) written) == bytes;
 }
 
 void write_to_standard_output(const char* text, bool error)
@@ -232,9 +229,9 @@ static DirectoryRecordType translate_directory_record_type(unsigned char type)
 {
     switch(type)
     {
-        default:     return DirectoryRecordType::Unknown;
-        case DT_DIR: return DirectoryRecordType::Directory;
-        case DT_REG: return DirectoryRecordType::File;
+        default:     return DIRECTORY_RECORD_TYPE_UNKNOWN;
+        case DT_DIR: return DIRECTORY_RECORD_TYPE_DIRECTORY;
+        case DT_REG: return DIRECTORY_RECORD_TYPE_FILE;
     }
 }
 
@@ -242,9 +239,9 @@ static DirectoryRecordType translate_directory_record_type_from_mode(mode_t mode
 {
     switch(mode & S_IFMT)
     {
-        default:      return DirectoryRecordType::Unknown;
-        case S_IFDIR: return DirectoryRecordType::Directory;
-        case S_IFREG: return DirectoryRecordType::File;
+        default:      return DIRECTORY_RECORD_TYPE_UNKNOWN;
+        case S_IFDIR: return DIRECTORY_RECORD_TYPE_DIRECTORY;
+        case S_IFREG: return DIRECTORY_RECORD_TYPE_FILE;
     }
 }
 
@@ -256,7 +253,7 @@ static DirectoryRecordType fetch_symlink_type(const char* path, const char* name
     HEAP_DEALLOCATE(heap, symlink_path);
     if(status == -1)
     {
-        return DirectoryRecordType::Unknown;
+        return DIRECTORY_RECORD_TYPE_UNKNOWN;
     }
     else
     {
@@ -272,7 +269,7 @@ bool list_files_in_directory(const char* path, Directory* result, Heap* heap)
         return false;
     }
 
-    DirectoryRecord* listing = nullptr;
+    DirectoryRecord* listing = NULL;
     int listing_count = 0;
 
     for(;;)
@@ -312,7 +309,7 @@ bool list_files_in_directory(const char* path, Directory* result, Heap* heap)
 
 // These notes are copied from the section in "man proc" on
 // /proc/[pid]/mountinfo.
-struct MountInfoEntry
+typedef struct MountInfoEntry
 {
     int mount_id; // unique identifier of the mount (may be reused after umount)
     int parent_id; // ID of parent (or of self for the top of the mount tree)
@@ -324,7 +321,7 @@ struct MountInfoEntry
     char* filesystem_type; // name of filesystem of the form "type[.subtype]"
     char* mount_source; // filesystem specific information or "none"
     char* super_options; // per super block options
-};
+} MountInfoEntry;
 
 static void destroy_mount_info_entry(MountInfoEntry* entry, Heap* heap)
 {
@@ -342,7 +339,7 @@ static void destroy_mount_info_entry(MountInfoEntry* entry, Heap* heap)
 
 static bool get_int(const char* original, const char** after, int* result)
 {
-    return string_to_int_extra(original, const_cast<char**>(after), 0, result);
+    return string_to_int_extra(original, ((char**) after), 0, result);
 }
 
 static char* get_string(const char* line, const char* separator, const char** after, Heap* heap)
@@ -358,7 +355,7 @@ static char* get_string(const char* line, const char* separator, const char** af
             return copy_chars_to_heap(line, count, heap);
         }
     }
-    return nullptr;
+    return NULL;
 }
 
 // This gets *and* decodes a path string. The kernel encodes the following
@@ -373,7 +370,7 @@ static char* get_path(const char* line, const char** after, Heap* heap)
     int count = find_char(line, ' ');
     if(count == invalid_index)
     {
-        return nullptr;
+        return NULL;
     }
 
     char* path = HEAP_ALLOCATE(heap, char, count + 1);
@@ -398,7 +395,7 @@ static char* get_path(const char* line, const char** after, Heap* heap)
                     if(i + 4 >= count)
                     {
                         HEAP_DEALLOCATE(heap, path);
-                        return nullptr;
+                        return NULL;
                     }
 
                     char c = (line[i + 1] - '0') << 6;
@@ -420,7 +417,7 @@ static char* get_path(const char* line, const char** after, Heap* heap)
         HEAP_DEALLOCATE(heap, path);
     }
 
-    return nullptr;
+    return NULL;
 }
 
 static bool parse_entry(const char* line, MountInfoEntry* entry, Heap* heap)
@@ -512,8 +509,8 @@ static bool get_mount_info_entry(File* file, MountInfoEntry* entry, Heap* heap)
     // Get the next line in the /proc/self/mountinfo file and pass it to
     // parse_entry. Keep the cleanup here so parse_entry can quit at any time
     // and assume it'll be taken care of here safely.
-    u64 line_bytes;
-    char* line = nullptr;
+    uint64_t line_bytes;
+    char* line = NULL;
     bool got = read_line(file, &line, &line_bytes, heap);
     if(got)
     {
@@ -548,7 +545,7 @@ static char* decode_label(const char* encoded, Heap* heap)
         if(i <= end - 4 && encoded[i] == '\\' && encoded[i + 1] == 'x')
         {
             int value;
-            bool success = string_to_int_extra(&encoded[i + 2], nullptr, 16, &value);
+            bool success = string_to_int_extra(&encoded[i + 2], NULL, 16, &value);
             if(success)
             {
                 label[j] = value;
@@ -568,9 +565,9 @@ static char* decode_label(const char* encoded, Heap* heap)
 
 static char* get_label(const char* device_path, Heap* heap)
 {
-    char* label = nullptr;
+    char* label = NULL;
 
-    char* canonical_device = realpath(device_path, nullptr);
+    char* canonical_device = realpath(device_path, NULL);
     if(canonical_device)
     {
         // Find an entry in the directory /dev/disk/by-label that links to a device
@@ -598,7 +595,7 @@ static char* get_label(const char* device_path, Heap* heap)
                 if(entry->d_type == DT_LNK)
                 {
                     char* link_path = append_to_path(by_label, name, heap);
-                    char* path = realpath(link_path, nullptr);
+                    char* path = realpath(link_path, NULL);
                     bool matches = strings_match(path, canonical_device);
                     HEAP_DEALLOCATE(heap, link_path);
                     free(path);
@@ -623,7 +620,7 @@ bool list_volumes(VolumeList* list, Heap* heap)
 {
     // First try to use /proc/self/mountinfo and fallback to listing from
     // /etc/mtab if it's not available.
-    File* file = open_file("/proc/self/mountinfo", FileOpenMode::Read, heap);
+    File* file = open_file("/proc/self/mountinfo", FILE_OPEN_MODE_READ, heap);
     if(file)
     {
         for(;;)
@@ -693,12 +690,12 @@ static const char* get_home_folder()
     struct passwd* pw = getpwuid(uid);
     if(!pw || !pw->pw_dir)
     {
-        return nullptr;
+        return NULL;
     }
     return pw->pw_dir;
 }
 
-static char* get_user_folder(const char* env_name, const char* default_relative_path, Heap* heap)
+static char* get_user_folder_path(const char* env_name, const char* default_relative_path, Heap* heap)
 {
     const char* folder = getenv(env_name);
     if(folder)
@@ -712,7 +709,7 @@ static char* get_user_folder(const char* env_name, const char* default_relative_
         return append_to_path(home, default_relative_path, heap);
     }
 
-    return nullptr;
+    return NULL;
 }
 
 static const char* get_env_name(UserFolder folder)
@@ -720,15 +717,15 @@ static const char* get_env_name(UserFolder folder)
     switch(folder)
     {
         default:
-        case UserFolder::Cache:     return "XDG_CACHE_HOME";
-        case UserFolder::Config:    return "XDG_CONFIG_HOME";
-        case UserFolder::Data:      return "XDG_DATA_HOME";
-        case UserFolder::Desktop:   return "XDG_DESKTOP_DIR";
-        case UserFolder::Documents: return "XDG_DOCUMENTS_DIR";
-        case UserFolder::Downloads: return "XDG_DOWNLOAD_DIR";
-        case UserFolder::Music:     return "XDG_MUSIC_DIR";
-        case UserFolder::Pictures:  return "XDG_PICTURES_DIR";
-        case UserFolder::Videos:    return "XDG_VIDEOS_DIR";
+        case USER_FOLDER_CACHE:     return "XDG_CACHE_HOME";
+        case USER_FOLDER_CONFIG:    return "XDG_CONFIG_HOME";
+        case USER_FOLDER_DATA:      return "XDG_DATA_HOME";
+        case USER_FOLDER_DESKTOP:   return "XDG_DESKTOP_DIR";
+        case USER_FOLDER_DOCUMENTS: return "XDG_DOCUMENTS_DIR";
+        case USER_FOLDER_DOWNLOADS: return "XDG_DOWNLOAD_DIR";
+        case USER_FOLDER_MUSIC:     return "XDG_MUSIC_DIR";
+        case USER_FOLDER_PICTURES:  return "XDG_PICTURES_DIR";
+        case USER_FOLDER_VIDEOS:    return "XDG_VIDEOS_DIR";
     }
 }
 
@@ -737,15 +734,15 @@ static const char* get_default_relative_path(UserFolder folder)
     switch(folder)
     {
         default:
-        case UserFolder::Cache:     return ".cache";
-        case UserFolder::Config:    return ".config";
-        case UserFolder::Data:      return ".local/share";
-        case UserFolder::Desktop:   return "Desktop";
-        case UserFolder::Documents: return "Documents";
-        case UserFolder::Downloads: return "Downloads";
-        case UserFolder::Music:     return "Music";
-        case UserFolder::Pictures:  return "Pictures";
-        case UserFolder::Videos:    return "Videos";
+        case USER_FOLDER_CACHE:     return ".cache";
+        case USER_FOLDER_CONFIG:    return ".config";
+        case USER_FOLDER_DATA:      return ".local/share";
+        case USER_FOLDER_DESKTOP:   return "Desktop";
+        case USER_FOLDER_DOCUMENTS: return "Documents";
+        case USER_FOLDER_DOWNLOADS: return "Downloads";
+        case USER_FOLDER_MUSIC:     return "Music";
+        case USER_FOLDER_PICTURES:  return "Pictures";
+        case USER_FOLDER_VIDEOS:    return "Videos";
     }
 }
 
@@ -753,7 +750,7 @@ char* get_user_folder(UserFolder folder, Heap* heap)
 {
     const char* env_name = get_env_name(folder);
     const char* default_relative_path = get_default_relative_path(folder);
-    return get_user_folder(env_name, default_relative_path, heap);
+    return get_user_folder_path(env_name, default_relative_path, heap);
 }
 
 #elif defined(OS_WINDOWS)
@@ -769,7 +766,7 @@ char* get_user_folder(UserFolder folder, Heap* heap)
 bool load_whole_file(const char* path, void** contents, u64* bytes, Stack* stack)
 {
     wchar_t* wide_path = utf8_to_wide_char(path, stack);
-    HANDLE handle = CreateFileW(wide_path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    HANDLE handle = CreateFileW(wide_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     STACK_DEALLOCATE(stack, wide_path);
     if(handle == INVALID_HANDLE_VALUE)
     {
@@ -787,7 +784,7 @@ bool load_whole_file(const char* path, void** contents, u64* bytes, Stack* stack
     u64 size = info.nFileSizeHigh << 32 | info.nFileSizeLow;
     char* buffer = STACK_ALLOCATE(stack, char, size + 1);
     DWORD bytes_read;
-    BOOL read = ReadFile(handle, buffer, size, &bytes_read, nullptr);
+    BOOL read = ReadFile(handle, buffer, size, &bytes_read, NULL);
 
     CloseHandle(handle);
 
@@ -809,7 +806,7 @@ bool load_whole_file(const char* path, void** contents, u64* bytes, Stack* stack
 bool save_whole_file(const char* path, const void* contents, u64 bytes, Stack* stack)
 {
     wchar_t* wide_path = utf8_to_wide_char(path, stack);
-    HANDLE handle = CreateFileW(wide_path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    HANDLE handle = CreateFileW(wide_path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     STACK_DEALLOCATE(stack, wide_path);
     if(handle == INVALID_HANDLE_VALUE)
     {
@@ -817,7 +814,7 @@ bool save_whole_file(const char* path, const void* contents, u64 bytes, Stack* s
     }
 
     DWORD bytes_written;
-    BOOL wrote = WriteFile(handle, contents, bytes, &bytes_written, nullptr);
+    BOOL wrote = WriteFile(handle, contents, bytes, &bytes_written, NULL);
     CloseHandle(handle);
 
     return wrote && bytes_written == bytes;
@@ -832,7 +829,7 @@ struct File
 
 File* open_file(const char* path, FileOpenMode open_mode, Heap* heap)
 {
-    wchar_t* wide_path = nullptr;
+    wchar_t* wide_path = NULL;
 
     DWORD access;
     DWORD share_mode;
@@ -853,14 +850,14 @@ File* open_file(const char* path, FileOpenMode open_mode, Heap* heap)
                 DWORD count = GetTempPathW(wide_path_cap, just_path);
                 if(count == 0)
                 {
-                    return nullptr;
+                    return NULL;
                 }
                 wide_path = HEAP_ALLOCATE(heap, wchar_t, wide_path_cap);
                 UINT unique = GetTempFileNameW(just_path, L"ARB", 0, wide_path);
                 if(unique == 0)
                 {
                     SAFE_HEAP_DEALLOCATE(heap, wide_path);
-                    return nullptr;
+                    return NULL;
                 }
             }
             break;
@@ -872,11 +869,11 @@ File* open_file(const char* path, FileOpenMode open_mode, Heap* heap)
         wide_path = utf8_to_wide_char(path, heap);
     }
 
-    HANDLE handle = CreateFileW(wide_path, access, share_mode, nullptr, disposition, flags, nullptr);
+    HANDLE handle = CreateFileW(wide_path, access, share_mode, NULL, disposition, flags, NULL);
     if(handle == INVALID_HANDLE_VALUE)
     {
         SAFE_HEAP_DEALLOCATE(heap, wide_path);
-        return nullptr;
+        return NULL;
     }
 
     File* file = HEAP_ALLOCATE(heap, File, 1);
@@ -910,7 +907,7 @@ bool make_file_permanent(File* file, const char* path)
 bool write_file(File* file, const void* data, u64 bytes)
 {
     DWORD bytes_written;
-    BOOL wrote = WriteFile(file->handle, data, bytes, &bytes_written, nullptr);
+    BOOL wrote = WriteFile(file->handle, data, bytes, &bytes_written, NULL);
     return wrote && bytes_written == bytes;
 }
 
@@ -932,7 +929,7 @@ void write_to_standard_output(const char* text, bool error)
             handle = GetStdHandle(STD_OUTPUT_HANDLE);
         }
         DWORD bytes_written;
-        WriteFile(handle, text, string_size(text), &bytes_written, nullptr);
+        WriteFile(handle, text, string_size(text), &bytes_written, NULL);
         CloseHandle(handle);
     }
 }
@@ -970,7 +967,7 @@ bool list_files_in_directory(const char* path, Directory* result, Heap* heap)
         return false;
     }
 
-    DirectoryRecord* listing = nullptr;
+    DirectoryRecord* listing = NULL;
     int listing_count = 0;
 
     do
@@ -1031,7 +1028,7 @@ static wchar_t* get_path_chain(const wchar_t* volume_name, Heap* heap)
     if(error == ERROR_MORE_DATA)
     {
         count = char_count;
-        path_chain = HEAP_REALLOCATE(heap, path_chain, count);
+        path_chain = HEAP_REALLOCATE(heap, path_chain, wchar_t, count);
         got = GetVolumePathNamesForVolumeNameW(volume_name, path_chain, count, &char_count);
         if(got)
         {
@@ -1042,24 +1039,24 @@ static wchar_t* get_path_chain(const wchar_t* volume_name, Heap* heap)
     // If that didn't work out.
     HEAP_DEALLOCATE(heap, path_chain);
 
-    return nullptr;
+    return NULL;
 }
 
 static char* get_label(const wchar_t* path_chain, Heap* heap)
 {
     const int label_cap = MAX_PATH + 1;
     wchar_t label[label_cap];
-    BOOL got = GetVolumeInformationW(path_chain, label, label_cap, nullptr, nullptr, nullptr, nullptr, 0);
+    BOOL got = GetVolumeInformationW(path_chain, label, label_cap, NULL, NULL, NULL, NULL, 0);
     if(got)
     {
         return wide_char_to_utf8(label, heap);
     }
-    return nullptr;
+    return NULL;
 }
 
 static bool is_volume_ready(const wchar_t* name)
 {
-    BOOL result = GetVolumeInformationW(name, nullptr, 0, nullptr, nullptr, nullptr, nullptr, 0);
+    BOOL result = GetVolumeInformationW(name, NULL, 0, NULL, NULL, NULL, NULL, 0);
     return result && GetLastError() != ERROR_NOT_READY;
 }
 
@@ -1134,12 +1131,12 @@ KNOWNFOLDERID translate_to_known_folder_id(UserFolder folder)
 char* get_user_folder(UserFolder folder, Heap* heap)
 {
     KNOWNFOLDERID folder_id = translate_to_known_folder_id(folder);
-    PWSTR path = nullptr;
-    HRESULT result = SHGetKnownFolderPath(folder_id, 0, nullptr, &path);
+    PWSTR path = NULL;
+    HRESULT result = SHGetKnownFolderPath(folder_id, 0, NULL, &path);
     if(FAILED(result))
     {
         CoTaskMemFree(path);
-        return nullptr;
+        return NULL;
     }
 
     char* finished = wide_char_to_utf8(path, heap);
@@ -1171,7 +1168,7 @@ void destroy_volume_list(VolumeList* list, Heap* heap)
 {
     if(list)
     {
-        FOR_ALL(list->volumes)
+        FOR_ALL(Volume, list->volumes)
         {
             HEAP_DEALLOCATE(heap, it->label);
             HEAP_DEALLOCATE(heap, it->path);

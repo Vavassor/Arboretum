@@ -36,7 +36,7 @@ struct PlatformX11
 {
     Platform base;
 
-    input::Key key_table[256];
+    InputKey key_table[256];
     Display* display;
     XVisualInfo* visual_info;
     Colormap colormap;
@@ -109,10 +109,10 @@ static const char* translate_cursor_type(CursorType type)
     switch(type)
     {
         default:
-        case CursorType::Arrow:            return "left_ptr";
-        case CursorType::Hand_Pointing:    return "hand1";
-        case CursorType::I_Beam:           return "xterm";
-        case CursorType::Prohibition_Sign: return "crossed_circle";
+        case CURSOR_TYPE_ARROW:            return "left_ptr";
+        case CURSOR_TYPE_HAND_POINTING:    return "hand1";
+        case CURSOR_TYPE_I_BEAM:           return "xterm";
+        case CURSOR_TYPE_PROHIBITION_SIGN: return "crossed_circle";
     }
 }
 
@@ -205,128 +205,128 @@ namespace
     bool functions_loaded;
 }
 
-static input::Key translate_key_sym(KeySym key_sym)
+static InputKey translate_key_sym(KeySym key_sym)
 {
     switch(key_sym)
     {
         case XK_a:
-        case XK_A:            return input::Key::A;
-        case XK_apostrophe:   return input::Key::Apostrophe;
+        case XK_A:            return INPUT_KEY_A;
+        case XK_apostrophe:   return INPUT_KEY_APOSTROPHE;
         case XK_b:
-        case XK_B:            return input::Key::B;
-        case XK_backslash:    return input::Key::Backslash;
-        case XK_BackSpace:    return input::Key::Backspace;
+        case XK_B:            return INPUT_KEY_B;
+        case XK_backslash:    return INPUT_KEY_BACKSLASH;
+        case XK_BackSpace:    return INPUT_KEY_BACKSPACE;
         case XK_c:
-        case XK_C:            return input::Key::C;
-        case XK_comma:        return input::Key::Comma;
+        case XK_C:            return INPUT_KEY_C;
+        case XK_comma:        return INPUT_KEY_COMMA;
         case XK_d:
-        case XK_D:            return input::Key::D;
-        case XK_Delete:       return input::Key::Delete;
-        case XK_Down:         return input::Key::Down_Arrow;
+        case XK_D:            return INPUT_KEY_D;
+        case XK_Delete:       return INPUT_KEY_DELETE;
+        case XK_Down:         return INPUT_KEY_DOWN_ARROW;
         case XK_e:
-        case XK_E:            return input::Key::E;
-        case XK_8:            return input::Key::Eight;
-        case XK_End:          return input::Key::End;
-        case XK_Return:       return input::Key::Enter;
-        case XK_equal:        return input::Key::Equals_Sign;
-        case XK_Escape:       return input::Key::Escape;
+        case XK_E:            return INPUT_KEY_E;
+        case XK_8:            return INPUT_KEY_EIGHT;
+        case XK_End:          return INPUT_KEY_END;
+        case XK_Return:       return INPUT_KEY_ENTER;
+        case XK_equal:        return INPUT_KEY_EQUALS_SIGN;
+        case XK_Escape:       return INPUT_KEY_ESCAPE;
         case XK_f:
-        case XK_F:            return input::Key::F;
-        case XK_F1:           return input::Key::F1;
-        case XK_F2:           return input::Key::F2;
-        case XK_F3:           return input::Key::F3;
-        case XK_F4:           return input::Key::F4;
-        case XK_F5:           return input::Key::F5;
-        case XK_F6:           return input::Key::F6;
-        case XK_F7:           return input::Key::F7;
-        case XK_F8:           return input::Key::F8;
-        case XK_F9:           return input::Key::F9;
-        case XK_F10:          return input::Key::F10;
-        case XK_F11:          return input::Key::F11;
-        case XK_F12:          return input::Key::F12;
-        case XK_5:            return input::Key::Five;
-        case XK_4:            return input::Key::Four;
+        case XK_F:            return INPUT_KEY_F;
+        case XK_F1:           return INPUT_KEY_F1;
+        case XK_F2:           return INPUT_KEY_F2;
+        case XK_F3:           return INPUT_KEY_F3;
+        case XK_F4:           return INPUT_KEY_F4;
+        case XK_F5:           return INPUT_KEY_F5;
+        case XK_F6:           return INPUT_KEY_F6;
+        case XK_F7:           return INPUT_KEY_F7;
+        case XK_F8:           return INPUT_KEY_F8;
+        case XK_F9:           return INPUT_KEY_F9;
+        case XK_F10:          return INPUT_KEY_F10;
+        case XK_F11:          return INPUT_KEY_F11;
+        case XK_F12:          return INPUT_KEY_F12;
+        case XK_5:            return INPUT_KEY_FIVE;
+        case XK_4:            return INPUT_KEY_FOUR;
         case XK_g:
-        case XK_G:            return input::Key::G;
-        case XK_grave:        return input::Key::Grave_Accent;
+        case XK_G:            return INPUT_KEY_G;
+        case XK_grave:        return INPUT_KEY_GRAVE_ACCENT;
         case XK_h:
-        case XK_H:            return input::Key::H;
-        case XK_Home:         return input::Key::Home;
+        case XK_H:            return INPUT_KEY_H;
+        case XK_Home:         return INPUT_KEY_HOME;
         case XK_i:
-        case XK_I:            return input::Key::I;
-        case XK_Insert:       return input::Key::Insert;
+        case XK_I:            return INPUT_KEY_I;
+        case XK_Insert:       return INPUT_KEY_INSERT;
         case XK_j:
-        case XK_J:            return input::Key::J;
+        case XK_J:            return INPUT_KEY_J;
         case XK_k:
-        case XK_K:            return input::Key::K;
+        case XK_K:            return INPUT_KEY_K;
         case XK_l:
-        case XK_L:            return input::Key::L;
-        case XK_Left:         return input::Key::Left_Arrow;
-        case XK_bracketleft:  return input::Key::Left_Bracket;
+        case XK_L:            return INPUT_KEY_L;
+        case XK_Left:         return INPUT_KEY_LEFT_ARROW;
+        case XK_bracketleft:  return INPUT_KEY_LEFT_BRACKET;
         case XK_m:
-        case XK_M:            return input::Key::M;
-        case XK_minus:        return input::Key::Minus;
+        case XK_M:            return INPUT_KEY_M;
+        case XK_minus:        return INPUT_KEY_MINUS;
         case XK_n:
-        case XK_N:            return input::Key::N;
-        case XK_9:            return input::Key::Nine;
-        case XK_KP_0:         return input::Key::Numpad_0;
-        case XK_KP_1:         return input::Key::Numpad_1;
-        case XK_KP_2:         return input::Key::Numpad_2;
-        case XK_KP_3:         return input::Key::Numpad_3;
-        case XK_KP_4:         return input::Key::Numpad_4;
-        case XK_KP_5:         return input::Key::Numpad_5;
-        case XK_KP_6:         return input::Key::Numpad_6;
-        case XK_KP_7:         return input::Key::Numpad_7;
-        case XK_KP_8:         return input::Key::Numpad_8;
-        case XK_KP_9:         return input::Key::Numpad_9;
-        case XK_KP_Decimal:   return input::Key::Numpad_Decimal;
-        case XK_KP_Divide:    return input::Key::Numpad_Divide;
-        case XK_KP_Enter:     return input::Key::Numpad_Enter;
-        case XK_KP_Subtract:  return input::Key::Numpad_Subtract;
-        case XK_KP_Multiply:  return input::Key::Numpad_Multiply;
-        case XK_KP_Add:       return input::Key::Numpad_Add;
+        case XK_N:            return INPUT_KEY_N;
+        case XK_9:            return INPUT_KEY_NINE;
+        case XK_KP_0:         return INPUT_KEY_NUMPAD_0;
+        case XK_KP_1:         return INPUT_KEY_NUMPAD_1;
+        case XK_KP_2:         return INPUT_KEY_NUMPAD_2;
+        case XK_KP_3:         return INPUT_KEY_NUMPAD_3;
+        case XK_KP_4:         return INPUT_KEY_NUMPAD_4;
+        case XK_KP_5:         return INPUT_KEY_NUMPAD_5;
+        case XK_KP_6:         return INPUT_KEY_NUMPAD_6;
+        case XK_KP_7:         return INPUT_KEY_NUMPAD_7;
+        case XK_KP_8:         return INPUT_KEY_NUMPAD_8;
+        case XK_KP_9:         return INPUT_KEY_NUMPAD_9;
+        case XK_KP_Decimal:   return INPUT_KEY_NUMPAD_DECIMAL;
+        case XK_KP_Divide:    return INPUT_KEY_NUMPAD_DIVIDE;
+        case XK_KP_Enter:     return INPUT_KEY_NUMPAD_ENTER;
+        case XK_KP_Subtract:  return INPUT_KEY_NUMPAD_SUBTRACT;
+        case XK_KP_Multiply:  return INPUT_KEY_NUMPAD_MULTIPLY;
+        case XK_KP_Add:       return INPUT_KEY_NUMPAD_ADD;
         case XK_o:
-        case XK_O:            return input::Key::O;
-        case XK_1:            return input::Key::One;
+        case XK_O:            return INPUT_KEY_O;
+        case XK_1:            return INPUT_KEY_ONE;
         case XK_p:
-        case XK_P:            return input::Key::P;
-        case XK_Next:         return input::Key::Page_Down;
-        case XK_Prior:        return input::Key::Page_Up;
-        case XK_Pause:        return input::Key::Pause;
-        case XK_period:       return input::Key::Period;
+        case XK_P:            return INPUT_KEY_P;
+        case XK_Next:         return INPUT_KEY_PAGE_DOWN;
+        case XK_Prior:        return INPUT_KEY_PAGE_UP;
+        case XK_Pause:        return INPUT_KEY_PAUSE;
+        case XK_period:       return INPUT_KEY_PERIOD;
         case XK_q:
-        case XK_Q:            return input::Key::Q;
+        case XK_Q:            return INPUT_KEY_Q;
         case XK_r:
-        case XK_R:            return input::Key::R;
-        case XK_Right:        return input::Key::Right_Arrow;
-        case XK_bracketright: return input::Key::Right_Bracket;
+        case XK_R:            return INPUT_KEY_R;
+        case XK_Right:        return INPUT_KEY_RIGHT_ARROW;
+        case XK_bracketright: return INPUT_KEY_RIGHT_BRACKET;
         case XK_s:
-        case XK_S:            return input::Key::S;
-        case XK_semicolon:    return input::Key::Semicolon;
-        case XK_7:            return input::Key::Seven;
-        case XK_6:            return input::Key::Six;
-        case XK_slash:        return input::Key::Slash;
-        case XK_space:        return input::Key::Space;
+        case XK_S:            return INPUT_KEY_S;
+        case XK_semicolon:    return INPUT_KEY_SEMICOLON;
+        case XK_7:            return INPUT_KEY_SEVEN;
+        case XK_6:            return INPUT_KEY_SIX;
+        case XK_slash:        return INPUT_KEY_SLASH;
+        case XK_space:        return INPUT_KEY_SPACE;
         case XK_t:
-        case XK_T:            return input::Key::T;
-        case XK_Tab:          return input::Key::Tab;
-        case XK_3:            return input::Key::Three;
-        case XK_2:            return input::Key::Two;
+        case XK_T:            return INPUT_KEY_T;
+        case XK_Tab:          return INPUT_KEY_TAB;
+        case XK_3:            return INPUT_KEY_THREE;
+        case XK_2:            return INPUT_KEY_TWO;
         case XK_u:
-        case XK_U:            return input::Key::U;
-        case XK_Up:           return input::Key::Up_Arrow;
+        case XK_U:            return INPUT_KEY_U;
+        case XK_Up:           return INPUT_KEY_UP_ARROW;
         case XK_v:
-        case XK_V:            return input::Key::V;
+        case XK_V:            return INPUT_KEY_V;
         case XK_w:
-        case XK_W:            return input::Key::W;
+        case XK_W:            return INPUT_KEY_W;
         case XK_x:
-        case XK_X:            return input::Key::X;
+        case XK_X:            return INPUT_KEY_X;
         case XK_y:
-        case XK_Y:            return input::Key::Y;
+        case XK_Y:            return INPUT_KEY_Y;
         case XK_z:
-        case XK_Z:            return input::Key::Z;
-        case XK_0:            return input::Key::Zero;
-        default:              return input::Key::Unknown;
+        case XK_Z:            return INPUT_KEY_Z;
+        case XK_0:            return INPUT_KEY_ZERO;
+        default:              return INPUT_KEY_UNKNOWN;
     }
 }
 
@@ -334,7 +334,7 @@ static void build_key_table(PlatformX11* platform)
 {
     for(int i = 0; i < 8; ++i)
     {
-        platform->key_table[i] = input::Key::Unknown;
+        platform->key_table[i] = INPUT_KEY_UNKNOWN;
     }
     for(int i = 8; i < 256; ++i)
     {
@@ -556,7 +556,7 @@ LocaleId match_closest_locale_id(const char* locale)
 
     // LOG_DEBUG("%s, %s, %s, %s", language, region, encoding, modifier);
 
-    return LocaleId::Default;
+    return LOCALE_ID_DEFAULT;
 }
 
 bool main_start_up()
@@ -775,7 +775,7 @@ bool main_start_up()
         return false;
     }
 
-    input::system_start_up();
+    input_system_start_up();
 
     bool started = video::system_start_up();
     if(!started)
@@ -835,9 +835,9 @@ void main_shut_down()
     }
 }
 
-static input::Modifier translate_modifiers(unsigned int state)
+static InputModifier translate_modifiers(unsigned int state)
 {
-    input::Modifier modifier = {};
+    InputModifier modifier = {};
     modifier.shift = state & ShiftMask;
     modifier.control = state & ControlMask;
     modifier.alt = state & Mod1Mask;
@@ -847,11 +847,11 @@ static input::Modifier translate_modifiers(unsigned int state)
     return modifier;
 }
 
-static input::Key translate_key(unsigned int scancode)
+static InputKey translate_key(unsigned int scancode)
 {
     if(scancode < 0 || scancode > 255)
     {
-        return input::Key::Unknown;
+        return INPUT_KEY_UNKNOWN;
     }
     else
     {
@@ -995,46 +995,46 @@ static void handle_event(XEvent event)
         case ButtonPress:
         {
             XButtonEvent button = event.xbutton;
-            input::Modifier modifier = translate_modifiers(button.state);
+            InputModifier modifier = translate_modifiers(button.state);
             if(button.button == Button1)
             {
-                input::mouse_click(input::MouseButton::Left, true, modifier);
+                input_mouse_click(MOUSE_BUTTON_LEFT, true, modifier);
             }
             else if(button.button == Button2)
             {
-                input::mouse_click(input::MouseButton::Middle, true, modifier);
+                input_mouse_click(MOUSE_BUTTON_MIDDLE, true, modifier);
             }
             else if(button.button == Button3)
             {
-                input::mouse_click(input::MouseButton::Right, true, modifier);
+                input_mouse_click(MOUSE_BUTTON_RIGHT, true, modifier);
             }
             else if(button.button == Button4)
             {
                 Int2 velocity = {0, +1};
-                input::mouse_scroll(velocity);
+                input_mouse_scroll(velocity);
             }
             else if(button.button == Button5)
             {
                 Int2 velocity = {0, -1};
-                input::mouse_scroll(velocity);
+                input_mouse_scroll(velocity);
             }
             break;
         }
         case ButtonRelease:
         {
             XButtonEvent button = event.xbutton;
-            input::Modifier modifier = translate_modifiers(button.state);
+            InputModifier modifier = translate_modifiers(button.state);
             if(button.button == Button1)
             {
-                input::mouse_click(input::MouseButton::Left, false, modifier);
+                input_mouse_click(MOUSE_BUTTON_LEFT, false, modifier);
             }
             else if(button.button == Button2)
             {
-                input::mouse_click(input::MouseButton::Middle, false, modifier);
+                input_mouse_click(MOUSE_BUTTON_MIDDLE, false, modifier);
             }
             else if(button.button == Button3)
             {
-                input::mouse_click(input::MouseButton::Right, false, modifier);
+                input_mouse_click(MOUSE_BUTTON_RIGHT, false, modifier);
             }
             break;
         }
@@ -1079,9 +1079,9 @@ static void handle_event(XEvent event)
             XKeyEvent press = event.xkey;
 
             // Process key presses that are used for controls and hotkeys.
-            input::Key key = translate_key(press.keycode);
-            input::Modifier modifier = translate_modifiers(press.state);
-            input::key_press(key, true, modifier);
+            InputKey key = translate_key(press.keycode);
+            InputModifier modifier = translate_modifiers(press.state);
+            input_key_press(key, true, modifier);
 
             // Process key presses that are for typing text.
             if(platform.input_context)
@@ -1111,7 +1111,7 @@ static void handle_event(XEvent event)
                     {
                         if(!only_control_characters(buffer))
                         {
-                            input::composed_text_entered(buffer);
+                            input_composed_text_entered(buffer);
                         }
                         break;
                     }
@@ -1126,8 +1126,8 @@ static void handle_event(XEvent event)
         case KeyRelease:
         {
             XKeyEvent release = event.xkey;
-            input::Key key = translate_key(release.keycode);
-            input::Modifier modifier = translate_modifiers(release.state);
+            InputKey key = translate_key(release.keycode);
+            InputModifier modifier = translate_modifiers(release.state);
             // Examine the next event in the queue and if it's a
             // key-press generated by auto-repeating, discard it and
             // ignore this key release.
@@ -1149,7 +1149,7 @@ static void handle_event(XEvent event)
             }
             if(!auto_repeated)
             {
-                input::key_press(key, false, modifier);
+                input_key_press(key, false, modifier);
             }
             break;
         }
@@ -1157,7 +1157,7 @@ static void handle_event(XEvent event)
         {
             XMotionEvent motion = event.xmotion;
             Int2 position = {motion.x, motion.y};
-            input::mouse_move(position);
+            input_mouse_move(position);
             break;
         }
         case SelectionClear:
@@ -1212,7 +1212,7 @@ void main_loop()
         double frame_start_time = get_time(clock_frequency);
 
         editor_update(&platform.base);
-        input::system_update();
+        input_system_update();
 
         glXSwapBuffers(platform.display, platform.window);
 
@@ -1498,115 +1498,115 @@ static double get_dots_per_millimeter(PlatformWindows* platform)
     return dpi / millimeters_per_inch;
 }
 
-static input::Key translate_virtual_key(WPARAM w_param)
+static input_Key translate_virtual_key(WPARAM w_param)
 {
     switch(w_param)
     {
-        case '0':           return input::Key::Zero;
-        case '1':           return input::Key::One;
-        case '2':           return input::Key::Two;
-        case '3':           return input::Key::Three;
-        case '4':           return input::Key::Four;
-        case '5':           return input::Key::Five;
-        case '6':           return input::Key::Six;
-        case '7':           return input::Key::Seven;
-        case '8':           return input::Key::Eight;
-        case '9':           return input::Key::Nine;
-        case 'A':           return input::Key::A;
-        case VK_ADD:        return input::Key::Numpad_Add;
-        case 'B':           return input::Key::B;
-        case VK_BACK:       return input::Key::Backspace;
-        case 'C':           return input::Key::C;
-        case 'D':           return input::Key::D;
-        case VK_DECIMAL:    return input::Key::Numpad_Decimal;
-        case VK_DELETE:     return input::Key::Delete;
-        case VK_DIVIDE:     return input::Key::Numpad_Divide;
-        case VK_DOWN:       return input::Key::Down_Arrow;
-        case 'E':           return input::Key::E;
-        case VK_END:        return input::Key::End;
-        case VK_ESCAPE:     return input::Key::Escape;
-        case 'F':           return input::Key::F;
-        case VK_F1:         return input::Key::F1;
-        case VK_F2:         return input::Key::F2;
-        case VK_F3:         return input::Key::F3;
-        case VK_F4:         return input::Key::F4;
-        case VK_F5:         return input::Key::F5;
-        case VK_F6:         return input::Key::F6;
-        case VK_F7:         return input::Key::F7;
-        case VK_F8:         return input::Key::F8;
-        case VK_F9:         return input::Key::F9;
-        case VK_F10:        return input::Key::F10;
-        case VK_F11:        return input::Key::F11;
-        case VK_F12:        return input::Key::F12;
-        case 'G':           return input::Key::G;
-        case 'H':           return input::Key::H;
-        case VK_HOME:       return input::Key::Home;
-        case 'I':           return input::Key::I;
-        case VK_INSERT:     return input::Key::Insert;
-        case 'J':           return input::Key::J;
-        case 'K':           return input::Key::K;
-        case 'L':           return input::Key::L;
-        case VK_LEFT:       return input::Key::Left_Arrow;
-        case 'M':           return input::Key::M;
-        case VK_MULTIPLY:   return input::Key::Numpad_Multiply;
-        case 'N':           return input::Key::N;
-        case VK_NUMPAD0:    return input::Key::Numpad_0;
-        case VK_NUMPAD1:    return input::Key::Numpad_1;
-        case VK_NUMPAD2:    return input::Key::Numpad_2;
-        case VK_NUMPAD3:    return input::Key::Numpad_3;
-        case VK_NUMPAD4:    return input::Key::Numpad_4;
-        case VK_NUMPAD5:    return input::Key::Numpad_5;
-        case VK_NUMPAD6:    return input::Key::Numpad_6;
-        case VK_NUMPAD7:    return input::Key::Numpad_7;
-        case VK_NUMPAD8:    return input::Key::Numpad_8;
-        case VK_NUMPAD9:    return input::Key::Numpad_9;
-        case VK_NEXT:       return input::Key::Page_Down;
-        case 'O':           return input::Key::O;
-        case VK_OEM_1:      return input::Key::Semicolon;
-        case VK_OEM_2:      return input::Key::Slash;
-        case VK_OEM_3:      return input::Key::Grave_Accent;
-        case VK_OEM_4:      return input::Key::Left_Bracket;
-        case VK_OEM_5:      return input::Key::Backslash;
-        case VK_OEM_6:      return input::Key::Right_Bracket;
-        case VK_OEM_7:      return input::Key::Apostrophe;
-        case VK_OEM_COMMA:  return input::Key::Comma;
-        case VK_OEM_MINUS:  return input::Key::Minus;
-        case VK_OEM_PERIOD: return input::Key::Period;
-        case VK_OEM_PLUS:   return input::Key::Equals_Sign;
-        case 'P':           return input::Key::P;
-        case VK_PAUSE:      return input::Key::Pause;
-        case VK_PRIOR:      return input::Key::Page_Up;
-        case 'Q':           return input::Key::Q;
-        case 'R':           return input::Key::R;
-        case VK_RETURN:     return input::Key::Enter;
-        case VK_RIGHT:      return input::Key::Right_Arrow;
-        case 'S':           return input::Key::S;
-        case VK_SPACE:      return input::Key::Space;
-        case VK_SUBTRACT:   return input::Key::Numpad_Subtract;
-        case 'T':           return input::Key::T;
-        case VK_TAB:        return input::Key::Tab;
-        case 'U':           return input::Key::U;
-        case VK_UP:         return input::Key::Up_Arrow;
-        case 'V':           return input::Key::V;
-        case 'W':           return input::Key::W;
-        case 'X':           return input::Key::X;
-        case 'Y':           return input::Key::Y;
-        case 'Z':           return input::Key::Z;
-        default:            return input::Key::Unknown;
+        case '0':           return input_Key::Zero;
+        case '1':           return input_Key::One;
+        case '2':           return input_Key::Two;
+        case '3':           return input_Key::Three;
+        case '4':           return input_Key::Four;
+        case '5':           return input_Key::Five;
+        case '6':           return input_Key::Six;
+        case '7':           return input_Key::Seven;
+        case '8':           return input_Key::Eight;
+        case '9':           return input_Key::Nine;
+        case 'A':           return input_Key::A;
+        case VK_ADD:        return input_Key::Numpad_Add;
+        case 'B':           return input_Key::B;
+        case VK_BACK:       return input_Key::Backspace;
+        case 'C':           return input_Key::C;
+        case 'D':           return input_Key::D;
+        case VK_DECIMAL:    return input_Key::Numpad_Decimal;
+        case VK_DELETE:     return input_Key::Delete;
+        case VK_DIVIDE:     return input_Key::Numpad_Divide;
+        case VK_DOWN:       return input_Key::Down_Arrow;
+        case 'E':           return input_Key::E;
+        case VK_END:        return input_Key::End;
+        case VK_ESCAPE:     return input_Key::Escape;
+        case 'F':           return input_Key::F;
+        case VK_F1:         return input_Key::F1;
+        case VK_F2:         return input_Key::F2;
+        case VK_F3:         return input_Key::F3;
+        case VK_F4:         return input_Key::F4;
+        case VK_F5:         return input_Key::F5;
+        case VK_F6:         return input_Key::F6;
+        case VK_F7:         return input_Key::F7;
+        case VK_F8:         return input_Key::F8;
+        case VK_F9:         return input_Key::F9;
+        case VK_F10:        return input_Key::F10;
+        case VK_F11:        return input_Key::F11;
+        case VK_F12:        return input_Key::F12;
+        case 'G':           return input_Key::G;
+        case 'H':           return input_Key::H;
+        case VK_HOME:       return input_Key::Home;
+        case 'I':           return input_Key::I;
+        case VK_INSERT:     return input_Key::Insert;
+        case 'J':           return input_Key::J;
+        case 'K':           return input_Key::K;
+        case 'L':           return input_Key::L;
+        case VK_LEFT:       return input_Key::Left_Arrow;
+        case 'M':           return input_Key::M;
+        case VK_MULTIPLY:   return input_Key::Numpad_Multiply;
+        case 'N':           return input_Key::N;
+        case VK_NUMPAD0:    return input_Key::Numpad_0;
+        case VK_NUMPAD1:    return input_Key::Numpad_1;
+        case VK_NUMPAD2:    return input_Key::Numpad_2;
+        case VK_NUMPAD3:    return input_Key::Numpad_3;
+        case VK_NUMPAD4:    return input_Key::Numpad_4;
+        case VK_NUMPAD5:    return input_Key::Numpad_5;
+        case VK_NUMPAD6:    return input_Key::Numpad_6;
+        case VK_NUMPAD7:    return input_Key::Numpad_7;
+        case VK_NUMPAD8:    return input_Key::Numpad_8;
+        case VK_NUMPAD9:    return input_Key::Numpad_9;
+        case VK_NEXT:       return input_Key::Page_Down;
+        case 'O':           return input_Key::O;
+        case VK_OEM_1:      return input_Key::Semicolon;
+        case VK_OEM_2:      return input_Key::Slash;
+        case VK_OEM_3:      return input_Key::Grave_Accent;
+        case VK_OEM_4:      return input_Key::Left_Bracket;
+        case VK_OEM_5:      return input_Key::Backslash;
+        case VK_OEM_6:      return input_Key::Right_Bracket;
+        case VK_OEM_7:      return input_Key::Apostrophe;
+        case VK_OEM_COMMA:  return input_Key::Comma;
+        case VK_OEM_MINUS:  return input_Key::Minus;
+        case VK_OEM_PERIOD: return input_Key::Period;
+        case VK_OEM_PLUS:   return input_Key::Equals_Sign;
+        case 'P':           return input_Key::P;
+        case VK_PAUSE:      return input_Key::Pause;
+        case VK_PRIOR:      return input_Key::Page_Up;
+        case 'Q':           return input_Key::Q;
+        case 'R':           return input_Key::R;
+        case VK_RETURN:     return input_Key::Enter;
+        case VK_RIGHT:      return input_Key::Right_Arrow;
+        case 'S':           return input_Key::S;
+        case VK_SPACE:      return input_Key::Space;
+        case VK_SUBTRACT:   return input_Key::Numpad_Subtract;
+        case 'T':           return input_Key::T;
+        case VK_TAB:        return input_Key::Tab;
+        case 'U':           return input_Key::U;
+        case VK_UP:         return input_Key::Up_Arrow;
+        case 'V':           return input_Key::V;
+        case 'W':           return input_Key::W;
+        case 'X':           return input_Key::X;
+        case 'Y':           return input_Key::Y;
+        case 'Z':           return input_Key::Z;
+        default:            return input_Key::Unknown;
     }
 }
 
-static input::Modifier translate_modifiers(WPARAM w_param)
+static input_Modifier translate_modifiers(WPARAM w_param)
 {
-    input::Modifier modifier = {};
+    input_Modifier modifier = {};
     modifier.control = w_param & MK_CONTROL;
     modifier.shift = w_param & MK_SHIFT;
     return modifier;
 }
 
-static input::Modifier fetch_modifiers()
+static input_Modifier fetch_modifiers()
 {
-    input::Modifier modifier = {};
+    input_Modifier modifier = {};
     modifier.alt = GetKeyState(VK_MENU) & 0x8000;
     modifier.control = GetKeyState(VK_CONTROL) & 0x8000;
     modifier.shift = GetKeyState(VK_SHIFT) & 0x8000;
@@ -1673,7 +1673,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
                 char* text = wide_char_to_utf8(wide, &platform.base.stack);
                 if(!only_control_characters(text))
                 {
-                    input::composed_text_entered(text);
+                    input_composed_text_entered(text);
                 }
                 STACK_DEALLOCATE(&platform.base.stack, text);
                 
@@ -1702,7 +1702,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
                 ImmReleaseContext(hwnd, context);
 
                 char* text = wide_char_to_utf8(string, &platform.base.stack);
-                input::composed_text_entered(text);
+                input_composed_text_entered(text);
 
                 STACK_DEALLOCATE(&platform.base.stack, text);
                 STACK_DEALLOCATE(&platform.base.stack, string);
@@ -1755,46 +1755,46 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
             bool auto_repeated = l_param & 0x40000000;
             if(!auto_repeated)
             {
-                input::Modifier modifier = fetch_modifiers();
-                input::Key key = translate_virtual_key(w_param);
-                input::key_press(key, true, modifier);
+                input_Modifier modifier = fetch_modifiers();
+                input_Key key = translate_virtual_key(w_param);
+                input_key_press(key, true, modifier);
 
                 return 0;
             }
         }
         case WM_KEYUP:
         {
-            input::Modifier modifier = fetch_modifiers();
-            input::Key key = translate_virtual_key(w_param);
-            input::key_press(key, false, modifier);
+            input_Modifier modifier = fetch_modifiers();
+            input_Key key = translate_virtual_key(w_param);
+            input_key_press(key, false, modifier);
 
             return 0;
         }
         case WM_LBUTTONDOWN:
         {
-            input::Modifier modifier = translate_modifiers(w_param);
-            input::mouse_click(input::MouseButton::Left, true, modifier);
+            input_Modifier modifier = translate_modifiers(w_param);
+            input_mouse_click(input_MouseButton::Left, true, modifier);
 
             return 0;
         }
         case WM_LBUTTONUP:
         {
-            input::Modifier modifier = translate_modifiers(w_param);
-            input::mouse_click(input::MouseButton::Left, false, modifier);
+            input_Modifier modifier = translate_modifiers(w_param);
+            input_mouse_click(input_MouseButton::Left, false, modifier);
 
             return 0;
         }
         case WM_MBUTTONDOWN:
         {
-            input::Modifier modifier = translate_modifiers(w_param);
-            input::mouse_click(input::MouseButton::Middle, true, modifier);
+            input_Modifier modifier = translate_modifiers(w_param);
+            input_mouse_click(input_MouseButton::Middle, true, modifier);
 
             return 0;
         }
         case WM_MBUTTONUP:
         {
-            input::Modifier modifier = translate_modifiers(w_param);
-            input::mouse_click(input::MouseButton::Middle, false, modifier);
+            input_Modifier modifier = translate_modifiers(w_param);
+            input_mouse_click(input_MouseButton::Middle, false, modifier);
 
             return 0;
         }
@@ -1803,7 +1803,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
             Int2 position;
             position.x = GET_X_LPARAM(l_param);
             position.y = GET_Y_LPARAM(l_param);
-            input::mouse_move(position);
+            input_mouse_move(position);
 
             return 0;
         }
@@ -1811,21 +1811,21 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
         {
             int scroll = GET_WHEEL_DELTA_WPARAM(w_param) / WHEEL_DELTA;
             Int2 velocity = {0, scroll};
-            input::mouse_scroll(velocity);
+            input_mouse_scroll(velocity);
 
             return 0;
         }
         case WM_RBUTTONDOWN:
         {
-            input::Modifier modifier = translate_modifiers(w_param);
-            input::mouse_click(input::MouseButton::Right, true, modifier);
+            input_Modifier modifier = translate_modifiers(w_param);
+            input_mouse_click(input_MouseButton::Right, true, modifier);
 
             return 0;
         }
         case WM_RBUTTONUP:
         {
-            input::Modifier modifier = translate_modifiers(w_param);
-            input::mouse_click(input::MouseButton::Right, false, modifier);
+            input_Modifier modifier = translate_modifiers(w_param);
+            input_mouse_click(input_MouseButton::Right, false, modifier);
 
             return 0;
         }
@@ -1964,7 +1964,7 @@ static bool main_start_up(HINSTANCE instance, int show_command)
         return false;
     }
 
-    input::system_start_up();
+    input_system_start_up();
 
     bool started = video::system_start_up();
     if(!started)
@@ -2045,7 +2045,7 @@ static int main_loop()
         s64 frame_start_time = get_timestamp();
 
         editor_update(&platform.base);
-        input::system_update();
+        input_system_update();
 
         SwapBuffers(platform.device_context);
 

@@ -14,11 +14,11 @@ void destroy_object_lady(ObjectLady* lady, Heap* heap)
 {
     if(lady)
     {
-        FOR_ALL(lady->objects)
+        FOR_ALL(Object, lady->objects)
         {
             object_destroy(it);
         }
-        FOR_ALL(lady->storage)
+        FOR_ALL(Object, lady->storage)
         {
             object_destroy(it);
         }
@@ -47,7 +47,7 @@ Object* add_object(ObjectLady* lady, Heap* heap)
 
 Object* get_object_by_id(ObjectLady* lady, ObjectId id)
 {
-    FOR_ALL(lady->objects)
+    FOR_ALL(Object, lady->objects)
     {
         if(it->id == id)
         {
@@ -69,7 +69,7 @@ void store_object(ObjectLady* lady, ObjectId id, Heap* heap)
 
 static Object* get_object_in_storage_by_id(ObjectLady* lady, ObjectId id)
 {
-    FOR_ALL(lady->storage)
+    FOR_ALL(Object, lady->storage)
     {
         if(it->id == id)
         {

@@ -4,7 +4,6 @@
 #include "assert.h"
 #include "filesystem.h"
 #include "jan.h"
-#include "logging.h"
 #include "map.h"
 #include "math_basics.h"
 #include "memory.h"
@@ -460,7 +459,7 @@ static bool vertex_attached_to_face(jan::Vertex* vertex)
 
 bool save_file(const char* path, jan::Mesh* mesh, Heap* heap)
 {
-    File* file = open_file(nullptr, FileOpenMode::Write_Temporary, heap);
+    File* file = open_file(nullptr, FILE_OPEN_MODE_WRITE_TEMPORARY, heap);
 
     const int line_size = 128;
     char line[line_size];

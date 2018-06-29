@@ -18,8 +18,8 @@ static const char* get_filename_for_locale_id(LocaleId locale_id)
     switch(locale_id)
     {
         default:
-        case LocaleId::en_US:
-        case LocaleId::Default: return "default.loc";
+        case LOCALE_ID_en_US:
+        case LOCALE_ID_DEFAULT: return "default.loc";
     }
 }
 
@@ -39,7 +39,7 @@ bool load_localized_text(Platform* platform)
 
     const char* filename = get_filename_for_locale_id(platform->locale_id);
     char* path = get_locale_path_by_name(filename, &platform->stack);
-    bool loaded = loc::load_file(platform, path);
+    bool loaded = loc_load_file(platform, path);
     STACK_DEALLOCATE(&platform->stack, path);
 
     return loaded;

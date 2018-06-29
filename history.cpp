@@ -76,7 +76,7 @@ void history_add_base_state(History* history, Change change, Heap* heap)
 
 void history_remove_base_state(History* history, ObjectId object_id)
 {
-    FOR_ALL(history->base_states)
+    FOR_ALL(Change, history->base_states)
     {
         ASSERT(it->type == ChangeType::Move);
         if(it->move.object_id == object_id)
@@ -163,7 +163,7 @@ Change* history_find_past_change(History* history)
                 }
             }
 
-            FOR_ALL(history->base_states)
+            FOR_ALL(Change, history->base_states)
             {
                 if(it->type == change.type && it->move.object_id == object_id)
                 {
