@@ -16,7 +16,7 @@
 
 #if defined(OS_WINDOWS)
 
-void* virtual_allocate(u64 bytes)
+void* virtual_allocate(uint64_t bytes)
 {
     return VirtualAlloc(nullptr, bytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 }
@@ -28,46 +28,46 @@ void virtual_deallocate(void* memory)
 
 #else
 
-void* virtual_allocate(u64 bytes)
+void* virtual_allocate(uint64_t bytes)
 {
-    void* m = mmap(nullptr, bytes + sizeof(bytes), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    u64* p = static_cast<u64*>(m);
+    void* m = mmap(NULL, bytes + sizeof(bytes), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    uint64_t* p = (uint64_t*) m;
     *p = bytes;
     return p + 1;
 }
 
 void virtual_deallocate(void* memory)
 {
-    u64* p = static_cast<u64*>(memory);
+    uint64_t* p = (uint64_t*) memory;
     p -= 1;
-    u64 bytes = *p;
+    uint64_t bytes = *p;
     munmap(p, bytes);
 }
 
 #endif // defined(OS_WINDOWS)
 
-void set_memory(void* memory, u8 value, u64 bytes)
+void set_memory(void* memory, uint8_t value, uint64_t bytes)
 {
-    for(u8* p = static_cast<u8*>(memory); bytes; bytes -= 1, p += 1)
+    for(uint8_t* p = memory; bytes; bytes -= 1, p += 1)
     {
         *p = value;
     }
 }
 
-void copy_memory(void* RESTRICT to, const void* RESTRICT from, u64 bytes)
+void copy_memory(void* restrict to, const void* restrict from, uint64_t bytes)
 {
-    const u8* p0 = static_cast<const u8*>(from);
-    u8* p1 = static_cast<u8*>(to);
+    const uint8_t* p0 = from;
+    uint8_t* p1 = to;
     for(; bytes; bytes -= 1, p0 += 1, p1 += 1)
     {
         *p1 = *p0;
     }
 }
 
-void move_memory(void* to, const void* from, u64 bytes)
+void move_memory(void* to, const void* from, uint64_t bytes)
 {
-    const u8* p0 = static_cast<const u8*>(from);
-    u8* p1 = static_cast<u8*>(to);
+    const uint8_t* p0 = from;
+    uint8_t* p1 = to;
     if(p0 < p1)
     {
         for(p0 += bytes, p1 += bytes; bytes; bytes -= 1)
@@ -86,42 +86,42 @@ void move_memory(void* to, const void* from, u64 bytes)
     }
 }
 
-u64 kilobytes(u64 count)
+uint64_t kilobytes(uint64_t count)
 {
     return 1000 * count;
 }
 
-u64 megabytes(u64 count)
+uint64_t megabytes(uint64_t count)
 {
     return 1000 * kilobytes(count);
 }
 
-u64 ezlabytes(u64 count)
+uint64_t ezlabytes(uint64_t count)
 {
     return 256 * count;
 }
 
-u64 capobytes(u64 count)
+uint64_t capobytes(uint64_t count)
 {
     return 256 * ezlabytes(count);
 }
 
-u64 uptibytes(u64 count)
+uint64_t uptibytes(uint64_t count)
 {
     return 256 * capobytes(count);
 }
 
-static bool is_aligned(const void* memory, u16 alignment)
+static bool is_aligned(const void* memory, uint64_t alignment)
 {
-    uintptr_t address = reinterpret_cast<uintptr_t>(memory);
+    uintptr_t address = (uintptr_t) memory;
     return ~(address & (alignment - 1));
 }
 
 // Stack........................................................................
 
-void stack_create(Stack* stack, u32 bytes)
+void stack_create(Stack* stack, uint32_t bytes)
 {
-    stack->memory = static_cast<u8*>(virtual_allocate(bytes));
+    stack->memory = (uint8_t*) virtual_allocate(bytes);
     stack->top = 0;
     stack->bytes = bytes;
 }
@@ -136,11 +136,11 @@ void stack_destroy(Stack* stack)
     }
 }
 
-void* stack_allocate(Stack* stack, u32 bytes)
+void* stack_allocate(Stack* stack, uint32_t bytes)
 {
-    u32 prior_top = stack->top;
-    u32 header_size = sizeof(prior_top);
-    u8* top = stack->memory + stack->top;
+    uint32_t prior_top = stack->top;
+    uint32_t header_size = sizeof(prior_top);
+    uint8_t* top = stack->memory + stack->top;
 
     // ARM Neon's 4 lane 32-bit vector types and Intel AVX-256 packed types ask
     // for 32 byte aligned addresses (This isn't a hard requirement under Neon,
@@ -149,23 +149,23 @@ void* stack_allocate(Stack* stack, u32 bytes)
     //
     // If Intel AVX-512 support is added, this should be bumped up to 64 bytes
     // to align accesses for its 512-bit registers.
-    const u32 alignment = 32;
-    uintptr_t address = reinterpret_cast<uintptr_t>(top + header_size);
-    u32 adjustment = alignment - (address & (alignment - 1));
+    const uint32_t alignment = 32;
+    uintptr_t address = (uintptr_t) (top + header_size);
+    uint32_t adjustment = alignment - (address & (alignment - 1));
     if(adjustment == alignment)
     {
         adjustment = 0;
     }
 
-    u32 total_bytes = adjustment + header_size + bytes;
+    uint32_t total_bytes = adjustment + header_size + bytes;
     if(stack->top + total_bytes > stack->bytes)
     {
-        return nullptr;
+        return NULL;
     }
     stack->top += total_bytes;
 
     top += adjustment;
-    *reinterpret_cast<u32*>(top) = prior_top;
+    *((uint32_t*) top) = prior_top;
 
     void* result = top + header_size;
     set_memory(result, 0, bytes);
@@ -173,19 +173,19 @@ void* stack_allocate(Stack* stack, u32 bytes)
     return result;
 }
 
-void* stack_reallocate(Stack* stack, void* memory, u32 bytes)
+void* stack_reallocate(Stack* stack, void* memory, uint32_t bytes)
 {
     if(!memory)
     {
         return stack_allocate(stack, bytes);
     }
 
-    u8* place = static_cast<u8*>(memory);
-    u32 present_bytes = stack->top - (place - stack->memory);
-    u32 more_bytes = bytes - present_bytes;
+    uint8_t* place = (uint8_t*) memory;
+    uint32_t present_bytes = stack->top - (place - stack->memory);
+    uint32_t more_bytes = bytes - present_bytes;
     if(stack->top + more_bytes > stack->bytes)
     {
-        return nullptr;
+        return NULL;
     }
 
     set_memory(&stack->memory[stack->top], 0, more_bytes);
@@ -196,8 +196,8 @@ void* stack_reallocate(Stack* stack, void* memory, u32 bytes)
 
 void stack_deallocate(Stack* stack, void* memory)
 {
-    u32* header = static_cast<u32*>(memory) - 1;
-    u32 prior_top = *header;
+    uint32_t* header = ((uint32_t*) memory) - 1;
+    uint32_t prior_top = *header;
     stack->top = prior_top;
 }
 
@@ -211,9 +211,9 @@ void* pool_iterator_next(PoolIterator* it)
         it->index += 1;
         if(it->index >= object_count)
         {
-            return nullptr;
+            return NULL;
         }
-    } while(it->pool->statuses[it->index] == PoolBlockStatus::Free);
+    } while(it->pool->statuses[it->index] == POOL_BLOCK_STATUS_FREE);
     return it->pool->memory + (it->pool->object_size * it->index);
 }
 
@@ -224,36 +224,36 @@ void* pool_iterator_create(PoolIterator* it, Pool* pool)
     return pool_iterator_next(it);
 }
 
-bool pool_create(Pool* pool, u32 object_size, u32 object_count)
+bool pool_create(Pool* pool, uint32_t object_size, uint32_t object_count)
 {
     // The free list can't fit in empty slots unless objects are at least as
     // large as a pointer.
     ASSERT(object_size >= sizeof(void*));
 
     void* memory = virtual_allocate(object_size * object_count);
-    PoolBlockStatus* statuses = static_cast<PoolBlockStatus*>(virtual_allocate(sizeof(PoolBlockStatus) * object_count));
+    PoolBlockStatus* statuses = (PoolBlockStatus*) virtual_allocate(sizeof(PoolBlockStatus) * object_count);
     if(!memory || !statuses)
     {
         return false;
     }
 
-    pool->memory = static_cast<u8*>(memory);
+    pool->memory = (uint8_t*) memory;
     pool->object_size = object_size;
     pool->object_count = object_count;
-    pool->free_list = reinterpret_cast<void**>(pool->memory);
+    pool->free_list = (void**) pool->memory;
     pool->statuses = statuses;
 
     void** p = pool->free_list;
-    for(u32 i = 0; i < object_count - 1; ++i)
+    for(uint32_t i = 0; i < object_count - 1; i += 1)
     {
-        *p = reinterpret_cast<u8*>(p) + object_size;
-        p = static_cast<void**>(*p);
+        *p = ((uint8_t*) p) + object_size;
+        p = ((void**) *p);
     }
-    *p = nullptr;
+    *p = NULL;
 
-    for(u32 i = 0; i < object_count; ++i)
+    for(uint32_t i = 0; i < object_count; i += 1)
     {
-        statuses[i] = PoolBlockStatus::Free;
+        statuses[i] = POOL_BLOCK_STATUS_FREE;
     }
 
     return true;
@@ -265,13 +265,13 @@ void pool_destroy(Pool* pool)
     {
         SAFE_VIRTUAL_DEALLOCATE(pool->memory);
         SAFE_VIRTUAL_DEALLOCATE(pool->statuses);
-        pool->free_list = nullptr;
+        pool->free_list = NULL;
     }
 }
 
 static void mark_block_status(Pool* pool, void* object, PoolBlockStatus status)
 {
-    u8* offset = static_cast<u8*>(object);
+    uint8_t* offset = ((uint8_t*) object);
     int index = (offset - pool->memory) / pool->object_size;
     pool->statuses[index] = status;
 }
@@ -281,12 +281,12 @@ void* pool_allocate(Pool* pool)
     if(!pool->free_list)
     {
         ASSERT(false);
-        return nullptr;
+        return NULL;
     }
     void* next_free = pool->free_list;
-    pool->free_list = static_cast<void**>(*pool->free_list);
-    mark_block_status(pool, next_free, PoolBlockStatus::Used);
-    *reinterpret_cast<void**>(next_free) = nullptr;
+    pool->free_list = ((void**) *pool->free_list);
+    mark_block_status(pool, next_free, POOL_BLOCK_STATUS_USED);
+    *((void**) next_free) = NULL;
     return next_free;
 }
 
@@ -294,9 +294,9 @@ void pool_deallocate(Pool* pool, void* memory)
 {
     ASSERT(memory);
     set_memory(memory, 0, pool->object_size);
-    *static_cast<void**>(memory) = pool->free_list;
-    pool->free_list = static_cast<void**>(memory);
-    mark_block_status(pool, memory, PoolBlockStatus::Free);
+    *((void**) memory) = pool->free_list;
+    pool->free_list = ((void**) memory);
+    mark_block_status(pool, memory, POOL_BLOCK_STATUS_FREE);
 }
 
 // Heap.........................................................................
@@ -309,25 +309,22 @@ void pool_deallocate(Pool* pool, void* memory)
 #define NEXT_BLOCK(index)  heap->blocks[index].header.used.next
 #define PREV_BLOCK(index)  heap->blocks[index].header.used.prior
 
-namespace
-{
-    const u32 freelist_mask = 0x80000000;
-    const u32 blockno_mask = 0x7fffffff;
-}
+static const uint32_t freelist_mask = 0x80000000;
+static const uint32_t blockno_mask = 0x7fffffff;
 
-void heap_make_in_place(Heap* heap, void* place, u32 bytes)
+void heap_make_in_place(Heap* heap, void* place, uint32_t bytes)
 {
     ASSERT(heap);
     ASSERT(place);
     ASSERT(bytes != 0);
     ASSERT(!heap->blocks); // trying to create an already existent heap
-    heap->blocks = static_cast<Heap::Block*>(place);
-    heap->total_blocks = bytes / sizeof(Heap::Block);
+    heap->blocks = (HeapBlock*) place;
+    heap->total_blocks = bytes / sizeof(HeapBlock);
     NEXT_BLOCK(0) = 1;
     NEXT_FREE(0) = 1;
 }
 
-bool heap_create(Heap* heap, u32 bytes)
+bool heap_create(Heap* heap, uint32_t bytes)
 {
     void* memory = virtual_allocate(bytes);
     if(!memory)
@@ -344,28 +341,28 @@ void heap_destroy(Heap* heap)
     heap->total_blocks = 0;
 }
 
-static u32 determine_blocks_needed(u32 size)
+static uint32_t determine_blocks_needed(uint32_t size)
 {
     // When a block removed from the free list, the space used by the free
     // pointers is available for data.
-    if(size <= sizeof(Heap::Block::Body))
+    if(size <= sizeof(HeapBlockBody))
     {
         return 1;
     }
     // If it's for more than that, then we need to figure out the number of
     // additional whole blocks the size of an Heap::Block are required.
-    size -= 1 + sizeof(Heap::Block::Body);
-    return 2 + size / sizeof(Heap::Block);
+    size -= 1 + sizeof(HeapBlockBody);
+    return 2 + size / sizeof(HeapBlock);
 }
 
-static void disconnect_from_free_list(Heap* heap, u32 c)
+static void disconnect_from_free_list(Heap* heap, uint32_t c)
 {
     NEXT_FREE(PREV_FREE(c)) = NEXT_FREE(c);
     PREV_FREE(NEXT_FREE(c)) = PREV_FREE(c);
     NEXT_BLOCK(c) &= ~freelist_mask;
 }
 
-static void make_new_block(Heap* heap, u32 c, u32 blocks, u32 freemask)
+static void make_new_block(Heap* heap, uint32_t c, uint32_t blocks, uint32_t freemask)
 {
     NEXT_BLOCK(c + blocks) = NEXT_BLOCK(c) & blockno_mask;
     PREV_BLOCK(c + blocks) = c;
@@ -373,17 +370,17 @@ static void make_new_block(Heap* heap, u32 c, u32 blocks, u32 freemask)
     NEXT_BLOCK(c) = (c + blocks) | freemask;
 }
 
-void* heap_allocate(Heap* heap, u32 bytes)
+void* heap_allocate(Heap* heap, uint32_t bytes)
 {
     ASSERT(heap);
     ASSERT(bytes != 0);
 
-    u32 blocks = determine_blocks_needed(bytes);
-    u32 cf;
-    u32 block_size = 0;
+    uint32_t blocks = determine_blocks_needed(bytes);
+    uint32_t cf;
+    uint32_t block_size = 0;
     {
-        u32 best_size = 0x7fffffff;
-        u32 best_block = NEXT_FREE(0);
+        uint32_t best_size = 0x7fffffff;
+        uint32_t best_block = NEXT_FREE(0);
 
         for(cf = NEXT_FREE(0); NEXT_FREE(cf); cf = NEXT_FREE(cf))
         {
@@ -424,12 +421,12 @@ void* heap_allocate(Heap* heap, u32 bytes)
     {
         // We're at the end of the heap - allocate a new block, but check to
         // see if there's enough memory left for the requested block!
-        if(heap->total_blocks <= static_cast<u64>(cf + blocks + 1))
+        if(heap->total_blocks <= (uint64_t) (cf + blocks + 1))
         {
-            return nullptr;
+            return NULL;
         }
         NEXT_FREE(PREV_FREE(cf)) = cf + blocks;
-        copy_memory(&heap->blocks[cf + blocks], &heap->blocks[cf], sizeof(Heap::Block));
+        copy_memory(&heap->blocks[cf + blocks], &heap->blocks[cf], sizeof(HeapBlock));
         NEXT_BLOCK(cf) = cf + blocks;
         PREV_BLOCK(cf + blocks) = cf;
     }
@@ -438,7 +435,7 @@ void* heap_allocate(Heap* heap, u32 bytes)
     return &BLOCK_DATA(cf);
 }
 
-static void try_to_assimilate_up(Heap* heap, u32 c)
+static void try_to_assimilate_up(Heap* heap, uint32_t c)
 {
     if(NEXT_BLOCK(NEXT_BLOCK(c)) & freelist_mask)
     {
@@ -451,19 +448,19 @@ static void try_to_assimilate_up(Heap* heap, u32 c)
     }
 }
 
-static u32 assimilate_down(Heap* heap, u32 c, u32 freemask)
+static uint32_t assimilate_down(Heap* heap, uint32_t c, uint32_t freemask)
 {
     NEXT_BLOCK(PREV_BLOCK(c)) = NEXT_BLOCK(c) | freemask;
     PREV_BLOCK(NEXT_BLOCK(c)) = PREV_BLOCK(c);
     return PREV_BLOCK(c);
 }
 
-static u32 index_from_pointer(void* base, void* p, u32 size)
+static uint32_t index_from_pointer(void* base, void* p, uint32_t size)
 {
-    return (reinterpret_cast<uintptr_t>(p) - reinterpret_cast<uintptr_t>(base)) / size;
+    return (((uintptr_t) p) - ((uintptr_t) base)) / size;
 }
 
-void* heap_reallocate(Heap* heap, void* memory, u32 bytes)
+void* heap_reallocate(Heap* heap, void* memory, uint32_t bytes)
 {
     ASSERT(heap);
 
@@ -474,15 +471,15 @@ void* heap_reallocate(Heap* heap, void* memory, u32 bytes)
     if(bytes == 0)
     {
         heap_deallocate(heap, memory);
-        return nullptr;
+        return NULL;
     }
 
     // which block we're in
-    u32 c = index_from_pointer(heap->blocks, memory, sizeof(Heap::Block));
+    uint32_t c = index_from_pointer(heap->blocks, memory, sizeof(HeapBlock));
 
-    u32 blocks = determine_blocks_needed(bytes);
-    u32 block_room = NEXT_BLOCK(c) - c;
-    u32 current_size = sizeof(Heap::Block) * block_room - sizeof(Heap::Block::Header);
+    uint32_t blocks = determine_blocks_needed(bytes);
+    uint32_t block_room = NEXT_BLOCK(c) - c;
+    uint32_t current_size = sizeof(HeapBlock) * block_room - sizeof(HeapBlockHeader);
 
     if(block_room == blocks)
     {
@@ -542,7 +539,7 @@ void heap_deallocate(Heap* heap, void* memory)
         return;
     }
     // which block the memory is in
-    u32 c = index_from_pointer(heap->blocks, memory, sizeof(Heap::Block));
+    uint32_t c = index_from_pointer(heap->blocks, memory, sizeof(HeapBlock));
 
     try_to_assimilate_up(heap, c);
 
@@ -566,7 +563,7 @@ void heap_deallocate(Heap* heap, void* memory)
 HeapInfo heap_get_info(Heap* heap)
 {
     HeapInfo info = {};
-    u32 blockno = 0;
+    uint32_t blockno = 0;
     for(
         blockno = NEXT_BLOCK(blockno) & blockno_mask;
         NEXT_BLOCK(blockno) & blockno_mask;

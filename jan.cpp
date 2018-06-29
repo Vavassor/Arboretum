@@ -932,7 +932,7 @@ static int find_bridge_to_hole(FlatLoop* loop, FlatLoop* hole)
         Vector2 p = loop->positions[i];
         if(h.x >= p.x && p.x >= mx && h.x != p.x && point_in_triangle(v[0], v[1], v[2], p))
         {
-            float current = abs(h.y - p.y) / (h.x - p.x);
+            float current = fabsf(h.y - p.y) / (h.x - p.x);
             m = loop->positions[candidate];
 
             int i_prior = mod(i - 1, loop->edges);

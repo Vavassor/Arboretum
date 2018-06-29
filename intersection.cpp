@@ -154,7 +154,7 @@ bool intersect_ray_plane(Ray ray, Vector3 origin, Vector3 normal, Vector3* inter
     ASSERT(is_normalised(ray.direction));
 
     float d = dot(-normal, ray.direction);
-    if(abs(d) < 1e-6)
+    if(fabsf(d) < 1e-6f)
     {
         return false;
     }

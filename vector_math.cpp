@@ -363,7 +363,7 @@ Vector3 min3(Vector3 v0, Vector3 v1)
 
 Vector3 perp(Vector3 v)
 {
-    Vector3 a = {abs(v.x), abs(v.y), abs(v.z)};
+    Vector3 a = {fabsf(v.x), fabsf(v.y), fabsf(v.z)};
 
     bool syx = signbit(a.x - a.y);
     bool szx = signbit(a.x - a.z);

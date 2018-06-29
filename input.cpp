@@ -93,7 +93,7 @@ void mouse_scroll(Int2 velocity)
 
 void mouse_move(Int2 position)
 {
-    mouse.velocity = position - mouse.position;
+    mouse.velocity = int2_subtract(position, mouse.position);
     mouse.position = position;
 }
 

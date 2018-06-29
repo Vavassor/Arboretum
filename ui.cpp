@@ -554,7 +554,7 @@ static Vector2 measure_ideal_dimensions(TextBlock* text_block, Context* context)
         i = text_index;
     }
 
-    pen.y = abs(pen.y);
+    pen.y = fabsf(pen.y);
     bounds = max2(bounds, pen);
     bounds.x += padding.bottom;
     bounds.y += padding.end;
@@ -828,7 +828,7 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
         }
     }
 
-    pen.y = abs(pen.y);
+    pen.y = fabsf(pen.y);
     bounds = max2(bounds, pen);
     bounds.x += padding.bottom;
     bounds.y += padding.end;
@@ -1153,7 +1153,7 @@ static void place_items_along_main_axis(Item* item, Rect space)
         case Justification::Space_Around:
         {
             float length = measure_length(container);
-            float container_length = abs(last - first);
+            float container_length = fabsf(last - first);
             apart = (container_length - length) / (container->items_count + 1);
             if(fill_backward)
             {
@@ -1168,7 +1168,7 @@ static void place_items_along_main_axis(Item* item, Rect space)
         case Justification::Space_Between:
         {
             float length = measure_length(container);
-            float container_length = abs(last - first);
+            float container_length = fabsf(last - first);
             apart = (container_length - length) / (container->items_count - 1);
             cursor = first;
             break;
@@ -1554,7 +1554,7 @@ static int find_index_at_position(TextBlock* text_block, Vector2 dimensions, flo
         }
         else if(position.y >= point.y)
         {
-            float distance = abs(point.x - position.x);
+            float distance = fabsf(point.x - position.x);
             if(distance < closest)
             {
                 closest = distance;
@@ -1569,7 +1569,7 @@ static int find_index_at_position(TextBlock* text_block, Vector2 dimensions, flo
     point.y = last.baseline_start.y;
     if(position.y < point.y + line_height && position.y > point.y)
     {
-        float distance = abs(point.x - position.x);
+        float distance = fabsf(point.x - position.x);
         if(distance < closest)
         {
             closest = distance;

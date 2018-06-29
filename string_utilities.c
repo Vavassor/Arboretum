@@ -1,15 +1,12 @@
 #include "string_utilities.h"
 
 #include "assert.h"
-#include "sized_types.h"
 #include "math_basics.h"
 #include "variable_arguments.h"
 
-#include <cstddef>
-#include <cwchar>
-
-using std::isinf;
-using std::isnan;
+#include <stddef.h>
+#include <stdint.h>
+#include <wchar.h>
 
 int string_size(const char* string)
 {
@@ -19,7 +16,7 @@ int string_size(const char* string)
     return s - string;
 }
 
-bool strings_match(const char* RESTRICT a, const char* RESTRICT b)
+bool strings_match(const char* restrict a, const char* restrict b)
 {
     ASSERT(a);
     ASSERT(b);
@@ -31,7 +28,7 @@ bool strings_match(const char* RESTRICT a, const char* RESTRICT b)
     return *a == *b;
 }
 
-int copy_string(char* RESTRICT to, int to_size, const char* RESTRICT from)
+int copy_string(char* restrict to, int to_size, const char* restrict from)
 {
     ASSERT(from);
     ASSERT(to);
@@ -49,12 +46,12 @@ int copy_string(char* RESTRICT to, int to_size, const char* RESTRICT from)
     return i;
 }
 
-static bool memory_matches(const void* RESTRICT a, const void* RESTRICT b, int n)
+static bool memory_matches(const void* restrict a, const void* restrict b, int n)
 {
     ASSERT(a);
     ASSERT(b);
-    const unsigned char* p1 = static_cast<const unsigned char*>(a);
-    const unsigned char* p2 = static_cast<const unsigned char*>(b);
+    const unsigned char* p1 = (const unsigned char*) a;
+    const unsigned char* p2 = (const unsigned char*) b;
     for(; n; n -= 1)
     {
         if(*p1 != *p2)
@@ -70,7 +67,7 @@ static bool memory_matches(const void* RESTRICT a, const void* RESTRICT b, int n
     return true;
 }
 
-char* find_string(const char* RESTRICT a, const char* RESTRICT b)
+char* find_string(const char* restrict a, const char* restrict b)
 {
     ASSERT(a);
     ASSERT(b);
@@ -79,11 +76,11 @@ char* find_string(const char* RESTRICT a, const char* RESTRICT b)
     {
         if(memory_matches(a, b, n))
         {
-            return const_cast<char*>(a);
+            return (char*) a;
         }
         a += 1;
     }
-    return nullptr;
+    return NULL;
 }
 
 int find_char(const char* s, char c)
@@ -99,7 +96,7 @@ int find_char(const char* s, char c)
     return invalid_index;
 }
 
-bool string_starts_with(const char* RESTRICT a, const char* RESTRICT b)
+bool string_starts_with(const char* restrict a, const char* restrict b)
 {
     ASSERT(a);
     ASSERT(b);
@@ -115,7 +112,7 @@ bool string_starts_with(const char* RESTRICT a, const char* RESTRICT b)
     }
 }
 
-bool string_ends_with(const char* RESTRICT a, const char* RESTRICT b)
+bool string_ends_with(const char* restrict a, const char* restrict b)
 {
     ASSERT(a);
     ASSERT(b);
@@ -202,7 +199,7 @@ static bool is_control_character(char c)
     return is_ascii(c) && (c <= 0x1f || (c >= 0x7f && c <= 0x9f));
 }
 
-int compare_alphabetic_ascii(const char* RESTRICT a, const char* RESTRICT b)
+int compare_alphabetic_ascii(const char* restrict a, const char* restrict b)
 {
     while(*a && (*a == *b))
     {
@@ -252,12 +249,12 @@ static int char_to_integer(char c)
     return 36;
 }
 
-static bool string_to_u64(const char* string, char** after, int base, u64* value)
+static bool string_to_u64(const char* string, char** after, int base, uint64_t* value)
 {
     ASSERT(string);
     ASSERT(base >= 0 && base != 1 && base <= 36);
 
-    u64 result = 0;
+    uint64_t result = 0;
 
     const char* s = string;
 
@@ -286,7 +283,7 @@ static bool string_to_u64(const char* string, char** after, int base, u64* value
     {
         if(after)
         {
-            *after = const_cast<char*>(string);
+            *after = (char*) string;
         }
         return false;
     }
@@ -323,7 +320,7 @@ static bool string_to_u64(const char* string, char** after, int base, u64* value
             digits_read = true;
             if(!out_of_range)
             {
-                if(result > U64_MAX / base || result * base > U64_MAX - digit)
+                if(result > UINT64_MAX / base || result * base > UINT64_MAX - digit)
                 {
                     out_of_range = true;
                 }
@@ -336,11 +333,11 @@ static bool string_to_u64(const char* string, char** after, int base, u64* value
     {
         if(!digits_read && !zero_first)
         {
-            *after = const_cast<char*>(string);
+            *after = (char*) string;
         }
         else
         {
-            *after = const_cast<char*>(s);
+            *after = (char*) s;
         }
     }
     if(out_of_range)
@@ -358,15 +355,15 @@ static bool string_to_u64(const char* string, char** after, int base, u64* value
 
 bool string_to_int(const char* string, int* value)
 {
-    u64 u;
-    bool success = string_to_u64(string, nullptr, 0, &u);
+    uint64_t u;
+    bool success = string_to_u64(string, NULL, 0, &u);
     *value = u;
     return success;
 }
 
 bool string_to_int_extra(const char* string, char** after, int base, int* value)
 {
-    u64 u;
+    uint64_t u;
     bool success = string_to_u64(string, after, base, &u);
     *value = u;
     return success;
@@ -478,11 +475,8 @@ bool string_to_float(const char* string, float* value)
 
 // Value To String..............................................................
 
-namespace
-{
-    const char* nan_text = "NaN";
-    const char* infinity_text = "infinity";
-}
+static const char* nan_text = "NaN";
+static const char* infinity_text = "infinity";
 
 const char* bool_to_string(bool b)
 {
@@ -496,7 +490,7 @@ const char* bool_to_string(bool b)
     }
 }
 
-static int s64_to_string(char* string, int size, s64 value, unsigned int base)
+static int s64_to_string(char* string, int size, int64_t value, unsigned int base)
 {
     if(base < 2 || base > 36)
     {
@@ -540,12 +534,12 @@ int int_to_string(char* string, int size, int value)
     return s64_to_string(string, size, value, 10);
 }
 
-enum class Form
+typedef enum Form
 {
-    Use_Shortest,
-    Force_Scientific_Notation,
-    Force_Decimal,
-};
+    FORM_USE_SHORTEST,
+    FORM_FORCE_SCIENTIFIC_NOTATION,
+    FORM_FORCE_DECIMAL,
+} Form;
 
 static void double_to_string(char* string, int size, double value, unsigned int precision, Form form, bool force_sign, bool positive_space, bool force_decimal_point)
 {
@@ -578,17 +572,17 @@ static void double_to_string(char* string, int size, double value, unsigned int 
         bool include_exponent;
         switch(form)
         {
-            case Form::Force_Scientific_Notation:
+            case FORM_FORCE_SCIENTIFIC_NOTATION:
             {
                 include_exponent = true;
                 break;
             }
-            case Form::Force_Decimal:
+            case FORM_FORCE_DECIMAL:
             {
                 include_exponent = false;
                 break;
             }
-            case Form::Use_Shortest:
+            case FORM_USE_SHORTEST:
             {
                 include_exponent = m >= 14 || (negative && m >= 9) || m <= -9;
                 break;
@@ -681,32 +675,29 @@ static void double_to_string(char* string, int size, double value, unsigned int 
 
 void float_to_string(char* string, int size, float value, unsigned int precision)
 {
-    double_to_string(string, size, value, precision, Form::Use_Shortest, false, false, false);
+    double_to_string(string, size, value, precision, FORM_USE_SHORTEST, false, false, false);
 }
 
 // Formatting...................................................................
 
-namespace
-{
-    const int digits_cap = 32;
+#define DIGITS_CAP 32
 
-    enum class Length
-    {
-        Unspecified,
-        Byte,
-        Short,
-        Long,
-        Long_Long,
-        Int_Max,
-        Size_T,
-        Ptr_Diff,
-        Long_Double,
-    };
-}
-
-struct FormatContext
+typedef enum Length
 {
-    char digits[digits_cap];
+    LENGTH_UNSPECIFIED,
+    LENGTH_BYTE,
+    LENGTH_SHORT,
+    LENGTH_LONG,
+    LENGTH_LONG_LONG,
+    LENGTH_INT_MAX,
+    LENGTH_SIZE_T,
+    LENGTH_PTR_DIFF,
+    LENGTH_LONG_DOUBLE,
+} Length;
+
+typedef struct FormatContext
+{
+    char digits[DIGITS_CAP];
     const char* format;
     char* buffer;
     Length length;
@@ -720,14 +711,14 @@ struct FormatContext
     bool positive_space;
     bool pound_flag;
     bool left_pad_with_zero;
-};
+} FormatContext;
 
 static void default_context(FormatContext* context)
 {
     // Make sure this was reset properly.
     ASSERT(context->digits_count == 0);
 
-    context->length = Length::Unspecified;
+    context->length = LENGTH_UNSPECIFIED;
     context->width = -1;
     context->precision = 6;
     context->left_justify = false;
@@ -748,7 +739,7 @@ static void add_char(FormatContext* context, char c)
 
 static void add_digit(FormatContext* context, char digit)
 {
-    if(context->digits_count < digits_cap - 1)
+    if(context->digits_count < DIGITS_CAP - 1)
     {
         context->digits[context->digits_count] = digit;
         context->digits_count += 1;
@@ -764,9 +755,9 @@ static bool parse_digits(FormatContext* context, int* value)
 {
     // Null-terminate the digit buffer.
     int index = context->digits_count;
-    if(index > digits_cap - 1)
+    if(index > DIGITS_CAP - 1)
     {
-        index = digits_cap - 1;
+        index = DIGITS_CAP - 1;
     }
     context->digits[index] = '\0';
 
@@ -895,48 +886,48 @@ static void find_length(FormatContext* context)
         {
             case 'h':
             {
-                if(context->length == Length::Unspecified)
+                if(context->length == LENGTH_UNSPECIFIED)
                 {
-                    context->length = Length::Short;
+                    context->length = LENGTH_SHORT;
                 }
-                else if(context->length == Length::Short)
+                else if(context->length == LENGTH_SHORT)
                 {
-                    context->length = Length::Byte;
+                    context->length = LENGTH_BYTE;
                     return;
                 }
                 break;
             }
             case 'l':
             {
-                if(context->length == Length::Unspecified)
+                if(context->length == LENGTH_UNSPECIFIED)
                 {
-                    context->length = Length::Long;
+                    context->length = LENGTH_LONG;
                 }
-                else if(context->length == Length::Long)
+                else if(context->length == LENGTH_LONG)
                 {
-                    context->length = Length::Long_Long;
+                    context->length = LENGTH_LONG_LONG;
                     return;
                 }
                 break;
             }
             case 'j':
             {
-                context->length = Length::Int_Max;
+                context->length = LENGTH_INT_MAX;
                 return;
             }
             case 'z':
             {
-                context->length = Length::Size_T;
+                context->length = LENGTH_SIZE_T;
                 return;
             }
             case 't':
             {
-                context->length = Length::Ptr_Diff;
+                context->length = LENGTH_PTR_DIFF;
                 return;
             }
             case 'L':
             {
-                context->length = Length::Long_Double;
+                context->length = LENGTH_LONG_DOUBLE;
                 return;
             }
             default:
@@ -968,44 +959,44 @@ static void process_specifier(FormatContext* context, va_list* arguments)
             char int_buffer[int_buffer_size];
             switch(context->length)
             {
-                case Length::Long_Double:
+                case LENGTH_LONG_DOUBLE:
                 {
                     // This sub-specifier is just treated as unspecified.
                     ASSERT(false);
                 }
-                case Length::Unspecified:
-                case Length::Byte:
-                case Length::Short:
+                case LENGTH_UNSPECIFIED:
+                case LENGTH_BYTE:
+                case LENGTH_SHORT:
                 {
                     int value = va_arg(*arguments, int);
                     int_to_string(int_buffer, int_buffer_size, value);
                     break;
                 }
-                case Length::Long:
+                case LENGTH_LONG:
                 {
                     long value = va_arg(*arguments, long);
                     s64_to_string(int_buffer, int_buffer_size, value, 10);
                     break;
                 }
-                case Length::Long_Long:
+                case LENGTH_LONG_LONG:
                 {
                     long long value = va_arg(*arguments, long long);
                     s64_to_string(int_buffer, int_buffer_size, value, 10);
                     break;
                 }
-                case Length::Int_Max:
+                case LENGTH_INT_MAX:
                 {
                     intmax_t value = va_arg(*arguments, intmax_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 10);
                     break;
                 }
-                case Length::Size_T:
+                case LENGTH_SIZE_T:
                 {
                     size_t value = va_arg(*arguments, size_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 10);
                     break;
                 }
-                case Length::Ptr_Diff:
+                case LENGTH_PTR_DIFF:
                 {
                     ptrdiff_t value = va_arg(*arguments, ptrdiff_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 10);
@@ -1021,44 +1012,44 @@ static void process_specifier(FormatContext* context, va_list* arguments)
             char int_buffer[int_buffer_size];
             switch(context->length)
             {
-                case Length::Long_Double:
+                case LENGTH_LONG_DOUBLE:
                 {
                     // This sub-specifier is just treated as unspecified.
                     ASSERT(false);
                 }
-                case Length::Unspecified:
-                case Length::Byte:
-                case Length::Short:
+                case LENGTH_UNSPECIFIED:
+                case LENGTH_BYTE:
+                case LENGTH_SHORT:
                 {
                     unsigned int value = va_arg(*arguments, unsigned int);
                     int_to_string(int_buffer, int_buffer_size, value);
                     break;
                 }
-                case Length::Long:
+                case LENGTH_LONG:
                 {
                     unsigned long value = va_arg(*arguments, unsigned long);
                     s64_to_string(int_buffer, int_buffer_size, value, 10);
                     break;
                 }
-                case Length::Long_Long:
+                case LENGTH_LONG_LONG:
                 {
                     unsigned long long value = va_arg(*arguments, unsigned long long);
                     s64_to_string(int_buffer, int_buffer_size, value, 10);
                     break;
                 }
-                case Length::Int_Max:
+                case LENGTH_INT_MAX:
                 {
                     uintmax_t value = va_arg(*arguments, uintmax_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 10);
                     break;
                 }
-                case Length::Size_T:
+                case LENGTH_SIZE_T:
                 {
                     size_t value = va_arg(*arguments, size_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 10);
                     break;
                 }
-                case Length::Ptr_Diff:
+                case LENGTH_PTR_DIFF:
                 {
                     ptrdiff_t value = va_arg(*arguments, ptrdiff_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 10);
@@ -1074,44 +1065,44 @@ static void process_specifier(FormatContext* context, va_list* arguments)
             char int_buffer[int_buffer_size];
             switch(context->length)
             {
-                case Length::Long_Double:
+                case LENGTH_LONG_DOUBLE:
                 {
                     // This sub-specifier is just treated as unspecified.
                     ASSERT(false);
                 }
-                case Length::Unspecified:
-                case Length::Byte:
-                case Length::Short:
+                case LENGTH_UNSPECIFIED:
+                case LENGTH_BYTE:
+                case LENGTH_SHORT:
                 {
                     unsigned int value = va_arg(*arguments, unsigned int);
                     s64_to_string(int_buffer, int_buffer_size, value, 8);
                     break;
                 }
-                case Length::Long:
+                case LENGTH_LONG:
                 {
                     unsigned long value = va_arg(*arguments, unsigned long);
                     s64_to_string(int_buffer, int_buffer_size, value, 8);
                     break;
                 }
-                case Length::Long_Long:
+                case LENGTH_LONG_LONG:
                 {
                     unsigned long long value = va_arg(*arguments, unsigned long long);
                     s64_to_string(int_buffer, int_buffer_size, value, 8);
                     break;
                 }
-                case Length::Int_Max:
+                case LENGTH_INT_MAX:
                 {
                     uintmax_t value = va_arg(*arguments, uintmax_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 8);
                     break;
                 }
-                case Length::Size_T:
+                case LENGTH_SIZE_T:
                 {
                     size_t value = va_arg(*arguments, size_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 8);
                     break;
                 }
-                case Length::Ptr_Diff:
+                case LENGTH_PTR_DIFF:
                 {
                     ptrdiff_t value = va_arg(*arguments, ptrdiff_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 8);
@@ -1127,44 +1118,44 @@ static void process_specifier(FormatContext* context, va_list* arguments)
             char int_buffer[int_buffer_size];
             switch(context->length)
             {
-                case Length::Long_Double:
+                case LENGTH_LONG_DOUBLE:
                 {
                     // This sub-specifier is just treated as unspecified.
                     ASSERT(false);
                 }
-                case Length::Unspecified:
-                case Length::Byte:
-                case Length::Short:
+                case LENGTH_UNSPECIFIED:
+                case LENGTH_BYTE:
+                case LENGTH_SHORT:
                 {
                     unsigned int value = va_arg(*arguments, unsigned int);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
-                case Length::Long:
+                case LENGTH_LONG:
                 {
                     unsigned long value = va_arg(*arguments, unsigned long);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
-                case Length::Long_Long:
+                case LENGTH_LONG_LONG:
                 {
                     unsigned long long value = va_arg(*arguments, unsigned long long);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
-                case Length::Int_Max:
+                case LENGTH_INT_MAX:
                 {
                     uintmax_t value = va_arg(*arguments, uintmax_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
-                case Length::Size_T:
+                case LENGTH_SIZE_T:
                 {
                     size_t value = va_arg(*arguments, size_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
-                case Length::Ptr_Diff:
+                case LENGTH_PTR_DIFF:
                 {
                     ptrdiff_t value = va_arg(*arguments, ptrdiff_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
@@ -1180,44 +1171,44 @@ static void process_specifier(FormatContext* context, va_list* arguments)
             char int_buffer[int_buffer_size];
             switch(context->length)
             {
-                case Length::Long_Double:
+                case LENGTH_LONG_DOUBLE:
                 {
                     // This sub-specifier is just treated as unspecified.
                     ASSERT(false);
                 }
-                case Length::Unspecified:
-                case Length::Byte:
-                case Length::Short:
+                case LENGTH_UNSPECIFIED:
+                case LENGTH_BYTE:
+                case LENGTH_SHORT:
                 {
                     unsigned int value = va_arg(*arguments, unsigned int);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
-                case Length::Long:
+                case LENGTH_LONG:
                 {
                     unsigned long value = va_arg(*arguments, unsigned long);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
-                case Length::Long_Long:
+                case LENGTH_LONG_LONG:
                 {
                     unsigned long long value = va_arg(*arguments, unsigned long long);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
-                case Length::Int_Max:
+                case LENGTH_INT_MAX:
                 {
                     uintmax_t value = va_arg(*arguments, uintmax_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
-                case Length::Size_T:
+                case LENGTH_SIZE_T:
                 {
                     size_t value = va_arg(*arguments, size_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
                     break;
                 }
-                case Length::Ptr_Diff:
+                case LENGTH_PTR_DIFF:
                 {
                     ptrdiff_t value = va_arg(*arguments, ptrdiff_t);
                     s64_to_string(int_buffer, int_buffer_size, value, 16);
@@ -1239,16 +1230,16 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                     // Any other sub-specifiers are treated as unspecified.
                     ASSERT(false);
                 }
-                case Length::Unspecified:
+                case LENGTH_UNSPECIFIED:
                 {
                     double value = va_arg(*arguments, double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Force_Decimal, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_FORCE_DECIMAL, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
-                case Length::Long_Double:
+                case LENGTH_LONG_DOUBLE:
                 {
                     long double value = va_arg(*arguments, long double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Force_Decimal, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_FORCE_DECIMAL, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
             }
@@ -1266,16 +1257,16 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                     // Any other sub-specifiers are treated as unspecified.
                     ASSERT(false);
                 }
-                case Length::Unspecified:
+                case LENGTH_UNSPECIFIED:
                 {
                     double value = va_arg(*arguments, double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Force_Decimal, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_FORCE_DECIMAL, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
-                case Length::Long_Double:
+                case LENGTH_LONG_DOUBLE:
                 {
                     long double value = va_arg(*arguments, long double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Force_Decimal, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_FORCE_DECIMAL, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
             }
@@ -1294,16 +1285,16 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                     // Any other sub-specifiers are treated as unspecified.
                     ASSERT(false);
                 }
-                case Length::Unspecified:
+                case LENGTH_UNSPECIFIED:
                 {
                     double value = va_arg(*arguments, double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Force_Scientific_Notation, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_FORCE_SCIENTIFIC_NOTATION, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
-                case Length::Long_Double:
+                case LENGTH_LONG_DOUBLE:
                 {
                     long double value = va_arg(*arguments, long double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Force_Scientific_Notation, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_FORCE_SCIENTIFIC_NOTATION, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
             }
@@ -1321,16 +1312,16 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                     // Any other sub-specifiers are treated as unspecified.
                     ASSERT(false);
                 }
-                case Length::Unspecified:
+                case LENGTH_UNSPECIFIED:
                 {
                     double value = va_arg(*arguments, double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Force_Scientific_Notation, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_FORCE_SCIENTIFIC_NOTATION, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
-                case Length::Long_Double:
+                case LENGTH_LONG_DOUBLE:
                 {
                     long double value = va_arg(*arguments, long double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Force_Scientific_Notation, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_FORCE_SCIENTIFIC_NOTATION, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
             }
@@ -1349,16 +1340,16 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                     // Any other sub-specifiers are treated as unspecified.
                     ASSERT(false);
                 }
-                case Length::Unspecified:
+                case LENGTH_UNSPECIFIED:
                 {
                     double value = va_arg(*arguments, double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Use_Shortest, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_USE_SHORTEST, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
-                case Length::Long_Double:
+                case LENGTH_LONG_DOUBLE:
                 {
                     long double value = va_arg(*arguments, long double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Use_Shortest, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_USE_SHORTEST, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
             }
@@ -1376,16 +1367,16 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                     // Any other sub-specifiers are treated as unspecified.
                     ASSERT(false);
                 }
-                case Length::Unspecified:
+                case LENGTH_UNSPECIFIED:
                 {
                     double value = va_arg(*arguments, double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Use_Shortest, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_USE_SHORTEST, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
-                case Length::Long_Double:
+                case LENGTH_LONG_DOUBLE:
                 {
                     long double value = va_arg(*arguments, long double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, Form::Use_Shortest, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_USE_SHORTEST, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
             }
@@ -1417,13 +1408,13 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                     // Any other sub-specifiers are treated as unspecified.
                     ASSERT(false);
                 }
-                case Length::Unspecified:
+                case LENGTH_UNSPECIFIED:
                 {
                     char value = va_arg(*arguments, int);
                     add_char(context, value);
                     break;
                 }
-                case Length::Long:
+                case LENGTH_LONG:
                 {
                     wint_t value = va_arg(*arguments, wint_t);
                     add_char(context, value);
@@ -1441,13 +1432,13 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                     // Any other sub-specifiers are treated as unspecified.
                     ASSERT(false);
                 }
-                case Length::Unspecified:
+                case LENGTH_UNSPECIFIED:
                 {
                     char* value = va_arg(*arguments, char*);
                     context->chars_written += copy_string(buffer, buffer_left, value);
                     break;
                 }
-                case Length::Long:
+                case LENGTH_LONG:
                 {
                     wchar_t* value = va_arg(*arguments, wchar_t*);
                     // Not yet supported!
@@ -1460,10 +1451,10 @@ static void process_specifier(FormatContext* context, va_list* arguments)
         case 'p':
         {
             // No length sub-specifiers apply here.
-            ASSERT(context->length == Length::Unspecified);
+            ASSERT(context->length == LENGTH_UNSPECIFIED);
 
             void* value = va_arg(*arguments, void*);
-            uintptr_t address = reinterpret_cast<uintptr_t>(value);
+            uintptr_t address = (uintptr_t) value;
 
             char int_buffer[int_buffer_size];
             s64_to_string(int_buffer, int_buffer_size, address, 16);

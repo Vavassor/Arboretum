@@ -2,7 +2,7 @@
 
 // Don't make fun of this file.
 
-extern const int invalid_index = -1;
+const int invalid_index = -1;
 
 bool is_valid_index(int index)
 {

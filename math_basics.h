@@ -4,19 +4,9 @@
 #include "platform_definitions.h"
 
 #if defined(COMPILER_GCC)
-#include <cmath>
+#include <math.h>
 #elif defined(COMPILER_MSVC)
-#include <cmath>
+#include <math.h>
 #endif // defined(COMPILER_MSVC)
-
-using std::abs;
-using std::atan2;
-using std::cos;
-using std::exp;
-using std::isfinite;
-using std::log;
-using std::signbit;
-using std::sin;
-using std::sqrt;
 
 #endif // MATH_BASICS_H_

@@ -7,7 +7,7 @@
 float distance_point_plane(Vector3 point, Vector3 origin, Vector3 normal)
 {
     ASSERT(is_normalised(normal));
-    return abs(dot(origin - point, normal));
+    return fabsf(dot(origin - point, normal));
 }
 
 Vector3 project_onto_plane(Vector3 point, Vector3 origin, Vector3 normal)
@@ -34,7 +34,7 @@ Vector3 closest_disk_point(Disk disk, Vector3 point)
 
 static bool is_parallel(Vector3 a, Vector3 b)
 {
-    return almost_one(abs(dot(a, b)));
+    return almost_one(fabsf(dot(a, b)));
 }
 
 Vector3 closest_disk_plane(Disk disk, Vector3 origin, Vector3 normal)

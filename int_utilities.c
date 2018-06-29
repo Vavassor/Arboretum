@@ -5,7 +5,7 @@ bool is_power_of_two(unsigned int x)
     return (x != 0) && !(x & (x - 1));
 }
 
-u32 next_power_of_two(u32 x)
+uint32_t next_power_of_two(uint32_t x)
 {
     x |= x >> 1;
     x |= x >> 2;
@@ -40,4 +40,14 @@ unsigned int next_multiple(unsigned int x, unsigned int n)
 bool signs_opposite(int x, int y)
 {
     return (x ^ y) < 0;
+}
+
+int imax(int a, int b)
+{
+    return (a > b) ? a : b;
+}
+
+int imin(int a, int b)
+{
+    return (a < b) ? a : b;
 }

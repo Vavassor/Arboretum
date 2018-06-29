@@ -1,25 +1,25 @@
 #include "float_utilities.h"
 
-#include <cfloat>
-#include <climits>
+#include <float.h>
+#include <limits.h>
 
 #include "math_basics.h"
 #include "assert.h"
 
-extern const float infinity = FLT_MAX;
-extern const float tau = 6.28318530717958647692f;
-extern const float pi = 3.14159265358979323846f;
-extern const float pi_over_2 = 1.57079632679489661923f;
-extern const float three_pi_over_2 = 4.71238898038f;
+const float infinity = FLT_MAX;
+const float tau = 6.28318530717958647692f;
+const float pi = 3.14159265358979323846f;
+const float pi_over_2 = 1.57079632679489661923f;
+const float three_pi_over_2 = 4.71238898038f;
 
 float clamp(float a, float min, float max)
 {
-    return fmin(fmax(a, min), max);
+    return fminf(fmaxf(a, min), max);
 }
 
 float saturate(float a)
 {
-    return fmin(fmax(a, 0.0f), 1.0f);
+    return fminf(fmaxf(a, 0.0f), 1.0f);
 }
 
 float lerp(float v0, float v1, float t)
@@ -40,10 +40,10 @@ bool almost_zero(float x)
 
 bool almost_one(float x)
 {
-    return abs(x - 1.0f) <= 0.5e-5f;
+    return fabsf(x - 1.0f) <= 0.5e-5f;
 }
 
 bool almost_equals(float x, float y)
 {
-    return abs(x - y) < 1e-6f;
+    return fabsf(x - y) < 1e-6f;
 }
