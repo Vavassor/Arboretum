@@ -11,7 +11,7 @@ struct Object
 {
     jan::Mesh mesh;
 
-    Vector3 position;
+    Float3 position;
     Quaternion orientation;
 
     DenseMapId video_object;
@@ -21,6 +21,6 @@ struct Object
 
 void object_create(Object* object);
 void object_destroy(Object* object);
-void object_set_position(Object* object, Vector3 position);
+void object_set_position(Object* object, Float3 position);
 
 #endif // OBJECT_H_

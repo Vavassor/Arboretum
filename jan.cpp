@@ -34,7 +34,7 @@ void destroy_mesh(Mesh* mesh)
     pool_destroy(&mesh->border_pool);
 }
 
-Vertex* add_vertex(Mesh* mesh, Vector3 position)
+Vertex* add_vertex(Mesh* mesh, Float3 position)
 {
     Vertex* vertex = POOL_ALLOCATE(&mesh->vertex_pool, Vertex);
     vertex->position = position;
@@ -465,7 +465,7 @@ static void reverse_face_winding(Face* face)
 static void flip_face_normal(Face* face)
 {
     reverse_face_winding(face);
-    face->normal = -face->normal;
+    face->normal = float3_negate(face->normal);
 }
 
 static void compute_vertex_normal(Vertex* vertex)
@@ -475,7 +475,7 @@ static void compute_vertex_normal(Vertex* vertex)
     if(edge)
     {
         Edge* first = edge;
-        Vector3 normal = vector3_zero;
+        Float3 normal = float3_zero;
         do
         {
             Vertex* other;
@@ -490,10 +490,10 @@ static void compute_vertex_normal(Vertex* vertex)
                 other = edge->vertices[0];
                 spoke = edge->spokes[1];
             }
-            normal += vertex->position - other->position;
+            normal = float3_add(normal, float3_subtract(vertex->position, other->position));
             edge = spoke.next;
         } while(edge != first);
-        vertex->normal = normalise(normal);
+        vertex->normal = float3_normalise(normal);
     }
 }
 
@@ -502,9 +502,9 @@ static void compute_face_normal(Face* face)
     // This uses Newell's Method to compute the polygon normal.
     Link* link = face->first_border->first;
     Link* first = link;
-    Vector3 prior = link->prior->vertex->position;
-    Vector3 current = link->vertex->position;
-    Vector3 normal = vector3_zero;
+    Float3 prior = link->prior->vertex->position;
+    Float3 current = link->vertex->position;
+    Float3 normal = float3_zero;
     do
     {
         normal.x += (prior.y - current.y) * (prior.z + current.z);
@@ -514,7 +514,7 @@ static void compute_face_normal(Face* face)
         link = link->next;
         current = link->vertex->position;
     } while(link != first);
-    face->normal = normalise(normal);
+    face->normal = float3_normalise(normal);
 }
 
 void update_normals(Mesh* mesh)
@@ -532,7 +532,7 @@ void update_normals(Mesh* mesh)
 void make_a_weird_face(Mesh* mesh, Stack* stack)
 {
     const int vertices_count = 8;
-    Vector3 positions[vertices_count];
+    Float3 positions[vertices_count];
     positions[0] = {-0.20842f, +0.20493f, 0.0f};
     positions[1] = {+0.53383f, -0.31467f, 0.0f};
     positions[2] = {+0.19402f, -0.55426f, 0.0f};
@@ -556,7 +556,7 @@ void make_a_weird_face(Mesh* mesh, Stack* stack)
 void make_a_face_with_holes(Mesh* mesh, Stack* stack)
 {
     const int vertices_count = 7;
-    Vector3 positions[vertices_count] =
+    Float3 positions[vertices_count] =
     {
         {+1.016774f, -0.128711f, 0.0f},
         {+1.005646f, +1.246329f, 0.0f},
@@ -577,7 +577,7 @@ void make_a_face_with_holes(Mesh* mesh, Stack* stack)
 
     compute_face_normal(face);
 
-    Vector3 hole0_positions[5] =
+    Float3 hole0_positions[5] =
     {
         {-0.543713f, -0.318739f, 0.0f},
         {-0.716260f, -0.565462f, 0.0f},
@@ -593,7 +593,7 @@ void make_a_face_with_holes(Mesh* mesh, Stack* stack)
 
     connect_vertices_and_add_hole(mesh, face, vertices, 5, stack);
 
-    Vector3 hole1_positions[5] =
+    Float3 hole1_positions[5] =
     {
         {+0.502821f, +0.337892f, 0.0f},
         {+0.755197f, +0.412048f, 0.0f},
@@ -610,7 +610,7 @@ void make_a_face_with_holes(Mesh* mesh, Stack* stack)
     connect_vertices_and_add_hole(mesh, face, vertices, 5, stack);
 }
 
-static void add_to_pointcloud(Vertex* vertex, Vector4 colour, Heap* heap, PointVertex** out_vertices, u16** out_indices)
+static void add_to_pointcloud(Vertex* vertex, Float4 colour, Heap* heap, PointVertex** out_vertices, u16** out_indices)
 {
     PointVertex* vertices = *out_vertices;
     u16* indices = *out_indices;
@@ -622,7 +622,7 @@ static void add_to_pointcloud(Vertex* vertex, Vector4 colour, Heap* heap, PointV
         texcoord_to_u32({1.0f, 1.0f}),
         texcoord_to_u32({0.0f, 1.0f}),
     };
-    const Vector2 offsets[4] =
+    const Float2 offsets[4] =
     {
         {-1.0f, -1.0f},
         {+1.0f, -1.0f},
@@ -633,7 +633,7 @@ static void add_to_pointcloud(Vertex* vertex, Vector4 colour, Heap* heap, PointV
 
     u16 base_index = array_count(vertices);
 
-    Vector3 center = vertex->position;
+    Float3 center = vertex->position;
     for(int i = 0; i < 4; i += 1)
     {
         PointVertex v = {center, offsets[i], colour_value, texcoords[i]};
@@ -651,7 +651,7 @@ static void add_to_pointcloud(Vertex* vertex, Vector4 colour, Heap* heap, PointV
     *out_indices = indices;
 }
 
-void make_pointcloud(Mesh* mesh, Heap* heap, Vector4 colour, PointVertex** vertices, u16** indices)
+void make_pointcloud(Mesh* mesh, Heap* heap, Float4 colour, PointVertex** vertices, u16** indices)
 {
     *vertices = nullptr;
     *indices = nullptr;
@@ -662,7 +662,7 @@ void make_pointcloud(Mesh* mesh, Heap* heap, Vector4 colour, PointVertex** verti
     }
 }
 
-void make_pointcloud_selection(Mesh* mesh, Vector4 colour, Vertex* hovered, Vector4 hover_colour, Selection* selection, Vector4 select_colour, Heap* heap, PointVertex** vertices, u16** indices)
+void make_pointcloud_selection(Mesh* mesh, Float4 colour, Vertex* hovered, Float4 hover_colour, Selection* selection, Float4 select_colour, Heap* heap, PointVertex** vertices, u16** indices)
 {
     *vertices = nullptr;
     *indices = nullptr;
@@ -684,7 +684,7 @@ void make_pointcloud_selection(Mesh* mesh, Vector4 colour, Vertex* hovered, Vect
     }
 }
 
-static void add_edge_to_wireframe(Edge* edge, Vector4 colour, Heap* heap, LineVertex** out_vertices, u16** out_indices)
+static void add_edge_to_wireframe(Edge* edge, Float4 colour, Heap* heap, LineVertex** out_vertices, u16** out_indices)
 {
     LineVertex* vertices = *out_vertices;
     u16* indices = *out_indices;
@@ -701,19 +701,19 @@ static void add_edge_to_wireframe(Edge* edge, Vector4 colour, Heap* heap, LineVe
     Vertex* vertex = edge->vertices[0];
     Vertex* other = edge->vertices[1];
 
-    Vector3 start = vertex->position;
-    Vector3 end = other->position;
-    Vector3 direction = end - start;
+    Float3 start = vertex->position;
+    Float3 end = other->position;
+    Float3 direction = float3_subtract(end, start);
 
     float left = -1.0f;
     float right = 1.0f;
 
     u16 base = array_count(vertices);
 
-    LineVertex v0 = {end, -direction, colour_value, texcoords[0], right};
+    LineVertex v0 = {end, float3_negate(direction), colour_value, texcoords[0], right};
     LineVertex v1 = {start, direction, colour_value, texcoords[1], left};
     LineVertex v2 = {start, direction, colour_value, texcoords[2], right};
-    LineVertex v3 = {end, -direction, colour_value, texcoords[3], left};
+    LineVertex v3 = {end, float3_negate(direction), colour_value, texcoords[3], left};
     ARRAY_ADD(vertices, v0, heap);
     ARRAY_ADD(vertices, v1, heap);
     ARRAY_ADD(vertices, v2, heap);
@@ -730,7 +730,7 @@ static void add_edge_to_wireframe(Edge* edge, Vector4 colour, Heap* heap, LineVe
     *out_indices = indices;
 }
 
-void make_wireframe(Mesh* mesh, Heap* heap, Vector4 colour, LineVertex** vertices, u16** indices)
+void make_wireframe(Mesh* mesh, Heap* heap, Float4 colour, LineVertex** vertices, u16** indices)
 {
     *vertices = nullptr;
     *indices = nullptr;
@@ -741,7 +741,7 @@ void make_wireframe(Mesh* mesh, Heap* heap, Vector4 colour, LineVertex** vertice
     }
 }
 
-void make_wireframe_selection(Mesh* mesh, Heap* heap, Vector4 colour, Edge* hovered, Vector4 hover_colour, Selection* selection, Vector4 select_colour, LineVertex** vertices, u16** indices)
+void make_wireframe_selection(Mesh* mesh, Heap* heap, Float4 colour, Edge* hovered, Float4 hover_colour, Selection* selection, Float4 select_colour, LineVertex** vertices, u16** indices)
 {
     *vertices = nullptr;
     *indices = nullptr;
@@ -763,17 +763,17 @@ void make_wireframe_selection(Mesh* mesh, Heap* heap, Vector4 colour, Edge* hove
     }
 }
 
-static float signed_double_area(Vector2 v0, Vector2 v1, Vector2 v2)
+static float signed_double_area(Float2 v0, Float2 v1, Float2 v2)
 {
     return (v0.x - v2.x) * (v1.y - v2.y) - (v1.x - v2.x) * (v0.y - v2.y);
 }
 
-static bool is_clockwise(Vector2 v0, Vector2 v1, Vector2 v2)
+static bool is_clockwise(Float2 v0, Float2 v1, Float2 v2)
 {
     return signed_double_area(v0, v1, v2) < 0.0f;
 }
 
-static bool point_in_triangle(Vector2 v0, Vector2 v1, Vector2 v2, Vector2 p)
+static bool point_in_triangle(Float2 v0, Float2 v1, Float2 v2, Float2 p)
 {
     bool f0 = signed_double_area(p, v0, v1) < 0.0f;
     bool f1 = signed_double_area(p, v1, v2) < 0.0f;
@@ -781,20 +781,20 @@ static bool point_in_triangle(Vector2 v0, Vector2 v1, Vector2 v2, Vector2 p)
     return (f0 == f1) && (f1 == f2);
 }
 
-static bool is_clockwise(Vector2* vertices, int vertices_count)
+static bool is_clockwise(Float2* vertices, int vertices_count)
 {
     float d = 0.0f;
     for(int i = 0; i < vertices_count; i += 1)
     {
-        Vector2 v0 = vertices[i];
-        Vector2 v1 = vertices[(i + 1) % vertices_count];
+        Float2 v0 = vertices[i];
+        Float2 v1 = vertices[(i + 1) % vertices_count];
         d += (v1.x - v0.x) * (v1.y + v0.y);
     }
     return d < 0.0f;
 }
 
 // Diagonal from ⟨a1,b⟩ is between ⟨a1,a0⟩ and ⟨a1,a2⟩
-static bool locally_inside(Vector2 a0, Vector2 a1, Vector2 a2, Vector2 b)
+static bool locally_inside(Float2 a0, Float2 a1, Float2 a2, Float2 b)
 {
     if(signed_double_area(a0, a1, a2) < 0)
     {
@@ -824,12 +824,12 @@ int count_border_edges(Border* border)
 struct FlatLoop
 {
     VertexPNC* vertices;
-    Vector2* positions;
+    Float2* positions;
     int edges;
     int rightmost;
 };
 
-static int get_rightmost(Vector2* positions, int positions_count)
+static int get_rightmost(Float2* positions, int positions_count)
 {
     int rightmost = 0;
     float max = -infinity;
@@ -847,7 +847,7 @@ static int get_rightmost(Vector2* positions, int positions_count)
 static int find_bridge_to_hole(FlatLoop* loop, FlatLoop* hole)
 {
     int rightmost = hole->rightmost;
-    Vector2 h = hole->positions[rightmost];
+    Float2 h = hole->positions[rightmost];
 
     // Find the closest possible point on an edge to bridge to.
     int candidate = invalid_index;
@@ -855,8 +855,8 @@ static int find_bridge_to_hole(FlatLoop* loop, FlatLoop* hole)
     for(int i = 0; i < loop->edges; i += 1)
     {
         int i_next = (i + 1) % loop->edges;
-        Vector2 e0 = loop->positions[i_next];
-        Vector2 e1 = loop->positions[i];
+        Float2 e0 = loop->positions[i_next];
+        Float2 e1 = loop->positions[i];
 
         if(h.y <= e0.y && h.y >= e1.y && e1.y != e0.y)
         {
@@ -902,9 +902,9 @@ static int find_bridge_to_hole(FlatLoop* loop, FlatLoop* hole)
 
     // Take a triangle between the intersection point, the hole vertex, and the
     // endpoint of the intersected edge of the outer polygon.
-    Vector2 m = loop->positions[candidate];
+    Float2 m = loop->positions[candidate];
 
-    Vector2 v[3];
+    Float2 v[3];
     v[1].x = m.x;
     if(h.y < m.y)
     {
@@ -929,7 +929,7 @@ static int find_bridge_to_hole(FlatLoop* loop, FlatLoop* hole)
     float max = -infinity;
     for(int i = 0; i < loop->edges; i += 1)
     {
-        Vector2 p = loop->positions[i];
+        Float2 p = loop->positions[i];
         if(h.x >= p.x && p.x >= mx && h.x != p.x && point_in_triangle(v[0], v[1], v[2], p))
         {
             float current = fabsf(h.y - p.y) / (h.x - p.x);
@@ -937,8 +937,8 @@ static int find_bridge_to_hole(FlatLoop* loop, FlatLoop* hole)
 
             int i_prior = mod(i - 1, loop->edges);
             int i_next = mod(i + 1, loop->edges);
-            Vector2 prior = loop->positions[i_prior];
-            Vector2 next = loop->positions[i_next];
+            Float2 prior = loop->positions[i_prior];
+            Float2 next = loop->positions[i_next];
 
             if((current > max || (current == max && p.x < m.x)) && locally_inside(prior, p, next, h))
             {
@@ -956,7 +956,7 @@ static void bridge_hole(FlatLoop* loop, int bridge_index, FlatLoop* hole, Heap* 
     int original_edges = loop->edges;
 
     loop->edges += hole->edges + 2;
-    loop->positions = HEAP_REALLOCATE(heap, loop->positions, Vector2, loop->edges);
+    loop->positions = HEAP_REALLOCATE(heap, loop->positions, Float2, loop->edges);
     loop->vertices = HEAP_REALLOCATE(heap, loop->vertices, VertexPNC, loop->edges);
 
     int count = original_edges - bridge_index;
@@ -983,19 +983,19 @@ DEFINE_QUICK_SORT(FlatLoop, is_right, by_rightmost);
 
 static FlatLoop eliminate_holes(Face* face, Heap* heap)
 {
-    Matrix3 transform = transpose(orthogonal_basis(face->normal));
+    Matrix3 transform = matrix3_transpose(matrix3_orthogonal_basis(face->normal));
 
     FlatLoop* queue = HEAP_ALLOCATE(heap, FlatLoop, face->borders_count - 1);
     int added = 0;
     for(Border* border = face->first_border->next; border; border = border->next)
     {
         int edges = count_border_edges(border);
-        Vector2* projected = HEAP_ALLOCATE(heap, Vector2, edges);
+        Float2* projected = HEAP_ALLOCATE(heap, Float2, edges);
         VertexPNC* vertices = HEAP_ALLOCATE(heap, VertexPNC, edges);
         Link* link = border->first;
         for(int i = 0; i < edges; i += 1)
         {
-            projected[i] = transform * link->vertex->position;
+            projected[i] = matrix3_transform(transform, link->vertex->position);
             vertices[i].position = link->vertex->position;
             vertices[i].normal = face->normal;
             vertices[i].colour = rgb_to_u32(link->colour);
@@ -1021,12 +1021,12 @@ static FlatLoop eliminate_holes(Face* face, Heap* heap)
 
     FlatLoop loop;
     loop.edges = face->edges;
-    Vector2* projected = HEAP_ALLOCATE(heap, Vector2, loop.edges);
+    Float2* projected = HEAP_ALLOCATE(heap, Float2, loop.edges);
     VertexPNC* vertices = HEAP_ALLOCATE(heap, VertexPNC, loop.edges);
     Link* link = face->first_border->first;
     for(int i = 0; i < loop.edges; i += 1)
     {
-        projected[i] = transform * link->vertex->position;
+        projected[i] = matrix3_transform(transform, link->vertex->position);
         vertices[i].position = link->vertex->position;
         vertices[i].normal = face->normal;
         vertices[i].colour = rgb_to_u32(link->colour);
@@ -1059,9 +1059,11 @@ static FlatLoop eliminate_holes(Face* face, Heap* heap)
     return loop;
 }
 
-static bool is_triangle_vertex(Vector2 v0, Vector2 v1, Vector2 v2, Vector2 point)
+static bool is_triangle_vertex(Float2 v0, Float2 v1, Float2 v2, Float2 point)
 {
-    return exactly_equals(v0, point) || exactly_equals(v1, point) || exactly_equals(v2, point);
+    return float2_exactly_equals(v0, point)
+            || float2_exactly_equals(v1, point)
+            || float2_exactly_equals(v2, point);
 }
 
 static void triangulate_face(Face* face, Heap* heap, VertexPNC** vertices_array, u16** indices_array)
@@ -1101,14 +1103,14 @@ static void triangulate_face(Face* face, Heap* heap, VertexPNC** vertices_array,
         // Project vertices onto a plane to produce 2D coordinates. Also, copy
         // over all the vertices.
         loop.edges = face->edges;
-        loop.positions = HEAP_ALLOCATE(heap, Vector2, loop.edges);
+        loop.positions = HEAP_ALLOCATE(heap, Float2, loop.edges);
         loop.vertices = HEAP_ALLOCATE(heap, VertexPNC, loop.edges);
-        Matrix3 m = orthogonal_basis(face->normal);
-        Matrix3 mi = transpose(m);
+        Matrix3 m = matrix3_orthogonal_basis(face->normal);
+        Matrix3 mi = matrix3_transpose(m);
         Link* link = face->first_border->first;
         for(int i = 0; i < loop.edges; i += 1)
         {
-            loop.positions[i] = mi * link->vertex->position;
+            loop.positions[i] = matrix3_transform(mi, link->vertex->position);
             loop.vertices[i].position = link->vertex->position;
             loop.vertices[i].normal = face->normal;
             loop.vertices[i].colour = rgb_to_u32(link->colour);
@@ -1161,7 +1163,7 @@ static void triangulate_face(Face* face, Heap* heap, VertexPNC** vertices_array,
     {
         j = r[j];
 
-        Vector2 v[3];
+        Float2 v[3];
         if(reverse_winding)
         {
             v[0] = loop.positions[r[j]];
@@ -1183,7 +1185,7 @@ static void triangulate_face(Face* face, Heap* heap, VertexPNC** vertices_array,
         bool in_triangle = false;
         for(int k = 0; k < loop.edges; k += 1)
         {
-            Vector2 point = loop.positions[k];
+            Float2 point = loop.positions[k];
             if(!is_triangle_vertex(v[0], v[1], v[2], point)
                 && point_in_triangle(v[0], v[1], v[2], point))
             {
@@ -1395,7 +1397,7 @@ void toggle_vertex_in_selection(Selection* selection, Vertex* vertex)
     }
 }
 
-void move_faces(Mesh* mesh, Selection* selection, Vector3 translation)
+void move_faces(Mesh* mesh, Selection* selection, Float3 translation)
 {
     ASSERT(selection->type == Selection::Type::Face);
 
@@ -1408,7 +1410,7 @@ void move_faces(Mesh* mesh, Selection* selection, Vector3 translation)
             Link* link = first;
             do
             {
-                link->vertex->position += translation;
+                link->vertex->position = float3_add(link->vertex->position, translation);
                 link = link->next;
             } while(link != first);
         }
@@ -1444,13 +1446,13 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Heap* heap, Stack
     ASSERT(selection->type == Selection::Type::Face);
 
     // Calculate the vector to extrude all the vertices along.
-    Vector3 average_direction = vector3_zero;
+    Float3 average_direction = float3_zero;
     FOR_ALL(Part, selection->parts)
     {
         Face* face = it->face;
-        average_direction += face->normal;
+        average_direction = float3_add(average_direction, face->normal);
     }
-    Vector3 extrusion = distance * normalise(average_direction);
+    Float3 extrusion = float3_multiply(distance, float3_normalise(average_direction));
 
     // Use a map to redirect vertices to their extruded double when it's
     // already been added.
@@ -1475,14 +1477,14 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Heap* heap, Stack
                 Vertex* end = link->next->vertex;
                 if(!map_get(&map, start, nullptr))
                 {
-                    Vector3 position = start->position + extrusion;
+                    Float3 position = float3_add(start->position, extrusion);
                     Vertex* vertex = add_vertex(mesh, position);
                     add_edge(mesh, start, vertex);
                     map_add(&map, start, vertex, heap);
                 }
                 if(!map_get(&map, end, nullptr))
                 {
-                    Vector3 position = end->position + extrusion;
+                    Float3 position = float3_add(end->position, extrusion);
                     Vertex* vertex = add_vertex(mesh, position);
                     add_edge(mesh, end, vertex);
                     map_add(&map, end, vertex, heap);
@@ -1530,7 +1532,7 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Heap* heap, Stack
     update_normals(mesh);
 }
 
-void colour_just_the_one_face(Face* face, Vector3 colour)
+void colour_just_the_one_face(Face* face, Float3 colour)
 {
     for(Border* border = face->first_border; border; border = border->next)
     {
@@ -1544,7 +1546,7 @@ void colour_just_the_one_face(Face* face, Vector3 colour)
     }
 }
 
-void colour_all_faces(Mesh* mesh, Vector3 colour)
+void colour_all_faces(Mesh* mesh, Float3 colour)
 {
     FOR_EACH_IN_POOL(Link, link, mesh->link_pool)
     {
@@ -1552,7 +1554,7 @@ void colour_all_faces(Mesh* mesh, Vector3 colour)
     }
 }
 
-void colour_selection(Mesh* mesh, Selection* selection, Vector3 colour)
+void colour_selection(Mesh* mesh, Selection* selection, Float3 colour)
 {
     if(selection->type == Selection::Type::Face)
     {

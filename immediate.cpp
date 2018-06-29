@@ -37,7 +37,7 @@ struct Context
     };
     Matrix4 view_projection;
     Matrix4 projection;
-    Vector3 text_colour;
+    Float3 text_colour;
     GLuint vertex_arrays[context_vertex_type_count];
     GLuint buffers[context_vertex_type_count];
     GLuint shaders[context_vertex_type_count];
@@ -115,7 +115,7 @@ void context_destroy(Heap* heap)
 
 void set_matrices(Matrix4 view, Matrix4 projection)
 {
-    context->view_projection = projection * view;
+    context->view_projection = matrix4_multiply(projection, view);
     context->projection = projection;
 }
 
@@ -143,7 +143,7 @@ void set_blend_mode(BlendMode mode)
     }
 }
 
-void set_text_colour(Vector3 text_colour)
+void set_text_colour(Float3 text_colour)
 {
     context->text_colour = text_colour;
 }
@@ -225,29 +225,29 @@ void draw()
 
     glUseProgram(shader);
     GLint location = glGetUniformLocation(shader, "model_view_projection");
-    glUniformMatrix4fv(location, 1, GL_TRUE, c->view_projection.elements);
+    glUniformMatrix4fv(location, 1, GL_TRUE, c->view_projection.e);
 
     location = glGetUniformLocation(shader, "text_colour");
     if(location != -1)
     {
-        glUniform3fv(location, 1, &c->text_colour[0]);
+        glUniform3fv(location, 1, &c->text_colour.e[0]);
     }
 
     location = glGetUniformLocation(shader, "projection_factor");
     if(location != -1)
     {
-        glUniform1f(location, c->projection[0]);
+        glUniform1f(location, c->projection.e[0]);
     }
 
     glDrawArrays(GL_TRIANGLES, 0, c->filled);
 
     set_blend_mode(BlendMode::None);
-    set_text_colour(vector3_white);
+    set_text_colour(float3_white);
     c->vertex_type = VertexType::None;
     c->filled = 0;
 }
 
-void add_line(Vector3 start, Vector3 end, Vector4 colour)
+void add_line(Float3 start, Float3 end, Float4 colour)
 {
     Context* c = context;
     ASSERT(c->vertex_type == VertexType::Line || c->vertex_type == VertexType::None);
@@ -260,18 +260,18 @@ void add_line(Vector3 start, Vector3 end, Vector4 colour)
         texcoord_to_u32({1.0f, 1.0f}),
         texcoord_to_u32({1.0f, 0.0f}),
     };
-    Vector3 direction = end - start;
+    Float3 direction = float3_subtract(end, start);
     c->line_vertices[c->filled + 0] = {start, direction, colour_u32, texcoords[1], -1.0f};
     c->line_vertices[c->filled + 1] = {start, direction, colour_u32, texcoords[2], 1.0f};
-    c->line_vertices[c->filled + 2] = {end, -direction, colour_u32, texcoords[0], 1.0f};
-    c->line_vertices[c->filled + 3] = {end, -direction, colour_u32, texcoords[0], 1.0f};
+    c->line_vertices[c->filled + 2] = {end, float3_negate(direction), colour_u32, texcoords[0], 1.0f};
+    c->line_vertices[c->filled + 3] = {end, float3_negate(direction), colour_u32, texcoords[0], 1.0f};
     c->line_vertices[c->filled + 4] = {start, direction, colour_u32, texcoords[2], 1.0f};
-    c->line_vertices[c->filled + 5] = {end, -direction, colour_u32, texcoords[3], -1.0f};
+    c->line_vertices[c->filled + 5] = {end, float3_negate(direction), colour_u32, texcoords[3], -1.0f};
     c->filled += 6;
     c->vertex_type = VertexType::Line;
 }
 
-void add_triangle(Triangle* triangle, Vector4 colour)
+void add_triangle(Triangle* triangle, Float4 colour)
 {
     Context* c = context;
     ASSERT(c->vertex_type == VertexType::Colour || c->vertex_type == VertexType::None);
@@ -285,19 +285,19 @@ void add_triangle(Triangle* triangle, Vector4 colour)
     c->vertex_type = VertexType::Colour;
 }
 
-void add_rect(Rect rect, Vector4 colour)
+void add_rect(Rect rect, Float4 colour)
 {
     Quad quad = rect_to_quad(rect);
     add_quad(&quad, colour);
 }
 
-void add_wire_rect(Rect rect, Vector4 colour)
+void add_wire_rect(Rect rect, Float4 colour)
 {
     Quad quad = rect_to_quad(rect);
     add_wire_quad(&quad, colour);
 }
 
-void add_quad(Quad* quad, Vector4 colour)
+void add_quad(Quad* quad, Float4 colour)
 {
     Context* c = context;
     ASSERT(c->vertex_type == VertexType::Colour || c->vertex_type == VertexType::None);
@@ -327,10 +327,10 @@ void add_quad_textured(Quad* quad, Rect texture_rect)
     c->vertices_textured[c->filled + 3].position = quad->vertices[0];
     c->vertices_textured[c->filled + 4].position = quad->vertices[2];
     c->vertices_textured[c->filled + 5].position = quad->vertices[3];
-    const Vector2 texcoords[4] =
+    const Float2 texcoords[4] =
     {
         {texture_rect.bottom_left.x, texture_rect.bottom_left.y + texture_rect.dimensions.y},
-        texture_rect.bottom_left + texture_rect.dimensions,
+        float2_add(texture_rect.bottom_left, texture_rect.dimensions),
         {texture_rect.bottom_left.x + texture_rect.dimensions.x, texture_rect.bottom_left.y},
         texture_rect.bottom_left,
     };
@@ -344,7 +344,7 @@ void add_quad_textured(Quad* quad, Rect texture_rect)
     c->vertex_type = VertexType::Texture;
 }
 
-void add_wire_quad(Quad* quad, Vector4 colour)
+void add_wire_quad(Quad* quad, Float4 colour)
 {
     add_line(quad->vertices[0], quad->vertices[1], colour);
     add_line(quad->vertices[1], quad->vertices[2], colour);
@@ -352,19 +352,19 @@ void add_wire_quad(Quad* quad, Vector4 colour)
     add_line(quad->vertices[3], quad->vertices[0], colour);
 }
 
-void add_circle(Vector3 center, Vector3 axis, float radius, Vector4 colour)
+void add_circle(Float3 center, Float3 axis, float radius, Float4 colour)
 {
     const int segments = 16;
-    Quaternion orientation = axis_angle_rotation(axis, 0.0f);
-    Vector3 arm = radius * normalise(perp(axis));
-    Vector3 position = (orientation * arm) + center;
+    Quaternion orientation = quaternion_axis_angle(axis, 0.0f);
+    Float3 arm = float3_multiply(radius, float3_normalise(float3_perp(axis)));
+    Float3 position = float3_add(quaternion_rotate(orientation, arm), center);
 
     for(int i = 1; i <= segments; i += 1)
     {
-        Vector3 prior = position;
+        Float3 prior = position;
         float t = (static_cast<float>(i) / segments) * tau;
-        orientation = axis_angle_rotation(axis, t);
-        position = (orientation * arm) + center;
+        orientation = quaternion_axis_angle(axis, t);
+        position = float3_add(quaternion_rotate(orientation, arm), center);
 
         Triangle triangle;
         triangle.vertices[0] = position;
@@ -374,20 +374,20 @@ void add_circle(Vector3 center, Vector3 axis, float radius, Vector4 colour)
     }
 }
 
-void add_cone(Vector3 base_center, Vector3 axis, float radius, Vector4 side_colour, Vector4 base_colour)
+void add_cone(Float3 base_center, Float3 axis, float radius, Float4 side_colour, Float4 base_colour)
 {
     const int segments = 16;
-    Quaternion orientation = axis_angle_rotation(axis, 0.0f);
-    Vector3 arm = radius * normalise(perp(axis));
-    Vector3 position = (orientation * arm) + base_center;
-    Vector3 apex = axis + base_center;
+    Quaternion orientation = quaternion_axis_angle(axis, 0.0f);
+    Float3 arm = float3_multiply(radius, float3_normalise(float3_perp(axis)));
+    Float3 position = float3_add(quaternion_rotate(orientation, arm), base_center);
+    Float3 apex = float3_add(axis, base_center);
 
     for(int i = 1; i <= segments; i += 1)
     {
-        Vector3 prior = position;
+        Float3 prior = position;
         float t = (static_cast<float>(i) / segments) * tau;
-        orientation = axis_angle_rotation(axis, t);
-        position = (orientation * arm) + base_center;
+        orientation = quaternion_axis_angle(axis, t);
+        position = float3_add(quaternion_rotate(orientation, arm), base_center);
 
         Triangle triangle;
         triangle.vertices[0] = prior;
@@ -399,23 +399,23 @@ void add_cone(Vector3 base_center, Vector3 axis, float radius, Vector4 side_colo
     add_circle(base_center, axis, radius, base_colour);
 }
 
-void add_cylinder(Vector3 start, Vector3 end, float radius, Vector4 colour)
+void add_cylinder(Float3 start, Float3 end, float radius, Float4 colour)
 {
     const int segments = 16;
-    Vector3 axis = end - start;
-    Quaternion orientation = axis_angle_rotation(axis, 0.0f);
-    Vector3 arm = radius * normalise(perp(axis));
-    Vector3 next_top = (orientation * arm) + start;
-    Vector3 next_bottom = (orientation * arm) + end;
+    Float3 axis = float3_subtract(end, start);
+    Quaternion orientation = quaternion_axis_angle(axis, 0.0f);
+    Float3 arm = float3_multiply(radius, float3_normalise(float3_perp(axis)));
+    Float3 next_top = float3_add(quaternion_rotate(orientation, arm), start);
+    Float3 next_bottom = float3_add(quaternion_rotate(orientation, arm), end);
 
     for(int i = 1; i <= segments; i += 1)
     {
-        Vector3 prior_top = next_top;
-        Vector3 prior_bottom = next_bottom;
+        Float3 prior_top = next_top;
+        Float3 prior_bottom = next_bottom;
         float t = (static_cast<float>(i) / segments) * tau;
-        orientation = axis_angle_rotation(axis, t);
-        next_top = (orientation * arm) + start;
-        next_bottom = (orientation * arm) + end;
+        orientation = quaternion_axis_angle(axis, t);
+        next_top = float3_add(quaternion_rotate(orientation, arm), start);
+        next_bottom = float3_add(quaternion_rotate(orientation, arm), end);
 
         Quad quad;
         quad.vertices[0] = prior_top;
@@ -426,13 +426,13 @@ void add_cylinder(Vector3 start, Vector3 end, float radius, Vector4 colour)
     }
 
     add_circle(start, axis, radius, colour);
-    add_circle(end, -axis, radius, colour);
+    add_circle(end, float3_negate(axis), radius, colour);
 }
 
-void add_box(Vector3 center, Vector3 extents, Vector4 colour)
+void add_box(Float3 center, Float3 extents, Float4 colour)
 {
     // corners
-    Vector3 c[8] =
+    Float3 c[8] =
     {
         {+extents.x, +extents.y, +extents.z},
         {+extents.x, +extents.y, -extents.z},
@@ -445,7 +445,7 @@ void add_box(Vector3 center, Vector3 extents, Vector4 colour)
     };
     for(int i = 0; i < 8; i += 1)
     {
-        c[i] += center;
+        c[i] = float3_add(c[i], center);
     }
 
     Quad sides[6] =
@@ -466,22 +466,22 @@ void add_box(Vector3 center, Vector3 extents, Vector4 colour)
     add_quad(&sides[5], colour);
 }
 
-static Vector3 polar_to_cartesian(float theta, float phi, float radius)
+static Float3 polar_to_cartesian(float theta, float phi, float radius)
 {
-    Vector3 point;
+    Float3 point;
     point.x = radius * sin(theta) * cos(phi);
     point.y = radius * sin(theta) * sin(phi);
     point.z = radius * cos(theta);
     return point;
 }
 
-void add_sphere(Vector3 center, float radius, Vector4 colour)
+void add_sphere(Float3 center, float radius, Float4 colour)
 {
     const int meridians = 9;
     const int parallels = 7;
     const int rings = parallels + 1;
 
-    Vector3 top = {0.0f, 0.0f, radius};
+    Float3 top = {0.0f, 0.0f, radius};
     for(int i = 0; i < meridians; i += 1)
     {
         float theta = 1.0f / static_cast<float>(rings) * pi;
@@ -489,13 +489,13 @@ void add_sphere(Vector3 center, float radius, Vector4 colour)
         float phi1 = (i + 1) / static_cast<float>(meridians) * tau;
 
         Triangle triangle;
-        triangle.vertices[0] = polar_to_cartesian(theta, phi0, radius) + center;
-        triangle.vertices[1] = polar_to_cartesian(theta, phi1, radius) + center;
-        triangle.vertices[2] = top + center;
+        triangle.vertices[0] = float3_add(polar_to_cartesian(theta, phi0, radius), center);
+        triangle.vertices[1] = float3_add(polar_to_cartesian(theta, phi1, radius), center);
+        triangle.vertices[2] = float3_add(top, center);
         add_triangle(&triangle, colour);
     }
 
-    Vector3 bottom = {0.0f, 0.0f, -radius};
+    Float3 bottom = {0.0f, 0.0f, -radius};
     for(int i = 0; i < meridians; i += 1)
     {
         float theta = (parallels) / static_cast<float>(rings) * pi;
@@ -503,9 +503,9 @@ void add_sphere(Vector3 center, float radius, Vector4 colour)
         float phi1 = (i    ) / static_cast<float>(meridians) * tau;
 
         Triangle triangle;
-        triangle.vertices[0] = polar_to_cartesian(theta, phi0, radius) + center;
-        triangle.vertices[1] = polar_to_cartesian(theta, phi1, radius) + center;
-        triangle.vertices[2] = bottom + center;
+        triangle.vertices[0] = float3_add(polar_to_cartesian(theta, phi0, radius), center);
+        triangle.vertices[1] = float3_add(polar_to_cartesian(theta, phi1, radius), center);
+        triangle.vertices[2] = float3_add(bottom, center);
         add_triangle(&triangle, colour);
     }
 
@@ -519,38 +519,40 @@ void add_sphere(Vector3 center, float radius, Vector4 colour)
             float phi1 = (j + 1) / static_cast<float>(meridians) * tau;
 
             Quad quad;
-            quad.vertices[0] = polar_to_cartesian(theta0, phi0, radius) + center;
-            quad.vertices[1] = polar_to_cartesian(theta1, phi0, radius) + center;
-            quad.vertices[2] = polar_to_cartesian(theta1, phi1, radius) + center;
-            quad.vertices[3] = polar_to_cartesian(theta0, phi1, radius) + center;
+            quad.vertices[0] = float3_add(polar_to_cartesian(theta0, phi0, radius), center);
+            quad.vertices[1] = float3_add(polar_to_cartesian(theta1, phi0, radius), center);
+            quad.vertices[2] = float3_add(polar_to_cartesian(theta1, phi1, radius), center);
+            quad.vertices[3] = float3_add(polar_to_cartesian(theta0, phi1, radius), center);
             add_quad(&quad, colour);
         }
     }
 }
 
-void add_arc(Vector3 center, Vector3 axis, float angle, float start_angle, float radius, float width, Vector4 colour)
+void add_arc(Float3 center, Float3 axis, float angle, float start_angle, float radius, float width, Float4 colour)
 {
     const int segments = 11;
 
-    Vector3 arm = radius * normalise(perp(axis));
+    Float3 arm = float3_multiply(radius, float3_normalise(float3_perp(axis)));
     float half_width = width / 2.0f;
-    Quaternion orientation = axis_angle_rotation(axis, start_angle);
-    Vector3 medial = orientation * arm;
-    Vector3 direction = normalise(medial);
+    Quaternion orientation = quaternion_axis_angle(axis, start_angle);
+    Float3 medial = quaternion_rotate(orientation, arm);
+    Float3 direction = float3_normalise(medial);
+    Float3 medial_world = float3_add(medial, center);
 
     Quad quad;
-    quad.vertices[0] = (half_width * -direction) + medial + center;
-    quad.vertices[1] = (half_width * direction) + medial + center;
+    quad.vertices[0] = float3_add(float3_multiply(-half_width, direction), medial_world);
+    quad.vertices[1] = float3_add(float3_multiply(half_width, direction), medial_world);
 
     for(int i = 1; i <= segments; i += 1)
     {
         float theta = (i / static_cast<float>(segments) * angle) + start_angle;
-        orientation = axis_angle_rotation(axis, theta);
-        medial = orientation * arm;
-        direction = normalise(medial);
+        orientation = quaternion_axis_angle(axis, theta);
+        medial = quaternion_rotate(orientation, arm);
+        direction = float3_normalise(medial);
+        medial_world = float3_add(medial, center);
 
-        quad.vertices[2] = (half_width * direction) + medial + center;
-        quad.vertices[3] = (half_width * -direction) + medial + center;
+        quad.vertices[2] = float3_add(float3_multiply(half_width, direction), medial_world);
+        quad.vertices[3] = float3_add(float3_multiply(-half_width, direction), medial_world);
         add_quad(&quad, colour);
 
         quad.vertices[0] = quad.vertices[3];
@@ -558,37 +560,37 @@ void add_arc(Vector3 center, Vector3 axis, float angle, float start_angle, float
     }
 }
 
-void add_wire_arc(Vector3 center, Vector3 axis, float angle, float start_angle, float radius, Vector4 colour)
+void add_wire_arc(Float3 center, Float3 axis, float angle, float start_angle, float radius, Float4 colour)
 {
     const int segments = 11;
 
-    Vector3 arm = normalise(perp(axis));
-    Quaternion orientation = axis_angle_rotation(axis, start_angle);
-    Vector3 medial = orientation * arm;
-    Vector3 direction = normalise(medial);
-    Vector3 start = (radius * direction) + center;
+    Float3 arm = float3_normalise(float3_perp(axis));
+    Quaternion orientation = quaternion_axis_angle(axis, start_angle);
+    Float3 medial = quaternion_rotate(orientation, arm);
+    Float3 direction = float3_normalise(medial);
+    Float3 start = float3_add(float3_multiply(radius, direction), center);
 
     for(int i = 1; i <= segments; i += 1)
     {
         float theta = (i / static_cast<float>(segments) * angle) + start_angle;
-        orientation = axis_angle_rotation(axis, theta);
-        medial = orientation * arm;
-        direction = normalise(medial);
+        orientation = quaternion_axis_angle(axis, theta);
+        medial = quaternion_rotate(orientation, arm);
+        direction = float3_normalise(medial);
 
-        Vector3 end = (radius * direction) + center;
+        Float3 end = float3_add(float3_multiply(radius, direction), center);
         add_line(start, end, colour);
 
         start = end;
     }
 }
 
-void draw_opaque_rect(Rect rect, Vector4 colour)
+void draw_opaque_rect(Rect rect, Float4 colour)
 {
     add_rect(rect, colour);
     draw();
 }
 
-void draw_transparent_rect(Rect rect, Vector4 colour)
+void draw_transparent_rect(Rect rect, Float4 colour)
 {
     set_blend_mode(immediate::BlendMode::Transparent);
     add_rect(rect, colour);

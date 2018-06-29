@@ -11,7 +11,7 @@ union Pack4x8
     u32 packed;
 };
 
-static u32 pack_unorm3x8(Vector3 v)
+static u32 pack_unorm3x8(Float3 v)
 {
     Pack4x8 u;
     u.r = 0xff * v.x;
@@ -21,18 +21,18 @@ static u32 pack_unorm3x8(Vector3 v)
     return u.packed;
 }
 
-static Vector3 unpack_unorm3x8(u32 x)
+static Float3 unpack_unorm3x8(u32 x)
 {
     Pack4x8 u;
     u.packed = x;
-    Vector3 v;
+    Float3 v;
     v.x = u.r / 255.0f;
     v.y = u.g / 255.0f;
     v.z = u.b / 255.0f;
     return v;
 }
 
-static u32 pack_unorm4x8(Vector4 v)
+static u32 pack_unorm4x8(Float4 v)
 {
     Pack4x8 u;
     u.r = 0xff * v.x;
@@ -42,11 +42,11 @@ static u32 pack_unorm4x8(Vector4 v)
     return u.packed;
 }
 
-static Vector4 unpack_unorm4x8(u32 x)
+static Float4 unpack_unorm4x8(u32 x)
 {
     Pack4x8 u;
     u.packed = x;
-    Vector4 v;
+    Float4 v;
     v.x = u.r / 255.0f;
     v.y = u.g / 255.0f;
     v.z = u.b / 255.0f;
@@ -54,7 +54,7 @@ static Vector4 unpack_unorm4x8(u32 x)
     return v;
 }
 
-static u32 pack_unorm16x2(Vector2 v)
+static u32 pack_unorm16x2(Float2 v)
 {
     union
     {
@@ -75,7 +75,7 @@ static bool is_unorm(float x)
     return x >= 0.0f && x <= 1.0f;
 }
 
-u32 rgb_to_u32(Vector3 c)
+u32 rgb_to_u32(Float3 c)
 {
     ASSERT(is_unorm(c.x));
     ASSERT(is_unorm(c.y));
@@ -83,7 +83,7 @@ u32 rgb_to_u32(Vector3 c)
     return pack_unorm3x8(c);
 }
 
-u32 rgba_to_u32(Vector4 c)
+u32 rgba_to_u32(Float4 c)
 {
     ASSERT(is_unorm(c.x));
     ASSERT(is_unorm(c.y));
@@ -92,17 +92,17 @@ u32 rgba_to_u32(Vector4 c)
     return pack_unorm4x8(c);
 }
 
-Vector3 u32_to_rgb(u32 u)
+Float3 u32_to_rgb(u32 u)
 {
     return unpack_unorm3x8(u);
 }
 
-Vector4 u32_to_rgba(u32 u)
+Float4 u32_to_rgba(u32 u)
 {
     return unpack_unorm4x8(u);
 }
 
-u32 texcoord_to_u32(Vector2 v)
+u32 texcoord_to_u32(Float2 v)
 {
     ASSERT(is_unorm(v.x));
     ASSERT(is_unorm(v.y));

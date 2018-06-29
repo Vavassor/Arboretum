@@ -64,7 +64,7 @@ struct Glyph
 {
     Rect rect;
     Rect texture_rect;
-    Vector2 baseline_start;
+    Float2 baseline_start;
     float x_advance;
     int text_index;
 };
@@ -153,8 +153,8 @@ struct Item
         TextInput text_input;
     };
     Rect bounds;
-    Vector2 ideal_dimensions;
-    Vector2 min_dimensions;
+    Float2 ideal_dimensions;
+    Float2 min_dimensions;
     ItemType type;
     Id id;
     bool growable;
@@ -208,7 +208,7 @@ struct EventQueue
 
 struct Style
 {
-    Vector4 background;
+    Float4 background;
 };
 
 struct Theme
@@ -219,17 +219,17 @@ struct Theme
 
     struct
     {
-        Vector4 button_cap_disabled;
-        Vector4 button_cap_enabled;
-        Vector4 button_cap_hovered_disabled;
-        Vector4 button_cap_hovered_enabled;
-        Vector3 button_label_disabled;
-        Vector3 button_label_enabled;
-        Vector4 focus_indicator;
-        Vector4 list_item_background_hovered;
-        Vector4 list_item_background_selected;
-        Vector4 text_input_cursor;
-        Vector4 text_input_selection;
+        Float4 button_cap_disabled;
+        Float4 button_cap_enabled;
+        Float4 button_cap_hovered_disabled;
+        Float4 button_cap_hovered_enabled;
+        Float3 button_label_disabled;
+        Float3 button_label_enabled;
+        Float4 focus_indicator;
+        Float4 list_item_background_hovered;
+        Float4 list_item_background_selected;
+        Float4 text_input_cursor;
+        Float4 text_input_selection;
     } colours;
 };
 
@@ -237,7 +237,7 @@ struct Context
 {
     Theme theme;
     EventQueue queue;
-    Vector2 viewport;
+    Float2 viewport;
     Heap* heap;
     Stack* scratch;
     Item* focused_item;

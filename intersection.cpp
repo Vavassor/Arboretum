@@ -9,17 +9,17 @@
 #include "memory.h"
 #include "restrict.h"
 
-static float orient(Vector2 v0, Vector2 v1, Vector2 v2)
+static float orient(Float2 v0, Float2 v1, Float2 v2)
 {
     return (v1.x - v0.x) * (v2.y - v0.y) - (v2.x - v0.x) * (v1.y - v0.y);
 }
 
-static bool to_left_of_line(Vector2 e0, Vector2 e1, Vector2 p)
+static bool to_left_of_line(Float2 e0, Float2 e1, Float2 p)
 {
     return orient(e0, e1, p) > 0.0f;
 }
 
-static bool to_right_of_line(Vector2 e0, Vector2 e1, Vector2 p)
+static bool to_right_of_line(Float2 e0, Float2 e1, Float2 p)
 {
     return orient(e0, e1, p) < 0.0f;
 }
@@ -27,13 +27,13 @@ static bool to_right_of_line(Vector2 e0, Vector2 e1, Vector2 p)
 // This winding number algorithm works for complex polygons. Also, since all
 // that matters is whether the final winding number is zero, the input polygon
 // can be clockwise or counterclockwise.
-bool point_in_polygon(Vector2 point, Vector2* vertices, int vertices_count)
+bool point_in_polygon(Float2 point, Float2* vertices, int vertices_count)
 {
     int winding = 0;
     for(int i = 0; i < vertices_count; i += 1)
     {
-        Vector2 v0 = vertices[i];
-        Vector2 v1 = vertices[(i + 1) % vertices_count];
+        Float2 v0 = vertices[i];
+        Float2 v1 = vertices[(i + 1) % vertices_count];
         if(v0.y <= point.y)
         {
             if(v1.y > point.y)
@@ -61,16 +61,16 @@ bool point_in_polygon(Vector2 point, Vector2* vertices, int vertices_count)
 Ray transform_ray(Ray ray, Matrix4 transform)
 {
     Ray result;
-    result.origin = transform_point(transform, ray.origin);
-    result.direction = normalise(transform_vector(transform, ray.direction));
+    result.origin = matrix4_transform_point(transform, ray.origin);
+    result.direction = float3_normalise(matrix4_transform_vector(transform, ray.direction));
     return result;
 }
 
 LineSegment transform_line_segment(LineSegment segment, Matrix4 transform)
 {
     LineSegment result;
-    result.start = transform_point(transform, segment.start);
-    result.end = transform_point(transform, segment.end);
+    result.start = matrix4_transform_point(transform, segment.start);
+    result.end = matrix4_transform_point(transform, segment.end);
     return result;
 }
 
@@ -83,7 +83,7 @@ static bool solve_quadratic_equation(float a, float b, float c, float* RESTRICT 
     }
     else
     {
-        float s = sqrt(discriminant);
+        float s = sqrtf(discriminant);
         float u0 = (-b + s) / (2.0f * a);
         float u1 = (-b - s) / (2.0f * a);
         if(u0 > u1)
@@ -148,41 +148,41 @@ static int solve_real_quartic_equation(float coefficients[5], float roots[4])
     return real_roots;
 }
 
-bool intersect_ray_plane(Ray ray, Vector3 origin, Vector3 normal, Vector3* intersection)
+bool intersect_ray_plane(Ray ray, Float3 origin, Float3 normal, Float3* intersection)
 {
-    ASSERT(is_normalised(normal));
-    ASSERT(is_normalised(ray.direction));
+    ASSERT(float3_is_normalised(normal));
+    ASSERT(float3_is_normalised(ray.direction));
 
-    float d = dot(-normal, ray.direction);
+    float d = float3_dot(float3_negate(normal), ray.direction);
     if(fabsf(d) < 1e-6f)
     {
         return false;
     }
 
-    float t = dot(origin - ray.origin, -normal) / d;
+    float t = float3_dot(float3_subtract(origin, ray.origin), float3_negate(normal)) / d;
     if(t < 0.0f)
     {
         return false;
     }
     else
     {
-        *intersection = (t * ray.direction) + ray.origin;
+        *intersection = float3_madd(t, ray.direction, ray.origin);
         return true;
     }
 }
 
-bool intersect_ray_sphere(Ray ray, Sphere sphere, Vector3* intersection)
+bool intersect_ray_sphere(Ray ray, Sphere sphere, Float3* intersection)
 {
-    Vector3 to_center = sphere.center - ray.origin;
+    Float3 to_center = float3_subtract(sphere.center, ray.origin);
     float radius2 = sphere.radius * sphere.radius;
-    float t_axis = dot(to_center, ray.direction);
-    float distance2 = squared_length(to_center) - (t_axis * t_axis);
+    float t_axis = float3_dot(to_center, ray.direction);
+    float distance2 = float3_squared_length(to_center) - (t_axis * t_axis);
     if(distance2 > radius2)
     {
         return false;
     }
 
-    float t_intersect = sqrt(radius2 - distance2);
+    float t_intersect = sqrtf(radius2 - distance2);
     float t[2];
     t[0] = t_axis - t_intersect;
     t[1] = t_axis + t_intersect;
@@ -203,27 +203,27 @@ bool intersect_ray_sphere(Ray ray, Sphere sphere, Vector3* intersection)
         }
     }
 
-    *intersection = (t[0] * ray.direction) + ray.origin;
+    *intersection = float3_madd(t[0], ray.direction, ray.origin);
 
     return true;
 }
 
-bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Vector3* intersection)
+bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Float3* intersection)
 {
     float radius = cylinder.radius;
-    Vector3 center = (cylinder.start + cylinder.end) / 2.0f;
-    float half_length = distance(center, cylinder.end);
+    Float3 center = float3_divide(float3_add(cylinder.start, cylinder.end), 2.0f);
+    float half_length = float3_distance(center, cylinder.end);
 
-    Vector3 forward = normalise(cylinder.end - cylinder.start);
-    Vector3 right = normalise(perp(forward));
-    Vector3 up = normalise(cross(forward, right));
-    Matrix4 view = view_matrix(right, up, forward, center);
-    Vector3 dilation = {radius, radius, half_length};
-    Matrix4 transform = dilation_matrix(reciprocal(dilation)) * view;
+    Float3 forward = float3_normalise(float3_subtract(cylinder.end, cylinder.start));
+    Float3 right = float3_normalise(float3_perp(forward));
+    Float3 up = float3_normalise(float3_cross(forward, right));
+    Matrix4 view = matrix4_view(right, up, forward, center);
+    Float3 dilation = {radius, radius, half_length};
+    Matrix4 transform = matrix4_multiply(matrix4_dilation(float3_reciprocal(dilation)), view);
 
     Ray cylinder_ray = transform_ray(ray, transform);
-    Vector3 origin = cylinder_ray.origin;
-    Vector3 direction = cylinder_ray.direction;
+    Float3 origin = cylinder_ray.origin;
+    Float3 direction = cylinder_ray.direction;
 
     float dx = direction.x;
     float dy = direction.y;
@@ -256,7 +256,7 @@ bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Vector3* intersection)
         }
         else
         {
-            *intersection = (ray.direction * t2) + ray.origin;
+            *intersection = float3_madd(t2, ray.direction, ray.origin);
             return true;
         }
     }
@@ -268,7 +268,7 @@ bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Vector3* intersection)
         }
         else
         {
-            *intersection = (ray.direction * t0) + ray.origin;
+            *intersection = float3_madd(t0, ray.direction, ray.origin);
             return true;
         }
     }
@@ -286,7 +286,7 @@ bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Vector3* intersection)
         }
         else
         {
-            *intersection = (ray.direction * t2) + ray.origin;
+            *intersection = float3_madd(t2, ray.direction, ray.origin);
             return true;
         }
     }
@@ -294,22 +294,22 @@ bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Vector3* intersection)
     return false;
 }
 
-bool intersect_ray_cone(Ray ray, Cone cone, Vector3* intersection)
+bool intersect_ray_cone(Ray ray, Cone cone, Float3* intersection)
 {
     float radius = cone.radius;
-    float height = length(cone.axis);
-    Vector3 tip = cone.axis + cone.base_center;
+    float height = float3_length(cone.axis);
+    Float3 tip = float3_add(cone.axis, cone.base_center);
 
-    Vector3 forward = normalise(cone.axis);
-    Vector3 right = normalise(perp(forward));
-    Vector3 up = normalise(cross(forward, right));
-    Matrix4 view = view_matrix(right, up, forward, tip);
-    Vector3 dilation = {radius, radius, height};
-    Matrix4 transform = dilation_matrix(reciprocal(dilation)) * view;
+    Float3 forward = float3_normalise(cone.axis);
+    Float3 right = float3_normalise(float3_perp(forward));
+    Float3 up = float3_normalise(float3_cross(forward, right));
+    Matrix4 view = matrix4_view(right, up, forward, tip);
+    Float3 dilation = {radius, radius, height};
+    Matrix4 transform = matrix4_multiply(matrix4_dilation(float3_reciprocal(dilation)), view);
 
     Ray cone_ray = transform_ray(ray, transform);
-    Vector3 origin = cone_ray.origin;
-    Vector3 direction = cone_ray.direction;
+    Float3 origin = cone_ray.origin;
+    Float3 direction = cone_ray.direction;
 
     float dx = direction.x;
     float dy = direction.y;
@@ -339,7 +339,7 @@ bool intersect_ray_cone(Ray ray, Cone cone, Vector3* intersection)
         }
         else
         {
-            *intersection = (t0 * ray.direction) + ray.origin;
+            *intersection = float3_madd(t0, ray.direction, ray.origin);
             return true;
         }
     }
@@ -357,7 +357,7 @@ bool intersect_ray_cone(Ray ray, Cone cone, Vector3* intersection)
         }
         else
         {
-            *intersection = (t2 * ray.direction) + ray.origin;
+            *intersection = float3_madd(t2, ray.direction, ray.origin);
             return true;
         }
     }
@@ -365,19 +365,19 @@ bool intersect_ray_cone(Ray ray, Cone cone, Vector3* intersection)
     return false;
 }
 
-bool intersect_ray_torus(Ray ray, Torus torus, Vector3* intersection)
+bool intersect_ray_torus(Ray ray, Torus torus, Float3* intersection)
 {
     float r = torus.major_radius;
     float s = torus.minor_radius;
 
-    Vector3 forward = normalise(torus.axis);
-    Vector3 right = normalise(perp(forward));
-    Vector3 up = normalise(cross(forward, right));
-    Matrix4 tranform = view_matrix(right, up, forward, torus.center);
+    Float3 forward = float3_normalise(torus.axis);
+    Float3 right = float3_normalise(float3_perp(forward));
+    Float3 up = float3_normalise(float3_cross(forward, right));
+    Matrix4 tranform = matrix4_view(right, up, forward, torus.center);
     Ray torus_ray = transform_ray(ray, tranform);
 
-    Vector3 direction = torus_ray.direction;
-    Vector3 origin = torus_ray.origin;
+    Float3 direction = torus_ray.direction;
+    Float3 origin = torus_ray.origin;
 
     float dx = direction.x;
     float dy = direction.y;
@@ -388,9 +388,9 @@ bool intersect_ray_torus(Ray ray, Torus torus, Vector3* intersection)
     float g = f * ((dx * dx) + (dy * dy));
     float h = 2.0f * f * ((ox * dx) + (oy * dy));
     float i = f * ((ox * ox) + (oy * oy));
-    float j = squared_length(direction);
-    float k = 2.0f * dot(origin, direction);
-    float l = squared_length(origin) + (r * r) - (s * s);
+    float j = float3_squared_length(direction);
+    float k = 2.0f * float3_dot(origin, direction);
+    float l = float3_squared_length(origin) + (r * r) - (s * s);
 
     float coefficients[5] =
     {
@@ -417,80 +417,80 @@ bool intersect_ray_torus(Ray ray, Torus torus, Vector3* intersection)
         }
     }
 
-    *intersection =  (t * ray.direction) + ray.origin;
+    *intersection = float3_madd(t, ray.direction, ray.origin);
     return true;
 }
 
-bool intersect_ray_box(Ray ray, Box box, Vector3* intersection)
+bool intersect_ray_box(Ray ray, Box box, Float3* intersection)
 {
-    Vector3 direction = box.orientation * ray.direction;
-    Vector3 origin = box.orientation * (ray.origin - box.center);
+    Float3 direction = quaternion_rotate(box.orientation, ray.direction);
+    Float3 origin = quaternion_rotate(box.orientation, float3_subtract(ray.origin, box.center));
 
     float t0 = (-box.extents.x - origin.x) / direction.x;
     float t1 = (+box.extents.x - origin.x) / direction.x;
 
-    float tl = fmin(t0, t1);
-    float th = fmax(t0, t1);
+    float tl = fminf(t0, t1);
+    float th = fmaxf(t0, t1);
 
     for(int i = 1; i < 3; i += 1)
     {
-        t0 = (-box.extents[i] - origin[i]) / direction[i];
-        t1 = (+box.extents[i] - origin[i]) / direction[i];
+        t0 = (-box.extents.e[i] - origin.e[i]) / direction.e[i];
+        t1 = (+box.extents.e[i] - origin.e[i]) / direction.e[i];
 
-        tl = fmax(tl, fmin(fmin(t0, t1), th));
-        th = fmin(th, fmax(fmax(t0, t1), tl));
+        tl = fmaxf(tl, fminf(fminf(t0, t1), th));
+        th = fminf(th, fmaxf(fmaxf(t0, t1), tl));
     }
 
-    if(th <= fmax(tl, 0.0f))
+    if(th <= fmaxf(tl, 0.0f))
     {
         return false;
     }
     else
     {
-        *intersection = (tl * ray.direction) + ray.origin;
+        *intersection = float3_madd(tl, ray.direction, ray.origin);
         return true;
     }
 }
 
-static bool intersect_ray_plane_one_sided(Vector3 start, Vector3 direction, Vector3 origin, Vector3 normal, Vector3* intersection)
+static bool intersect_ray_plane_one_sided(Float3 start, Float3 direction, Float3 origin, Float3 normal, Float3* intersection)
 {
-    ASSERT(is_normalised(normal));
-    ASSERT(is_normalised(direction));
-    float d = dot(-normal, direction);
+    ASSERT(float3_is_normalised(normal));
+    ASSERT(float3_is_normalised(direction));
+    float d = float3_dot(float3_negate(normal), direction);
     if(d > 1e-6)
     {
-        float t = dot(origin - start, -normal) / d;
+        float t = float3_dot(float3_subtract(origin, start), float3_negate(normal)) / d;
         if(t < 0.0f)
         {
             return false;
         }
         else
         {
-            *intersection = (t * direction) + start;
+            *intersection = float3_madd(t, direction, start);
             return true;
         }
     }
     return false;
 }
 
-static bool intersect_line_segment_cylinder(LineSegment segment, Cylinder cylinder, Vector3* intersection)
+static bool intersect_line_segment_cylinder(LineSegment segment, Cylinder cylinder, Float3* intersection)
 {
     float radius = cylinder.radius;
-    Vector3 center = (cylinder.start + cylinder.end) / 2.0f;
-    float half_length = distance(center, cylinder.end);
+    Float3 center = float3_divide(float3_add(cylinder.start, cylinder.end), 2.0f);
+    float half_length = float3_distance(center, cylinder.end);
 
-    Vector3 forward = normalise(cylinder.end - cylinder.start);
-    Vector3 right = normalise(perp(forward));
-    Vector3 up = normalise(cross(forward, right));
-    Matrix4 view = view_matrix(right, up, forward, center);
-    Vector3 dilation = {radius, radius, half_length};
-    Matrix4 transform = dilation_matrix(reciprocal(dilation)) * view;
+    Float3 forward = float3_normalise(float3_subtract(cylinder.end, cylinder.start));
+    Float3 right = float3_normalise(float3_perp(forward));
+    Float3 up = float3_normalise(float3_cross(forward, right));
+    Matrix4 view = matrix4_view(right, up, forward, center);
+    Float3 dilation = {radius, radius, half_length};
+    Matrix4 transform = matrix4_multiply(matrix4_dilation(float3_reciprocal(dilation)), view);
 
     LineSegment cylinder_segment = transform_line_segment(segment, transform);
-    Vector3 start = cylinder_segment.start;
-    Vector3 direction = cylinder_segment.end - start;
-    float d = length(direction);
-    direction /= d;
+    Float3 start = cylinder_segment.start;
+    Float3 direction = float3_subtract(cylinder_segment.end, start);
+    float d = float3_length(direction);
+    direction = float3_divide(direction, d);
 
     float dx = direction.x;
     float dy = direction.y;
@@ -523,9 +523,9 @@ static bool intersect_line_segment_cylinder(LineSegment segment, Cylinder cylind
         }
         else
         {
-            Vector3 point = (direction * t2) + start;
-            Matrix4 inverse = inverse_view_matrix(view) * dilation_matrix(dilation);
-            *intersection = transform_point(inverse, point);
+            Float3 point = float3_madd(t2, direction, start);
+            Matrix4 inverse = matrix4_multiply(matrix4_inverse_view(view), matrix4_dilation(dilation));
+            *intersection = matrix4_transform_point(inverse, point);
             return true;
         }
     }
@@ -537,9 +537,9 @@ static bool intersect_line_segment_cylinder(LineSegment segment, Cylinder cylind
         }
         else
         {
-            Vector3 point = (direction * t0) + start;
-            Matrix4 inverse = inverse_view_matrix(view) * dilation_matrix(dilation);
-            *intersection = transform_point(inverse, point);
+            Float3 point = float3_madd(t0, direction, start);
+            Matrix4 inverse = matrix4_multiply(matrix4_inverse_view(view), matrix4_dilation(dilation));
+            *intersection = matrix4_transform_point(inverse, point);
             return true;
         }
     }
@@ -557,9 +557,9 @@ static bool intersect_line_segment_cylinder(LineSegment segment, Cylinder cylind
         }
         else
         {
-            Vector3 point = (direction * t2) + start;
-            Matrix4 inverse = inverse_view_matrix(view) * dilation_matrix(dilation);
-            *intersection = transform_point(inverse, point);
+            Float3 point = float3_madd(t2, direction, start);
+            Matrix4 inverse = matrix4_multiply(matrix4_inverse_view(view), matrix4_dilation(dilation));
+            *intersection = matrix4_transform_point(inverse, point);
             return true;
         }
     }
@@ -582,11 +582,11 @@ Vertex* first_vertex_hit_by_ray(Mesh* mesh, Ray ray, float hit_radius, float vie
         sphere.center = vertex->position;
         sphere.radius = radius * distance_point_plane(vertex->position, ray.origin, ray.direction);
 
-        Vector3 intersection;
+        Float3 intersection;
         bool hit = intersect_ray_sphere(ray, sphere, &intersection);
         if(hit)
         {
-            float distance = squared_distance(ray.origin, intersection);
+            float distance = float3_squared_distance(ray.origin, intersection);
             if(distance < closest)
             {
                 closest = distance;
@@ -603,27 +603,27 @@ Vertex* first_vertex_hit_by_ray(Mesh* mesh, Ray ray, float hit_radius, float vie
     return result;
 }
 
-Edge* first_edge_under_point(Mesh* mesh, Vector2 hit_center, float hit_radius, Matrix4 model_view_projection, Matrix4 inverse, Int2 viewport, Vector3 view_position, Vector3 view_direction, float* edge_distance)
+Edge* first_edge_under_point(Mesh* mesh, Float2 hit_center, float hit_radius, Matrix4 model_view_projection, Matrix4 inverse, Int2 viewport, Float3 view_position, Float3 view_direction, float* edge_distance)
 {
     float closest = infinity;
     Edge* result = nullptr;
 
-    Vector2 ndc_point = viewport_point_to_ndc(hit_center, viewport);
-    Vector3 near = {ndc_point.x, ndc_point.y, -1.0f};
-    Vector3 far = {ndc_point.x, ndc_point.y, +1.0f};
+    Float2 ndc_point = viewport_point_to_ndc(hit_center, viewport);
+    Float3 near = {ndc_point.x, ndc_point.y, -1.0f};
+    Float3 far = {ndc_point.x, ndc_point.y, +1.0f};
     Cylinder cylinder = {near, far, hit_radius / viewport.x};
 
     FOR_EACH_IN_POOL(Edge, edge, mesh->edge_pool)
     {
         LineSegment segment;
-        segment.start = transform_point(model_view_projection, edge->vertices[0]->position);
-        segment.end = transform_point(model_view_projection, edge->vertices[1]->position);
+        segment.start = matrix4_transform_point(model_view_projection, edge->vertices[0]->position);
+        segment.end = matrix4_transform_point(model_view_projection, edge->vertices[1]->position);
 
-        Vector3 intersection;
+        Float3 intersection;
         bool hit = intersect_line_segment_cylinder(segment, cylinder, &intersection);
         if(hit)
         {
-            Vector3 world_point = transform_point(inverse, intersection);
+            Float3 world_point = matrix4_transform_point(inverse, intersection);
 
             float distance = distance_point_plane(world_point, view_position, view_direction);
             if(distance < closest)
@@ -642,14 +642,14 @@ Edge* first_edge_under_point(Mesh* mesh, Vector2 hit_center, float hit_radius, M
     return result;
 }
 
-static void project_border_onto_plane(Border* border, Matrix3 transform, Vector2* vertices)
+static void project_border_onto_plane(Border* border, Matrix3 transform, Float2* vertices)
 {
     Link* first = border->first;
     Link* link = first;
     int i = 0;
     do
     {
-        vertices[i] = transform * link->vertex->position;
+        vertices[i] = matrix3_transform(transform, link->vertex->position);
         i += 1;
         link = link->next;
     } while(link != first);
@@ -662,23 +662,23 @@ Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance, Stack* st
 
     FOR_EACH_IN_POOL(Face, face, mesh->face_pool)
     {
-        Vector3 intersection;
-        Vector3 any_point = face->first_border->first->vertex->position;
+        Float3 intersection;
+        Float3 any_point = face->first_border->first->vertex->position;
         bool intersected = intersect_ray_plane_one_sided(ray.origin, ray.direction, any_point, face->normal, &intersection);
         if(intersected)
         {
-            float distance = squared_distance(ray.origin, intersection);
+            float distance = float3_squared_distance(ray.origin, intersection);
             if(distance < closest)
             {
-                Matrix3 mi = transpose(orthogonal_basis(face->normal));
-                Vector2 point = mi * intersection;
+                Matrix3 mi = matrix3_transpose(matrix3_orthogonal_basis(face->normal));
+                Float2 point = matrix3_transform(mi, intersection);
 
                 bool on_face = false;
 
                 for(Border* border = face->first_border; border; border = border->next)
                 {
                     int edges = count_border_edges(border);
-                    Vector2* projected = STACK_ALLOCATE(stack, Vector2, edges);
+                    Float2* projected = STACK_ALLOCATE(stack, Float2, edges);
                     project_border_onto_plane(border, mi, projected);
                     if(point_in_polygon(point, projected, edges))
                     {

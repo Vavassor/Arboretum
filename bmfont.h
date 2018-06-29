@@ -15,7 +15,7 @@ struct Page
 struct Glyph
 {
     Rect rect;
-    Vector2 offset;
+    Float2 offset;
     float x_advance;
     char32_t codepoint;
     int page;

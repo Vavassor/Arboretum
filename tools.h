@@ -6,9 +6,9 @@
 struct MoveTool
 {
     Quaternion orientation;
-    Vector3 position;
-    Vector3 reference_position;
-    Vector3 reference_offset;
+    Float3 position;
+    Float3 reference_position;
+    Float3 reference_offset;
     float scale;
     float shaft_length;
     float shaft_radius;
@@ -25,7 +25,7 @@ struct MoveTool
 struct RotateTool
 {
     float angles[3];
-    Vector3 position;
+    Float3 position;
     float radius;
 };
 

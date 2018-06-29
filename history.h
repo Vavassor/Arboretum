@@ -28,7 +28,7 @@ struct Change
 
         struct
         {
-            Vector3 position;
+            Float3 position;
             ObjectId object_id;
         } move;
     };

@@ -78,8 +78,8 @@ namespace
 
     struct
     {
-        Vector2 position;
-        Vector2 velocity;
+        Float2 position;
+        Float2 velocity;
         float scroll_velocity_y;
         MouseButton button;
         bool drag;
@@ -157,7 +157,7 @@ bool editor_start_up(Platform* platform)
     // Camera
     {
         camera.position = {-4.0f, -4.0f, 2.0f};
-        camera.target = vector3_zero;
+        camera.target = float3_zero;
         camera.field_of_view =  pi_over_2 * (2.0f / 3.0f);
         camera.near_plane = 0.001f;
         camera.far_plane = 100.0f;
@@ -174,13 +174,13 @@ bool editor_start_up(Platform* platform)
         jan::extrude(mesh, &selection, 0.6f, &heap, &scratch);
         jan::destroy_selection(&selection);
 
-        jan::colour_all_faces(mesh, vector3_cyan);
+        jan::colour_all_faces(mesh, float3_cyan);
 
         video::Object* video_object = video::get_object(dodecahedron->video_object);
         video::object_update_mesh(video_object, mesh, &heap);
 
-        Vector3 position = {2.0f, 0.0f, 0.0f};
-        Quaternion orientation = axis_angle_rotation(vector3_unit_x, pi / 4.0f);
+        Float3 position = {2.0f, 0.0f, 0.0f};
+        Quaternion orientation = quaternion_axis_angle(float3_unit_x, pi / 4.0f);
         dodecahedron->orientation = orientation;
         object_set_position(dodecahedron, position);
 
@@ -197,7 +197,7 @@ bool editor_start_up(Platform* platform)
         video::Object* video_object = video::get_object(cheese->video_object);
         video::object_update_mesh(video_object, mesh, &heap);
 
-        Vector3 position = {0.0f, -2.0f, 0.0f};
+        Float3 position = {0.0f, -2.0f, 0.0f};
         object_set_position(cheese, position);
 
         add_object_to_history(&history, cheese, &heap);
@@ -211,9 +211,9 @@ bool editor_start_up(Platform* platform)
         char* path = get_model_path_by_name("test.obj", &scratch);
         obj::load_file(path, mesh, &heap, &scratch);
         STACK_DEALLOCATE(&scratch, path);
-        jan::colour_all_faces(mesh, vector3_yellow);
+        jan::colour_all_faces(mesh, float3_yellow);
 
-        Vector3 position = {-2.0f, 0.0f, 0.0f};
+        Float3 position = {-2.0f, 0.0f, 0.0f};
         object_set_position(test_model, position);
 
         video::Object* video_object = video::get_object(test_model->video_object);
@@ -242,17 +242,17 @@ bool editor_start_up(Platform* platform)
         theme->colours.button_cap_hovered_disabled = {0.382f, 0.386f, 0.418f, 1.0f};
         theme->colours.button_cap_hovered_enabled = {0.247f, 0.251f, 0.271f, 1.0f};
         theme->colours.button_label_disabled = {0.782f, 0.786f, 0.818f};
-        theme->colours.button_label_enabled = vector3_white;
+        theme->colours.button_label_enabled = float3_white;
         theme->colours.focus_indicator = {1.0f, 1.0f, 0.0f, 0.6f};
         theme->colours.list_item_background_hovered = {1.0f, 1.0f, 1.0f, 0.3f};
         theme->colours.list_item_background_selected = {1.0f, 1.0f, 1.0f, 0.5f};
-        theme->colours.text_input_cursor = vector4_white;
+        theme->colours.text_input_cursor = float4_white;
         theme->colours.text_input_selection = {1.0f, 1.0f, 1.0f, 0.4f};
 
-        theme->styles[0].background = vector4_black;
-        theme->styles[1].background = vector4_blue;
+        theme->styles[0].background = float4_black;
+        theme->styles[1].background = float4_blue;
         theme->styles[2].background = {0.145f, 0.145f, 0.145f, 1.0f};
-        theme->styles[3].background = vector4_yellow;
+        theme->styles[3].background = float4_yellow;
     }
 
     // Setup the main menu.
@@ -309,12 +309,12 @@ bool editor_start_up(Platform* platform)
     // Move tool
     {
         move_tool.orientation = quaternion_identity;
-        move_tool.position = vector3_zero;
-        move_tool.reference_position = vector3_zero;
+        move_tool.position = float3_zero;
+        move_tool.reference_position = float3_zero;
         move_tool.scale = 1.0f;
-        move_tool.shaft_length = 2.0f * sqrt(3.0f);
+        move_tool.shaft_length = 2.0f * sqrtf(3.0f);
         move_tool.shaft_radius = 0.125f;
-        move_tool.head_height = sqrt(3.0f) / 2.0f;
+        move_tool.head_height = sqrtf(3.0f) / 2.0f;
         move_tool.head_radius = 0.5f;
         move_tool.plane_extent = 0.6f;
         move_tool.plane_thickness = 0.05f;
@@ -326,7 +326,7 @@ bool editor_start_up(Platform* platform)
 
     // Rotate tool
     {
-        rotate_tool.position = vector3_zero;
+        rotate_tool.position = float3_zero;
         rotate_tool.radius = 1.0f;
     }
 
@@ -352,25 +352,25 @@ void editor_shut_down()
 
 static void update_camera_controls()
 {
-    Vector3 forward = camera.position - camera.target;
-    Vector3 right = normalise(cross(vector3_unit_z, forward));
-    Matrix4 projection = perspective_projection_matrix(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
+    Float3 forward = float3_subtract(camera.position, camera.target);
+    Float3 right = float3_normalise(float3_cross(float3_unit_z, forward));
+    Matrix4 projection = matrix4_perspective_projection(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
 
     if(mouse.scroll_velocity_y != 0.0f && action_allowed(Action::Zoom_Camera))
     {
-        Vector3 moved = (mouse.scroll_velocity_y * -forward) + camera.position;
-        Vector3 forward_moved = moved - camera.target;
+        Float3 moved = float3_add(float3_multiply(-mouse.scroll_velocity_y, forward), camera.position);
+        Float3 forward_moved = float3_subtract(moved, camera.target);
         const float too_close = 0.1f;
         const float too_far = 40.0f;
-        if(dot(forward_moved, forward) < 0.0f)
+        if(float3_dot(forward_moved, forward) < 0.0f)
         {
             // If this would move the camera past the target, instead place
             // it at a close threshold.
-            camera.position = (too_close * normalise(forward)) + camera.target;
+            camera.position = float3_add(float3_multiply(too_close, float3_normalise(forward)), camera.target);
         }
-        else if(length(forward_moved) > too_far)
+        else if(float3_length(forward_moved) > too_far)
         {
-            camera.position = (too_far * normalise(forward)) + camera.target;
+            camera.position = float3_add(float3_multiply(too_far, float3_normalise(forward)), camera.target);
         }
         else
         {
@@ -389,11 +389,12 @@ static void update_camera_controls()
         {
             case MOUSE_BUTTON_LEFT:
             {
-                const Vector2 orbit_speed = {0.01f, 0.01f};
-                Vector2 angular_velocity = pointwise_multiply(orbit_speed, -mouse.velocity);
-                Quaternion orbit_x = axis_angle_rotation(vector3_unit_z, angular_velocity.x);
-                Quaternion orbit_y = axis_angle_rotation(right, angular_velocity.y);
-                if(dot(cross(forward, vector3_unit_z), cross(orbit_y * forward, vector3_unit_z)) < 0.0f)
+                const Float2 orbit_speed = {0.01f, 0.01f};
+                Float2 angular_velocity = float2_pointwise_multiply(orbit_speed, float2_negate(mouse.velocity));
+                Quaternion orbit_x = quaternion_axis_angle(float3_unit_z, angular_velocity.x);
+                Quaternion orbit_y = quaternion_axis_angle(right, angular_velocity.y);
+                Float3 turned = quaternion_rotate(orbit_y, forward);
+                if(float3_dot(float3_cross(forward, float3_unit_z), float3_cross(turned, float3_unit_z)) < 0.0f)
                 {
                     // Prevent from orbiting over the pole (Z axis), because
                     // it creates an issue where next frame it would orient
@@ -404,7 +405,8 @@ static void update_camera_controls()
                     // over every frame.
                     orbit_y = quaternion_identity;
                 }
-                camera.position = (orbit_y * orbit_x * forward) + camera.target;
+                Quaternion orbit = quaternion_multiply(orbit_y, orbit_x);
+                camera.position = float3_add(quaternion_rotate(orbit, forward), camera.target);
 
                 action_perform(Action::Orbit_Camera);
                 break;
@@ -413,23 +415,23 @@ static void update_camera_controls()
             {
                 // Cast rays into world space corresponding to the mouse
                 // position for this frame and the frame prior.
-                Vector2 prior_position = mouse.position + mouse.velocity;
-                Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
+                Float2 prior_position = float2_add(mouse.position, mouse.velocity);
+                Matrix4 view = matrix4_look_at(camera.position, camera.target, float3_unit_z);
                 Ray prior = ray_from_viewport_point(prior_position, viewport, view, projection, false);
                 Ray current = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
 
                 // Project the rays onto the plane containing the camera
                 // target and facing the camera.
-                Vector3 n = normalise(camera.position - camera.target);
-                float d0 = dot(camera.target - current.origin, n) / dot(n, current.direction);
-                float d1 = dot(camera.target - prior.origin, n) / dot(n, prior.direction);
-                Vector3 p0 = (d0 * current.direction) + current.origin;
-                Vector3 p1 = (d1 * prior.direction) + prior.origin;
+                Float3 n = float3_normalise(float3_subtract(camera.position, camera.target));
+                float d0 = float3_dot(float3_subtract(camera.target, current.origin), n) / float3_dot(n, current.direction);
+                float d1 = float3_dot(float3_subtract(camera.target, prior.origin), n) / float3_dot(n, prior.direction);
+                Float3 p0 = float3_add(float3_multiply(d0, current.direction), current.origin);
+                Float3 p1 = float3_add(float3_multiply(d1, prior.direction), prior.origin);
 
                 // Pan by the amount moved across that plane.
-                Vector3 pan = p0 - p1;
-                camera.position += pan;
-                camera.target += pan;
+                Float3 pan = float3_subtract(p0, p1);
+                camera.position = float3_add(camera.position, pan);
+                camera.target = float3_add(camera.target, pan);
 
                 action_perform(Action::Pan_Camera);
                 break;
@@ -453,8 +455,8 @@ static void begin_move(Ray mouse_ray)
     Object object = lady.objects[selected_object_index];
     move_tool.reference_position = object.position;
 
-    Vector3 point = closest_ray_point(mouse_ray, object.position);
-    move_tool.reference_offset = object.position - point;
+    Float3 point = closest_ray_point(mouse_ray, object.position);
+    move_tool.reference_offset = float3_subtract(object.position, point);
 }
 
 static void end_move()
@@ -477,24 +479,24 @@ static void move(Ray mouse_ray)
 
     Object* object = &lady.objects[selected_object_index];
 
-    Vector3 point;
+    Float3 point;
     if(is_valid_index(move_tool.selected_axis))
     {
-        Vector3 axis = vector3_zero;
-        axis[move_tool.selected_axis] = 1.0f;
-        axis = conjugate(object->orientation) * axis;
+        Float3 axis = float3_zero;
+        axis.e[move_tool.selected_axis] = 1.0f;
+        axis = quaternion_rotate(quaternion_conjugate(object->orientation), axis);
 
-        Vector3 line_point = object->position - move_tool.reference_offset;
-        point = closest_point_on_line(mouse_ray, line_point, line_point + axis);
+        Float3 line_point = float3_subtract(object->position, move_tool.reference_offset);
+        point = closest_point_on_line(mouse_ray, line_point, float3_add(line_point, axis));
     }
     else if(is_valid_index(move_tool.selected_plane))
     {
-        Vector3 normal = vector3_zero;
-        normal[move_tool.selected_plane] = 1.0f;
-        normal = normalise(conjugate(object->orientation) * normal);
+        Float3 normal = float3_zero;
+        normal.e[move_tool.selected_plane] = 1.0f;
+        normal = float3_normalise(quaternion_rotate(quaternion_conjugate(object->orientation), normal));
 
-        Vector3 origin = object->position - move_tool.reference_offset;
-        Vector3 intersection;
+        Float3 origin = float3_subtract(object->position, move_tool.reference_offset);
+        Float3 intersection;
         bool intersected = intersect_ray_plane(mouse_ray, origin, normal, &intersection);
         if(intersected)
         {
@@ -506,7 +508,7 @@ static void move(Ray mouse_ray)
         }
     }
 
-    object_set_position(object, point + move_tool.reference_offset);
+    object_set_position(object, float3_add(point, move_tool.reference_offset));
 }
 
 static void delete_object(Platform* platform)
@@ -525,33 +527,33 @@ static void delete_object(Platform* platform)
 
 static void update_object_mode(Platform* platform)
 {
-    Matrix4 projection = perspective_projection_matrix(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
+    Matrix4 projection = matrix4_perspective_projection(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
 
     // Update the move tool.
     if(is_valid_index(selected_object_index) && action_allowed(Action::Move))
     {
-        Vector3 scale = set_all_vector3(move_tool.scale);
-        Matrix4 model = compose_transform(move_tool.position, move_tool.orientation, scale);
-        Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
+        Float3 scale = float3_set_all(move_tool.scale);
+        Matrix4 model = matrix4_compose_transform(move_tool.position, move_tool.orientation, scale);
+        Matrix4 view = matrix4_look_at(camera.position, camera.target, float3_unit_z);
         Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
 
         int hovered_axis = invalid_index;
         float closest = infinity;
         for(int i = 0; i < 3; i += 1)
         {
-            Vector3 shaft_axis = vector3_zero;
-            shaft_axis[i] = move_tool.shaft_length;
-            Vector3 head_axis = vector3_zero;
-            head_axis[i] = move_tool.head_height;
+            Float3 shaft_axis = float3_zero;
+            shaft_axis.e[i] = move_tool.shaft_length;
+            Float3 head_axis = float3_zero;
+            head_axis.e[i] = move_tool.head_height;
 
             Cylinder cylinder;
-            cylinder.start = transform_point(model, vector3_zero);
-            cylinder.end = transform_point(model, shaft_axis);
+            cylinder.start = matrix4_transform_point(model, float3_zero);
+            cylinder.end = matrix4_transform_point(model, shaft_axis);
             cylinder.radius = move_tool.scale * move_tool.shaft_radius;
 
-            Vector3 intersection;
+            Float3 intersection;
             bool intersected = intersect_ray_cylinder(ray, cylinder, &intersection);
-            float distance = squared_distance(ray.origin, intersection);
+            float distance = float3_squared_distance(ray.origin, intersection);
             if(intersected && distance < closest)
             {
                 closest = distance;
@@ -559,12 +561,12 @@ static void update_object_mode(Platform* platform)
             }
 
             Cone cone;
-            cone.base_center = transform_point(model, shaft_axis);
-            cone.axis = move_tool.scale * head_axis;
+            cone.base_center = matrix4_transform_point(model, shaft_axis);
+            cone.axis = float3_multiply(move_tool.scale, head_axis);
             cone.radius = move_tool.scale * move_tool.head_radius;
 
             intersected = intersect_ray_cone(ray, cone, &intersection);
-            distance = squared_distance(ray.origin, intersection);
+            distance = float3_squared_distance(ray.origin, intersection);
             if(intersected && distance < closest)
             {
                 closest = distance;
@@ -576,22 +578,22 @@ static void update_object_mode(Platform* platform)
         int hovered_plane = invalid_index;
         for(int i = 0; i < 3; i += 1)
         {
-            Vector3 center = set_all_vector3(move_tool.shaft_length);
-            center[i] = 0.0f;
+            Float3 center = float3_set_all(move_tool.shaft_length);
+            center.e[i] = 0.0f;
 
-            Vector3 extents = set_all_vector3(move_tool.scale * move_tool.plane_extent);
-            extents[i] = move_tool.scale * move_tool.plane_thickness;
+            Float3 extents = float3_set_all(move_tool.scale * move_tool.plane_extent);
+            extents.e[i] = move_tool.scale * move_tool.plane_thickness;
 
             Box box;
-            box.center = transform_point(model, center);
+            box.center = matrix4_transform_point(model, center);
             box.extents = extents;
             box.orientation = move_tool.orientation;
 
-            Vector3 intersection;
+            Float3 intersection;
             bool intersected = intersect_ray_box(ray, box, &intersection);
             if(intersected)
             {
-                float distance = squared_distance(ray.origin, intersection);
+                float distance = float3_squared_distance(ray.origin, intersection);
                 if(distance < closest)
                 {
                     closest = distance;
@@ -648,10 +650,10 @@ static void update_object_mode(Platform* platform)
             Object* object = &lady.objects[i];
             jan::Mesh* mesh = &object->mesh;
 
-            Matrix4 model = compose_transform(object->position, object->orientation, vector3_one);
-            Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
+            Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
+            Matrix4 view = matrix4_look_at(camera.position, camera.target, float3_unit_z);
             Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
-            ray = transform_ray(ray, inverse_transform(model));
+            ray = transform_ray(ray, matrix4_inverse_transform(model));
             float distance;
             jan::Face* face = first_face_hit_by_ray(mesh, ray, &distance, &scratch);
             if(face && distance < closest)
@@ -690,8 +692,8 @@ static void update_object_mode(Platform* platform)
     if(is_valid_index(selected_object_index))
     {
         Object object = lady.objects[selected_object_index];
-        Vector3 position = object.position;
-        Vector3 normal = normalise(camera.target - camera.position);
+        Float3 position = object.position;
+        Float3 normal = float3_normalise(float3_subtract(camera.target, camera.position));
         float scale = 0.05f * distance_point_plane(position, camera.position, normal);
         move_tool.position = object.position;
         move_tool.orientation = object.orientation;
@@ -700,30 +702,30 @@ static void update_object_mode(Platform* platform)
 
     // Update the rotate tool.
     {
-        Vector3 center = {0.0f, -5.0f, 0.0f};
-        Vector3 normal = normalise(camera.target - camera.position);
+        Float3 center = {0.0f, -5.0f, 0.0f};
+        Float3 normal = float3_normalise(float3_subtract(camera.target, camera.position));
         float radius = 0.2f * distance_point_plane(center, camera.position, normal);
 
         Disk disks[3] =
         {
-            {center, vector3_unit_x, radius},
-            {center, vector3_unit_y, radius},
-            {center, vector3_unit_z, radius},
+            {center, float3_unit_x, radius},
+            {center, float3_unit_y, radius},
+            {center, float3_unit_z, radius},
         };
 
-        Vector3 camera_forward = camera.target - camera.position;
-        Vector3 axes[3] =
+        Float3 camera_forward = float3_subtract(camera.target, camera.position);
+        Float3 axes[3] =
         {
-            closest_disk_plane(disks[0], camera.position, camera_forward) - disks[0].center,
-            closest_disk_plane(disks[1], camera.position, camera_forward) - disks[1].center,
-            closest_disk_plane(disks[2], camera.position, camera_forward) - disks[2].center,
+            float3_subtract(closest_disk_plane(disks[0], camera.position, camera_forward), disks[0].center),
+            float3_subtract(closest_disk_plane(disks[1], camera.position, camera_forward), disks[1].center),
+            float3_subtract(closest_disk_plane(disks[2], camera.position, camera_forward), disks[2].center),
         };
 
         float angles[3] =
         {
-            angle_between(axes[0], -vector3_unit_z),
-            angle_between(axes[1], -vector3_unit_z),
-            angle_between(axes[2], -vector3_unit_y),
+            float3_angle_between(axes[0], float3_negate(float3_unit_z)),
+            float3_angle_between(axes[1], float3_negate(float3_unit_z)),
+            float3_angle_between(axes[2], float3_negate(float3_unit_y)),
         };
 
         if(axes[0].y < 0.0f)
@@ -770,7 +772,7 @@ static void enter_edge_mode()
     selection_wireframe_id = video::add_object(video::VertexLayout::Line);
 
     Object* object = &lady.objects[selected_object_index];
-    Matrix4 model = compose_transform(object->position, object->orientation, vector3_one);
+    Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
 
     video::Object* video_object = video::get_object(selection_wireframe_id);
     video::object_set_model(video_object, model);
@@ -796,12 +798,12 @@ static void update_edge_mode()
 
     update_camera_controls();
 
-    Matrix4 model = compose_transform(object->position, object->orientation, vector3_one);
-    Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
-    Matrix4 projection = perspective_projection_matrix(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
-    Matrix4 model_view_projection = projection * view * model;
-    Matrix4 inverse_model = inverse_transform(model);
-    Matrix4 inverse = inverse_view_matrix(view) * inverse_perspective_matrix(projection);
+    Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
+    Matrix4 view = matrix4_look_at(camera.position, camera.target, float3_unit_z);
+    Matrix4 projection = matrix4_perspective_projection(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
+    Matrix4 model_view_projection = matrix4_multiply(projection, matrix4_multiply(view, model));
+    Matrix4 inverse_model = matrix4_inverse_transform(model);
+    Matrix4 inverse = matrix4_multiply(matrix4_inverse_view(view), matrix4_inverse_perspective(projection));
 
     Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
     ray = transform_ray(ray, inverse_model);
@@ -830,7 +832,7 @@ static void enter_face_mode()
 
     // Set the selection's transform to match the selected mesh.
     Object* object = &lady.objects[selected_object_index];
-    Matrix4 model = compose_transform(object->position, object->orientation, vector3_one);
+    Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
 
     video::Object* video_object = video::get_object(selection_id);
     video::object_set_model(video_object, model);
@@ -856,7 +858,7 @@ static void update_face_mode()
 
     Object* object = &lady.objects[selected_object_index];
     jan::Mesh* mesh = &object->mesh;
-    Matrix4 projection = perspective_projection_matrix(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
+    Matrix4 projection = matrix4_perspective_projection(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
 
     if(input_get_key_tapped(INPUT_KEY_G))
     {
@@ -875,13 +877,13 @@ static void update_face_mode()
         mouse.velocity.x = velocity.x;
         mouse.velocity.y = velocity.y;
 
-        Vector3 forward = camera.position - camera.target;
-        Vector3 right = normalise(cross(vector3_unit_z, forward));
-        Vector3 up = normalise(cross(right, forward));
+        Float3 forward = float3_subtract(camera.position, camera.target);
+        Float3 right = float3_normalise(float3_cross(float3_unit_z, forward));
+        Float3 up = float3_normalise(float3_cross(right, forward));
 
-        const Vector2 move_speed = {0.007f, 0.007f};
-        Vector2 move_velocity = pointwise_multiply(move_speed, mouse.velocity);
-        Vector3 move = (move_velocity.x * right) + (move_velocity.y * up);
+        const Float2 move_speed = {0.007f, 0.007f};
+        Float2 move_velocity = float2_pointwise_multiply(move_speed, mouse.velocity);
+        Float3 move = float3_add(float3_multiply(move_velocity.x, right), float3_multiply(move_velocity.y, up));
         move_faces(mesh, &selection, move);
 
         video::Object* video_object = video::get_object(object->video_object);
@@ -890,10 +892,10 @@ static void update_face_mode()
 
     // Cast a ray from the mouse to the test model.
     {
-        Matrix4 model = compose_transform(object->position, object->orientation, vector3_one);
-        Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
+        Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
+        Matrix4 view = matrix4_look_at(camera.position, camera.target, float3_unit_z);
         Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
-        ray = transform_ray(ray, inverse_transform(model));
+        ray = transform_ray(ray, matrix4_inverse_transform(model));
         jan::Face* face = first_face_hit_by_ray(mesh, ray, nullptr, &scratch);
         if(face && input_get_mouse_clicked(MOUSE_BUTTON_LEFT))
         {
@@ -913,7 +915,7 @@ static void enter_vertex_mode()
     selection_pointcloud_id = video::add_object(video::VertexLayout::Point);
 
     Object* object = &lady.objects[selected_object_index];
-    Matrix4 model = compose_transform(object->position, object->orientation, vector3_one);
+    Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
 
     video::Object* video_object = video::get_object(selection_pointcloud_id);
     video::object_set_model(video_object, model);
@@ -939,12 +941,12 @@ static void update_vertex_mode()
 
     update_camera_controls();
 
-    Matrix4 model = compose_transform(object->position, object->orientation, vector3_one);
-    Matrix4 view = look_at_matrix(camera.position, camera.target, vector3_unit_z);
-    Matrix4 projection = perspective_projection_matrix(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
+    Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
+    Matrix4 view = matrix4_look_at(camera.position, camera.target, float3_unit_z);
+    Matrix4 projection = matrix4_perspective_projection(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
 
     Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
-    ray = transform_ray(ray, inverse_transform(model));
+    ray = transform_ray(ray, matrix4_inverse_transform(model));
 
     float distance_to_vertex;
     jan::Vertex* vertex = first_vertex_hit_by_ray(mesh, ray, touch_radius, viewport.x, &distance_to_vertex);

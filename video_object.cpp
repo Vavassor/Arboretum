@@ -190,7 +190,7 @@ void object_update_selection(Object* object, jan::Mesh* mesh, jan::Selection* se
 
 void object_update_wireframe(Object* object, jan::Mesh* mesh, Heap* heap)
 {
-    const Vector4 colour = {1.0f, 0.5f, 0.0f, 0.8f};
+    const Float4 colour = {1.0f, 0.5f, 0.0f, 0.8f};
 
     LineVertex* vertices;
     u16* indices;
@@ -201,9 +201,9 @@ void object_update_wireframe(Object* object, jan::Mesh* mesh, Heap* heap)
 
 void object_update_wireframe_selection(Object* object, jan::Mesh* mesh, jan::Selection* selection, jan::Edge* hovered, Heap* heap)
 {
-    const Vector4 colour = {1.0f, 1.0f, 1.0f, 1.0f};
-    const Vector4 hover_colour = {0.0f, 1.0f, 1.0f, 1.0f};
-    const Vector4 select_colour = {1.0f, 0.5f, 0.0f, 0.8f};
+    const Float4 colour = {1.0f, 1.0f, 1.0f, 1.0f};
+    const Float4 hover_colour = {0.0f, 1.0f, 1.0f, 1.0f};
+    const Float4 select_colour = {1.0f, 0.5f, 0.0f, 0.8f};
 
     LineVertex* vertices;
     u16* indices;
@@ -214,7 +214,7 @@ void object_update_wireframe_selection(Object* object, jan::Mesh* mesh, jan::Sel
 
 void object_update_pointcloud(Object* object, jan::Mesh* mesh, Heap* heap)
 {
-    const Vector4 colour = {1.0f, 0.5f, 0.0f, 1.0f};
+    const Float4 colour = {1.0f, 0.5f, 0.0f, 1.0f};
 
     PointVertex* vertices;
     u16* indices;
@@ -225,9 +225,9 @@ void object_update_pointcloud(Object* object, jan::Mesh* mesh, Heap* heap)
 
 void object_update_pointcloud_selection(Object* object, jan::Mesh* mesh, jan::Selection* selection, jan::Vertex* hovered, Heap* heap)
 {
-    const Vector4 colour = {1.0f, 1.0f, 1.0f, 1.0f};
-    const Vector4 hover_colour = {0.0f, 1.0f, 1.0f, 1.0f};
-    const Vector4 select_colour = {1.0f, 0.5f, 0.0f, 1.0f};
+    const Float4 colour = {1.0f, 1.0f, 1.0f, 1.0f};
+    const Float4 hover_colour = {0.0f, 1.0f, 1.0f, 1.0f};
+    const Float4 select_colour = {1.0f, 0.5f, 0.0f, 1.0f};
 
     PointVertex* vertices;
     u16* indices;
@@ -238,9 +238,9 @@ void object_update_pointcloud_selection(Object* object, jan::Mesh* mesh, jan::Se
 
 void object_set_matrices(Object* object, Matrix4 view, Matrix4 projection)
 {
-    Matrix4 model_view = view * object->model;
-    object->model_view_projection = projection * model_view;
-    object->normal = transpose(inverse_transform(model_view));
+    Matrix4 model_view = matrix4_multiply(view, object->model);
+    object->model_view_projection = matrix4_multiply(projection, model_view);
+    object->normal = matrix4_transpose(matrix4_inverse_transform(model_view));
 }
 
 void object_generate_sky(Object* object, Stack* stack)
@@ -257,31 +257,31 @@ void object_generate_sky(Object* object, Stack* stack)
         return;
     }
 
-    const Vector3 top_colour = {1.0f, 1.0f, 0.2f};
-    const Vector3 bottom_colour = {0.1f, 0.7f, 0.6f};
-    vertices[0].position = radius * vector3_unit_z;
-    vertices[0].normal = -vector3_unit_z;
+    const Float3 top_colour = {1.0f, 1.0f, 0.2f};
+    const Float3 bottom_colour = {0.1f, 0.7f, 0.6f};
+    vertices[0].position = float3_multiply(radius, float3_unit_z);
+    vertices[0].normal = float3_negate(float3_unit_z);
     vertices[0].colour = rgb_to_u32(top_colour);
     for(int i = 0; i < parallels; ++i)
     {
         float step = (i + 1) / static_cast<float>(rings);
         float theta = step * pi;
-        Vector3 ring_colour = lerp(top_colour, bottom_colour, step);
+        Float3 ring_colour = float3_lerp(top_colour, bottom_colour, step);
         for(int j = 0; j < meridians; ++j)
         {
             float phi = (j + 1) / static_cast<float>(meridians) * tau;
-            float x = radius * sin(theta) * cos(phi);
-            float y = radius * sin(theta) * sin(phi);
-            float z = radius * cos(theta);
-            Vector3 position = {x, y, z};
+            float x = radius * sinf(theta) * cosf(phi);
+            float y = radius * sinf(theta) * sinf(phi);
+            float z = radius * cosf(theta);
+            Float3 position = {x, y, z};
             VertexPNC* vertex = &vertices[meridians * i + j + 1];
             vertex->position = position;
-            vertex->normal = -normalise(position);
+            vertex->normal = float3_negate(float3_normalise(position));
             vertex->colour = rgb_to_u32(ring_colour);
         }
     }
-    vertices[vertices_count - 1].position = radius * -vector3_unit_z;
-    vertices[vertices_count - 1].normal = vector3_unit_z;
+    vertices[vertices_count - 1].position = float3_multiply(-radius, float3_unit_z);
+    vertices[vertices_count - 1].normal = float3_unit_z;
     vertices[vertices_count - 1].colour = rgb_to_u32(bottom_colour);
 
     int indices_count = 6 * meridians * rings;

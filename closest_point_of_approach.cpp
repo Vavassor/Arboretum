@@ -4,40 +4,41 @@
 #include "float_utilities.h"
 #include "math_basics.h"
 
-float distance_point_plane(Vector3 point, Vector3 origin, Vector3 normal)
+float distance_point_plane(Float3 point, Float3 origin, Float3 normal)
 {
-    ASSERT(is_normalised(normal));
-    return fabsf(dot(origin - point, normal));
+    ASSERT(float3_is_normalised(normal));
+    return fabsf(float3_dot(float3_subtract(origin, point), normal));
 }
 
-Vector3 project_onto_plane(Vector3 point, Vector3 origin, Vector3 normal)
+Float3 project_onto_plane(Float3 point, Float3 origin, Float3 normal)
 {
-    ASSERT(is_normalised(normal));
-    Vector3 off_origin = point - origin;
-    float d = dot(off_origin, normal);
-    return off_origin - (d * normal) + origin;
+    ASSERT(float3_is_normalised(normal));
+    Float3 off_origin = float3_subtract(point, origin);
+    float d = float3_dot(off_origin, normal);
+    Float3 projected = float3_subtract(off_origin, float3_multiply(d, normal));
+    return float3_add(projected, origin);
 }
 
-Vector3 closest_disk_point(Disk disk, Vector3 point)
+Float3 closest_disk_point(Disk disk, Float3 point)
 {
-    Vector3 off_center = point - disk.center;
-    float distance = length(off_center);
+    Float3 off_center = float3_subtract(point, disk.center);
+    float distance = float3_length(off_center);
     if(distance == 0.0f)
     {
         return disk.center;
     }
-    Vector3 on_sphere = disk.radius * (off_center / distance);
-    float d = dot(on_sphere, disk.axis);
-    Vector3 rejection = on_sphere - (d * disk.axis);
-    return rejection + disk.center;
+    Float3 on_sphere = float3_multiply(disk.radius, float3_divide(off_center, distance));
+    float d = float3_dot(on_sphere, disk.axis);
+    Float3 rejection = float3_subtract(on_sphere, float3_multiply(d, disk.axis));
+    return float3_add(rejection, disk.center);
 }
 
-static bool is_parallel(Vector3 a, Vector3 b)
+static bool is_parallel(Float3 a, Float3 b)
 {
-    return almost_one(fabsf(dot(a, b)));
+    return almost_one(fabsf(float3_dot(a, b)));
 }
 
-Vector3 closest_disk_plane(Disk disk, Vector3 origin, Vector3 normal)
+Float3 closest_disk_plane(Disk disk, Float3 origin, Float3 normal)
 {
     if(is_parallel(disk.axis, normal))
     {
@@ -48,54 +49,55 @@ Vector3 closest_disk_plane(Disk disk, Vector3 origin, Vector3 normal)
     // plane.
 
     float d[2];
-    d[0] = dot(disk.axis, disk.center);
-    d[1] = dot(normal, origin);
+    d[0] = float3_dot(disk.axis, disk.center);
+    d[1] = float3_dot(normal, origin);
 
-    Vector3 line_point;
-    if(dot(disk.axis, vector3_unit_z) == 0.0f
-        || dot(normal, vector3_unit_z) == 0.0f)
+    Float3 line_point;
+    if(float3_dot(disk.axis, float3_unit_z) == 0.0f
+            || float3_dot(normal, float3_unit_z) == 0.0f)
     {
-        Vector2 a = extract_vector2(disk.axis);
-        Vector2 b = extract_vector2(normal);
-        float denominator = determinant(a, b);
+        Float2 a = float3_extract_float2(disk.axis);
+        Float2 b = float3_extract_float2(normal);
+        float denominator = float2_determinant(a, b);
         line_point.x = ((d[0] * b.y) - (a.y * d[1])) / denominator;
         line_point.y = ((a.x * d[1]) - (d[0] * b.x)) / denominator;
         line_point.z = 0.0f;
     }
     else
     {
-        Vector2 a = {disk.axis.y, disk.axis.z};
-        Vector2 b = {normal.y, normal.z};
-        float denominator = determinant(a, b);
+        Float2 a = {disk.axis.y, disk.axis.z};
+        Float2 b = {normal.y, normal.z};
+        float denominator = float2_determinant(a, b);
         line_point.x = 0.0f;
         line_point.y = ((d[0] * b.y) - (a.y * d[1])) / denominator;
         line_point.z = ((a.x * d[1]) - (d[0] * b.x)) / denominator;
     }
 
-    Vector3 line_direction = cross(disk.axis, normal);
+    Float3 line_direction = float3_cross(disk.axis, normal);
 
     // Since the disk and line are in the same plane, this can be treated as
     // finding the closest point on a line to a circle.
 
-    Vector3 off_origin = -reject(disk.center - line_point, line_direction);
-    float from_origin = length(off_origin);
+    Float3 to_center = float3_subtract(disk.center, line_point);
+    Float3 off_origin = float3_negate(float3_reject(to_center, line_direction));
+    float from_origin = float3_length(off_origin);
     if(from_origin >= disk.radius)
     {
-        Vector3 on_rim = disk.radius * (off_origin / from_origin);
-        return on_rim + disk.center;
+        Float3 on_rim = float3_multiply(disk.radius, float3_divide(off_origin, from_origin));
+        return float3_add(on_rim, disk.center);
     }
     else
     {
-        return off_origin + disk.center;
+        return float3_add(off_origin, disk.center);
     }
 }
 
-Vector3 closest_point_on_line(Ray ray, Vector3 start, Vector3 end)
+Float3 closest_point_on_line(Ray ray, Float3 start, Float3 end)
 {
-    Vector3 line = end - start;
-    float a = squared_length(ray.direction);
-    float b = dot(ray.direction, line);
-    float e = squared_length(line);
+    Float3 line = float3_subtract(end, start);
+    float a = float3_squared_length(ray.direction);
+    float b = float3_dot(ray.direction, line);
+    float e = float3_squared_length(line);
     float d = (a * e) - (b * b);
 
     if(d == 0.0f)
@@ -104,23 +106,23 @@ Vector3 closest_point_on_line(Ray ray, Vector3 start, Vector3 end)
     }
     else
     {
-        Vector3 r = ray.origin - start;
-        float c = dot(ray.direction, r);
-        float f = dot(line, r);
+        Float3 r = float3_subtract(ray.origin, start);
+        float c = float3_dot(ray.direction, r);
+        float f = float3_dot(line, r);
         float t = ((a * f) - (c * b)) / d;
-        return (t * line) + start;
+        return float3_add(float3_multiply(t, line), start);
     }
 }
 
-Vector3 closest_ray_point(Ray ray, Vector3 point)
+Float3 closest_ray_point(Ray ray, Float3 point)
 {
-    double d = dot(point - ray.origin, ray.direction);
+    double d = float3_dot(float3_subtract(point, ray.origin), ray.direction);
     if(d <= 0.0f)
     {
         return ray.origin;
     }
     else
     {
-        return (d * ray.direction) + ray.origin;
+        return float3_add(float3_multiply(d, ray.direction), ray.origin);
     }
 }

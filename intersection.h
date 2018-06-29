@@ -7,53 +7,53 @@
 struct Box
 {
     Quaternion orientation;
-    Vector3 center;
-    Vector3 extents;
+    Float3 center;
+    Float3 extents;
 };
 
 struct Cone
 {
-    Vector3 base_center;
-    Vector3 axis;
+    Float3 base_center;
+    Float3 axis;
     float radius;
 };
 
 struct Cylinder
 {
-    Vector3 start;
-    Vector3 end;
+    Float3 start;
+    Float3 end;
     float radius;
 };
 
 struct Disk
 {
-    Vector3 center;
-    Vector3 axis;
+    Float3 center;
+    Float3 axis;
     float radius;
 };
 
 struct LineSegment
 {
-    Vector3 start;
-    Vector3 end;
+    Float3 start;
+    Float3 end;
 };
 
 struct Ray
 {
-    Vector3 origin;
-    Vector3 direction;
+    Float3 origin;
+    Float3 direction;
 };
 
 struct Sphere
 {
-    Vector3 center;
+    Float3 center;
     float radius;
 };
 
 struct Torus
 {
-    Vector3 center;
-    Vector3 axis;
+    Float3 center;
+    Float3 axis;
     float major_radius;
     float minor_radius;
 };
@@ -68,19 +68,19 @@ struct Edge;
 struct Face;
 
 Vertex* first_vertex_hit_by_ray(Mesh* mesh, Ray ray, float hit_radius, float viewport_width, float* vertex_distance);
-Edge* first_edge_under_point(Mesh* mesh, Vector2 hit_center, float hit_radius, Matrix4 model_view_projection, Matrix4 inverse, Int2 viewport, Vector3 view_position, Vector3 view_direction, float* edge_distance);
+Edge* first_edge_under_point(Mesh* mesh, Float2 hit_center, float hit_radius, Matrix4 model_view_projection, Matrix4 inverse, Int2 viewport, Float3 view_position, Float3 view_direction, float* edge_distance);
 Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance, Stack* stack);
 
 } // namespace jan
 
-bool point_in_polygon(Vector2 point, Vector2* vertices, int vertices_count);
-float distance_point_plane(Vector3 point, Vector3 origin, Vector3 normal);
+bool point_in_polygon(Float2 point, Float2* vertices, int vertices_count);
+float distance_point_plane(Float3 point, Float3 origin, Float3 normal);
 Ray transform_ray(Ray ray, Matrix4 transform);
-bool intersect_ray_plane(Ray ray, Vector3 origin, Vector3 normal, Vector3* intersection);
-bool intersect_ray_sphere(Ray ray, Sphere sphere, Vector3* intersection);
-bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Vector3* intersection);
-bool intersect_ray_cone(Ray ray, Cone cone, Vector3* intersection);
-bool intersect_ray_torus(Ray ray, Torus torus, Vector3* intersection);
-bool intersect_ray_box(Ray ray, Box box, Vector3* intersection);
+bool intersect_ray_plane(Ray ray, Float3 origin, Float3 normal, Float3* intersection);
+bool intersect_ray_sphere(Ray ray, Sphere sphere, Float3* intersection);
+bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Float3* intersection);
+bool intersect_ray_cone(Ray ray, Cone cone, Float3* intersection);
+bool intersect_ray_torus(Ray ray, Torus torus, Float3* intersection);
+bool intersect_ray_box(Ray ray, Box box, Float3* intersection);
 
 #endif // INTERSECTION_H_

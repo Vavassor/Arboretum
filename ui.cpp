@@ -456,15 +456,15 @@ void create_items(Item* item, int lines_count, Heap* heap)
     list->selected_item_index = invalid_index;
 }
 
-static Vector2 measure_ideal_dimensions(TextBlock* text_block, Context* context)
+static Float2 measure_ideal_dimensions(TextBlock* text_block, Context* context)
 {
-    Vector2 bounds = vector2_zero;
+    Float2 bounds = float2_zero;
 
     bmfont::Font* font = context->theme.font;
     Stack* stack = context->scratch;
     Padding padding = text_block->padding;
 
-    Vector2 texture_dimensions;
+    Float2 texture_dimensions;
     texture_dimensions.x = font->image_width;
     texture_dimensions.y = font->image_height;
 
@@ -474,7 +474,7 @@ static Vector2 measure_ideal_dimensions(TextBlock* text_block, Context* context)
     char32_t prior_char = '\0';
     int size = string_size(text_block->text);
     int next_break = find_next_mandatory_line_break(text_block->text, 0, stack);
-    Vector2 pen = {padding.start, -padding.top - font->line_height};
+    Float2 pen = {padding.start, -padding.top - font->line_height};
     for(int i = 0; i < size; i += 1)
     {
         // @Incomplete: There isn't a one-to-one mapping between chars and
@@ -502,7 +502,7 @@ static Vector2 measure_ideal_dimensions(TextBlock* text_block, Context* context)
             bmfont::Glyph* glyph = bmfont::find_glyph(font, current);
             float kerning = bmfont::lookup_kerning(font, prior_char, current);
 
-            Vector2 top_left = pen;
+            Float2 top_left = pen;
             top_left.x += glyph->offset.x;
             top_left.y -= glyph->offset.y;
 
@@ -512,8 +512,8 @@ static Vector2 measure_ideal_dimensions(TextBlock* text_block, Context* context)
             viewport_rect.bottom_left.y = top_left.y + font->line_height - viewport_rect.dimensions.y;
 
             Rect texture_rect = glyph->rect;
-            texture_rect.bottom_left = pointwise_divide(texture_rect.bottom_left, texture_dimensions);
-            texture_rect.dimensions = pointwise_divide(texture_rect.dimensions, texture_dimensions);
+            texture_rect.bottom_left = float2_pointwise_divide(texture_rect.bottom_left, texture_dimensions);
+            texture_rect.dimensions = float2_pointwise_divide(texture_rect.dimensions, texture_dimensions);
 
             int glyph_index = text_block->glyphs_count;
             Glyph* typeset_glyph = &text_block->glyphs[glyph_index];
@@ -555,23 +555,23 @@ static Vector2 measure_ideal_dimensions(TextBlock* text_block, Context* context)
     }
 
     pen.y = fabsf(pen.y);
-    bounds = max2(bounds, pen);
+    bounds = float2_max(bounds, pen);
     bounds.x += padding.bottom;
     bounds.y += padding.end;
 
     return bounds;
 }
 
-static Vector2 measure_ideal_dimensions(Container* container, Context* context)
+static Float2 measure_ideal_dimensions(Container* container, Context* context)
 {
-    Vector2 bounds = vector2_zero;
+    Float2 bounds = float2_zero;
     int main_axis = get_main_axis_index(container->axis);
     int cross_axis = get_cross_axis_index(container->axis);
 
     for(int i = 0; i < container->items_count; i += 1)
     {
         Item* item = &container->items[i];
-        Vector2 item_ideal;
+        Float2 item_ideal;
         switch(item->type)
         {
             case ItemType::Button:
@@ -586,7 +586,7 @@ static Vector2 measure_ideal_dimensions(Container* container, Context* context)
             }
             case ItemType::List:
             {
-                item_ideal = vector2_max;
+                item_ideal = float2_plus_infinity;
                 break;
             }
             case ItemType::Text_Block:
@@ -596,16 +596,16 @@ static Vector2 measure_ideal_dimensions(Container* container, Context* context)
             }
             case ItemType::Text_Input:
             {
-                Vector2 input = measure_ideal_dimensions(&item->text_input.text_block, context);
-                Vector2 hint = measure_ideal_dimensions(&item->text_input.label, context);
-                item_ideal = max2(input, hint);
+                Float2 input = measure_ideal_dimensions(&item->text_input.text_block, context);
+                Float2 hint = measure_ideal_dimensions(&item->text_input.label, context);
+                item_ideal = float2_max(input, hint);
                 break;
             }
         }
-        item->ideal_dimensions = max2(item_ideal, item->min_dimensions);
+        item->ideal_dimensions = float2_max(item_ideal, item->min_dimensions);
 
-        bounds[main_axis] += item->ideal_dimensions[main_axis];
-        bounds[cross_axis] = fmax(bounds[cross_axis], item->ideal_dimensions[cross_axis]);
+        bounds.e[main_axis] += item->ideal_dimensions.e[main_axis];
+        bounds.e[cross_axis] = fmaxf(bounds.e[cross_axis], item->ideal_dimensions.e[cross_axis]);
     }
 
     Padding padding = container->padding;
@@ -636,9 +636,9 @@ static float compute_run_length(const char* text, int start, int end, bmfont::Fo
     return length;
 }
 
-static void place_glyph(TextBlock* text_block, bmfont::Glyph* glyph, bmfont::Font* font, int text_index, Vector2 pen, Vector2 texture_dimensions, Context* context)
+static void place_glyph(TextBlock* text_block, bmfont::Glyph* glyph, bmfont::Font* font, int text_index, Float2 pen, Float2 texture_dimensions, Context* context)
 {
-    Vector2 top_left = pen;
+    Float2 top_left = pen;
     top_left.x += glyph->offset.x;
     top_left.y -= glyph->offset.y;
 
@@ -648,8 +648,8 @@ static void place_glyph(TextBlock* text_block, bmfont::Glyph* glyph, bmfont::Fon
     viewport_rect.bottom_left.y = top_left.y + font->line_height - viewport_rect.dimensions.y;
 
     Rect texture_rect = glyph->rect;
-    texture_rect.bottom_left = pointwise_divide(texture_rect.bottom_left, texture_dimensions);
-    texture_rect.dimensions = pointwise_divide(texture_rect.dimensions, texture_dimensions);
+    texture_rect.bottom_left = float2_pointwise_divide(texture_rect.bottom_left, texture_dimensions);
+    texture_rect.dimensions = float2_pointwise_divide(texture_rect.dimensions, texture_dimensions);
 
     int glyph_index = text_block->glyphs_count;
     Glyph* typeset_glyph = &text_block->glyphs[glyph_index];
@@ -663,9 +663,9 @@ static void place_glyph(TextBlock* text_block, bmfont::Glyph* glyph, bmfont::Fon
     MAP_ADD(&text_block->glyph_map, text_index, glyph_index, context->heap);
 }
 
-static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimensions, Context* context)
+static Float2 measure_bound_dimensions(TextBlock* text_block, Float2 dimensions, Context* context)
 {
-    Vector2 bounds = vector2_zero;
+    Float2 bounds = float2_zero;
 
     bmfont::Font* font = context->theme.font;
     Stack* stack = context->scratch;
@@ -677,7 +677,7 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
     text_block->glyphs_count = 0;
     map_clear(&text_block->glyph_map);
 
-    Vector2 texture_dimensions;
+    Float2 texture_dimensions;
     texture_dimensions.x = font->image_width;
     texture_dimensions.y = font->image_height;
 
@@ -695,7 +695,7 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
     float run_length = compute_run_length(text_block->text, 0, next_break, font);
 
     char32_t prior_char = '\0';
-    Vector2 pen = {padding.start, -padding.top - font->line_height};
+    Float2 pen = {padding.start, -padding.top - font->line_height};
     int text_index = 0;
     int size = string_size(text_block->text);
 
@@ -829,16 +829,16 @@ static Vector2 measure_bound_dimensions(TextBlock* text_block, Vector2 dimension
     }
 
     pen.y = fabsf(pen.y);
-    bounds = max2(bounds, pen);
+    bounds = float2_max(bounds, pen);
     bounds.x += padding.bottom;
     bounds.y += padding.end;
 
     return bounds;
 }
 
-static Vector2 measure_bound_dimensions(Container* container, Vector2 container_space, float shrink, Axis shrink_along, Context* context)
+static Float2 measure_bound_dimensions(Container* container, Float2 container_space, float shrink, Axis shrink_along, Context* context)
 {
-    Vector2 result = vector2_zero;
+    Float2 result = float2_zero;
     int main_axis = get_main_axis_index(container->axis);
     int cross_axis = get_cross_axis_index(container->axis);
     int shrink_axis = get_main_axis_index(shrink_along);
@@ -848,12 +848,12 @@ static Vector2 measure_bound_dimensions(Container* container, Vector2 container_
     {
         Item* item = &container->items[i];
 
-        Vector2 space;
-        space[shrink_axis] = shrink * item->ideal_dimensions[shrink_axis];
-        space[nonshrink_axis] = container_space[nonshrink_axis];
-        space = max2(space, item->min_dimensions);
+        Float2 space;
+        space.e[shrink_axis] = shrink * item->ideal_dimensions.e[shrink_axis];
+        space.e[nonshrink_axis] = container_space.e[nonshrink_axis];
+        space = float2_max(space, item->min_dimensions);
 
-        Vector2 dimensions;
+        Float2 dimensions;
         switch(item->type)
         {
             case ItemType::Button:
@@ -868,7 +868,7 @@ static Vector2 measure_bound_dimensions(Container* container, Vector2 container_
             }
             case ItemType::List:
             {
-                dimensions = vector2_zero;
+                dimensions = float2_zero;
                 break;
             }
             case ItemType::Text_Block:
@@ -878,16 +878,16 @@ static Vector2 measure_bound_dimensions(Container* container, Vector2 container_
             }
             case ItemType::Text_Input:
             {
-                Vector2 input = measure_bound_dimensions(&item->text_input.text_block, space, context);
-                Vector2 hint = measure_bound_dimensions(&item->text_input.label, space, context);
-                dimensions = max2(input, hint);
+                Float2 input = measure_bound_dimensions(&item->text_input.text_block, space, context);
+                Float2 hint = measure_bound_dimensions(&item->text_input.label, space, context);
+                dimensions = float2_max(input, hint);
                 break;
             }
         }
-        item->bounds.dimensions = max2(dimensions, item->min_dimensions);
+        item->bounds.dimensions = float2_max(dimensions, item->min_dimensions);
 
-        result[main_axis] += item->bounds.dimensions[main_axis];
-        result[cross_axis] = fmax(result[cross_axis], item->bounds.dimensions[cross_axis]);
+        result.e[main_axis] += item->bounds.dimensions.e[main_axis];
+        result.e[cross_axis] = fmaxf(result.e[cross_axis], item->bounds.dimensions.e[cross_axis]);
     }
 
     Padding padding = container->padding;
@@ -895,7 +895,7 @@ static Vector2 measure_bound_dimensions(Container* container, Vector2 container_
     result.y += padding.top + padding.bottom;
 
     // Distribute any excess among the growable items, if allowed.
-    if(result[main_axis] < container_space[main_axis])
+    if(result.e[main_axis] < container_space.e[main_axis])
     {
         int growable_items = 0;
         for(int i = 0; i < container->items_count; i += 1)
@@ -908,24 +908,24 @@ static Vector2 measure_bound_dimensions(Container* container, Vector2 container_
         }
         if(growable_items > 0)
         {
-            float grow = (container_space[main_axis] - result[main_axis]) / growable_items;
+            float grow = (container_space.e[main_axis] - result.e[main_axis]) / growable_items;
             for(int i = 0; i < container->items_count; i += 1)
             {
                 Item* item = &container->items[i];
                 if(item->growable)
                 {
-                    item->bounds.dimensions[main_axis] += grow;
+                    item->bounds.dimensions.e[main_axis] += grow;
                 }
             }
         }
     }
-    if(container->alignment == Alignment::Stretch && result[cross_axis] < container_space[cross_axis])
+    if(container->alignment == Alignment::Stretch && result.e[cross_axis] < container_space.e[cross_axis])
     {
-        result[cross_axis] = container_space[cross_axis];
+        result.e[cross_axis] = container_space.e[cross_axis];
         for(int i = 0; i < container->items_count; i += 1)
         {
             Item* item = &container->items[i];
-            item->bounds.dimensions[cross_axis] = container_space[cross_axis];
+            item->bounds.dimensions.e[cross_axis] = container_space.e[cross_axis];
         }
     }
 
@@ -935,7 +935,7 @@ static Vector2 measure_bound_dimensions(Container* container, Vector2 container_
 static float compute_shrink_factor(Container* container, Rect space, float ideal_length)
 {
     int main_axis = get_main_axis_index(container->axis);
-    float available = space.dimensions[main_axis] - padding_along_axis(container->padding, main_axis);
+    float available = space.dimensions.e[main_axis] - padding_along_axis(container->padding, main_axis);
 
     float shrink = available / ideal_length;
     int items_overshrunk;
@@ -949,11 +949,11 @@ static float compute_shrink_factor(Container* container, Rect space, float ideal
         {
             Item* item = &container->items[i];
 
-            float length = shrink * item->ideal_dimensions[main_axis];
-            if(length < item->min_dimensions[main_axis])
+            float length = shrink * item->ideal_dimensions.e[main_axis];
+            if(length < item->min_dimensions.e[main_axis])
             {
-                length = item->min_dimensions[main_axis];
-                min_filled += item->min_dimensions[main_axis];
+                length = item->min_dimensions.e[main_axis];
+                min_filled += item->min_dimensions.e[main_axis];
                 items_overshrunk += 1;
             }
             fit += length;
@@ -976,14 +976,14 @@ static float compute_shrink_factor(Container* container, Rect space, float ideal
     return shrink;
 }
 
-static void grow_or_commit_ideal_dimensions(Item* item, Vector2 container_space)
+static void grow_or_commit_ideal_dimensions(Item* item, Float2 container_space)
 {
     Container* container = &item->container;
     int main_axis = get_main_axis_index(container->axis);
     int cross_axis = get_cross_axis_index(container->axis);
 
-    item->bounds.dimensions[main_axis] = container_space[main_axis];
-    item->bounds.dimensions[cross_axis] = item->ideal_dimensions[cross_axis];
+    item->bounds.dimensions.e[main_axis] = container_space.e[main_axis];
+    item->bounds.dimensions.e[cross_axis] = item->ideal_dimensions.e[cross_axis];
 
     // Record how much space is taken up by items that won't grow and measure
     // the ideal length at the same time.
@@ -994,13 +994,13 @@ static void grow_or_commit_ideal_dimensions(Item* item, Vector2 container_space)
         Item* next = &container->items[i];
         if(!next->growable)
         {
-            ungrowable_length += next->bounds.dimensions[main_axis];
+            ungrowable_length += next->bounds.dimensions.e[main_axis];
         }
-        ideal_length += next->ideal_dimensions[main_axis];
+        ideal_length += next->ideal_dimensions.e[main_axis];
     }
 
     // Compute by how much to grow the growable items.
-    float available = container_space[main_axis] - padding_along_axis(container->padding, main_axis);
+    float available = container_space.e[main_axis] - padding_along_axis(container->padding, main_axis);
     float grow = (available - ungrowable_length) / (ideal_length - ungrowable_length);
 
     // Grow them.
@@ -1008,11 +1008,11 @@ static void grow_or_commit_ideal_dimensions(Item* item, Vector2 container_space)
     {
         Item* next = &container->items[i];
 
-        Vector2 space;
+        Float2 space;
         if(next->growable)
         {
-            space[main_axis] = grow * next->ideal_dimensions[main_axis];
-            space[cross_axis] = next->ideal_dimensions[cross_axis];
+            space.e[main_axis] = grow * next->ideal_dimensions.e[main_axis];
+            space.e[cross_axis] = next->ideal_dimensions.e[cross_axis];
         }
         else
         {
@@ -1020,7 +1020,7 @@ static void grow_or_commit_ideal_dimensions(Item* item, Vector2 container_space)
         }
         if(container->alignment == Alignment::Stretch)
         {
-            space[cross_axis] = item->ideal_dimensions[cross_axis];
+            space.e[cross_axis] = item->ideal_dimensions.e[cross_axis];
         }
 
         switch(next->type)
@@ -1049,7 +1049,7 @@ static float measure_length(Container* container)
     for(int i = 0; i < container->items_count; i += 1)
     {
         Item item = container->items[i];
-        length += item.bounds.dimensions[axis];
+        length += item.bounds.dimensions.e[axis];
     }
     return length;
 }
@@ -1181,8 +1181,8 @@ static void place_items_along_main_axis(Item* item, Rect space)
         {
             Item* next = &container->items[i];
 
-            cursor -= next->bounds.dimensions[axis];
-            next->bounds.bottom_left[axis] = cursor;
+            cursor -= next->bounds.dimensions.e[axis];
+            next->bounds.bottom_left.e[axis] = cursor;
             cursor -= apart;
 
             if(next->type == ItemType::Container && next->container.items_count > 0)
@@ -1197,8 +1197,8 @@ static void place_items_along_main_axis(Item* item, Rect space)
         {
             Item* next = &container->items[i];
 
-            next->bounds.bottom_left[axis] = cursor;
-            cursor += next->bounds.dimensions[axis] + apart;
+            next->bounds.bottom_left.e[axis] = cursor;
+            cursor += next->bounds.dimensions.e[axis] + apart;
 
             if(next->type == ItemType::Container && next->container.items_count > 0)
             {
@@ -1293,7 +1293,7 @@ static void place_items_along_cross_axis(Item* item, Rect space)
         }
         case Alignment::Center:
         {
-            position = item->bounds.bottom_left[cross_axis] + (item->bounds.dimensions[cross_axis] / 2.0f);
+            position = item->bounds.bottom_left.e[cross_axis] + (item->bounds.dimensions.e[cross_axis] / 2.0f);
             centering = 0.5f;
             break;
         }
@@ -1302,7 +1302,7 @@ static void place_items_along_cross_axis(Item* item, Rect space)
     for(int i = 0; i < container->items_count; i += 1)
     {
         Item* next = &container->items[i];
-        next->bounds.bottom_left[cross_axis] = position - (centering * next->bounds.dimensions[cross_axis]);
+        next->bounds.bottom_left.e[cross_axis] = position - (centering * next->bounds.dimensions.e[cross_axis]);
         if(next->type == ItemType::Container && next->container.items_count > 0)
         {
             place_items_along_cross_axis(next, next->bounds);
@@ -1316,18 +1316,18 @@ void lay_out(Item* item, Rect space, Context* context)
     int main_axis = get_main_axis_index(container->axis);
 
     // Compute the ideal dimensions of the container and its contents.
-    Vector2 ideal = measure_ideal_dimensions(container, context);
-    item->ideal_dimensions = max2(item->min_dimensions, ideal);
+    Float2 ideal = measure_ideal_dimensions(container, context);
+    item->ideal_dimensions = float2_max(item->min_dimensions, ideal);
     float ideal_length = 0.0f;
     for(int i = 0; i < container->items_count; i += 1)
     {
         Item next = container->items[i];
-        ideal_length += next.ideal_dimensions[main_axis];
+        ideal_length += next.ideal_dimensions.e[main_axis];
     }
 
     // Determine whether there's enough space to fit all items at their ideal
     // dimensions.
-    float available = space.dimensions[main_axis] - padding_along_axis(container->padding, main_axis);
+    float available = space.dimensions.e[main_axis] - padding_along_axis(container->padding, main_axis);
     if(ideal_length <= available)
     {
         grow_or_commit_ideal_dimensions(item, space.dimensions);
@@ -1338,12 +1338,12 @@ void lay_out(Item* item, Rect space, Context* context)
         // fit in the container.
         float shrink = compute_shrink_factor(container, space, ideal_length);
 
-        Vector2 bound = measure_bound_dimensions(container, space.dimensions, shrink, container->axis, context);
+        Float2 bound = measure_bound_dimensions(container, space.dimensions, shrink, container->axis, context);
         if(item->growable)
         {
-            bound[main_axis] = space.dimensions[main_axis];
+            bound.e[main_axis] = space.dimensions.e[main_axis];
         }
-        item->bounds.dimensions = max2(bound, item->min_dimensions);
+        item->bounds.dimensions = float2_max(bound, item->min_dimensions);
     }
 
     // Now that all the items have been sized, just place them where they need to be.
@@ -1353,13 +1353,13 @@ void lay_out(Item* item, Rect space, Context* context)
 
 static void draw_text_block(TextBlock* text_block, Rect bounds)
 {
-    Vector2 top_left = rect_top_left(bounds);
+    Float2 top_left = rect_top_left(bounds);
 
     for(int i = 0; i < text_block->glyphs_count; i += 1)
     {
         Glyph glyph = text_block->glyphs[i];
         Rect rect = glyph.rect;
-        rect.bottom_left += top_left;
+        rect.bottom_left = float2_add(rect.bottom_left, top_left);
         Quad quad = rect_to_quad(rect);
         immediate::add_quad_textured(&quad, glyph.texture_rect);
     }
@@ -1375,9 +1375,9 @@ static void draw_button(Item* item, Context* context)
 
     Theme* theme = &context->theme;
 
-    Vector4 non_hovered_colour;
-    Vector4 hovered_colour;
-    Vector3 text_colour;
+    Float4 non_hovered_colour;
+    Float4 hovered_colour;
+    Float3 text_colour;
     if(button->enabled)
     {
         non_hovered_colour = theme->colours.button_cap_enabled;
@@ -1391,7 +1391,7 @@ static void draw_button(Item* item, Context* context)
         text_colour = theme->colours.button_label_disabled;
     }
 
-    Vector4 colour;
+    Float4 colour;
     if(button->hovered)
     {
         colour = hovered_colour;
@@ -1421,7 +1421,7 @@ static void draw_container(Item* item, Context* context)
     }
 }
 
-static void place_glyphs(TextBlock* text_block, Vector2 bounds, Context* context)
+static void place_glyphs(TextBlock* text_block, Float2 bounds, Context* context)
 {
     measure_bound_dimensions(text_block, bounds, context);
 }
@@ -1435,7 +1435,7 @@ static void place_list_items(Item* item, Context* context)
         float line_height = context->theme.font->line_height;
 
         float item_height = get_list_item_height(list, &list->items[0], line_height);
-        Vector2 top_left = rect_top_left(item->bounds);
+        Float2 top_left = rect_top_left(item->bounds);
 
         Rect place;
         place.bottom_left.x = list->side_margin + top_left.x;
@@ -1464,8 +1464,8 @@ static void draw_list(Item* item, Context* context)
 
     Theme* theme = &context->theme;
     float line_height = theme->font->line_height;
-    Vector4 hover_colour = theme->colours.list_item_background_hovered;
-    Vector4 selection_colour = theme->colours.list_item_background_selected;
+    Float4 hover_colour = theme->colours.list_item_background_hovered;
+    Float4 selection_colour = theme->colours.list_item_background_selected;
 
     if(list->items_count > 0)
     {
@@ -1505,18 +1505,18 @@ static void draw_list(Item* item, Context* context)
     immediate::stop_clip_area();
 }
 
-static Vector2 compute_cursor_position(TextBlock* text_block, Vector2 dimensions, float line_height, int index)
+static Float2 compute_cursor_position(TextBlock* text_block, Float2 dimensions, float line_height, int index)
 {
     Padding padding = text_block->padding;
 
     // @Incomplete: There isn't a one-to-one mapping between chars and glyphs
     // Add a lookup to find the glyph given and index in the string.
-    Vector2 position = {padding.start, -padding.top - line_height};
+    Float2 position = {padding.start, -padding.top - line_height};
     int size = string_size(text_block->text);
     if(index >= size && size > 0)
     {
         Glyph glyph = text_block->glyphs[text_block->glyphs_count - 1];
-        Vector2 bottom_right;
+        Float2 bottom_right;
         bottom_right.x = glyph.baseline_start.x + glyph.x_advance;
         bottom_right.y = glyph.baseline_start.y;
         position = bottom_right;
@@ -1537,7 +1537,7 @@ static Vector2 compute_cursor_position(TextBlock* text_block, Vector2 dimensions
     return position;
 }
 
-static int find_index_at_position(TextBlock* text_block, Vector2 dimensions, float line_height, Vector2 position)
+static int find_index_at_position(TextBlock* text_block, Float2 dimensions, float line_height, Float2 position)
 {
     int index = invalid_index;
 
@@ -1546,7 +1546,7 @@ static int find_index_at_position(TextBlock* text_block, Vector2 dimensions, flo
     for(int i = 0; i < count; i += 1)
     {
         Glyph glyph = text_block->glyphs[i];
-        Vector2 point = glyph.baseline_start;
+        Float2 point = glyph.baseline_start;
 
         if(position.y >= point.y + line_height)
         {
@@ -1564,7 +1564,7 @@ static int find_index_at_position(TextBlock* text_block, Vector2 dimensions, flo
     }
 
     Glyph last = text_block->glyphs[count - 1];
-    Vector2 point;
+    Float2 point;
     point.x = last.baseline_start.x + last.x_advance;
     point.y = last.baseline_start.y;
     if(position.y < point.y + line_height && position.y > point.y)
@@ -1584,8 +1584,8 @@ void draw_text_input(Item* item, Context* context)
 {
     ASSERT(item->type == ItemType::Text_Input);
 
-    Vector4 selection_colour = context->theme.colours.text_input_selection;
-    Vector4 cursor_colour = context->theme.colours.text_input_cursor;
+    Float4 selection_colour = context->theme.colours.text_input_selection;
+    Float4 cursor_colour = context->theme.colours.text_input_cursor;
     float line_height = context->theme.font->line_height;
 
     TextInput* text_input = &item->text_input;
@@ -1608,9 +1608,9 @@ void draw_text_input(Item* item, Context* context)
     // Draw the cursor.
     if(in_focus)
     {
-        Vector2 cursor = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
-        Vector2 top_left = rect_top_left(item->bounds);
-        cursor += top_left;
+        Float2 cursor = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
+        Float2 top_left = rect_top_left(item->bounds);
+        cursor = float2_add(cursor, top_left);
 
         Rect rect;
         rect.dimensions = {1.7f, line_height};
@@ -1625,10 +1625,10 @@ void draw_text_input(Item* item, Context* context)
         // Draw the selection highlight.
         if(text_input->cursor_position != text_input->selection_start)
         {
-            Vector2 start = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->selection_start);
-            start += top_left;
+            Float2 start = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->selection_start);
+            start = float2_add(start, top_left);
 
-            Vector2 first, second;
+            Float2 first, second;
             if(text_input->selection_start < text_input->cursor_position)
             {
                 first = start;
@@ -1719,7 +1719,7 @@ void draw_focus_indicator(Item* item, Context* context)
     {
         Item* focused = context->focused_item;
 
-        Vector4 colour = context->theme.colours.focus_indicator;
+        Float4 colour = context->theme.colours.focus_indicator;
         const float line_width = 2.0f;
 
         Rect bounds = focused->bounds;
@@ -1727,9 +1727,9 @@ void draw_focus_indicator(Item* item, Context* context)
         float width = bounds.dimensions.x;
         float height = bounds.dimensions.y;
 
-        Vector2 top_left = rect_top_left(bounds);
-        Vector2 bottom_left = bounds.bottom_left;
-        Vector2 bottom_right = rect_bottom_right(bounds);
+        Float2 top_left = rect_top_left(bounds);
+        Float2 bottom_left = bounds.bottom_left;
+        Float2 bottom_right = rect_bottom_right(bounds);
 
         Rect top;
         top.bottom_left = top_left;
@@ -1754,7 +1754,7 @@ void draw_focus_indicator(Item* item, Context* context)
     }
 }
 
-static bool detect_hover(Item* item, Vector2 pointer_position, Platform* platform)
+static bool detect_hover(Item* item, Float2 pointer_position, Platform* platform)
 {
     bool detected = false;
 
@@ -1827,7 +1827,7 @@ static bool detect_hover(Item* item, Vector2 pointer_position, Platform* platfor
     return detected;
 }
 
-static bool detect_focus_changes(Context* context, Item* item, Vector2 mouse_position)
+static bool detect_focus_changes(Context* context, Item* item, Float2 mouse_position)
 {
     bool focus_taken;
 
@@ -1887,7 +1887,7 @@ static void detect_focus_changes_for_toplevel_containers(Context* context)
             || input_get_mouse_clicked(MOUSE_BUTTON_MIDDLE)
             || input_get_mouse_clicked(MOUSE_BUTTON_RIGHT);
 
-    Vector2 mouse_position;
+    Float2 mouse_position;
     Int2 position = input_get_mouse_position();
     mouse_position.x = position.x - context->viewport.x / 2.0f;
     mouse_position.y = -(position.y - context->viewport.y / 2.0f);
@@ -1915,7 +1915,7 @@ static void detect_focus_changes_for_toplevel_containers(Context* context)
     }
 }
 
-static bool detect_capture_changes(Context* context, Item* item, Vector2 mouse_position)
+static bool detect_capture_changes(Context* context, Item* item, Float2 mouse_position)
 {
     bool captured = false;
 
@@ -1980,7 +1980,7 @@ static void detect_capture_changes_for_toplevel_containers(Context* context, Pla
             || input_get_mouse_clicked(MOUSE_BUTTON_MIDDLE)
             || input_get_mouse_clicked(MOUSE_BUTTON_RIGHT);
 
-    Vector2 mouse_position;
+    Float2 mouse_position;
     Int2 position = input_get_mouse_position();
     mouse_position.x = position.x - context->viewport.x / 2.0f;
     mouse_position.y = -(position.y - context->viewport.y / 2.0f);
@@ -2023,13 +2023,13 @@ static void signal_text_change(Context* context, Id id)
     enqueue(&context->queue, event);
 }
 
-static void update_removed_glyphs(TextBlock* text_block, Vector2 dimensions, Id id, Context* context)
+static void update_removed_glyphs(TextBlock* text_block, Float2 dimensions, Id id, Context* context)
 {
     place_glyphs(text_block, dimensions, context);
     signal_text_change(context, id);
 }
 
-static void update_added_glyphs(TextBlock* text_block, Vector2 dimensions, Id id, Context* context)
+static void update_added_glyphs(TextBlock* text_block, Float2 dimensions, Id id, Context* context)
 {
     // @Incomplete: There isn't a one-to-one mapping between chars and glyphs.
     // Glyph count should be based on the mapping of the given text in a
@@ -2049,15 +2049,15 @@ static void update_cursor_position(TextInput* text_input, Rect bounds, Context* 
 {
     bmfont::Font* font = context->theme.font;
     float line_height = font->line_height;
-    Vector2 viewport = context->viewport;
+    Float2 viewport = context->viewport;
 
     int index = text_input->cursor_position;
     if(is_valid_index(index))
     {
         // Get the position within the item and determine the corresponding
         // point in the viewport.
-        Vector2 position = compute_cursor_position(&text_input->text_block, bounds.dimensions, line_height, index);
-        position += bounds.bottom_left;
+        Float2 position = compute_cursor_position(&text_input->text_block, bounds.dimensions, line_height, index);
+        position = float2_add(position, bounds.bottom_left);
         position.x += viewport.x / 2.0f;
         position.y = (viewport.y / 2.0f) - position.y;
 
@@ -2068,7 +2068,7 @@ static void update_cursor_position(TextInput* text_input, Rect bounds, Context* 
     }
 }
 
-static void remove_selected_text(TextInput* text_input, Vector2 dimensions, Id id, Context* context, Platform* platform)
+static void remove_selected_text(TextInput* text_input, Float2 dimensions, Id id, Context* context, Platform* platform)
 {
     if(text_input->cursor_position != text_input->selection_start)
     {
@@ -2085,7 +2085,7 @@ void insert_text(Item* item, const char* text_to_add, Context* context, Platform
 {
     TextInput* text_input = &item->text_input;
     TextBlock* text_block = &text_input->text_block;
-    Vector2 dimensions = item->bounds.dimensions;
+    Float2 dimensions = item->bounds.dimensions;
 
     int text_to_add_size = string_size(text_to_add);
     if(text_to_add_size > 0)
@@ -2362,7 +2362,7 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
 
             if(input_get_key_auto_repeated(INPUT_KEY_UP_ARROW))
             {
-                Vector2 position = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
+                Float2 position = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
                 position.y += line_height;
                 int index = find_index_at_position(text_block, item->bounds.dimensions, line_height, position);
 
@@ -2379,7 +2379,7 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
 
             if(input_get_key_auto_repeated(INPUT_KEY_DOWN_ARROW))
             {
-                Vector2 position = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
+                Float2 position = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
                 position.y -= line_height;
                 int index = find_index_at_position(text_block, item->bounds.dimensions, line_height, position);
 
@@ -2681,13 +2681,13 @@ static void update_pointer_input(Item* item, Context* context, Platform* platfor
             bool dragged = !clicked && input_get_mouse_pressed(MOUSE_BUTTON_LEFT);
             if(clicked || dragged)
             {
-                Vector2 mouse_position;
+                Float2 mouse_position;
                 Int2 position = input_get_mouse_position();
                 mouse_position.x = position.x - context->viewport.x / 2.0f;
                 mouse_position.y = -(position.y - context->viewport.y / 2.0f);
 
-                Vector2 top_left = rect_top_left(item->bounds);
-                mouse_position -= top_left;
+                Float2 top_left = rect_top_left(item->bounds);
+                mouse_position = float2_subtract(mouse_position, top_left);
 
                 int index = find_index_at_position(text_block, item->bounds.dimensions, line_height, mouse_position);
                 if(index != invalid_index)

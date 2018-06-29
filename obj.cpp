@@ -154,9 +154,9 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
     Stream stream;
     stream.buffer = static_cast<char*>(contents);
 
-    Vector4* positions = nullptr;
-    Vector3* normals = nullptr;
-    Vector3* texcoords = nullptr;
+    Float4* positions = nullptr;
+    Float3* normals = nullptr;
+    Float3* texcoords = nullptr;
     Label* materials = nullptr;
     MultiIndex* multi_indices = nullptr;
     Face* faces = nullptr;
@@ -181,7 +181,7 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
             char* z = next_token(&stream, stack);
             char* w = next_token(&stream, stack);
 
-            Vector4 position;
+            Float4 position;
             bool success_x = string_to_float(x, &position.x);
             bool success_y = string_to_float(y, &position.y);
             bool success_z = string_to_float(z, &position.z);
@@ -215,7 +215,7 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
             char* y = next_token(&stream, stack);
             char* z = next_token(&stream, stack);
 
-            Vector3 normal;
+            Float3 normal;
             bool success_x = string_to_float(x, &normal.x);
             bool success_y = string_to_float(y, &normal.y);
             bool success_z = string_to_float(z, &normal.z);
@@ -239,7 +239,7 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
             char* y = next_token(&stream, stack);
             char* z = next_token(&stream, stack);
 
-            Vector3 texcoord;
+            Float3 texcoord;
             bool success_x = string_to_float(x, &texcoord.x);
             texcoord.y = 0.0f;
             texcoord.z = 0.0f;
@@ -405,10 +405,10 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
             for(int j = 0; j < obj_face.sides; j += 1)
             {
                 MultiIndex index = multi_indices[obj_face.base_index + j];
-                Vector4 position = positions[index.position];
+                Float4 position = positions[index.position];
 #if 0
-                Vector3 normal = normals[index.normal];
-                Vector3 texcoord = texcoords[index.texcoord];
+                Float3 normal = normals[index.normal];
+                Float3 texcoord = texcoords[index.texcoord];
 #endif
                 jan::Vertex* vertex;
                 if(seen[index.position])
@@ -417,7 +417,7 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
                 }
                 else
                 {
-                    vertex = jan::add_vertex(&mesh, extract_vector3(position));
+                    vertex = jan::add_vertex(&mesh, float4_extract_float3(position));
                     seen[index.position] = vertex;
                 }
                 vertices[j] = vertex;
@@ -475,7 +475,7 @@ bool save_file(const char* path, jan::Mesh* mesh, Heap* heap)
             continue;
         }
 
-        Vector3 v = vertex->position;
+        Float3 v = vertex->position;
         format_string(line, line_size, "v %.6f %.6f %.6f\n", v.x, v.y, v.z);
         write_file(file, line, string_size(line));
 

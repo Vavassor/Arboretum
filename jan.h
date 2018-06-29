@@ -14,8 +14,8 @@ struct Face;
 
 struct Vertex
 {
-    Vector3 position;
-    Vector3 normal;
+    Float3 position;
+    Float3 normal;
     Edge* any_edge;
 };
 
@@ -38,7 +38,7 @@ struct Edge
 // of storing vertex attributes that are specific to a face.
 struct Link
 {
-    Vector3 colour;
+    Float3 colour;
     Link* next;
     Link* prior;
     Link* next_fin;
@@ -60,7 +60,7 @@ struct Border
 
 struct Face
 {
-    Vector3 normal;
+    Float3 normal;
     Border* first_border;
     Border* last_border;
     int edges;
@@ -105,7 +105,7 @@ struct Selection
 
 void create_mesh(Mesh* mesh);
 void destroy_mesh(Mesh* mesh);
-Vertex* add_vertex(Mesh* mesh, Vector3 position);
+Vertex* add_vertex(Mesh* mesh, Float3 position);
 Edge* add_edge(Mesh* mesh, Vertex* start, Vertex* end);
 Face* add_face(Mesh* mesh, Vertex** vertices, Edge** edges, int edges_count);
 Face* connect_disconnected_vertices_and_add_face(Mesh* mesh, Vertex** vertices, int vertices_count, Stack* stack);
@@ -116,16 +116,16 @@ void remove_face_and_its_unlinked_edges_and_vertices(Mesh* mesh, Face* face);
 void update_normals(Mesh* mesh);
 void make_a_weird_face(Mesh* mesh, Stack* stack);
 void make_a_face_with_holes(Mesh* mesh, Stack* stack);
-void colour_just_the_one_face(Face* face, Vector3 colour);
-void colour_all_faces(Mesh* mesh, Vector3 colour);
-void colour_selection(Mesh* mesh, Selection* selection, Vector3 colour);
-void move_faces(Mesh* mesh, Selection* selection, Vector3 translation);
+void colour_just_the_one_face(Face* face, Float3 colour);
+void colour_all_faces(Mesh* mesh, Float3 colour);
+void colour_selection(Mesh* mesh, Selection* selection, Float3 colour);
+void move_faces(Mesh* mesh, Selection* selection, Float3 translation);
 void flip_face_normals(Mesh* mesh, Selection* selection);
 void extrude(Mesh* mesh, Selection* selection, float distance, Heap* heap, Stack* stack);
-void make_pointcloud(Mesh* mesh, Heap* heap, Vector4 colour, PointVertex** vertices, u16** indices);
-void make_pointcloud_selection(Mesh* mesh, Vector4 colour, Vertex* hovered, Vector4 hover_colour, Selection* selection, Vector4 select_colour, Heap* heap, PointVertex** vertices, u16** indices);
-void make_wireframe(Mesh* mesh, Heap* heap, Vector4 colour, LineVertex** vertices, u16** indices);
-void make_wireframe_selection(Mesh* mesh, Heap* heap, Vector4 colour, Edge* hovered, Vector4 hover_colour, Selection* selection, Vector4 select_colour, LineVertex** vertices, u16** indices);
+void make_pointcloud(Mesh* mesh, Heap* heap, Float4 colour, PointVertex** vertices, u16** indices);
+void make_pointcloud_selection(Mesh* mesh, Float4 colour, Vertex* hovered, Float4 hover_colour, Selection* selection, Float4 select_colour, Heap* heap, PointVertex** vertices, u16** indices);
+void make_wireframe(Mesh* mesh, Heap* heap, Float4 colour, LineVertex** vertices, u16** indices);
+void make_wireframe_selection(Mesh* mesh, Heap* heap, Float4 colour, Edge* hovered, Float4 hover_colour, Selection* selection, Float4 select_colour, LineVertex** vertices, u16** indices);
 int count_border_edges(Border* border);
 void triangulate(Mesh* mesh, Heap* heap, VertexPNC** vertices, u16** indices);
 void triangulate_selection(Mesh* mesh, Selection* selection, Heap* heap, VertexPNC** vertices, u16** indices);

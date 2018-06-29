@@ -4,13 +4,13 @@
 #include "intersection.h"
 #include "vector_math.h"
 
-float distance_point_plane(Vector3 point, Vector3 origin, Vector3 normal);
+float distance_point_plane(Float3 point, Float3 origin, Float3 normal);
 
-Vector3 project_onto_plane(Vector3 point, Vector3 origin, Vector3 normal);
+Float3 project_onto_plane(Float3 point, Float3 origin, Float3 normal);
 
-Vector3 closest_disk_point(Disk disk, Vector3 point);
-Vector3 closest_disk_plane(Disk disk, Vector3 origin, Vector3 normal);
-Vector3 closest_point_on_line(Ray ray, Vector3 start, Vector3 end);
-Vector3 closest_ray_point(Ray ray, Vector3 point);
+Float3 closest_disk_point(Disk disk, Float3 point);
+Float3 closest_disk_plane(Disk disk, Float3 origin, Float3 normal);
+Float3 closest_point_on_line(Ray ray, Float3 start, Float3 end);
+Float3 closest_ray_point(Ray ray, Float3 point);
 
 #endif // CLOSEST_POINT_OF_APPROACH_H_

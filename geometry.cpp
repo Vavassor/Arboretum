@@ -17,17 +17,17 @@ Quad rect_to_quad(Rect r)
     return result;
 }
 
-Vector2 rect_top_left(Rect rect)
+Float2 rect_top_left(Rect rect)
 {
     return {rect.bottom_left.x, rect.bottom_left.y + rect.dimensions.y};
 }
 
-Vector2 rect_top_right(Rect rect)
+Float2 rect_top_right(Rect rect)
 {
-    return rect.bottom_left + rect.dimensions;
+    return float2_add(rect.bottom_left, rect.dimensions);
 }
 
-Vector2 rect_bottom_right(Rect rect)
+Float2 rect_bottom_right(Rect rect)
 {
     return {rect.bottom_left.x + rect.dimensions.x, rect.bottom_left.y};
 }
@@ -42,10 +42,10 @@ float rect_right(Rect rect)
     return rect.bottom_left.x + rect.dimensions.x;
 }
 
-bool point_in_rect(Rect rect, Vector2 point)
+bool point_in_rect(Rect rect, Float2 point)
 {
-    Vector2 min = rect.bottom_left;
-    Vector2 max = min + rect.dimensions;
+    Float2 min = rect.bottom_left;
+    Float2 max = float2_add(min, rect.dimensions);
     return
         point.x >= min.x && point.x <= max.x &&
         point.y >= min.y && point.y <= max.y;

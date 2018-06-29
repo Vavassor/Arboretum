@@ -197,8 +197,8 @@ bool system_start_up()
 
         glUseProgram(shader_font.program);
         glUniform1i(shader_font.texture, 0);
-        const Vector3 text_colour = vector3_white;
-        glUniform3fv(shader_font.text_colour, 1, &text_colour[0]);
+        const Float3 text_colour = float3_white;
+        glUniform3fv(shader_font.text_colour, 1, &text_colour.e[0]);
     }
 
     // Lit Shader
@@ -243,11 +243,11 @@ bool system_start_up()
         shader_screen_pattern.texture_dimensions = glGetUniformLocation(program, "texture_dimensions");
         shader_screen_pattern.pattern_scale = glGetUniformLocation(program, "pattern_scale");
 
-        const Vector2 pattern_scale = {2.5f, 2.5f};
+        const Float2 pattern_scale = {2.5f, 2.5f};
 
         glUseProgram(shader_screen_pattern.program);
         glUniform1i(shader_screen_pattern.texture, 0);
-        glUniform2fv(shader_screen_pattern.pattern_scale, 1, &pattern_scale[0]);
+        glUniform2fv(shader_screen_pattern.pattern_scale, 1, &pattern_scale.e[0]);
     }
 
     // Line Shader
@@ -391,34 +391,34 @@ static void draw_move_tool(MoveTool* tool, bool silhouetted)
     int hovered_plane = tool->hovered_plane;
     int selected_axis = tool->selected_axis;
 
-    Vector4 x_axis_colour = {1.0f, 0.0314f, 0.0314f, 1.0f};
-    Vector4 y_axis_colour = {0.3569f, 1.0f, 0.0f, 1.0f};
-    Vector4 z_axis_colour = {0.0863f, 0.0314f, 1.0f, 1.0f};
-    Vector4 x_axis_shadow_colour = {0.7f, 0.0314f, 0.0314f, 1.0f};
-    Vector4 y_axis_shadow_colour = {0.3569f, 0.7f, 0.0f, 1.0f};
-    Vector4 z_axis_shadow_colour = {0.0863f, 0.0314f, 0.7f, 1.0f};
+    Float4 x_axis_colour = {1.0f, 0.0314f, 0.0314f, 1.0f};
+    Float4 y_axis_colour = {0.3569f, 1.0f, 0.0f, 1.0f};
+    Float4 z_axis_colour = {0.0863f, 0.0314f, 1.0f, 1.0f};
+    Float4 x_axis_shadow_colour = {0.7f, 0.0314f, 0.0314f, 1.0f};
+    Float4 y_axis_shadow_colour = {0.3569f, 0.7f, 0.0f, 1.0f};
+    Float4 z_axis_shadow_colour = {0.0863f, 0.0314f, 0.7f, 1.0f};
 
-    Vector4 yz_plane_colour = {0.9f, 0.9f, 0.9f, 1.0f};
-    Vector4 xz_plane_colour = {0.9f, 0.9f, 0.9f, 1.0f};
-    Vector4 xy_plane_colour = {0.9f, 0.9f, 0.9f, 1.0f};
+    Float4 yz_plane_colour = {0.9f, 0.9f, 0.9f, 1.0f};
+    Float4 xz_plane_colour = {0.9f, 0.9f, 0.9f, 1.0f};
+    Float4 xy_plane_colour = {0.9f, 0.9f, 0.9f, 1.0f};
 
     switch(hovered_axis)
     {
         case 0:
         {
-            x_axis_colour = vector4_yellow;
+            x_axis_colour = float4_yellow;
             x_axis_shadow_colour = {0.8f, 0.8f, 0.0f, 1.0f};
             break;
         }
         case 1:
         {
-            y_axis_colour = vector4_yellow;
+            y_axis_colour = float4_yellow;
             y_axis_shadow_colour = {0.8f, 0.8f, 0.0f, 1.0f};
             break;
         }
         case 2:
         {
-            z_axis_colour = vector4_yellow;
+            z_axis_colour = float4_yellow;
             z_axis_shadow_colour = {0.8f, 0.8f, 0.0f, 1.0f};
             break;
         }
@@ -427,17 +427,17 @@ static void draw_move_tool(MoveTool* tool, bool silhouetted)
     {
         case 0:
         {
-            yz_plane_colour = vector4_yellow;
+            yz_plane_colour = float4_yellow;
             break;
         }
         case 1:
         {
-            xz_plane_colour = vector4_yellow;
+            xz_plane_colour = float4_yellow;
             break;
         }
         case 2:
         {
-            xy_plane_colour = vector4_yellow;
+            xy_plane_colour = float4_yellow;
             break;
         }
     }
@@ -445,71 +445,71 @@ static void draw_move_tool(MoveTool* tool, bool silhouetted)
     {
         case 0:
         {
-            x_axis_colour = vector4_white;
+            x_axis_colour = float4_white;
             x_axis_shadow_colour = {0.8f, 0.8f, 0.8f, 1.0f};
             break;
         }
         case 1:
         {
-            y_axis_colour = vector4_white;
+            y_axis_colour = float4_white;
             y_axis_shadow_colour = {0.8f, 0.8f, 0.8f, 1.0f};
             break;
         }
         case 2:
         {
-            z_axis_colour = vector4_white;
+            z_axis_colour = float4_white;
             z_axis_shadow_colour = {0.8f, 0.8f, 0.8f, 1.0f};
             break;
         }
     }
 
-    const Vector4 ball_colour = {0.9f, 0.9f, 0.9f, 1.0f};
+    const Float4 ball_colour = {0.9f, 0.9f, 0.9f, 1.0f};
 
-    Vector3 shaft_axis_x = {shaft_length, 0.0f, 0.0f};
-    Vector3 shaft_axis_y = {0.0f, shaft_length, 0.0f};
-    Vector3 shaft_axis_z = {0.0f, 0.0f, shaft_length};
+    Float3 shaft_axis_x = {shaft_length, 0.0f, 0.0f};
+    Float3 shaft_axis_y = {0.0f, shaft_length, 0.0f};
+    Float3 shaft_axis_z = {0.0f, 0.0f, shaft_length};
 
-    Vector3 head_axis_x = {head_height, 0.0f, 0.0f};
-    Vector3 head_axis_y = {0.0f, head_height, 0.0f};
-    Vector3 head_axis_z = {0.0f, 0.0f, head_height};
+    Float3 head_axis_x = {head_height, 0.0f, 0.0f};
+    Float3 head_axis_y = {0.0f, head_height, 0.0f};
+    Float3 head_axis_z = {0.0f, 0.0f, head_height};
 
-    Vector3 yz_plane = {0.0f, shaft_length, shaft_length};
-    Vector3 xz_plane = {shaft_length, 0.0f, shaft_length};
-    Vector3 xy_plane = {shaft_length, shaft_length, 0.0f};
+    Float3 yz_plane = {0.0f, shaft_length, shaft_length};
+    Float3 xz_plane = {shaft_length, 0.0f, shaft_length};
+    Float3 xy_plane = {shaft_length, shaft_length, 0.0f};
 
-    Vector3 yz_plane_extents = {plane_thickness, plane_extent, plane_extent};
-    Vector3 xz_plane_extents = {plane_extent, plane_thickness, plane_extent};
-    Vector3 xy_plane_extents = {plane_extent, plane_extent, plane_thickness};
+    Float3 yz_plane_extents = {plane_thickness, plane_extent, plane_extent};
+    Float3 xz_plane_extents = {plane_extent, plane_thickness, plane_extent};
+    Float3 xy_plane_extents = {plane_extent, plane_extent, plane_thickness};
 
     immediate::add_cone(shaft_axis_x, head_axis_x, head_radius, x_axis_colour, x_axis_shadow_colour);
-    immediate::add_cylinder(vector3_zero, shaft_axis_x, shaft_radius, x_axis_colour);
+    immediate::add_cylinder(float3_zero, shaft_axis_x, shaft_radius, x_axis_colour);
 
     immediate::add_cone(shaft_axis_y, head_axis_y, head_radius, y_axis_colour, y_axis_shadow_colour);
-    immediate::add_cylinder(vector3_zero, shaft_axis_y, shaft_radius, y_axis_colour);
+    immediate::add_cylinder(float3_zero, shaft_axis_y, shaft_radius, y_axis_colour);
 
     immediate::add_cone(shaft_axis_z, head_axis_z, head_radius, z_axis_colour, z_axis_shadow_colour);
-    immediate::add_cylinder(vector3_zero, shaft_axis_z, shaft_radius, z_axis_colour);
+    immediate::add_cylinder(float3_zero, shaft_axis_z, shaft_radius, z_axis_colour);
 
     immediate::add_box(yz_plane, yz_plane_extents, yz_plane_colour);
     immediate::add_box(xz_plane, xz_plane_extents, xz_plane_colour);
     immediate::add_box(xy_plane, xy_plane_extents, xy_plane_colour);
 
-    immediate::add_sphere(vector3_zero, ball_radius, ball_colour);
+    immediate::add_sphere(float3_zero, ball_radius, ball_colour);
 
     immediate::draw();
 }
 
-static void draw_arrow(Vector3 start, Vector3 end, float shaft_radius, float head_height, float head_radius)
+static void draw_arrow(Float3 start, Float3 end, float shaft_radius, float head_height, float head_radius)
 {
-    Vector4 colour = {0.9f, 0.9f, 0.9f, 1.0f};
-    Vector4 shadow_colour = {0.5f, 0.5f, 0.5f, 1.0f};
-    Vector3 arrow = end - start;
-    float distance = length(arrow);
+    Float4 colour = {0.9f, 0.9f, 0.9f, 1.0f};
+    Float4 shadow_colour = {0.5f, 0.5f, 0.5f, 1.0f};
+    Float3 arrow = float3_subtract(end, start);
+    float distance = float3_length(arrow);
     if(distance > 0.0f)
     {
-        Vector3 direction = arrow / distance;
-        Vector3 shaft = (distance - head_height) * direction + start;
-        Vector3 head_axis = head_height * direction;
+        Float3 direction = float3_divide(arrow, distance);
+        Float3 shaft = float3_madd(distance - head_height, direction, start);
+        Float3 head_axis = float3_multiply(head_height, direction);
         immediate::add_cone(shaft, head_axis, head_radius, colour, shadow_colour);
         immediate::add_cylinder(start, shaft, shaft_radius, colour);
     }
@@ -522,7 +522,7 @@ static void draw_move_tool_vectors(MoveTool* tool)
     float head_height = scale * tool->head_height;
     float head_radius = scale * tool->head_radius;
 
-    Vector3 reference = tool->reference_position;
+    Float3 reference = tool->reference_position;
 
     if(is_valid_index(tool->selected_axis))
     {
@@ -532,29 +532,29 @@ static void draw_move_tool_vectors(MoveTool* tool)
     {
         draw_arrow(reference, tool->position, shaft_radius, head_height, head_radius);
 
-        Vector3 move = reference - tool->position;
+        Float3 move = float3_subtract(reference, tool->position);
 
-        Vector3 normal;
+        Float3 normal;
         switch(tool->selected_plane)
         {
             case 0:
             {
-                normal = vector3_unit_y;
+                normal = float3_unit_y;
                 break;
             }
             case 1:
             {
-                normal = vector3_unit_x;
+                normal = float3_unit_x;
                 break;
             }
             case 2:
             {
-                normal = vector3_unit_x;
+                normal = float3_unit_x;
                 break;
             }
         }
-        normal = tool->orientation * normal;
-        Vector3 corner = reject(move, normal) + tool->position;
+        normal = quaternion_rotate(tool->orientation, normal);
+        Float3 corner = float3_add(float3_reject(move, normal), tool->position);
         draw_arrow(reference, corner, shaft_radius, head_height, head_radius);
         draw_arrow(corner, tool->position, shaft_radius, head_height, head_radius);
     }
@@ -567,71 +567,71 @@ void draw_rotate_tool(bool silhouetted)
     const float radius = 2.0f;
     const float width = 0.3f;
 
-    Vector4 x_axis_colour = {1.0f, 0.0314f, 0.0314f, 1.0f};
-    Vector4 y_axis_colour = {0.3569f, 1.0f, 0.0f, 1.0f};
-    Vector4 z_axis_colour = {0.0863f, 0.0314f, 1.0f, 1.0f};
+    Float4 x_axis_colour = {1.0f, 0.0314f, 0.0314f, 1.0f};
+    Float4 y_axis_colour = {0.3569f, 1.0f, 0.0f, 1.0f};
+    Float4 z_axis_colour = {0.0863f, 0.0314f, 1.0f, 1.0f};
 
-    Vector3 center = {-1.0f, 2.0f, 0.0f};
+    Float3 center = {-1.0f, 2.0f, 0.0f};
 
-    immediate::add_arc(center, vector3_unit_x, pi_over_2, -pi_over_2, radius, width, x_axis_colour);
-    immediate::add_arc(center, -vector3_unit_x, pi_over_2, pi, radius, width, x_axis_colour);
+    immediate::add_arc(center, float3_unit_x, pi_over_2, -pi_over_2, radius, width, x_axis_colour);
+    immediate::add_arc(center, float3_negate(float3_unit_x), pi_over_2, pi, radius, width, x_axis_colour);
 
-    immediate::add_arc(center, vector3_unit_y, pi_over_2, -pi_over_2, radius, width, y_axis_colour);
-    immediate::add_arc(center, -vector3_unit_y, pi_over_2, pi, radius, width, y_axis_colour);
+    immediate::add_arc(center, float3_unit_y, pi_over_2, -pi_over_2, radius, width, y_axis_colour);
+    immediate::add_arc(center, float3_negate(float3_unit_y), pi_over_2, pi, radius, width, y_axis_colour);
 
-    immediate::add_arc(center, vector3_unit_z, pi_over_2, pi_over_2, radius, width, z_axis_colour);
-    immediate::add_arc(center, -vector3_unit_z, pi_over_2, 0.0f, radius, width, z_axis_colour);
+    immediate::add_arc(center, float3_unit_z, pi_over_2, pi_over_2, radius, width, z_axis_colour);
+    immediate::add_arc(center, float3_negate(float3_unit_z), pi_over_2, 0.0f, radius, width, z_axis_colour);
 
     immediate::draw();
 }
 
 void draw_scale_tool(bool silhouetted)
 {
-    const float shaft_length = 2.0f * sqrt(3.0f);
+    const float shaft_length = 2.0f * sqrtf(3.0f);
     const float shaft_radius = 0.125f;
     const float knob_extent = 0.3333f;
     const float brace = 0.6666f * shaft_length;
     const float brace_radius = shaft_radius / 2.0f;
 
-    Vector3 knob_extents = {knob_extent, knob_extent, knob_extent};
+    Float3 knob_extents = {knob_extent, knob_extent, knob_extent};
 
-    Vector3 shaft_axis_x = {shaft_length, 0.0f, 0.0f};
-    Vector3 shaft_axis_y = {0.0f, shaft_length, 0.0f};
-    Vector3 shaft_axis_z = {0.0f, 0.0f, shaft_length};
+    Float3 shaft_axis_x = {shaft_length, 0.0f, 0.0f};
+    Float3 shaft_axis_y = {0.0f, shaft_length, 0.0f};
+    Float3 shaft_axis_z = {0.0f, 0.0f, shaft_length};
 
-    Vector3 brace_x = {brace, 0.0f, 0.0f};
-    Vector3 brace_y = {0.0f, brace, 0.0f};
-    Vector3 brace_z = {0.0f, 0.0f, brace};
-    Vector3 brace_xy = (brace_x + brace_y) / 2.0f;
-    Vector3 brace_yz = (brace_y + brace_z) / 2.0f;
-    Vector3 brace_xz = (brace_x + brace_z) / 2.0f;
+    Float3 brace_x = {brace, 0.0f, 0.0f};
+    Float3 brace_y = {0.0f, brace, 0.0f};
+    Float3 brace_z = {0.0f, 0.0f, brace};
+    Float3 brace_xy = float3_divide(float3_add(brace_x, brace_y), 2.0f);
+    Float3 brace_yz = float3_divide(float3_add(brace_y, brace_z), 2.0f);
+    Float3 brace_xz = float3_divide(float3_add(brace_x, brace_z), 2.0f);
 
-    const Vector4 origin_colour = {0.9f, 0.9f, 0.9f, 1.0f};
-    const Vector4 x_axis_colour = {1.0f, 0.0314f, 0.0314f, 1.0f};
-    const Vector4 y_axis_colour = {0.3569f, 1.0f, 0.0f, 1.0f};
-    const Vector4 z_axis_colour = {0.0863f, 0.0314f, 1.0f, 1.0f};
+    const Float4 origin_colour = {0.9f, 0.9f, 0.9f, 1.0f};
+    const Float4 x_axis_colour = {1.0f, 0.0314f, 0.0314f, 1.0f};
+    const Float4 y_axis_colour = {0.3569f, 1.0f, 0.0f, 1.0f};
+    const Float4 z_axis_colour = {0.0863f, 0.0314f, 1.0f, 1.0f};
 
-    immediate::add_cylinder(vector3_zero, shaft_axis_x, shaft_radius, x_axis_colour);
+    immediate::add_cylinder(float3_zero, shaft_axis_x, shaft_radius, x_axis_colour);
     immediate::add_box(shaft_axis_x, knob_extents, x_axis_colour);
     immediate::add_cylinder(brace_x, brace_xy, brace_radius, x_axis_colour);
     immediate::add_cylinder(brace_x, brace_xz, brace_radius, x_axis_colour);
 
-    immediate::add_cylinder(vector3_zero, shaft_axis_y, shaft_radius, y_axis_colour);
+    immediate::add_cylinder(float3_zero, shaft_axis_y, shaft_radius, y_axis_colour);
     immediate::add_box(shaft_axis_y, knob_extents, y_axis_colour);
     immediate::add_cylinder(brace_y, brace_xy, brace_radius, y_axis_colour);
     immediate::add_cylinder(brace_y, brace_yz, brace_radius, y_axis_colour);
 
-    immediate::add_cylinder(vector3_zero, shaft_axis_z, shaft_radius, z_axis_colour);
+    immediate::add_cylinder(float3_zero, shaft_axis_z, shaft_radius, z_axis_colour);
     immediate::add_box(shaft_axis_z, knob_extents, z_axis_colour);
     immediate::add_cylinder(brace_z, brace_xz, brace_radius, z_axis_colour);
     immediate::add_cylinder(brace_z, brace_yz, brace_radius, z_axis_colour);
 
-    immediate::add_box(vector3_zero, knob_extents, origin_colour);
+    immediate::add_box(float3_zero, knob_extents, origin_colour);
 
     immediate::draw();
 }
 
-static void draw_object_with_halo(ObjectLady* lady, int index, Vector4 colour)
+static void draw_object_with_halo(ObjectLady* lady, int index, Float4 colour)
 {
     ASSERT(index != invalid_index);
     ASSERT(index >= 0 && index < array_count(lady->objects));
@@ -649,15 +649,15 @@ static void draw_object_with_halo(ObjectLady* lady, int index, Vector4 colour)
 
     glStencilFunc(GL_ALWAYS, 1, 0xff);
 
-    glUniformMatrix4fv(shader_lit.model_view_projection, 1, GL_TRUE, object.model_view_projection.elements);
-    glUniformMatrix4fv(shader_lit.normal_matrix, 1, GL_TRUE, object.normal.elements);
+    glUniformMatrix4fv(shader_lit.model_view_projection, 1, GL_TRUE, object.model_view_projection.e);
+    glUniformMatrix4fv(shader_lit.normal_matrix, 1, GL_TRUE, object.normal.e);
     glBindVertexArray(object.vertex_array);
     glDrawElements(GL_TRIANGLES, object.indices_count, GL_UNSIGNED_SHORT, nullptr);
 
     // Draw the halo.
     glUseProgram(shader_halo.program);
 
-    glUniform4fv(shader_halo.halo_colour, 1, &colour[0]);
+    glUniform4fv(shader_halo.halo_colour, 1, &colour.e[0]);
 
     glStencilFunc(GL_NOTEQUAL, 1, 0xff);
     glStencilMask(0x00);
@@ -665,7 +665,7 @@ static void draw_object_with_halo(ObjectLady* lady, int index, Vector4 colour)
     glLineWidth(3.0f);
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-    glUniformMatrix4fv(shader_halo.model_view_projection, 1, GL_TRUE, object.model_view_projection.elements);
+    glUniformMatrix4fv(shader_halo.model_view_projection, 1, GL_TRUE, object.model_view_projection.e);
     glBindVertexArray(object.vertex_array);
     glDrawElements(GL_TRIANGLES, object.indices_count, GL_UNSIGNED_SHORT, nullptr);
 
@@ -676,12 +676,12 @@ static void draw_object_with_halo(ObjectLady* lady, int index, Vector4 colour)
 
 static void draw_selection_object(Object* object, Object* pointcloud, Object* wireframe, Matrix4 projection)
 {
-    const Vector4 colour = {1.0f, 0.5f, 0.0f, 0.8f};
+    const Float4 colour = {1.0f, 0.5f, 0.0f, 0.8f};
 
     // Draw selected faces.
     glUseProgram(shader_halo.program);
 
-    glUniform4fv(shader_halo.halo_colour, 1, &colour[0]);
+    glUniform4fv(shader_halo.halo_colour, 1, &colour.e[0]);
 
     glDepthFunc(GL_EQUAL);
     glDepthMask(GL_FALSE);
@@ -691,7 +691,7 @@ static void draw_selection_object(Object* object, Object* pointcloud, Object* wi
 
     if(object)
     {
-        glUniformMatrix4fv(shader_halo.model_view_projection, 1, GL_TRUE, object->model_view_projection.elements);
+        glUniformMatrix4fv(shader_halo.model_view_projection, 1, GL_TRUE, object->model_view_projection.e);
         glBindVertexArray(object->vertex_array);
         glDrawElements(GL_TRIANGLES, object->indices_count, GL_UNSIGNED_SHORT, nullptr);
     }
@@ -710,8 +710,8 @@ static void draw_selection_object(Object* object, Object* pointcloud, Object* wi
 
     if(wireframe)
     {
-        glUniformMatrix4fv(shader_line.model_view_projection, 1, GL_TRUE, wireframe->model_view_projection.elements);
-        glUniform1f(shader_line.projection_factor, projection[0]);
+        glUniformMatrix4fv(shader_line.model_view_projection, 1, GL_TRUE, wireframe->model_view_projection.e);
+        glUniform1f(shader_line.projection_factor, projection.e[0]);
         glBindVertexArray(wireframe->vertex_array);
         glDrawElements(GL_TRIANGLES, wireframe->indices_count, GL_UNSIGNED_SHORT, nullptr);
     }
@@ -727,8 +727,8 @@ static void draw_selection_object(Object* object, Object* pointcloud, Object* wi
 
     if(pointcloud)
     {
-        glUniformMatrix4fv(shader_point.model_view_projection, 1, GL_TRUE, pointcloud->model_view_projection.elements);
-        glUniform1f(shader_point.projection_factor, projection[0]);
+        glUniformMatrix4fv(shader_point.model_view_projection, 1, GL_TRUE, pointcloud->model_view_projection.e);
+        glUniform1f(shader_point.projection_factor, projection.e[0]);
         glBindVertexArray(pointcloud->vertex_array);
         glDrawElements(GL_TRIANGLES, pointcloud->indices_count, GL_UNSIGNED_SHORT, nullptr);
     }
@@ -761,13 +761,13 @@ void system_update(UpdateState* update, Platform* platform)
 
     // Update matrices.
     {
-        projection = perspective_projection_matrix(camera->field_of_view, viewport.x, viewport.y, camera->near_plane, camera->far_plane);
+        projection = matrix4_perspective_projection(camera->field_of_view, viewport.x, viewport.y, camera->near_plane, camera->far_plane);
 
-        Vector3 direction = normalise(camera->target - camera->position);
-        Matrix4 view = look_at_matrix(vector3_zero, direction, vector3_unit_z);
+        Float3 direction = float3_normalise(float3_subtract(camera->target, camera->position));
+        Matrix4 view = matrix4_look_at(float3_zero, direction, float3_unit_z);
         object_set_matrices(&sky, view, sky_projection);
 
-        view = look_at_matrix(camera->position, camera->target, vector3_unit_z);
+        view = matrix4_look_at(camera->position, camera->target, float3_unit_z);
 
         FOR_ALL(Object, objects.array)
         {
@@ -778,11 +778,11 @@ void system_update(UpdateState* update, Platform* platform)
 
         // Update light parameters.
 
-        Vector3 light_direction = {0.7f, 0.4f, -1.0f};
-        light_direction = normalise(-transform_vector(view, light_direction));
+        Float3 light_direction = {0.7f, 0.4f, -1.0f};
+        light_direction = float3_normalise(float3_negate(matrix4_transform_vector(view, light_direction)));
 
         glUseProgram(shader_lit.program);
-        glUniform3fv(shader_lit.light_direction, 1, &light_direction[0]);
+        glUniform3fv(shader_lit.light_direction, 1, &light_direction.e[0]);
     }
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -797,8 +797,8 @@ void system_update(UpdateState* update, Platform* platform)
             continue;
         }
         Object object = *get_object(lady->objects[i].video_object);
-        glUniformMatrix4fv(shader_lit.model_view_projection, 1, GL_TRUE, object.model_view_projection.elements);
-        glUniformMatrix4fv(shader_lit.normal_matrix, 1, GL_TRUE, object.normal.elements);
+        glUniformMatrix4fv(shader_lit.model_view_projection, 1, GL_TRUE, object.model_view_projection.e);
+        glUniformMatrix4fv(shader_lit.normal_matrix, 1, GL_TRUE, object.normal.e);
         glBindVertexArray(object.vertex_array);
         glDrawElements(GL_TRIANGLES, object.indices_count, GL_UNSIGNED_SHORT, nullptr);
     }
@@ -806,18 +806,18 @@ void system_update(UpdateState* update, Platform* platform)
     // Draw the selected and hovered models.
     if(is_valid_index(selected_object_index))
     {
-        draw_object_with_halo(lady, selected_object_index, vector4_white);
+        draw_object_with_halo(lady, selected_object_index, float4_white);
     }
     if(is_valid_index(hovered_object_index) && hovered_object_index != selected_object_index)
     {
-        draw_object_with_halo(lady, hovered_object_index, vector4_yellow);
+        draw_object_with_halo(lady, hovered_object_index, float4_yellow);
     }
 
     glUseProgram(shader_lit.program);
 
     // rotate tool
     {
-        Matrix4 view = look_at_matrix(camera->position, camera->target, vector3_unit_z);
+        Matrix4 view = matrix4_look_at(camera->position, camera->target, float3_unit_z);
         immediate::set_matrices(view, projection);
         draw_rotate_tool(false);
     }
@@ -825,8 +825,8 @@ void system_update(UpdateState* update, Platform* platform)
     // move tool
     if(is_valid_index(selected_object_index))
     {
-        Matrix4 model = compose_transform(move_tool->position, move_tool->orientation, set_all_vector3(move_tool->scale));
-        Matrix4 view = look_at_matrix(camera->position, camera->target, vector3_unit_z);
+        Matrix4 model = matrix4_compose_transform(move_tool->position, move_tool->orientation, float3_set_all(move_tool->scale));
+        Matrix4 view = matrix4_look_at(camera->position, camera->target, float3_unit_z);
 
         // silhouette
         glDisable(GL_DEPTH_TEST);
@@ -835,7 +835,7 @@ void system_update(UpdateState* update, Platform* platform)
         glBindTexture(GL_TEXTURE_2D, hatch_pattern);
         glBindSampler(0, linear_repeat);
 
-        immediate::set_matrices(view * model, projection);
+        immediate::set_matrices(matrix4_multiply(view, model), projection);
         draw_move_tool(move_tool, true);
 
         immediate::set_matrices(view, projection);
@@ -845,7 +845,7 @@ void system_update(UpdateState* update, Platform* platform)
         glEnable(GL_DEPTH_TEST);
         immediate::set_shader(shader_vertex_colour.program);
 
-        immediate::set_matrices(view * model, projection);
+        immediate::set_matrices(matrix4_multiply(view, model), projection);
         draw_move_tool(move_tool, false);
 
         immediate::set_matrices(view, projection);
@@ -857,7 +857,7 @@ void system_update(UpdateState* update, Platform* platform)
         glDepthFunc(GL_EQUAL);
         glDepthRange(1.0, 1.0);
         glUseProgram(shader_vertex_colour.program);
-        glUniformMatrix4fv(shader_vertex_colour.model_view_projection, 1, GL_TRUE, sky.model_view_projection.elements);
+        glUniformMatrix4fv(shader_vertex_colour.model_view_projection, 1, GL_TRUE, sky.model_view_projection.e);
         glBindVertexArray(sky.vertex_array);
         glDrawElements(GL_TRIANGLES, sky.indices_count, GL_UNSIGNED_SHORT, nullptr);
         glDepthFunc(GL_LESS);
@@ -894,19 +894,19 @@ void system_update(UpdateState* update, Platform* platform)
         glBindTexture(GL_TEXTURE_2D, line_pattern);
         glBindSampler(0, linear_mipmap_repeat);
 
-        const Vector4 x_axis_colour = {1.0f, 0.0314f, 0.0314f, 1.0f};
-        const Vector4 y_axis_colour = {0.3569f, 1.0f, 0.0f, 1.0f};
-        const Vector4 z_axis_colour = {0.0863f, 0.0314f, 1.0f, 1.0f};
+        const Float4 x_axis_colour = {1.0f, 0.0314f, 0.0314f, 1.0f};
+        const Float4 y_axis_colour = {0.3569f, 1.0f, 0.0f, 1.0f};
+        const Float4 z_axis_colour = {0.0863f, 0.0314f, 1.0f, 1.0f};
 
-        Vector3 center = rotate_tool->position;
+        Float3 center = rotate_tool->position;
         float radius = rotate_tool->radius;
 
         glUseProgram(shader_line.program);
         glUniform1f(shader_line.line_width, 8.0f);
 
-        immediate::add_wire_arc(center, vector3_unit_x, pi, rotate_tool->angles[0], radius, x_axis_colour);
-        immediate::add_wire_arc(center, vector3_unit_y, pi, rotate_tool->angles[1], radius, y_axis_colour);
-        immediate::add_wire_arc(center, vector3_unit_z, pi, rotate_tool->angles[2], radius, z_axis_colour);
+        immediate::add_wire_arc(center, float3_unit_x, pi, rotate_tool->angles[0], radius, x_axis_colour);
+        immediate::add_wire_arc(center, float3_unit_y, pi, rotate_tool->angles[1], radius, y_axis_colour);
+        immediate::add_wire_arc(center, float3_unit_z, pi, rotate_tool->angles[2], radius, z_axis_colour);
         immediate::set_blend_mode(immediate::BlendMode::Transparent);
         immediate::draw();
 
@@ -918,16 +918,16 @@ void system_update(UpdateState* update, Platform* platform)
         const int scale = 40;
         const int padding = 10;
 
-        const Vector3 x_axis = {sqrt(3.0f) / 2.0f, 0.0f, 0.0f};
-        const Vector3 y_axis = {0.0f, sqrt(3.0f) / 2.0f, 0.0f};
-        const Vector3 z_axis = {0.0f, 0.0f, sqrt(3.0f) / 2.0f};
+        const Float3 x_axis = {sqrt(3.0f) / 2.0f, 0.0f, 0.0f};
+        const Float3 y_axis = {0.0f, sqrt(3.0f) / 2.0f, 0.0f};
+        const Float3 z_axis = {0.0f, 0.0f, sqrt(3.0f) / 2.0f};
 
-        const Vector4 x_axis_colour = {1.0f, 0.0314f, 0.0314f, 1.0f};
-        const Vector4 y_axis_colour = {0.3569f, 1.0f, 0.0f, 1.0f};
-        const Vector4 z_axis_colour = {0.0863f, 0.0314f, 1.0f, 1.0f};
-        const Vector4 x_axis_shadow_colour = {0.7f, 0.0314f, 0.0314f, 1.0f};
-        const Vector4 y_axis_shadow_colour = {0.3569f, 0.7f, 0.0f, 1.0f};
-        const Vector4 z_axis_shadow_colour = {0.0863f, 0.0314f, 0.7f, 1.0f};
+        const Float4 x_axis_colour = {1.0f, 0.0314f, 0.0314f, 1.0f};
+        const Float4 y_axis_colour = {0.3569f, 1.0f, 0.0f, 1.0f};
+        const Float4 z_axis_colour = {0.0863f, 0.0314f, 1.0f, 1.0f};
+        const Float4 x_axis_shadow_colour = {0.7f, 0.0314f, 0.0314f, 1.0f};
+        const Float4 y_axis_shadow_colour = {0.3569f, 0.7f, 0.0f, 1.0f};
+        const Float4 z_axis_shadow_colour = {0.0863f, 0.0314f, 0.7f, 1.0f};
 
         int corner_x = viewport.x - scale - padding;
         int corner_y = padding;
@@ -937,17 +937,21 @@ void system_update(UpdateState* update, Platform* platform)
         const float across = 3.0f * sqrt(3.0f);
         const float extent = across / 2.0f;
 
-        Vector3 direction = normalise(camera->target - camera->position);
-        Matrix4 view = look_at_matrix(vector3_zero, direction, vector3_unit_z);
-        Matrix4 axis_projection = orthographic_projection_matrix(across, across, -extent, extent);
+        Float3 direction = float3_normalise(float3_subtract(camera->target, camera->position));
+        Matrix4 view = matrix4_look_at(float3_zero, direction, float3_unit_z);
+        Matrix4 axis_projection = matrix4_orthographic_projection(across, across, -extent, extent);
         immediate::set_matrices(view, axis_projection);
 
-        immediate::add_cone(2.0f * x_axis, x_axis, 0.5f, x_axis_colour, x_axis_shadow_colour);
-        immediate::add_cylinder(vector3_zero, 2.0f * x_axis, 0.125f, x_axis_colour);
-        immediate::add_cone(2.0f * y_axis, y_axis, 0.5f, y_axis_colour, y_axis_shadow_colour);
-        immediate::add_cylinder(vector3_zero, 2.0f * y_axis, 0.125f, y_axis_colour);
-        immediate::add_cone(2.0f * z_axis, z_axis, 0.5f, z_axis_colour, z_axis_shadow_colour);
-        immediate::add_cylinder(vector3_zero, 2.0f * z_axis, 0.125f, z_axis_colour);
+        Float3 double_x = float3_multiply(2.0f, x_axis);
+        Float3 double_y = float3_multiply(2.0f, y_axis);
+        Float3 double_z = float3_multiply(2.0f, z_axis);
+
+        immediate::add_cone(double_x, x_axis, 0.5f, x_axis_colour, x_axis_shadow_colour);
+        immediate::add_cylinder(float3_zero, double_x, 0.125f, x_axis_colour);
+        immediate::add_cone(double_y, y_axis, 0.5f, y_axis_colour, y_axis_shadow_colour);
+        immediate::add_cylinder(float3_zero, double_y, 0.125f, y_axis_colour);
+        immediate::add_cone(double_z, z_axis, 0.5f, z_axis_colour, z_axis_shadow_colour);
+        immediate::add_cylinder(float3_zero, double_z, 0.125f, z_axis_colour);
         immediate::draw();
     }
 
@@ -1001,8 +1005,8 @@ void resize_viewport(Int2 dimensions, double dots_per_millimeter, float fov)
 {
     int width = dimensions.x;
     int height = dimensions.y;
-    sky_projection = perspective_projection_matrix(fov, width, height, 0.001f, 1.0f);
-    screen_projection = orthographic_projection_matrix(width, height, -1.0f, 1.0f);
+    sky_projection = matrix4_perspective_projection(fov, width, height, 0.001f, 1.0f);
+    screen_projection = matrix4_orthographic_projection(width, height, -1.0f, 1.0f);
 
     // Update any shaders that use the viewport dimensions.
     glUseProgram(shader_screen_pattern.program);

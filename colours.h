@@ -3,22 +3,22 @@
 
 #include "vector_math.h"
 
-extern const Vector3 vector3_red;
-extern const Vector3 vector3_green;
-extern const Vector3 vector3_blue;
-extern const Vector3 vector3_cyan;
-extern const Vector3 vector3_magenta;
-extern const Vector3 vector3_yellow;
-extern const Vector3 vector3_black;
-extern const Vector3 vector3_white;
+extern const Float3 float3_red;
+extern const Float3 float3_green;
+extern const Float3 float3_blue;
+extern const Float3 float3_cyan;
+extern const Float3 float3_magenta;
+extern const Float3 float3_yellow;
+extern const Float3 float3_black;
+extern const Float3 float3_white;
 
-extern const Vector4 vector4_red;
-extern const Vector4 vector4_green;
-extern const Vector4 vector4_blue;
-extern const Vector4 vector4_cyan;
-extern const Vector4 vector4_magenta;
-extern const Vector4 vector4_yellow;
-extern const Vector4 vector4_black;
-extern const Vector4 vector4_white;
+extern const Float4 float4_red;
+extern const Float4 float4_green;
+extern const Float4 float4_blue;
+extern const Float4 float4_cyan;
+extern const Float4 float4_magenta;
+extern const Float4 float4_yellow;
+extern const Float4 float4_black;
+extern const Float4 float4_white;
 
 #endif // COLOURS_H_

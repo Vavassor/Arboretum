@@ -423,7 +423,7 @@ static void import_file(FilePickDialog* dialog, const char* name, ObjectLady* la
         imported_model->mesh = mesh;
         object_set_position(imported_model, {-2.0f, 0.0f, 0.0f});
 
-        jan::colour_all_faces(&imported_model->mesh, vector3_magenta);
+        jan::colour_all_faces(&imported_model->mesh, float3_magenta);
         video::Object* video_object = video::get_object(imported_model->video_object);
         video::object_update_mesh(video_object, &imported_model->mesh, heap);
 
