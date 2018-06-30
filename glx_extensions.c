@@ -3,14 +3,14 @@
 #include "string_utilities.h"
 
 // Internal Get Procedure Address
-#define IntGetProcAddress(name)\
-    glXGetProcAddressARB(reinterpret_cast<const GLubyte*>(name))
+#define IntGetProcAddress(name) \
+    glXGetProcAddressARB((const GLubyte*) name)
 
 // GLX_EXT_swap_control........................................................
 
 bool have_ext_swap_control;
 
-void (*ptrc_glXSwapIntervalEXT)(Display*, GLXDrawable, int) = nullptr;
+void (*ptrc_glXSwapIntervalEXT)(Display*, GLXDrawable, int) = NULL;
 
 static int load_ext_swap_control()
 {
@@ -24,16 +24,16 @@ static int load_ext_swap_control()
 
 typedef int (*ExtensionLoadCall)();
 
-struct ExtensionMapping
+typedef struct ExtensionMapping
 {
     const char* name;
     ExtensionLoadCall load_extension;
     bool* loaded;
-};
+} ExtensionMapping;
 
-static const int extension_map_count = 1;
+#define EXTENSION_MAP_COUNT 1
 
-static ExtensionMapping extension_map[extension_map_count] =
+static ExtensionMapping extension_map[EXTENSION_MAP_COUNT] =
 {
     {"GLX_EXT_swap_control", load_ext_swap_control, &have_ext_swap_control},
 };
@@ -50,7 +50,7 @@ void load_glx_extensions(Display* display, int screen)
     clear_extension_variables();
 
     const char* extensions_string = glXQueryExtensionsString(display, screen);
-    for(int i = 0; i < extension_map_count; ++i)
+    for(int i = 0; i < EXTENSION_MAP_COUNT; i += 1)
     {
         if(find_string(extensions_string, extension_map[i].name) && extension_map[i].load_extension)
         {

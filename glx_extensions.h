@@ -1,8 +1,11 @@
-#pragma once
+#ifndef GLX_EXTENSIONS_H_
+#define GLX_EXTENSIONS_H_
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <GL/glx.h>
+
+#include <stdbool.h>
 
 // GLX_EXT_swap_control........................................................
 
@@ -17,3 +20,5 @@ extern void (*ptrc_glXSwapIntervalEXT)(Display* display, GLXDrawable drawable, i
 // Load GLX Extensions.........................................................
 
 void load_glx_extensions(Display* display, int screen);
+
+#endif // GLX_EXTENSIONS_H_

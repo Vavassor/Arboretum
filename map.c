@@ -3,18 +3,15 @@
 #include "assert.h"
 #include "memory.h"
 
-namespace
-{
-    // signifies an empty key slot
-    const void* empty = 0;
+// signifies an empty key slot
+static const void* empty = 0;
 
-    // signifies that the overflow slot is empty
-    const void* overflow_empty = reinterpret_cast<void*>(1);
+// signifies that the overflow slot is empty
+static const void* overflow_empty = ((void*) 1);
 
-    // This value is used to indicate an invalid iterator, or one that's reached
-    // the end of iteration.
-    const int end_index = -1;
-}
+// This value is used to indicate an invalid iterator, or one that's reached the
+// end of iteration.
+static const int end_index = -1;
 
 static bool is_power_of_two(unsigned int x)
 {
@@ -69,8 +66,8 @@ void map_create(Map* map, int cap, Heap* heap)
     map->hashes = HEAP_ALLOCATE(heap, uint32_t, cap);
 
     int overflow_index = cap;
-    map->keys[overflow_index] = const_cast<void*>(overflow_empty);
-    map->values[overflow_index] = nullptr;
+    map->keys[overflow_index] = (void*) overflow_empty;
+    map->values[overflow_index] = NULL;
 }
 
 void map_destroy(Map* map, Heap* heap)
@@ -94,8 +91,8 @@ void map_clear(Map* map)
     set_memory(map->hashes, 0, sizeof(*map->hashes) * cap);
 
     int overflow_index = cap;
-    map->keys[overflow_index] = const_cast<void*>(overflow_empty);
-    map->values[overflow_index] = nullptr;
+    map->keys[overflow_index] = (void*) overflow_empty;
+    map->values[overflow_index] = NULL;
 
     map->count = 0;
 }
@@ -129,7 +126,7 @@ bool map_get(Map* map, void* key, void** value)
         }
     }
 
-    uint32_t hash = hash_key(reinterpret_cast<uint64_t>(key));
+    uint32_t hash = hash_key((uint64_t) key);
     int slot = find_slot(map->keys, map->cap, key, hash);
 
     bool got = map->keys[slot] == key;
@@ -191,7 +188,7 @@ void map_add(Map* map, void* key, void* value, Heap* heap)
         map_grow(map, 2 * map->cap, heap);
     }
 
-    uint32_t hash = hash_key(reinterpret_cast<uint64_t>(key));
+    uint32_t hash = hash_key((uint64_t) key);
     int slot = find_slot(map->keys, map->cap, key, hash);
     map->keys[slot] = key;
     map->values[slot] = value;
@@ -220,14 +217,14 @@ void map_remove(Map* map, void* key)
         int overflow_index = map->cap;
         if(map->keys[overflow_index] == key)
         {
-            map->keys[overflow_index] = const_cast<void*>(overflow_empty);
-            map->values[overflow_index] = nullptr;
+            map->keys[overflow_index] = (void*) overflow_empty;
+            map->values[overflow_index] = NULL;
             map->count -= 1;
         }
         return;
     }
 
-    uint32_t hash = hash_key(reinterpret_cast<uint64_t>(key));
+    uint32_t hash = hash_key((uint64_t) key);
     int slot = find_slot(map->keys, map->cap, key, hash);
     if(map->keys[slot] == empty)
     {
@@ -240,7 +237,7 @@ void map_remove(Map* map, void* key)
     // to find it. So, look for any such keys and shuffle those pairs down.
     for(int i = slot, j = slot;; i = j)
     {
-        map->keys[i] = const_cast<void*>(empty);
+        map->keys[i] = (void*) empty;
         int k;
         do
         {
@@ -276,27 +273,27 @@ MapIterator map_iterator_next(MapIterator it)
         index += 1;
         if(index >= it.map->cap)
         {
-            if(index == it.map->cap &&
-                it.map->keys[it.map->cap] != overflow_empty)
+            if(index == it.map->cap
+                    && it.map->keys[it.map->cap] != overflow_empty)
             {
-                return {it.map, it.map->cap};
+                return (MapIterator){it.map, it.map->cap};
             }
-            return {it.map, end_index};
+            return (MapIterator){it.map, end_index};
         }
     } while(it.map->keys[index] == empty);
 
-    return {it.map, index};
+    return (MapIterator){it.map, index};
 }
 
 MapIterator map_iterator_start(Map* map)
 {
     if(map->count > 0)
     {
-        return {map, 0};
+        return (MapIterator){map, 0};
     }
     else
     {
-        return {map, end_index};
+        return (MapIterator){map, end_index};
     }
 }
 

@@ -311,7 +311,7 @@ Float3 float2_make_float3(Float2 v)
 
 Float4 float4_make_vector4(Float3 v)
 {
-    return (Float4){v.x, v.y, v.z, 0.0f};
+    return (Float4){{v.x, v.y, v.z, 0.0f}};
 }
 
 Float3 float3_set_all(float x)

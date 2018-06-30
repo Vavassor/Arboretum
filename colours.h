@@ -1,6 +1,10 @@
 #ifndef COLOURS_H_
 #define COLOURS_H_
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #include "vector_math.h"
 
 extern const Float3 float3_red;
@@ -20,5 +24,9 @@ extern const Float4 float4_magenta;
 extern const Float4 float4_yellow;
 extern const Float4 float4_black;
 extern const Float4 float4_white;
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
 
 #endif // COLOURS_H_

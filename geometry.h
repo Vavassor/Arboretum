@@ -1,26 +1,32 @@
 #ifndef GEOMETRY_H_
 #define GEOMETRY_H_
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #include "vector_math.h"
 
-struct Rect
+#include <stdbool.h>
+
+typedef struct Rect
 {
     Float2 bottom_left;
     Float2 dimensions;
-};
+} Rect;
 
-struct Triangle
+typedef struct Triangle
 {
     // assumes counter-clockwise winding for the front face
     Float3 vertices[3];
-};
+} Triangle;
 
-struct Quad
+typedef struct Quad
 {
     // assumes counter-clockwise winding for the front face
     // also, there's nothing guaranteeing these are coplanar
     Float3 vertices[4];
-};
+} Quad;
 
 Quad rect_to_quad(Rect r);
 Float2 rect_top_left(Rect rect);
@@ -30,5 +36,9 @@ float rect_top(Rect rect);
 float rect_right(Rect rect);
 bool point_in_rect(Rect rect, Float2 point);
 bool clip_rects(Rect inner, Rect outer, Rect* result);
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
 
 #endif // GEOMETRY_H_

@@ -10,16 +10,16 @@ Quad rect_to_quad(Rect r)
     float top = r.bottom_left.y + r.dimensions.y;
 
     Quad result;
-    result.vertices[0] = {left, bottom, 0.0f};
-    result.vertices[1] = {right, bottom, 0.0f};
-    result.vertices[2] = {right, top, 0.0f};
-    result.vertices[3] = {left, top, 0.0f};
+    result.vertices[0] = (Float3){{left, bottom, 0.0f}};
+    result.vertices[1] = (Float3){{right, bottom, 0.0f}};
+    result.vertices[2] = (Float3){{right, top, 0.0f}};
+    result.vertices[3] = (Float3){{left, top, 0.0f}};
     return result;
 }
 
 Float2 rect_top_left(Rect rect)
 {
-    return {rect.bottom_left.x, rect.bottom_left.y + rect.dimensions.y};
+    return (Float2){{rect.bottom_left.x, rect.bottom_left.y + rect.dimensions.y}};
 }
 
 Float2 rect_top_right(Rect rect)
@@ -29,7 +29,7 @@ Float2 rect_top_right(Rect rect)
 
 Float2 rect_bottom_right(Rect rect)
 {
-    return {rect.bottom_left.x + rect.dimensions.x, rect.bottom_left.y};
+    return (Float2){{rect.bottom_left.x + rect.dimensions.x, rect.bottom_left.y}};
 }
 
 float rect_top(Rect rect)
@@ -55,14 +55,14 @@ bool clip_rects(Rect inner, Rect outer, Rect* result)
 {
     float i_right = inner.bottom_left.x + inner.dimensions.x;
     float o_right = outer.bottom_left.x + outer.dimensions.x;
-    i_right = fmin(i_right, o_right);
+    i_right = fminf(i_right, o_right);
 
     float i_top = inner.bottom_left.y + inner.dimensions.y;
     float o_top = outer.bottom_left.y + outer.dimensions.y;
-    i_top = fmin(i_top, o_top);
+    i_top = fminf(i_top, o_top);
 
-    float x = fmax(inner.bottom_left.x, outer.bottom_left.x);
-    float y = fmax(inner.bottom_left.y, outer.bottom_left.y);
+    float x = fmaxf(inner.bottom_left.x, outer.bottom_left.x);
+    float y = fmaxf(inner.bottom_left.y, outer.bottom_left.y);
     float width = i_right - x;
     float height = i_top - y;
 
