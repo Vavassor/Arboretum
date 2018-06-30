@@ -65,8 +65,8 @@ Float3 closest_disk_plane(Disk disk, Float3 origin, Float3 normal)
     }
     else
     {
-        Float2 a = {disk.axis.y, disk.axis.z};
-        Float2 b = {normal.y, normal.z};
+        Float2 a = {{disk.axis.y, disk.axis.z}};
+        Float2 b = {{normal.y, normal.z}};
         float denominator = float2_determinant(a, b);
         line_point.x = 0.0f;
         line_point.y = ((d[0] * b.y) - (a.y * d[1])) / denominator;

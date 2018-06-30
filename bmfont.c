@@ -4,9 +4,7 @@
 #include "string_utilities.h"
 #include "memory.h"
 
-namespace bmfont {
-
-void destroy_font(Font* font, Heap* heap)
+void bmf_destroy_font(BmfFont* font, Heap* heap)
 {
     if(font)
     {
@@ -20,10 +18,10 @@ void destroy_font(Font* font, Heap* heap)
     }
 }
 
-struct Stream
+typedef struct Stream
 {
     const char* buffer;
-};
+} Stream;
 
 static bool is_whitespace(char c)
 {
@@ -74,7 +72,7 @@ static char* next_token(Stream* stream, Stack* stack)
 
     if(token_size == 0)
     {
-        return nullptr;
+        return NULL;
     }
 
     char* token = STACK_ALLOCATE(stack, char, token_size + 1);
@@ -84,11 +82,11 @@ static char* next_token(Stream* stream, Stack* stack)
     return token;
 }
 
-struct Pair
+typedef struct Pair
 {
     char value[32];
     char key[16];
-};
+} Pair;
 
 static Pair next_pair(Stream* stream, Stack* stack)
 {
@@ -146,7 +144,7 @@ static Pair next_pair(Stream* stream, Stack* stack)
     return result;
 }
 
-bool load_font(Font* font, const char* path, Heap* heap, Stack* stack)
+bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
 {
     void* contents;
     uint64_t bytes;
@@ -156,14 +154,14 @@ bool load_font(Font* font, const char* path, Heap* heap, Stack* stack)
         return false;
     }
 
-    Font output_font;
+    BmfFont output_font;
     output_font.missing_glyph_index = 0;
     int glyphs_index = 0;
     int kerning_pairs_index = 0;
     bool error = false;
 
     Stream stream = {};
-    stream.buffer = static_cast<const char*>(contents);
+    stream.buffer = (const char*) contents;
     for(; stream_has_more(&stream) && !error; next_line(&stream))
     {
         char* keyword = next_token(&stream, stack);
@@ -235,7 +233,7 @@ bool load_font(Font* font, const char* path, Heap* heap, Stack* stack)
                         error = true;
                         break;
                     }
-                    output_font.pages = HEAP_ALLOCATE(heap, Page, output_font.pages_count);
+                    output_font.pages = HEAP_ALLOCATE(heap, BmfPage, output_font.pages_count);
                 }
             }
         }
@@ -253,7 +251,7 @@ bool load_font(Font* font, const char* path, Heap* heap, Stack* stack)
             }
             else
             {
-                Page* page = &output_font.pages[page_index];
+                BmfPage* page = &output_font.pages[page_index];
                 page->bitmap_filename = HEAP_ALLOCATE(heap, char, filename_size);
                 copy_string(page->bitmap_filename, filename_size, filename.value);
             }
@@ -268,12 +266,12 @@ bool load_font(Font* font, const char* path, Heap* heap, Stack* stack)
             }
             else
             {
-                output_font.glyphs = HEAP_ALLOCATE(heap, Glyph, output_font.glyphs_count);
+                output_font.glyphs = HEAP_ALLOCATE(heap, BmfGlyph, output_font.glyphs_count);
             }
         }
         else if(strings_match(keyword, "char"))
         {
-            Glyph* glyph = &output_font.glyphs[glyphs_index];
+            BmfGlyph* glyph = &output_font.glyphs[glyphs_index];
 
             for(Pair pair = next_pair(&stream, stack); *pair.key; pair = next_pair(&stream, stack))
             {
@@ -388,12 +386,12 @@ bool load_font(Font* font, const char* path, Heap* heap, Stack* stack)
             }
             else
             {
-                output_font.kerning_pairs = HEAP_ALLOCATE(heap, KerningPair, output_font.kerning_pairs_count);
+                output_font.kerning_pairs = HEAP_ALLOCATE(heap, BmfKerningPair, output_font.kerning_pairs_count);
             }
         }
         else if(strings_match(keyword, "kerning"))
         {
-            KerningPair* kerning_pair = &output_font.kerning_pairs[kerning_pairs_index];
+            BmfKerningPair* kerning_pair = &output_font.kerning_pairs[kerning_pairs_index];
 
             for(Pair pair = next_pair(&stream, stack); *pair.key; pair = next_pair(&stream, stack))
             {
@@ -442,7 +440,7 @@ bool load_font(Font* font, const char* path, Heap* heap, Stack* stack)
 
     if(error)
     {
-        destroy_font(&output_font, heap);
+        bmf_destroy_font(&output_font, heap);
         return false;
     }
     else
@@ -452,7 +450,7 @@ bool load_font(Font* font, const char* path, Heap* heap, Stack* stack)
     }
 }
 
-Glyph* find_glyph(Font* font, char32_t c)
+BmfGlyph* bmf_find_glyph(BmfFont* font, char32_t c)
 {
     for(int i = 0; i < font->glyphs_count; i += 1)
     {
@@ -464,11 +462,11 @@ Glyph* find_glyph(Font* font, char32_t c)
     return &font->glyphs[font->missing_glyph_index];
 }
 
-float lookup_kerning(Font* font, char32_t prior, char32_t current)
+float bmf_lookup_kerning(BmfFont* font, char32_t prior, char32_t current)
 {
     for(int i = 0; i < font->kerning_pairs_count; i += 1)
     {
-        KerningPair pair = font->kerning_pairs[i];
+        BmfKerningPair pair = font->kerning_pairs[i];
         if(pair.first == prior && pair.second == current)
         {
             return pair.kerning;
@@ -476,5 +474,3 @@ float lookup_kerning(Font* font, char32_t prior, char32_t current)
     }
     return 0.0f;
 }
-
-} // namespace bmfont

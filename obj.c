@@ -9,12 +9,10 @@
 #include "memory.h"
 #include "string_utilities.h"
 
-namespace obj {
-
-struct Stream
+typedef struct Stream
 {
     const char* buffer;
-};
+} Stream;
 
 static bool is_whitespace(char c)
 {
@@ -65,7 +63,7 @@ static char* next_token(Stream* stream, Stack* stack)
 
     if(token_size == 0)
     {
-        return nullptr;
+        return NULL;
     }
 
     char* token = STACK_ALLOCATE(stack, char, token_size + 1);
@@ -97,7 +95,7 @@ static char* next_index(Stream* stream, Stack* stack)
             // Skip the slash.
             stream->buffer += 1;
         }
-        return nullptr;
+        return NULL;
     }
 
     char* index = STACK_ALLOCATE(stack, char, index_size + 1);
@@ -122,26 +120,26 @@ static int fix_index(int index, int total)
     return index;
 }
 
-struct Label
+typedef struct Label
 {
     char* name;
-};
+} Label;
 
-struct MultiIndex
+typedef struct MultiIndex
 {
     int position;
     int texcoord;
     int normal;
-};
+} MultiIndex;
 
-struct Face
+typedef struct Face
 {
     int base_index;
     int sides;
     int material_index;
-};
+} Face;
 
-bool load_file(const char* path, JanMesh* result, Heap* heap, Stack* stack)
+bool obj_load_file(const char* path, JanMesh* result, Heap* heap, Stack* stack)
 {
     void* contents;
     uint64_t bytes;
@@ -152,17 +150,17 @@ bool load_file(const char* path, JanMesh* result, Heap* heap, Stack* stack)
     }
 
     Stream stream;
-    stream.buffer = static_cast<char*>(contents);
+    stream.buffer = (char*) contents;
 
-    Float4* positions = nullptr;
-    Float3* normals = nullptr;
-    Float3* texcoords = nullptr;
-    Label* materials = nullptr;
-    MultiIndex* multi_indices = nullptr;
-    Face* faces = nullptr;
+    Float4* positions = NULL;
+    Float3* normals = NULL;
+    Float3* texcoords = NULL;
+    Label* materials = NULL;
+    MultiIndex* multi_indices = NULL;
+    Face* faces = NULL;
 
     bool error_occurred = false;
-    char* material_library = nullptr;
+    char* material_library = NULL;
     int smoothing_group = 0;
 
     for(; stream_has_more(&stream) && !error_occurred; next_line(&stream))
@@ -457,9 +455,9 @@ static bool vertex_attached_to_face(JanVertex* vertex)
     return vertex->any_edge && vertex->any_edge->any_link;
 }
 
-bool save_file(const char* path, JanMesh* mesh, Heap* heap)
+bool obj_save_file(const char* path, JanMesh* mesh, Heap* heap)
 {
-    File* file = open_file(nullptr, FILE_OPEN_MODE_WRITE_TEMPORARY, heap);
+    File* file = open_file(NULL, FILE_OPEN_MODE_WRITE_TEMPORARY, heap);
 
     const int line_size = 128;
     char line[line_size];
@@ -479,7 +477,7 @@ bool save_file(const char* path, JanMesh* mesh, Heap* heap)
         format_string(line, line_size, "v %.6f %.6f %.6f\n", v.x, v.y, v.z);
         write_file(file, line, string_size(line));
 
-        void* value = reinterpret_cast<void*>(index);
+        void* value = (void*) (uintptr_t) index;
         map_add(&map, vertex, value, heap);
         index += 1;
     }
@@ -510,7 +508,7 @@ bool save_file(const char* path, JanMesh* mesh, Heap* heap)
         {
             void* value;
             map_get(&map, link->vertex, &value);
-            uintptr_t index = reinterpret_cast<uintptr_t>(value);
+            uintptr_t index = (uintptr_t) value;
             char text[22];
             text[0] = ' ';
             int_to_string(text + 1, 21, index);
@@ -532,5 +530,3 @@ bool save_file(const char* path, JanMesh* mesh, Heap* heap)
 
     return true;
 }
-
-} // namespace obj

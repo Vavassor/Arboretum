@@ -460,7 +460,7 @@ static Float2 measure_ideal_dimensions(TextBlock* text_block, Context* context)
 {
     Float2 bounds = float2_zero;
 
-    bmfont::Font* font = context->theme.font;
+    BmfFont* font = context->theme.font;
     Stack* stack = context->scratch;
     Padding padding = text_block->padding;
 
@@ -499,8 +499,8 @@ static Float2 measure_ideal_dimensions(TextBlock* text_block, Context* context)
 
         if(!is_default_ignorable(current) && !newline)
         {
-            bmfont::Glyph* glyph = bmfont::find_glyph(font, current);
-            float kerning = bmfont::lookup_kerning(font, prior_char, current);
+            BmfGlyph* glyph = bmf_find_glyph(font, current);
+            float kerning = bmf_lookup_kerning(font, prior_char, current);
 
             Float2 top_left = pen;
             top_left.x += glyph->offset.x;
@@ -615,7 +615,7 @@ static Float2 measure_ideal_dimensions(Container* container, Context* context)
     return bounds;
 }
 
-static float compute_run_length(const char* text, int start, int end, bmfont::Font* font)
+static float compute_run_length(const char* text, int start, int end, BmfFont* font)
 {
     float length = 0.0f;
     for(int i = start; i < end; i += 1)
@@ -629,14 +629,14 @@ static float compute_run_length(const char* text, int start, int end, bmfont::Fo
             break;
         }
 
-        bmfont::Glyph* glyph = bmfont::find_glyph(font, current);
+        BmfGlyph* glyph = bmf_find_glyph(font, current);
         length += glyph->x_advance;
         i = text_index;
     }
     return length;
 }
 
-static void place_glyph(TextBlock* text_block, bmfont::Glyph* glyph, bmfont::Font* font, int text_index, Float2 pen, Float2 texture_dimensions, Context* context)
+static void place_glyph(TextBlock* text_block, BmfGlyph* glyph, BmfFont* font, int text_index, Float2 pen, Float2 texture_dimensions, Context* context)
 {
     Float2 top_left = pen;
     top_left.x += glyph->offset.x;
@@ -667,7 +667,7 @@ static Float2 measure_bound_dimensions(TextBlock* text_block, Float2 dimensions,
 {
     Float2 bounds = float2_zero;
 
-    bmfont::Font* font = context->theme.font;
+    BmfFont* font = context->theme.font;
     Stack* stack = context->scratch;
 
     Padding padding = text_block->padding;
@@ -749,7 +749,7 @@ static Float2 measure_bound_dimensions(TextBlock* text_block, Float2 dimensions,
         {
             // Place the glyph as normal.
 
-            bmfont::Glyph* glyph = bmfont::find_glyph(font, current);
+            BmfGlyph* glyph = bmf_find_glyph(font, current);
 
             // If the right size is close, but a line break wasn't expected.
             if(pen.x + glyph->x_advance + extra_length > right)
@@ -770,7 +770,7 @@ static Float2 measure_bound_dimensions(TextBlock* text_block, Float2 dimensions,
                 }
             }
 
-            float kerning = bmfont::lookup_kerning(font, prior_char, current);
+            float kerning = bmf_lookup_kerning(font, prior_char, current);
             pen.x += kerning;
 
             place_glyph(text_block, glyph, font, text_index, pen, texture_dimensions, context);
@@ -815,8 +815,8 @@ static Float2 measure_bound_dimensions(TextBlock* text_block, Float2 dimensions,
                 break;
             }
 
-            bmfont::Glyph* glyph = bmfont::find_glyph(font, current);
-            float kerning = bmfont::lookup_kerning(font, prior_char, current);
+            BmfGlyph* glyph = bmf_find_glyph(font, current);
+            float kerning = bmf_lookup_kerning(font, prior_char, current);
             pen.x += kerning;
 
             place_glyph(text_block, glyph, font, text_index, pen, texture_dimensions, context);
@@ -2047,7 +2047,7 @@ static void update_added_glyphs(TextBlock* text_block, Float2 dimensions, Id id,
 
 static void update_cursor_position(TextInput* text_input, Rect bounds, Context* context, Platform* platform)
 {
-    bmfont::Font* font = context->theme.font;
+    BmfFont* font = context->theme.font;
     float line_height = font->line_height;
     Float2 viewport = context->viewport;
 

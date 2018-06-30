@@ -31,8 +31,8 @@ Ray ray_from_viewport_point(Float2 point, Int2 viewport, Matrix4 view, Matrix4 p
     Matrix4 inverse_view = matrix4_inverse_view(view);
     Matrix4 inverse = matrix4_multiply(inverse_view, inverse_projection);
 
-    Float3 near = {point.x, point.y, 0.0f};
-    Float3 far = {point.x, point.y, 1.0f};
+    Float3 near = {{point.x, point.y, 0.0f}};
+    Float3 far = {{point.x, point.y, 1.0f}};
 
     Float3 start = matrix4_transform_point(inverse, near);
     Float3 end = matrix4_transform_point(inverse, far);

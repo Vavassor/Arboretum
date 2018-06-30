@@ -65,7 +65,7 @@ namespace
     DenseMapId selection_pointcloud_id;
     DenseMapId selection_wireframe_id;
 
-    bmfont::Font font;
+    BmfFont font;
 
     ui::Context ui_context;
     ui::Item* main_menu;
@@ -209,7 +209,7 @@ bool editor_start_up(Platform* platform)
         JanMesh* mesh = &test_model->mesh;
 
         char* path = get_model_path_by_name("test.obj", &scratch);
-        obj::load_file(path, mesh, &heap, &scratch);
+        obj_load_file(path, mesh, &heap, &scratch);
         STACK_DEALLOCATE(&scratch, path);
         jan_colour_all_faces(mesh, float3_yellow);
 
@@ -227,7 +227,7 @@ bool editor_start_up(Platform* platform)
     // Fonts
     {
         char* path = get_font_path_by_name("droid_12.fnt", &scratch);
-        bmfont::load_font(&font, path, &heap, &scratch);
+        bmf_load_font(&font, path, &heap, &scratch);
         STACK_DEALLOCATE(&scratch, path);
         video::set_up_font(&font);
         ui_context.theme.font = &font;
@@ -341,7 +341,7 @@ void editor_shut_down()
 
     jan_destroy_selection(&selection);
 
-    bmfont::destroy_font(&font, &heap);
+    bmf_destroy_font(&font, &heap);
     ui::destroy_context(&ui_context, &heap);
 
     history_destroy(&history, &heap);

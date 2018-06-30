@@ -391,7 +391,7 @@ static void export_file(FilePickDialog* dialog, const char* name, ObjectLady* la
 {
     char* path = append_to_path(dialog->path, name, heap);
     JanMesh* mesh = &lady->objects[selected_object_index].mesh;
-    bool saved = obj::save_file(path, mesh, heap);
+    bool saved = obj_save_file(path, mesh, heap);
     HEAP_DEALLOCATE(heap, path);
 
     if(!saved)
@@ -409,7 +409,7 @@ static void import_file(FilePickDialog* dialog, const char* name, ObjectLady* la
 {
     char* path = append_to_path(dialog->path, name, heap);
     JanMesh mesh;
-    bool loaded = obj::load_file(path, &mesh, heap, stack);
+    bool loaded = obj_load_file(path, &mesh, heap, stack);
     HEAP_DEALLOCATE(heap, path);
 
     if(!loaded)

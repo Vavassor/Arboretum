@@ -6,7 +6,7 @@
 #include "memory.h"
 #include "string_utilities.h"
 
-GLuint load_shader(GLenum type, const char* source, Stack* stack)
+static GLuint load_shader(GLenum type, const char* source, Stack* stack)
 {
     GLuint shader = glCreateShader(type);
     GLint source_size = string_size(source);
@@ -45,7 +45,7 @@ GLuint load_shader(GLenum type, const char* source, Stack* stack)
     return shader;
 }
 
-GLuint load_shader_program_sources(const char* vertex_source, const char* fragment_source, Stack* stack)
+static GLuint load_shader_program_sources(const char* vertex_source, const char* fragment_source, Stack* stack)
 {
     GLuint program;
 
@@ -122,11 +122,11 @@ GLuint load_shader_program(const char* vertex_name, const char* fragment_name, S
     void* contents;
     uint64_t vertex_source_size;
     bool loaded_vertex = load_whole_file(vertex_path, &contents, &vertex_source_size, stack);
-    char* vertex_source = static_cast<char*>(contents);
+    char* vertex_source = (char*) contents;
 
     uint64_t fragment_source_size;
     bool loaded_fragment = load_whole_file(fragment_path, &contents, &fragment_source_size, stack);
-    char* fragment_source = static_cast<char*>(contents);
+    char* fragment_source = (char*) contents;
 
     if(loaded_vertex && loaded_fragment)
     {

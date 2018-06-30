@@ -213,7 +213,7 @@ struct Style
 
 struct Theme
 {
-    bmfont::Font* font;
+    BmfFont* font;
 
     Style styles[4];
 

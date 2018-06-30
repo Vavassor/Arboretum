@@ -1,6 +1,7 @@
 #ifndef VIDEO_H_
 #define VIDEO_H_
 
+#include "bmfont.h"
 #include "camera.h"
 #include "dense_map.h"
 #include "int2.h"
@@ -10,12 +11,6 @@ struct MoveTool;
 struct ObjectLady;
 struct Platform;
 struct RotateTool;
-
-namespace bmfont {
-
-struct Font;
-
-} // namespace bmfont
 
 namespace ui {
 
@@ -61,7 +56,7 @@ void resize_viewport(Int2 dimensions, double dots_per_millimeter, float fov);
 DenseMapId add_object(VertexLayout vertex_layout);
 void remove_object(DenseMapId id);
 Object* get_object(DenseMapId id);
-void set_up_font(bmfont::Font* font);
+void set_up_font(BmfFont* font);
 
 } // namespace video
 

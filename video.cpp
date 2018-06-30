@@ -1039,7 +1039,7 @@ Object* get_object(DenseMapId id)
     return look_up(&objects, id);
 }
 
-void set_up_font(bmfont::Font* font)
+void set_up_font(BmfFont* font)
 {
     for(int i = 0; i < font->pages_count; i += 1)
     {

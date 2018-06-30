@@ -1,17 +1,20 @@
 #ifndef OBJ_H_
 #define OBJ_H_
 
-#include "jan.h"
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
-struct Stack;
-struct Heap;
+#include "jan.h"
+#include "memory.h"
 
 // Wavefront Object File (.obj)
-namespace obj {
 
-bool load_file(const char* path, JanMesh* mesh, Heap* heap, Stack* stack);
-bool save_file(const char* path, JanMesh* mesh, Heap* heap);
+bool obj_load_file(const char* path, JanMesh* mesh, Heap* heap, Stack* stack);
+bool obj_save_file(const char* path, JanMesh* mesh, Heap* heap);
 
-} // namespace obj
+#if defined(__cplusplus)
+} // extern "C"
+#endif
 
 #endif // OBJ_H_
