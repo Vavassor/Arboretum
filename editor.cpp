@@ -60,7 +60,7 @@ namespace
 
     int hovered_object_index;
     int selected_object_index;
-    jan::Selection selection;
+    JanSelection selection;
     DenseMapId selection_id;
     DenseMapId selection_pointcloud_id;
     DenseMapId selection_wireframe_id;
@@ -114,12 +114,12 @@ static void action_stop(Action action)
 
 static void select_mesh(int index)
 {
-    jan::destroy_selection(&selection);
+    jan_destroy_selection(&selection);
 
     if(is_valid_index(index))
     {
-        jan::create_selection(&selection, &heap);
-        selection.type = jan::Selection::Type::Face;
+        jan_create_selection(&selection, &heap);
+        selection.type = JAN_SELECTION_TYPE_FACE;
     }
 
     selected_object_index = index;
@@ -166,15 +166,15 @@ bool editor_start_up(Platform* platform)
     // Dodecahedron
     {
         Object* dodecahedron = add_object(&lady, &heap);
-        jan::Mesh* mesh = &dodecahedron->mesh;
+        JanMesh* mesh = &dodecahedron->mesh;
 
-        jan::make_a_weird_face(mesh, &scratch);
+        jan_make_a_weird_face(mesh, &scratch);
 
-        jan::Selection selection = jan::select_all(mesh, &heap);
-        jan::extrude(mesh, &selection, 0.6f, &heap, &scratch);
-        jan::destroy_selection(&selection);
+        JanSelection selection = jan_select_all(mesh, &heap);
+        jan_extrude(mesh, &selection, 0.6f, &heap, &scratch);
+        jan_destroy_selection(&selection);
 
-        jan::colour_all_faces(mesh, float3_cyan);
+        jan_colour_all_faces(mesh, float3_cyan);
 
         video::Object* video_object = video::get_object(dodecahedron->video_object);
         video::object_update_mesh(video_object, mesh, &heap);
@@ -190,9 +190,9 @@ bool editor_start_up(Platform* platform)
     // Cheese
     {
         Object* cheese = add_object(&lady, &heap);
-        jan::Mesh* mesh = &cheese->mesh;
+        JanMesh* mesh = &cheese->mesh;
 
-        jan::make_a_face_with_holes(mesh, &scratch);
+        jan_make_a_face_with_holes(mesh, &scratch);
 
         video::Object* video_object = video::get_object(cheese->video_object);
         video::object_update_mesh(video_object, mesh, &heap);
@@ -206,12 +206,12 @@ bool editor_start_up(Platform* platform)
     // Test Model
     {
         Object* test_model = add_object(&lady, &heap);
-        jan::Mesh* mesh = &test_model->mesh;
+        JanMesh* mesh = &test_model->mesh;
 
         char* path = get_model_path_by_name("test.obj", &scratch);
         obj::load_file(path, mesh, &heap, &scratch);
         STACK_DEALLOCATE(&scratch, path);
-        jan::colour_all_faces(mesh, float3_yellow);
+        jan_colour_all_faces(mesh, float3_yellow);
 
         Float3 position = {-2.0f, 0.0f, 0.0f};
         object_set_position(test_model, position);
@@ -339,7 +339,7 @@ void editor_shut_down()
 
     close_dialog(&dialog, &ui_context, &heap);
 
-    jan::destroy_selection(&selection);
+    jan_destroy_selection(&selection);
 
     bmfont::destroy_font(&font, &heap);
     ui::destroy_context(&ui_context, &heap);
@@ -648,14 +648,14 @@ static void update_object_mode(Platform* platform)
         for(int i = 0; i < array_count(lady.objects); i += 1)
         {
             Object* object = &lady.objects[i];
-            jan::Mesh* mesh = &object->mesh;
+            JanMesh* mesh = &object->mesh;
 
             Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
             Matrix4 view = matrix4_look_at(camera.position, camera.target, float3_unit_z);
             Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
             ray = transform_ray(ray, matrix4_inverse_transform(model));
             float distance;
-            jan::Face* face = first_face_hit_by_ray(mesh, ray, &distance, &scratch);
+            JanFace* face = jan_first_face_hit_by_ray(mesh, ray, &distance, &scratch);
             if(face && distance < closest)
             {
                 closest = distance;
@@ -780,7 +780,7 @@ static void enter_edge_mode()
 
 static void exit_edge_mode()
 {
-    destroy_selection(&selection);
+    jan_destroy_selection(&selection);
 
     video::remove_object(selection_wireframe_id);
     selection_wireframe_id = 0;
@@ -794,7 +794,7 @@ static void update_edge_mode()
     const float touch_radius = 30.0f;
 
     Object* object = &lady.objects[selected_object_index];
-    jan::Mesh* mesh = &object->mesh;
+    JanMesh* mesh = &object->mesh;
 
     update_camera_controls();
 
@@ -809,15 +809,15 @@ static void update_edge_mode()
     ray = transform_ray(ray, inverse_model);
 
     float distance_to_edge;
-    jan::Edge* edge = first_edge_under_point(mesh, mouse.position, touch_radius, model_view_projection, inverse, viewport, ray.origin, ray.direction, &distance_to_edge);
+    JanEdge* edge = jan_first_edge_under_point(mesh, mouse.position, touch_radius, model_view_projection, inverse, viewport, ray.origin, ray.direction, &distance_to_edge);
     if(edge)
     {
         float distance_to_face = infinity;
-        first_face_hit_by_ray(mesh, ray, &distance_to_face, &scratch);
+        jan_first_face_hit_by_ray(mesh, ray, &distance_to_face, &scratch);
 
         if(distance_to_edge < distance_to_face && input_get_mouse_clicked(MOUSE_BUTTON_LEFT))
         {
-            toggle_edge_in_selection(&selection, edge);
+            jan_toggle_edge_in_selection(&selection, edge);
         }
     }
 
@@ -843,7 +843,7 @@ static void enter_face_mode()
 
 static void exit_face_mode()
 {
-    destroy_selection(&selection);
+    jan_destroy_selection(&selection);
 
     video::remove_object(selection_id);
     video::remove_object(selection_wireframe_id);
@@ -857,7 +857,7 @@ static void update_face_mode()
     ASSERT(selected_object_index >= 0 && selected_object_index < array_count(lady.objects));
 
     Object* object = &lady.objects[selected_object_index];
-    jan::Mesh* mesh = &object->mesh;
+    JanMesh* mesh = &object->mesh;
     Matrix4 projection = matrix4_perspective_projection(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
 
     if(input_get_key_tapped(INPUT_KEY_G))
@@ -884,7 +884,7 @@ static void update_face_mode()
         const Float2 move_speed = {0.007f, 0.007f};
         Float2 move_velocity = float2_pointwise_multiply(move_speed, mouse.velocity);
         Float3 move = float3_add(float3_multiply(move_velocity.x, right), float3_multiply(move_velocity.y, up));
-        move_faces(mesh, &selection, move);
+        jan_move_faces(mesh, &selection, move);
 
         video::Object* video_object = video::get_object(object->video_object);
         video::object_update_mesh(video_object, mesh, &heap);
@@ -896,10 +896,10 @@ static void update_face_mode()
         Matrix4 view = matrix4_look_at(camera.position, camera.target, float3_unit_z);
         Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
         ray = transform_ray(ray, matrix4_inverse_transform(model));
-        jan::Face* face = first_face_hit_by_ray(mesh, ray, nullptr, &scratch);
+        JanFace* face = jan_first_face_hit_by_ray(mesh, ray, nullptr, &scratch);
         if(face && input_get_mouse_clicked(MOUSE_BUTTON_LEFT))
         {
-            toggle_face_in_selection(&selection, face);
+            jan_toggle_face_in_selection(&selection, face);
         }
 
         video::Object* video_object = video::get_object(selection_id);
@@ -923,7 +923,7 @@ static void enter_vertex_mode()
 
 static void exit_vertex_mode()
 {
-    destroy_selection(&selection);
+    jan_destroy_selection(&selection);
 
     video::remove_object(selection_pointcloud_id);
     selection_pointcloud_id = 0;
@@ -937,7 +937,7 @@ static void update_vertex_mode()
     const float touch_radius = 30.0f;
 
     Object* object = &lady.objects[selected_object_index];
-    jan::Mesh* mesh = &object->mesh;
+    JanMesh* mesh = &object->mesh;
 
     update_camera_controls();
 
@@ -949,15 +949,15 @@ static void update_vertex_mode()
     ray = transform_ray(ray, matrix4_inverse_transform(model));
 
     float distance_to_vertex;
-    jan::Vertex* vertex = first_vertex_hit_by_ray(mesh, ray, touch_radius, viewport.x, &distance_to_vertex);
+    JanVertex* vertex = jan_first_vertex_hit_by_ray(mesh, ray, touch_radius, viewport.x, &distance_to_vertex);
     if(vertex)
     {
         float distance_to_face;
-        first_face_hit_by_ray(mesh, ray, &distance_to_face, &scratch);
+        jan_first_face_hit_by_ray(mesh, ray, &distance_to_face, &scratch);
 
         if(distance_to_vertex <= distance_to_face && input_get_mouse_clicked(MOUSE_BUTTON_LEFT))
         {
-            toggle_vertex_in_selection(&selection, vertex);
+            jan_toggle_vertex_in_selection(&selection, vertex);
         }
     }
 

@@ -141,7 +141,7 @@ struct Face
     int material_index;
 };
 
-bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
+bool load_file(const char* path, JanMesh* result, Heap* heap, Stack* stack)
 {
     void* contents;
     uint64_t bytes;
@@ -395,13 +395,13 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
     // Fill the mesh with the completed data.
     if(!error_occurred)
     {
-        jan::Mesh mesh;
-        jan::create_mesh(&mesh);
-        jan::Vertex** seen = STACK_ALLOCATE(stack, jan::Vertex*, array_count(positions));
+        JanMesh mesh;
+        jan_create_mesh(&mesh);
+        JanVertex** seen = STACK_ALLOCATE(stack, JanVertex*, array_count(positions));
         for(int i = 0; i < array_count(faces); i += 1)
         {
             Face obj_face = faces[i];
-            jan::Vertex** vertices = STACK_ALLOCATE(stack, jan::Vertex*, obj_face.sides);
+            JanVertex** vertices = STACK_ALLOCATE(stack, JanVertex*, obj_face.sides);
             for(int j = 0; j < obj_face.sides; j += 1)
             {
                 MultiIndex index = multi_indices[obj_face.base_index + j];
@@ -410,22 +410,22 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
                 Float3 normal = normals[index.normal];
                 Float3 texcoord = texcoords[index.texcoord];
 #endif
-                jan::Vertex* vertex;
+                JanVertex* vertex;
                 if(seen[index.position])
                 {
                     vertex = seen[index.position];
                 }
                 else
                 {
-                    vertex = jan::add_vertex(&mesh, float4_extract_float3(position));
+                    vertex = jan_add_vertex(&mesh, float4_extract_float3(position));
                     seen[index.position] = vertex;
                 }
                 vertices[j] = vertex;
             }
-            jan::connect_disconnected_vertices_and_add_face(&mesh, vertices, obj_face.sides, stack);
+            jan_connect_disconnected_vertices_and_add_face(&mesh, vertices, obj_face.sides, stack);
             STACK_DEALLOCATE(stack, vertices);
         }
-        jan::update_normals(&mesh);
+        jan_update_normals(&mesh);
         STACK_DEALLOCATE(stack, seen);
         *result = mesh;
     }
@@ -452,12 +452,12 @@ bool load_file(const char* path, jan::Mesh* result, Heap* heap, Stack* stack)
     return !error_occurred;
 }
 
-static bool vertex_attached_to_face(jan::Vertex* vertex)
+static bool vertex_attached_to_face(JanVertex* vertex)
 {
     return vertex->any_edge && vertex->any_edge->any_link;
 }
 
-bool save_file(const char* path, jan::Mesh* mesh, Heap* heap)
+bool save_file(const char* path, JanMesh* mesh, Heap* heap)
 {
     File* file = open_file(nullptr, FILE_OPEN_MODE_WRITE_TEMPORARY, heap);
 
@@ -468,7 +468,7 @@ bool save_file(const char* path, jan::Mesh* mesh, Heap* heap)
     map_create(&map, mesh->vertices_count, heap);
 
     int index = 1;
-    FOR_EACH_IN_POOL(jan::Vertex, vertex, mesh->vertex_pool)
+    FOR_EACH_IN_POOL(JanVertex, vertex, mesh->vertex_pool)
     {
         if(!vertex_attached_to_face(vertex))
         {
@@ -490,7 +490,7 @@ bool save_file(const char* path, jan::Mesh* mesh, Heap* heap)
     const char* s = "s off\n";
     write_file(file, s, string_size(s));
 
-    FOR_EACH_IN_POOL(jan::Face, face, mesh->face_pool)
+    FOR_EACH_IN_POOL(JanFace, face, mesh->face_pool)
     {
         int i = 0;
         int line_left = line_size;
@@ -504,8 +504,8 @@ bool save_file(const char* path, jan::Mesh* mesh, Heap* heap)
         // split it into multiple faces.
         ASSERT(!face->first_border->next);
 
-        jan::Link* first = face->first_border->first;
-        jan::Link* link = first;
+        JanLink* first = face->first_border->first;
+        JanLink* link = first;
         do
         {
             void* value;

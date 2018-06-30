@@ -390,7 +390,7 @@ static void open_parent_directory(FilePickDialog* dialog, int segment, ui::Conte
 static void export_file(FilePickDialog* dialog, const char* name, ObjectLady* lady, int selected_object_index, ui::Context* context, Heap* heap)
 {
     char* path = append_to_path(dialog->path, name, heap);
-    jan::Mesh* mesh = &lady->objects[selected_object_index].mesh;
+    JanMesh* mesh = &lady->objects[selected_object_index].mesh;
     bool saved = obj::save_file(path, mesh, heap);
     HEAP_DEALLOCATE(heap, path);
 
@@ -408,7 +408,7 @@ static void export_file(FilePickDialog* dialog, const char* name, ObjectLady* la
 static void import_file(FilePickDialog* dialog, const char* name, ObjectLady* lady, History* history, ui::Context* context, Heap* heap, Stack* stack)
 {
     char* path = append_to_path(dialog->path, name, heap);
-    jan::Mesh mesh;
+    JanMesh mesh;
     bool loaded = obj::load_file(path, &mesh, heap, stack);
     HEAP_DEALLOCATE(heap, path);
 
@@ -423,7 +423,7 @@ static void import_file(FilePickDialog* dialog, const char* name, ObjectLady* la
         imported_model->mesh = mesh;
         object_set_position(imported_model, {-2.0f, 0.0f, 0.0f});
 
-        jan::colour_all_faces(&imported_model->mesh, float3_magenta);
+        jan_colour_all_faces(&imported_model->mesh, float3_magenta);
         video::Object* video_object = video::get_object(imported_model->video_object);
         video::object_update_mesh(video_object, &imported_model->mesh, heap);
 

@@ -4,7 +4,7 @@
 
 void object_create(Object* object)
 {
-    jan::create_mesh(&object->mesh);
+    jan_create_mesh(&object->mesh);
 
     object->position = float3_zero;
     object->orientation = quaternion_identity;
@@ -14,7 +14,7 @@ void object_create(Object* object)
 
 void object_destroy(Object* object)
 {
-    jan::destroy_mesh(&object->mesh);
+    jan_destroy_mesh(&object->mesh);
 
     video::remove_object(object->video_object);
 }

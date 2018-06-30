@@ -1,40 +1,41 @@
 #ifndef COMPLEX_MATH_H_
 #define COMPLEX_MATH_H_
 
-struct Complex
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+typedef struct Complex
 {
     float r, i;
-};
+} Complex;
 
-Complex operator - (Complex c0);
+Complex complex_negate(Complex c);
 
-Complex operator + (Complex v0, Complex v1);
-Complex& operator += (Complex& v0, Complex v1);
-Complex operator - (Complex v0, Complex v1);
-Complex& operator -= (Complex& v0, Complex v1);
-Complex operator * (Complex c0, Complex c1);
-Complex& operator *= (Complex& c0, Complex c1);
-Complex operator * (Complex c0, float s);
-Complex operator * (float s, Complex c0);
-Complex& operator *= (Complex& c0, float s);
-Complex operator / (Complex c0, Complex c1);
-Complex& operator /= (Complex& c0, Complex c1);
-Complex operator / (Complex c0, float r);
-Complex& operator /= (Complex& c0, float r);
+Complex complex_add(Complex a, Complex b);
+Complex complex_subtract(Complex a, Complex b);
+Complex complex_multiply(Complex a, Complex b);
+Complex complex_divide(Complex a, Complex b);
+Complex complex_scalar_multiply(float s, Complex c);
+Complex complex_scalar_divide(Complex c, float s);
 
-float abs(Complex x);
+float complex_abs(Complex x);
 float complex_angle(Complex x);
 float complex_angle_or_zero(Complex x);
-Complex exp(Complex x);
-Complex log(Complex x);
-Complex pow(Complex x, Complex y);
-Complex sqrt(Complex x);
-Complex cbrt(Complex x);
+Complex complex_exp(Complex x);
+Complex complex_log(Complex x);
+Complex complex_pow(Complex x, Complex y);
+Complex complex_sqrt(Complex x);
+Complex complex_cbrt(Complex x);
 
-Complex polar(float magnitude, float angle);
-Complex conjugate(Complex x);
-Complex reciprocal(Complex x);
+Complex complex_polar(float magnitude, float angle);
+Complex complex_conjugate(Complex x);
+Complex complex_reciprocal(Complex x);
 
 extern const Complex complex_zero;
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
 
 #endif // COMPLEX_MATH_H_

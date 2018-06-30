@@ -100,28 +100,85 @@ static bool solve_quadratic_equation(float a, float b, float c, float* RESTRICT 
     }
 }
 
+static Complex degree1(float s, Complex a)
+{
+    return complex_scalar_multiply(s, a);
+}
+
+static Complex degree2(float s, Complex a, Complex b)
+{
+    return complex_multiply(degree1(s, a), b);
+}
+
+static Complex degree3(float s, Complex a, Complex b, Complex c)
+{
+    return complex_multiply(degree2(s, a, b), c);
+}
+
 static void solve_quartic_equation(Complex coefficients[5], Complex roots[4])
 {
     Complex a = coefficients[0];
-    Complex b = coefficients[1] / a;
-    Complex c = coefficients[2] / a;
-    Complex d = coefficients[3] / a;
-    Complex e = coefficients[4] / a;
+    Complex b = complex_divide(coefficients[1], a);
+    Complex c = complex_divide(coefficients[2], a);
+    Complex d = complex_divide(coefficients[3], a);
+    Complex e = complex_divide(coefficients[4], a);
 
-    Complex q0 = (c * c) - (3.0f * b * d) + (12.0f * e);
-    Complex q1 = (2.0 * c * c * c) - (9.0f * b * c * d) + (27.0f * d * d) + (27.0f * b * b * e) - (72.0f * c * e);
-    Complex q2 = (8.0f * b * c) - (16.0f * d) - (2.0f * b * b * b);
-    Complex q3 = (3.0f * b * b) - (8.0f * c);
-    Complex q4 = cbrt((q1 / 2.0f) + sqrt((q1 * q1 / 4.0f) - (q0 * q0 * q0)));
-    Complex q5 = ((q0 / q4) + q4) / 3.0f;
-    Complex q6 = 2.0f * sqrt((q3 / 12.0f) + q5);
+    Complex t0 = complex_multiply(c, c);
+    Complex t1 = degree2(-3.0f, b, d);
+    Complex t2 = degree1(12.0f, e);
+    Complex q0 = complex_add(complex_add(t0, t1), t2);
 
-    Complex s = (4.0f * q3 / 6.0f) - (4.0f * q5);
+    t0 = degree3(2.0f, c, c, c);
+    t1 = degree3(-9.0f, b, c, d);
+    t2 = degree3(27.0f, b, b, e);
+    Complex t3 = degree2(27.0f, d, d);
+    Complex t4 = degree2(-72.0f, c, e);
+    Complex q1 = complex_add(complex_add(complex_add(complex_add(t0, t1), t2), t3), t4);
 
-    roots[0] = (-b - q6 - sqrt(s - (q2 / q6))) / 4.0f;
-    roots[1] = (-b - q6 + sqrt(s - (q2 / q6))) / 4.0f;
-    roots[2] = (-b + q6 - sqrt(s + (q2 / q6))) / 4.0f;
-    roots[3] = (-b + q6 + sqrt(s + (q2 / q6))) / 4.0f;
+    t0 = degree2(8.0f, b, c);
+    t1 = degree1(-16.0f, d);
+    t2 = degree3(-2.0f, b, b, b);
+    Complex q2 = complex_add(complex_add(t0, t1), t2);
+
+    t0 = degree2(3.0f, b, b);
+    t1 = degree1(-8.0f, c);
+    Complex q3 = complex_add(t0, t1);
+
+    t0 = complex_scalar_divide(q1, 2.0f);
+    t1 = complex_scalar_divide(complex_multiply(q1, q1), 4.0f);
+    t2 = complex_multiply(complex_multiply(q0, q0), q0);
+    t3 = complex_sqrt(complex_subtract(t1, t2));
+    Complex q4 = complex_cbrt(complex_add(t0, t3));
+
+    t0 = complex_add(complex_divide(q0, q4), q4);
+    Complex q5 = complex_scalar_divide(t0, 3.0f);
+
+    t0 = complex_scalar_divide(q3, 12.0f);
+    t1 = complex_sqrt(complex_add(t0, q5));
+    Complex q6 = complex_scalar_multiply(2.0f, t1);
+
+    t0 = complex_scalar_multiply(4.0f, q3);
+    t1 = complex_scalar_divide(t0, 6.0f);
+    t2 = complex_scalar_multiply(4.0f, q5);
+    Complex s = complex_subtract(t1, t2);
+
+    b = complex_negate(b);
+    t0 = complex_divide(q2, q6);
+    t1 = complex_sqrt(complex_subtract(s, t0));
+    t2 = complex_sqrt(complex_add(s, t0));
+    t3 = complex_subtract(b, q6);
+    t4 = complex_add(b, q6);
+
+    Complex p[4];
+    p[0] = complex_subtract(t3, t1);
+    p[1] = complex_add(t3, t1);
+    p[2] = complex_subtract(t4, t2);
+    p[3] = complex_add(t4, t2);
+
+    roots[0] = complex_scalar_divide(p[0], 4.0f);
+    roots[1] = complex_scalar_divide(p[1], 4.0f);
+    roots[2] = complex_scalar_divide(p[2], 4.0f);
+    roots[3] = complex_scalar_divide(p[3], 4.0f);
 }
 
 static int solve_real_quartic_equation(float coefficients[5], float roots[4])
@@ -129,7 +186,7 @@ static int solve_real_quartic_equation(float coefficients[5], float roots[4])
     Complex c[5];
     for(int i = 0; i < 5; i += 1)
     {
-        c[i] = {coefficients[i], 0.0f};
+        c[i] = (Complex){coefficients[i], 0.0f};
     }
 
     Complex r[4];
@@ -218,7 +275,7 @@ bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Float3* intersection)
     Float3 right = float3_normalise(float3_perp(forward));
     Float3 up = float3_normalise(float3_cross(forward, right));
     Matrix4 view = matrix4_view(right, up, forward, center);
-    Float3 dilation = {radius, radius, half_length};
+    Float3 dilation = {{radius, radius, half_length}};
     Matrix4 transform = matrix4_multiply(matrix4_dilation(float3_reciprocal(dilation)), view);
 
     Ray cylinder_ray = transform_ray(ray, transform);
@@ -304,7 +361,7 @@ bool intersect_ray_cone(Ray ray, Cone cone, Float3* intersection)
     Float3 right = float3_normalise(float3_perp(forward));
     Float3 up = float3_normalise(float3_cross(forward, right));
     Matrix4 view = matrix4_view(right, up, forward, tip);
-    Float3 dilation = {radius, radius, height};
+    Float3 dilation = {{radius, radius, height}};
     Matrix4 transform = matrix4_multiply(matrix4_dilation(float3_reciprocal(dilation)), view);
 
     Ray cone_ray = transform_ray(ray, transform);
@@ -483,7 +540,7 @@ static bool intersect_line_segment_cylinder(LineSegment segment, Cylinder cylind
     Float3 right = float3_normalise(float3_perp(forward));
     Float3 up = float3_normalise(float3_cross(forward, right));
     Matrix4 view = matrix4_view(right, up, forward, center);
-    Float3 dilation = {radius, radius, half_length};
+    Float3 dilation = {{radius, radius, half_length}};
     Matrix4 transform = matrix4_multiply(matrix4_dilation(float3_reciprocal(dilation)), view);
 
     LineSegment cylinder_segment = transform_line_segment(segment, transform);
@@ -567,16 +624,14 @@ static bool intersect_line_segment_cylinder(LineSegment segment, Cylinder cylind
     return false;
 }
 
-namespace jan {
-
-Vertex* first_vertex_hit_by_ray(Mesh* mesh, Ray ray, float hit_radius, float viewport_width, float* vertex_distance)
+JanVertex* jan_first_vertex_hit_by_ray(JanMesh* mesh, Ray ray, float hit_radius, float viewport_width, float* vertex_distance)
 {
     float closest = infinity;
-    Vertex* result = nullptr;
+    JanVertex* result = NULL;
 
     float radius = hit_radius / viewport_width;
 
-    FOR_EACH_IN_POOL(Vertex, vertex, mesh->vertex_pool)
+    FOR_EACH_IN_POOL(JanVertex, vertex, mesh->vertex_pool)
     {
         Sphere sphere;
         sphere.center = vertex->position;
@@ -603,17 +658,17 @@ Vertex* first_vertex_hit_by_ray(Mesh* mesh, Ray ray, float hit_radius, float vie
     return result;
 }
 
-Edge* first_edge_under_point(Mesh* mesh, Float2 hit_center, float hit_radius, Matrix4 model_view_projection, Matrix4 inverse, Int2 viewport, Float3 view_position, Float3 view_direction, float* edge_distance)
+JanEdge* jan_first_edge_under_point(JanMesh* mesh, Float2 hit_center, float hit_radius, Matrix4 model_view_projection, Matrix4 inverse, Int2 viewport, Float3 view_position, Float3 view_direction, float* edge_distance)
 {
     float closest = infinity;
-    Edge* result = nullptr;
+    JanEdge* result = NULL;
 
     Float2 ndc_point = viewport_point_to_ndc(hit_center, viewport);
-    Float3 near = {ndc_point.x, ndc_point.y, -1.0f};
-    Float3 far = {ndc_point.x, ndc_point.y, +1.0f};
+    Float3 near = {{ndc_point.x, ndc_point.y, -1.0f}};
+    Float3 far = {{ndc_point.x, ndc_point.y, +1.0f}};
     Cylinder cylinder = {near, far, hit_radius / viewport.x};
 
-    FOR_EACH_IN_POOL(Edge, edge, mesh->edge_pool)
+    FOR_EACH_IN_POOL(JanEdge, edge, mesh->edge_pool)
     {
         LineSegment segment;
         segment.start = matrix4_transform_point(model_view_projection, edge->vertices[0]->position);
@@ -642,10 +697,10 @@ Edge* first_edge_under_point(Mesh* mesh, Float2 hit_center, float hit_radius, Ma
     return result;
 }
 
-static void project_border_onto_plane(Border* border, Matrix3 transform, Float2* vertices)
+static void project_border_onto_plane(JanBorder* border, Matrix3 transform, Float2* vertices)
 {
-    Link* first = border->first;
-    Link* link = first;
+    JanLink* first = border->first;
+    JanLink* link = first;
     int i = 0;
     do
     {
@@ -655,12 +710,12 @@ static void project_border_onto_plane(Border* border, Matrix3 transform, Float2*
     } while(link != first);
 }
 
-Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance, Stack* stack)
+JanFace* jan_first_face_hit_by_ray(JanMesh* mesh, Ray ray, float* face_distance, Stack* stack)
 {
     float closest = infinity;
-    Face* result = nullptr;
+    JanFace* result = NULL;
 
-    FOR_EACH_IN_POOL(Face, face, mesh->face_pool)
+    FOR_EACH_IN_POOL(JanFace, face, mesh->face_pool)
     {
         Float3 intersection;
         Float3 any_point = face->first_border->first->vertex->position;
@@ -675,9 +730,9 @@ Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance, Stack* st
 
                 bool on_face = false;
 
-                for(Border* border = face->first_border; border; border = border->next)
+                for(JanBorder* border = face->first_border; border; border = border->next)
                 {
-                    int edges = count_border_edges(border);
+                    int edges = jan_count_border_edges(border);
                     Float2* projected = STACK_ALLOCATE(stack, Float2, edges);
                     project_border_onto_plane(border, mi, projected);
                     if(point_in_polygon(point, projected, edges))
@@ -711,5 +766,3 @@ Face* first_face_hit_by_ray(Mesh* mesh, Ray ray, float* face_distance, Stack* st
 
     return result;
 }
-
-} // namespace jan

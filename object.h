@@ -9,7 +9,7 @@ extern const int object_id_none;
 
 struct Object
 {
-    jan::Mesh mesh;
+    JanMesh mesh;
 
     Float3 position;
     Quaternion orientation;

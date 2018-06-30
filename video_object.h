@@ -24,12 +24,12 @@ struct Object
 
 void object_create(Object* object, VertexLayout vertex_layout);
 void object_destroy(Object* object);
-void object_update_mesh(Object* object, jan::Mesh* mesh, Heap* heap);
-void object_update_selection(Object* object, jan::Mesh* mesh, jan::Selection* selection, Heap* heap);
-void object_update_pointcloud(Object* object, jan::Mesh* mesh, Heap* heap);
-void object_update_pointcloud_selection(Object* object, jan::Mesh* mesh, jan::Selection* selection, jan::Vertex* hovered, Heap* heap);
-void object_update_wireframe(Object* object, jan::Mesh* mesh, Heap* heap);
-void object_update_wireframe_selection(Object* object, jan::Mesh* mesh, jan::Selection* selection, jan::Edge* hovered, Heap* heap);
+void object_update_mesh(Object* object, JanMesh* mesh, Heap* heap);
+void object_update_selection(Object* object, JanMesh* mesh, JanSelection* selection, Heap* heap);
+void object_update_pointcloud(Object* object, JanMesh* mesh, Heap* heap);
+void object_update_pointcloud_selection(Object* object, JanMesh* mesh, JanSelection* selection, JanVertex* hovered, Heap* heap);
+void object_update_wireframe(Object* object, JanMesh* mesh, Heap* heap);
+void object_update_wireframe_selection(Object* object, JanMesh* mesh, JanSelection* selection, JanEdge* hovered, Heap* heap);
 void object_set_matrices(Object* object, Matrix4 view, Matrix4 projection);
 void object_generate_sky(Object* object, Stack* stack);
 void object_set_model(Object* object, Matrix4 model);

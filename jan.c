@@ -10,22 +10,20 @@
 #include "math_basics.h"
 #include "sorting.h"
 
-namespace jan {
-
-void create_mesh(Mesh* mesh)
+void jan_create_mesh(JanMesh* mesh)
 {
-    pool_create(&mesh->face_pool, sizeof(Face), 1024);
-    pool_create(&mesh->edge_pool, sizeof(Edge), 4096);
-    pool_create(&mesh->vertex_pool, sizeof(Vertex), 4096);
-    pool_create(&mesh->link_pool, sizeof(Link), 8192);
-    pool_create(&mesh->border_pool, sizeof(Link), 8192);
+    pool_create(&mesh->face_pool, sizeof(JanFace), 1024);
+    pool_create(&mesh->edge_pool, sizeof(JanEdge), 4096);
+    pool_create(&mesh->vertex_pool, sizeof(JanVertex), 4096);
+    pool_create(&mesh->link_pool, sizeof(JanLink), 8192);
+    pool_create(&mesh->border_pool, sizeof(JanLink), 8192);
 
     mesh->faces_count = 0;
     mesh->edges_count = 0;
     mesh->vertices_count = 0;
 }
 
-void destroy_mesh(Mesh* mesh)
+void jan_destroy_mesh(JanMesh* mesh)
 {
     pool_destroy(&mesh->face_pool);
     pool_destroy(&mesh->edge_pool);
@@ -34,9 +32,9 @@ void destroy_mesh(Mesh* mesh)
     pool_destroy(&mesh->border_pool);
 }
 
-Vertex* add_vertex(Mesh* mesh, Float3 position)
+JanVertex* jan_add_vertex(JanMesh* mesh, Float3 position)
 {
-    Vertex* vertex = POOL_ALLOCATE(&mesh->vertex_pool, Vertex);
+    JanVertex* vertex = POOL_ALLOCATE(&mesh->vertex_pool, JanVertex);
     vertex->position = position;
 
     mesh->vertices_count += 1;
@@ -44,7 +42,7 @@ Vertex* add_vertex(Mesh* mesh, Float3 position)
     return vertex;
 }
 
-static Spoke* get_spoke(Edge* edge, Vertex* vertex)
+static JanSpoke* get_spoke(JanEdge* edge, JanVertex* vertex)
 {
     if(edge->vertices[0] == vertex)
     {
@@ -56,16 +54,16 @@ static Spoke* get_spoke(Edge* edge, Vertex* vertex)
     }
 }
 
-static void add_spoke(Edge* edge, Vertex* vertex)
+static void add_spoke(JanEdge* edge, JanVertex* vertex)
 {
-    Edge* existing_edge = vertex->any_edge;
+    JanEdge* existing_edge = vertex->any_edge;
     if(existing_edge)
     {
-        Spoke* a = get_spoke(edge, vertex);
-        Spoke* b = get_spoke(existing_edge, vertex);
+        JanSpoke* a = get_spoke(edge, vertex);
+        JanSpoke* b = get_spoke(existing_edge, vertex);
         if(b->prior)
         {
-            Spoke* c = get_spoke(b->prior, vertex);
+            JanSpoke* c = get_spoke(b->prior, vertex);
             c->next = edge;
         }
         a->next = existing_edge;
@@ -75,54 +73,54 @@ static void add_spoke(Edge* edge, Vertex* vertex)
     else
     {
         vertex->any_edge = edge;
-        Spoke* spoke = get_spoke(edge, vertex);
+        JanSpoke* spoke = get_spoke(edge, vertex);
         spoke->next = edge;
         spoke->prior = edge;
     }
 }
 
-static void remove_spoke(Edge* edge, Vertex* vertex)
+static void remove_spoke(JanEdge* edge, JanVertex* vertex)
 {
-    Spoke* spoke = get_spoke(edge, vertex);
+    JanSpoke* spoke = get_spoke(edge, vertex);
     if(spoke->next)
     {
-        Spoke* other = get_spoke(spoke->next, vertex);
+        JanSpoke* other = get_spoke(spoke->next, vertex);
         other->prior = spoke->prior;
     }
     if(spoke->prior)
     {
-        Spoke* other = get_spoke(spoke->prior, vertex);
+        JanSpoke* other = get_spoke(spoke->prior, vertex);
         other->next = spoke->next;
     }
     if(vertex->any_edge == edge)
     {
         if(spoke->next == edge)
         {
-            vertex->any_edge = nullptr;
+            vertex->any_edge = NULL;
         }
         else
         {
             vertex->any_edge = spoke->next;
         }
     }
-    spoke->next = nullptr;
-    spoke->prior = nullptr;
+    spoke->next = NULL;
+    spoke->prior = NULL;
 }
 
-static bool edge_contains_vertices(Edge* edge, Vertex* a, Vertex* b)
+static bool edge_contains_vertices(JanEdge* edge, JanVertex* a, JanVertex* b)
 {
     return (edge->vertices[0] == a && edge->vertices[1] == b)
         || (edge->vertices[1] == a && edge->vertices[0] == b);
 }
 
-static Edge* get_edge_spoked_from_vertex(Vertex* hub, Vertex* vertex)
+static JanEdge* get_edge_spoked_from_vertex(JanVertex* hub, JanVertex* vertex)
 {
     if(!hub->any_edge)
     {
-        return nullptr;
+        return NULL;
     }
-    Edge* first = hub->any_edge;
-    Edge* edge = first;
+    JanEdge* first = hub->any_edge;
+    JanEdge* edge = first;
     do
     {
         if(edge_contains_vertices(edge, hub, vertex))
@@ -131,12 +129,12 @@ static Edge* get_edge_spoked_from_vertex(Vertex* hub, Vertex* vertex)
         }
         edge = get_spoke(edge, hub)->next;
     } while(edge != first);
-    return nullptr;
+    return NULL;
 }
 
-Edge* add_edge(Mesh* mesh, Vertex* start, Vertex* end)
+JanEdge* jan_add_edge(JanMesh* mesh, JanVertex* start, JanVertex* end)
 {
-    Edge* edge = POOL_ALLOCATE(&mesh->edge_pool, Edge);
+    JanEdge* edge = POOL_ALLOCATE(&mesh->edge_pool, JanEdge);
     edge->vertices[0] = start;
     edge->vertices[1] = end;
 
@@ -148,22 +146,22 @@ Edge* add_edge(Mesh* mesh, Vertex* start, Vertex* end)
     return edge;
 }
 
-static Edge* add_edge_if_nonexistant(Mesh* mesh, Vertex* start, Vertex* end)
+static JanEdge* add_edge_if_nonexistant(JanMesh* mesh, JanVertex* start, JanVertex* end)
 {
-    Edge* edge = get_edge_spoked_from_vertex(start, end);
+    JanEdge* edge = get_edge_spoked_from_vertex(start, end);
     if(edge)
     {
         return edge;
     }
     else
     {
-        return add_edge(mesh, start, end);
+        return jan_add_edge(mesh, start, end);
     }
 }
 
-static Link* add_link(Mesh* mesh, Vertex* vertex, Edge* edge, Face* face)
+static JanLink* add_link(JanMesh* mesh, JanVertex* vertex, JanEdge* edge, JanFace* face)
 {
-    Link* link = POOL_ALLOCATE(&mesh->link_pool, Link);
+    JanLink* link = POOL_ALLOCATE(&mesh->link_pool, JanLink);
     link->vertex = vertex;
     link->edge = edge;
     link->face = face;
@@ -171,20 +169,20 @@ static Link* add_link(Mesh* mesh, Vertex* vertex, Edge* edge, Face* face)
     return link;
 }
 
-static bool is_boundary(Link* link)
+static bool is_boundary(JanLink* link)
 {
     return link == link->next_fin;
 }
 
-static void make_boundary(Link* link)
+static void make_boundary(JanLink* link)
 {
     link->next_fin = link;
     link->prior_fin = link;
 }
 
-static void add_fin(Link* link, Edge* edge)
+static void add_fin(JanLink* link, JanEdge* edge)
 {
-    Link* existing_link = edge->any_link;
+    JanLink* existing_link = edge->any_link;
     if(existing_link)
     {
         link->prior_fin = existing_link;
@@ -201,12 +199,12 @@ static void add_fin(Link* link, Edge* edge)
     link->edge = edge;
 }
 
-static void remove_fin(Link* link, Edge* edge)
+static void remove_fin(JanLink* link, JanEdge* edge)
 {
     if(is_boundary(link))
     {
         ASSERT(edge->any_link == link);
-        edge->any_link = nullptr;
+        edge->any_link = NULL;
     }
     else
     {
@@ -217,20 +215,20 @@ static void remove_fin(Link* link, Edge* edge)
         link->next_fin->prior_fin = link->prior_fin;
         link->prior_fin->next_fin = link->next_fin;
     }
-    link->next_fin = nullptr;
-    link->prior_fin = nullptr;
-    link->edge = nullptr;
+    link->next_fin = NULL;
+    link->prior_fin = NULL;
+    link->edge = NULL;
 }
 
-static Link* add_border_to_face(Mesh* mesh, Vertex* vertex, Edge* edge, Face* face)
+static JanLink* add_border_to_face(JanMesh* mesh, JanVertex* vertex, JanEdge* edge, JanFace* face)
 {
-    Link* link = add_link(mesh, vertex, edge, face);
+    JanLink* link = add_link(mesh, vertex, edge, face);
     add_fin(link, edge);
 
-    Border* border = POOL_ALLOCATE(&mesh->border_pool, Border);
+    JanBorder* border = POOL_ALLOCATE(&mesh->border_pool, JanBorder);
     border->first = link;
     border->last = link;
-    border->next = nullptr;
+    border->next = NULL;
     border->prior = face->last_border;
     if(!face->first_border)
     {
@@ -247,14 +245,14 @@ static Link* add_border_to_face(Mesh* mesh, Vertex* vertex, Edge* edge, Face* fa
     return link;
 }
 
-static void add_and_link_border(Mesh* mesh, Face* face, Vertex** vertices, Edge** edges, int edges_count)
+static void add_and_link_border(JanMesh* mesh, JanFace* face, JanVertex** vertices, JanEdge** edges, int edges_count)
 {
     // Create each link in the face and chain it to the previous.
-    Link* first = add_border_to_face(mesh, vertices[0], edges[0], face);
-    Link* prior = first;
+    JanLink* first = add_border_to_face(mesh, vertices[0], edges[0], face);
+    JanLink* prior = first;
     for(int i = 1; i < edges_count; i += 1)
     {
-        Link* link = add_link(mesh, vertices[i], edges[i], face);
+        JanLink* link = add_link(mesh, vertices[i], edges[i], face);
         add_fin(link, edges[i]);
 
         prior->next = link;
@@ -267,9 +265,9 @@ static void add_and_link_border(Mesh* mesh, Face* face, Vertex** vertices, Edge*
     prior->next = first;
 }
 
-Face* add_face(Mesh* mesh, Vertex** vertices, Edge** edges, int edges_count)
+JanFace* jan_add_face(JanMesh* mesh, JanVertex** vertices, JanEdge** edges, int edges_count)
 {
-    Face* face = POOL_ALLOCATE(&mesh->face_pool, Face);
+    JanFace* face = POOL_ALLOCATE(&mesh->face_pool, JanFace);
     face->edges = edges_count;
 
     add_and_link_border(mesh, face, vertices, edges, edges_count);
@@ -279,25 +277,25 @@ Face* add_face(Mesh* mesh, Vertex** vertices, Edge** edges, int edges_count)
     return face;
 }
 
-static Face* connect_vertices_and_add_face(Mesh* mesh, Vertex** vertices, int vertices_count, Stack* stack)
+static JanFace* connect_vertices_and_add_face(JanMesh* mesh, JanVertex** vertices, int vertices_count, Stack* stack)
 {
-    Edge** edges = STACK_ALLOCATE(stack, Edge*, vertices_count);
+    JanEdge** edges = STACK_ALLOCATE(stack, JanEdge*, vertices_count);
     int end = vertices_count - 1;
     for(int i = 0; i < end; i += 1)
     {
-        edges[i] = add_edge(mesh, vertices[i], vertices[i + 1]);
+        edges[i] = jan_add_edge(mesh, vertices[i], vertices[i + 1]);
     }
-    edges[end] = add_edge(mesh, vertices[end], vertices[0]);
+    edges[end] = jan_add_edge(mesh, vertices[end], vertices[0]);
 
-    Face* face = add_face(mesh, vertices, edges, vertices_count);
+    JanFace* face = jan_add_face(mesh, vertices, edges, vertices_count);
     STACK_DEALLOCATE(stack, edges);
 
     return face;
 }
 
-Face* connect_disconnected_vertices_and_add_face(Mesh* mesh, Vertex** vertices, int vertices_count, Stack* stack)
+JanFace* jan_connect_disconnected_vertices_and_add_face(JanMesh* mesh, JanVertex** vertices, int vertices_count, Stack* stack)
 {
-    Edge** edges = STACK_ALLOCATE(stack, Edge*, vertices_count);
+    JanEdge** edges = STACK_ALLOCATE(stack, JanEdge*, vertices_count);
     int end = vertices_count - 1;
     for(int i = 0; i < end; i += 1)
     {
@@ -305,38 +303,38 @@ Face* connect_disconnected_vertices_and_add_face(Mesh* mesh, Vertex** vertices, 
     }
     edges[end] = add_edge_if_nonexistant(mesh, vertices[end], vertices[0]);
 
-    Face* face = add_face(mesh, vertices, edges, vertices_count);
+    JanFace* face = jan_add_face(mesh, vertices, edges, vertices_count);
     STACK_DEALLOCATE(stack, edges);
 
     return face;
 }
 
-static void connect_vertices_and_add_hole(Mesh* mesh, Face* face, Vertex** vertices, int vertices_count, Stack* stack)
+static void connect_vertices_and_add_hole(JanMesh* mesh, JanFace* face, JanVertex** vertices, int vertices_count, Stack* stack)
 {
-    Edge** edges = STACK_ALLOCATE(stack, Edge*, vertices_count);
+    JanEdge** edges = STACK_ALLOCATE(stack, JanEdge*, vertices_count);
     int end = vertices_count - 1;
     for(int i = 0; i < end; i += 1)
     {
-        edges[i] = add_edge(mesh, vertices[i], vertices[i + 1]);
+        edges[i] = jan_add_edge(mesh, vertices[i], vertices[i + 1]);
     }
-    edges[end] = add_edge(mesh, vertices[end], vertices[0]);
+    edges[end] = jan_add_edge(mesh, vertices[end], vertices[0]);
 
     add_and_link_border(mesh, face, vertices, edges, vertices_count);
 
     STACK_DEALLOCATE(stack, edges);
 }
 
-void remove_face(Mesh* mesh, Face* face)
+void jan_remove_face(JanMesh* mesh, JanFace* face)
 {
-    Border* next_border;
-    for(Border* border = face->first_border; border; border = next_border)
+    JanBorder* next_border;
+    for(JanBorder* border = face->first_border; border; border = next_border)
     {
         next_border = border->next;
-        Link* first = border->first;
-        Link* link = first;
+        JanLink* first = border->first;
+        JanLink* link = first;
         do
         {
-            Link* next = link->next;
+            JanLink* next = link->next;
             remove_fin(link, link->edge);
             pool_deallocate(&mesh->link_pool, link);
             link = next;
@@ -347,23 +345,23 @@ void remove_face(Mesh* mesh, Face* face)
     mesh->faces_count -= 1;
 }
 
-void remove_face_and_its_unlinked_edges_and_vertices(Mesh* mesh, Face* face)
+void jan_remove_face_and_its_unlinked_edges_and_vertices(JanMesh* mesh, JanFace* face)
 {
-    Border* next_border;
-    for(Border* border = face->first_border; border; border = next_border)
+    JanBorder* next_border;
+    for(JanBorder* border = face->first_border; border; border = next_border)
     {
         next_border = border->next;
-        Link* first = border->first;
-        Link* link = first;
+        JanLink* first = border->first;
+        JanLink* link = first;
         do
         {
-            Link* next = link->next;
-            Edge* edge = link->edge;
+            JanLink* next = link->next;
+            JanEdge* edge = link->edge;
             remove_fin(link, edge);
             pool_deallocate(&mesh->link_pool, link);
             if(!edge->any_link)
             {
-                Vertex* vertices[2];
+                JanVertex* vertices[2];
                 vertices[0] = edge->vertices[0];
                 vertices[1] = edge->vertices[1];
                 remove_spoke(edge, vertices[0]);
@@ -389,11 +387,11 @@ void remove_face_and_its_unlinked_edges_and_vertices(Mesh* mesh, Face* face)
     mesh->faces_count -= 1;
 }
 
-void remove_edge(Mesh* mesh, Edge* edge)
+void jan_remove_edge(JanMesh* mesh, JanEdge* edge)
 {
     while(edge->any_link)
     {
-        remove_face(mesh, edge->any_link->face);
+        jan_remove_face(mesh, edge->any_link->face);
     }
     remove_spoke(edge, edge->vertices[0]);
     remove_spoke(edge, edge->vertices[1]);
@@ -401,30 +399,30 @@ void remove_edge(Mesh* mesh, Edge* edge)
     mesh->edges_count -= 1;
 }
 
-void remove_vertex(Mesh* mesh, Vertex* vertex)
+void jan_remove_vertex(JanMesh* mesh, JanVertex* vertex)
 {
     while(vertex->any_edge)
     {
-        remove_edge(mesh, vertex->any_edge);
+        jan_remove_edge(mesh, vertex->any_edge);
     }
     pool_deallocate(&mesh->vertex_pool, vertex);
     mesh->vertices_count -= 1;
 }
 
-static void reverse_face_winding(Face* face)
+static void reverse_face_winding(JanFace* face)
 {
-    for(Border* border = face->first_border; border; border = border->next)
+    for(JanBorder* border = face->first_border; border; border = border->next)
     {
-        Link* first = border->first;
-        Link* link = first;
-        Link* prior_next_fin = link->prior->next_fin;
-        Link* prior_prior_fin = link->prior->prior_fin;
+        JanLink* first = border->first;
+        JanLink* link = first;
+        JanLink* prior_next_fin = link->prior->next_fin;
+        JanLink* prior_prior_fin = link->prior->prior_fin;
         bool boundary_prior = is_boundary(prior_next_fin);
-        Edge* prior_edge = link->prior->edge;
+        JanEdge* prior_edge = link->prior->edge;
         do
         {
-            Link* next_fin = link->next_fin;
-            Link* prior_fin = link->prior_fin;
+            JanLink* next_fin = link->next_fin;
+            JanLink* prior_fin = link->prior_fin;
             bool boundary = is_boundary(next_fin);
 
             // Reverse the fins.
@@ -445,7 +443,7 @@ static void reverse_face_winding(Face* face)
 
             // Rotate the edge's reference to the link loop forward one link
             // and rotate the link's reference backward one edge.
-            Edge* edge = link->edge;
+            JanEdge* edge = link->edge;
             if(edge->any_link == link)
             {
                 edge->any_link = link->next;
@@ -454,7 +452,7 @@ static void reverse_face_winding(Face* face)
             prior_edge = edge;
 
             // Reverse the link itself.
-            Link* temp = link->next;
+            JanLink* temp = link->next;
             link->next = link->prior;
             link->prior = temp;
             link = temp;
@@ -462,24 +460,24 @@ static void reverse_face_winding(Face* face)
     }
 }
 
-static void flip_face_normal(Face* face)
+static void flip_face_normal(JanFace* face)
 {
     reverse_face_winding(face);
     face->normal = float3_negate(face->normal);
 }
 
-static void compute_vertex_normal(Vertex* vertex)
+static void compute_vertex_normal(JanVertex* vertex)
 {
     // This just averages them and does not take into account face area.
-    Edge* edge = vertex->any_edge;
+    JanEdge* edge = vertex->any_edge;
     if(edge)
     {
-        Edge* first = edge;
+        JanEdge* first = edge;
         Float3 normal = float3_zero;
         do
         {
-            Vertex* other;
-            Spoke spoke;
+            JanVertex* other;
+            JanSpoke spoke;
             if(edge->vertices[0] == vertex)
             {
                 other = edge->vertices[1];
@@ -497,11 +495,11 @@ static void compute_vertex_normal(Vertex* vertex)
     }
 }
 
-static void compute_face_normal(Face* face)
+static void compute_face_normal(JanFace* face)
 {
     // This uses Newell's Method to compute the polygon normal.
-    Link* link = face->first_border->first;
-    Link* first = link;
+    JanLink* link = face->first_border->first;
+    JanLink* first = link;
     Float3 prior = link->prior->vertex->position;
     Float3 current = link->vertex->position;
     Float3 normal = float3_zero;
@@ -517,117 +515,116 @@ static void compute_face_normal(Face* face)
     face->normal = float3_normalise(normal);
 }
 
-void update_normals(Mesh* mesh)
+void jan_update_normals(JanMesh* mesh)
 {
-    FOR_EACH_IN_POOL(Face, face, mesh->face_pool)
+    FOR_EACH_IN_POOL(JanFace, face, mesh->face_pool)
     {
         compute_face_normal(face);
     }
-    FOR_EACH_IN_POOL(Vertex, vertex, mesh->vertex_pool)
+    FOR_EACH_IN_POOL(JanVertex, vertex, mesh->vertex_pool)
     {
         compute_vertex_normal(vertex);
     }
 }
 
-void make_a_weird_face(Mesh* mesh, Stack* stack)
+void jan_make_a_weird_face(JanMesh* mesh, Stack* stack)
 {
     const int vertices_count = 8;
     Float3 positions[vertices_count];
-    positions[0] = {-0.20842f, +0.20493f, 0.0f};
-    positions[1] = {+0.53383f, -0.31467f, 0.0f};
-    positions[2] = {+0.19402f, -0.55426f, 0.0f};
-    positions[3] = {+0.86623f, -0.76310f, 0.0f};
-    positions[4] = {+0.58252f, +0.83783f, 0.0f};
-    positions[5] = {-0.58114f, +0.56986f, 0.0f};
-    positions[6] = {-0.59335f, -0.28583f, 0.0f};
-    positions[7] = {-0.05012f, -0.82722f, 0.0f};
+    positions[0] = (Float3){{-0.20842f, +0.20493f, 0.0f}};
+    positions[1] = (Float3){{+0.53383f, -0.31467f, 0.0f}};
+    positions[2] = (Float3){{+0.19402f, -0.55426f, 0.0f}};
+    positions[3] = (Float3){{+0.86623f, -0.76310f, 0.0f}};
+    positions[4] = (Float3){{+0.58252f, +0.83783f, 0.0f}};
+    positions[5] = (Float3){{-0.58114f, +0.56986f, 0.0f}};
+    positions[6] = (Float3){{-0.59335f, -0.28583f, 0.0f}};
+    positions[7] = (Float3){{-0.05012f, -0.82722f, 0.0f}};
 
-    Vertex* vertices[vertices_count];
+    JanVertex* vertices[vertices_count];
     for(int i = 0; i < vertices_count; i += 1)
     {
-        vertices[i] = add_vertex(mesh, positions[i]);
+        vertices[i] = jan_add_vertex(mesh, positions[i]);
     }
 
-    Face* face = connect_vertices_and_add_face(mesh, vertices, vertices_count, stack);
+    JanFace* face = connect_vertices_and_add_face(mesh, vertices, vertices_count, stack);
 
     compute_face_normal(face);
 }
 
-void make_a_face_with_holes(Mesh* mesh, Stack* stack)
+void jan_make_a_face_with_holes(JanMesh* mesh, Stack* stack)
 {
-    const int vertices_count = 7;
-    Float3 positions[vertices_count] =
+    Float3 positions[7] =
     {
-        {+1.016774f, -0.128711f, 0.0f},
-        {+1.005646f, +1.246329f, 0.0f},
-        {-0.160719f, -0.121287f, 0.0f},
-        {-0.744234f, +1.375802f, 0.0f},
-        {-2.254874f, +0.459116f, 0.0f},
-        {-1.812329f, -0.432525f, 0.0f},
-        {+0.000000f, -1.000000f, 0.0f},
+        {{+1.016774f, -0.128711f, 0.0f}},
+        {{+1.005646f, +1.246329f, 0.0f}},
+        {{-0.160719f, -0.121287f, 0.0f}},
+        {{-0.744234f, +1.375802f, 0.0f}},
+        {{-2.254874f, +0.459116f, 0.0f}},
+        {{-1.812329f, -0.432525f, 0.0f}},
+        {{+0.000000f, -1.000000f, 0.0f}},
     };
 
-    Vertex* vertices[vertices_count];
-    for(int i = 0; i < vertices_count; i += 1)
+    JanVertex* vertices[7];
+    for(int i = 0; i < 7; i += 1)
     {
-        vertices[i] = add_vertex(mesh, positions[i]);
+        vertices[i] = jan_add_vertex(mesh, positions[i]);
     }
 
-    Face* face = connect_vertices_and_add_face(mesh, vertices, vertices_count, stack);
+    JanFace* face = connect_vertices_and_add_face(mesh, vertices, 7, stack);
 
     compute_face_normal(face);
 
     Float3 hole0_positions[5] =
     {
-        {-0.543713f, -0.318739f, 0.0f},
-        {-0.716260f, -0.565462f, 0.0f},
-        {-1.659353f, -0.253382f, 0.0f},
-        {-1.602318f, +0.377146f, 0.0f},
-        {-0.852411f, +0.512023f, 0.0f},
+        {{-0.543713f, -0.318739f, 0.0f}},
+        {{-0.716260f, -0.565462f, 0.0f}},
+        {{-1.659353f, -0.253382f, 0.0f}},
+        {{-1.602318f, +0.377146f, 0.0f}},
+        {{-0.852411f, +0.512023f, 0.0f}},
     };
 
     for(int i = 0; i < 5; i += 1)
     {
-        vertices[i] = add_vertex(mesh, hole0_positions[i]);
+        vertices[i] = jan_add_vertex(mesh, hole0_positions[i]);
     }
 
     connect_vertices_and_add_hole(mesh, face, vertices, 5, stack);
 
     Float3 hole1_positions[5] =
     {
-        {+0.502821f, +0.337892f, 0.0f},
-        {+0.755197f, +0.412048f, 0.0f},
-        {+0.717627f, +0.185694f, 0.0f},
-        {+0.579880f, +0.063448f, 0.0f},
-        {+0.361475f, +0.204754f, 0.0f},
+        {{+0.502821f, +0.337892f, 0.0f}},
+        {{+0.755197f, +0.412048f, 0.0f}},
+        {{+0.717627f, +0.185694f, 0.0f}},
+        {{+0.579880f, +0.063448f, 0.0f}},
+        {{+0.361475f, +0.204754f, 0.0f}},
     };
 
     for(int i = 0; i < 5; i += 1)
     {
-        vertices[i] = add_vertex(mesh, hole1_positions[i]);
+        vertices[i] = jan_add_vertex(mesh, hole1_positions[i]);
     }
 
     connect_vertices_and_add_hole(mesh, face, vertices, 5, stack);
 }
 
-static void add_to_pointcloud(Vertex* vertex, Float4 colour, Heap* heap, PointVertex** out_vertices, uint16_t** out_indices)
+static void add_to_pointcloud(JanVertex* vertex, Float4 colour, Heap* heap, PointVertex** out_vertices, uint16_t** out_indices)
 {
     PointVertex* vertices = *out_vertices;
     uint16_t* indices = *out_indices;
 
     const uint32_t texcoords[4] =
     {
-        texcoord_to_u32({0.0f, 0.0f}),
-        texcoord_to_u32({1.0f, 0.0f}),
-        texcoord_to_u32({1.0f, 1.0f}),
-        texcoord_to_u32({0.0f, 1.0f}),
+        texcoord_to_u32((Float2){{0.0f, 0.0f}}),
+        texcoord_to_u32((Float2){{1.0f, 0.0f}}),
+        texcoord_to_u32((Float2){{1.0f, 1.0f}}),
+        texcoord_to_u32((Float2){{0.0f, 1.0f}}),
     };
     const Float2 offsets[4] =
     {
-        {-1.0f, -1.0f},
-        {+1.0f, -1.0f},
-        {+1.0f, +1.0f},
-        {-1.0f, +1.0f},
+        {{-1.0f, -1.0f}},
+        {{+1.0f, -1.0f}},
+        {{+1.0f, +1.0f}},
+        {{-1.0f, +1.0f}},
     };
     uint32_t colour_value = rgba_to_u32(colour);
 
@@ -651,29 +648,29 @@ static void add_to_pointcloud(Vertex* vertex, Float4 colour, Heap* heap, PointVe
     *out_indices = indices;
 }
 
-void make_pointcloud(Mesh* mesh, Heap* heap, Float4 colour, PointVertex** vertices, uint16_t** indices)
+void jan_make_pointcloud(JanMesh* mesh, Heap* heap, Float4 colour, PointVertex** vertices, uint16_t** indices)
 {
-    *vertices = nullptr;
-    *indices = nullptr;
+    *vertices = NULL;
+    *indices = NULL;
 
-    FOR_EACH_IN_POOL(Vertex, vertex, mesh->vertex_pool)
+    FOR_EACH_IN_POOL(JanVertex, vertex, mesh->vertex_pool)
     {
         add_to_pointcloud(vertex, colour, heap, vertices, indices);
     }
 }
 
-void make_pointcloud_selection(Mesh* mesh, Float4 colour, Vertex* hovered, Float4 hover_colour, Selection* selection, Float4 select_colour, Heap* heap, PointVertex** vertices, uint16_t** indices)
+void jan_make_pointcloud_selection(JanMesh* mesh, Float4 colour, JanVertex* hovered, Float4 hover_colour, JanSelection* selection, Float4 select_colour, Heap* heap, PointVertex** vertices, uint16_t** indices)
 {
-    *vertices = nullptr;
-    *indices = nullptr;
+    *vertices = NULL;
+    *indices = NULL;
 
-    FOR_EACH_IN_POOL(Vertex, vertex, mesh->vertex_pool)
+    FOR_EACH_IN_POOL(JanVertex, vertex, mesh->vertex_pool)
     {
         if(vertex == hovered)
         {
             add_to_pointcloud(vertex, hover_colour, heap, vertices, indices);
         }
-        else if(vertex_selected(selection, vertex))
+        else if(jan_vertex_selected(selection, vertex))
         {
             add_to_pointcloud(vertex, select_colour, heap, vertices, indices);
         }
@@ -684,22 +681,22 @@ void make_pointcloud_selection(Mesh* mesh, Float4 colour, Vertex* hovered, Float
     }
 }
 
-static void add_edge_to_wireframe(Edge* edge, Float4 colour, Heap* heap, LineVertex** out_vertices, uint16_t** out_indices)
+static void add_edge_to_wireframe(JanEdge* edge, Float4 colour, Heap* heap, LineVertex** out_vertices, uint16_t** out_indices)
 {
     LineVertex* vertices = *out_vertices;
     uint16_t* indices = *out_indices;
 
     const uint32_t texcoords[4] =
     {
-        texcoord_to_u32({0.0f, 0.0f}),
-        texcoord_to_u32({0.0f, 1.0f}),
-        texcoord_to_u32({1.0f, 1.0f}),
-        texcoord_to_u32({1.0f, 0.0f}),
+        texcoord_to_u32((Float2){{0.0f, 0.0f}}),
+        texcoord_to_u32((Float2){{0.0f, 1.0f}}),
+        texcoord_to_u32((Float2){{1.0f, 1.0f}}),
+        texcoord_to_u32((Float2){{1.0f, 0.0f}}),
     };
     uint32_t colour_value = rgba_to_u32(colour);
 
-    Vertex* vertex = edge->vertices[0];
-    Vertex* other = edge->vertices[1];
+    JanVertex* vertex = edge->vertices[0];
+    JanVertex* other = edge->vertices[1];
 
     Float3 start = vertex->position;
     Float3 end = other->position;
@@ -730,29 +727,29 @@ static void add_edge_to_wireframe(Edge* edge, Float4 colour, Heap* heap, LineVer
     *out_indices = indices;
 }
 
-void make_wireframe(Mesh* mesh, Heap* heap, Float4 colour, LineVertex** vertices, uint16_t** indices)
+void jan_make_wireframe(JanMesh* mesh, Heap* heap, Float4 colour, LineVertex** vertices, uint16_t** indices)
 {
-    *vertices = nullptr;
-    *indices = nullptr;
+    *vertices = NULL;
+    *indices = NULL;
 
-    FOR_EACH_IN_POOL(Edge, edge, mesh->edge_pool)
+    FOR_EACH_IN_POOL(JanEdge, edge, mesh->edge_pool)
     {
         add_edge_to_wireframe(edge, colour, heap, vertices, indices);
     }
 }
 
-void make_wireframe_selection(Mesh* mesh, Heap* heap, Float4 colour, Edge* hovered, Float4 hover_colour, Selection* selection, Float4 select_colour, LineVertex** vertices, uint16_t** indices)
+void jan_make_wireframe_selection(JanMesh* mesh, Heap* heap, Float4 colour, JanEdge* hovered, Float4 hover_colour, JanSelection* selection, Float4 select_colour, LineVertex** vertices, uint16_t** indices)
 {
-    *vertices = nullptr;
-    *indices = nullptr;
+    *vertices = NULL;
+    *indices = NULL;
 
-    FOR_EACH_IN_POOL(Edge, edge, mesh->edge_pool)
+    FOR_EACH_IN_POOL(JanEdge, edge, mesh->edge_pool)
     {
         if(edge == hovered)
         {
             add_edge_to_wireframe(edge, hover_colour, heap, vertices, indices);
         }
-        else if(edge_selected(selection, edge))
+        else if(jan_edge_selected(selection, edge))
         {
             add_edge_to_wireframe(edge, select_colour, heap, vertices, indices);
         }
@@ -781,7 +778,7 @@ static bool point_in_triangle(Float2 v0, Float2 v1, Float2 v2, Float2 p)
     return (f0 == f1) && (f1 == f2);
 }
 
-static bool is_clockwise(Float2* vertices, int vertices_count)
+static bool are_vertices_clockwise(Float2* vertices, int vertices_count)
 {
     float d = 0.0f;
     for(int i = 0; i < vertices_count; i += 1)
@@ -808,11 +805,11 @@ static bool locally_inside(Float2 a0, Float2 a1, Float2 a2, Float2 b)
     }
 }
 
-int count_border_edges(Border* border)
+int jan_count_border_edges(JanBorder* border)
 {
     int count = 0;
-    Link* first = border->first;
-    Link* link = first;
+    JanLink* first = border->first;
+    JanLink* link = first;
     do
     {
         count += 1;
@@ -821,13 +818,13 @@ int count_border_edges(Border* border)
     return count;
 }
 
-struct FlatLoop
+typedef struct FlatLoop
 {
     VertexPNC* vertices;
     Float2* positions;
     int edges;
     int rightmost;
-};
+} FlatLoop;
 
 static int get_rightmost(Float2* positions, int positions_count)
 {
@@ -970,8 +967,8 @@ static void bridge_hole(FlatLoop* loop, int bridge_index, FlatLoop* hole, Heap* 
     MOVE_ARRAY(&loop->positions[bridge_index + to_end + 1], hole->positions, hole->rightmost + 1);
     MOVE_ARRAY(&loop->vertices[bridge_index + to_end + 1], hole->vertices, hole->rightmost + 1);
 
-    REVERSE_ARRAY(&loop->positions[bridge_index + 1], hole->edges + 1);
-    REVERSE_ARRAY(&loop->vertices[bridge_index + 1], hole->edges + 1);
+    REVERSE_ARRAY(Float2, &loop->positions[bridge_index + 1], hole->edges + 1);
+    REVERSE_ARRAY(VertexPNC, &loop->vertices[bridge_index + 1], hole->edges + 1);
 }
 
 static bool is_right(FlatLoop l0, FlatLoop l1)
@@ -981,18 +978,18 @@ static bool is_right(FlatLoop l0, FlatLoop l1)
 
 DEFINE_QUICK_SORT(FlatLoop, is_right, by_rightmost);
 
-static FlatLoop eliminate_holes(Face* face, Heap* heap)
+static FlatLoop eliminate_holes(JanFace* face, Heap* heap)
 {
     Matrix3 transform = matrix3_transpose(matrix3_orthogonal_basis(face->normal));
 
     FlatLoop* queue = HEAP_ALLOCATE(heap, FlatLoop, face->borders_count - 1);
     int added = 0;
-    for(Border* border = face->first_border->next; border; border = border->next)
+    for(JanBorder* border = face->first_border->next; border; border = border->next)
     {
-        int edges = count_border_edges(border);
+        int edges = jan_count_border_edges(border);
         Float2* projected = HEAP_ALLOCATE(heap, Float2, edges);
         VertexPNC* vertices = HEAP_ALLOCATE(heap, VertexPNC, edges);
-        Link* link = border->first;
+        JanLink* link = border->first;
         for(int i = 0; i < edges; i += 1)
         {
             projected[i] = matrix3_transform(transform, link->vertex->position);
@@ -1002,10 +999,10 @@ static FlatLoop eliminate_holes(Face* face, Heap* heap)
             link = link->next;
         }
 
-        if(!is_clockwise(projected, edges))
+        if(!are_vertices_clockwise(projected, edges))
         {
-            REVERSE_ARRAY(projected, edges);
-            REVERSE_ARRAY(vertices, edges);
+            REVERSE_ARRAY(Float2, projected, edges);
+            REVERSE_ARRAY(VertexPNC, vertices, edges);
         }
 
         int rightmost = get_rightmost(projected, edges);
@@ -1023,7 +1020,7 @@ static FlatLoop eliminate_holes(Face* face, Heap* heap)
     loop.edges = face->edges;
     Float2* projected = HEAP_ALLOCATE(heap, Float2, loop.edges);
     VertexPNC* vertices = HEAP_ALLOCATE(heap, VertexPNC, loop.edges);
-    Link* link = face->first_border->first;
+    JanLink* link = face->first_border->first;
     for(int i = 0; i < loop.edges; i += 1)
     {
         projected[i] = matrix3_transform(transform, link->vertex->position);
@@ -1066,7 +1063,7 @@ static bool is_triangle_vertex(Float2 v0, Float2 v1, Float2 v2, Float2 point)
             || float2_exactly_equals(v2, point);
 }
 
-static void triangulate_face(Face* face, Heap* heap, VertexPNC** vertices_array, uint16_t** indices_array)
+static void triangulate_face(JanFace* face, Heap* heap, VertexPNC** vertices_array, uint16_t** indices_array)
 {
     VertexPNC* vertices = *vertices_array;
     uint16_t* indices = *indices_array;
@@ -1083,7 +1080,7 @@ static void triangulate_face(Face* face, Heap* heap, VertexPNC** vertices_array,
         {
             ARRAY_RESERVE(vertices, 3, heap);
             ARRAY_RESERVE(indices, 3, heap);
-            Link* link = face->first_border->first;
+            JanLink* link = face->first_border->first;
             for(int i = 0; i < 3; i += 1)
             {
                 VertexPNC vertex;
@@ -1107,7 +1104,7 @@ static void triangulate_face(Face* face, Heap* heap, VertexPNC** vertices_array,
         loop.vertices = HEAP_ALLOCATE(heap, VertexPNC, loop.edges);
         Matrix3 m = matrix3_orthogonal_basis(face->normal);
         Matrix3 mi = matrix3_transpose(m);
-        Link* link = face->first_border->first;
+        JanLink* link = face->first_border->first;
         for(int i = 0; i < loop.edges; i += 1)
         {
             loop.positions[i] = matrix3_transform(mi, link->vertex->position);
@@ -1137,7 +1134,7 @@ static void triangulate_face(Face* face, Heap* heap, VertexPNC** vertices_array,
     // chains are used to index the projected vertices later during
     // ear-finding.
     bool reverse_winding = false;
-    if(!is_clockwise(loop.positions, loop.edges))
+    if(!are_vertices_clockwise(loop.positions, loop.edges))
     {
         reverse_winding = true;
     }
@@ -1215,36 +1212,36 @@ static void triangulate_face(Face* face, Heap* heap, VertexPNC** vertices_array,
     *indices_array = indices;
 }
 
-void triangulate(Mesh* mesh, Heap* heap, VertexPNC** vertices, uint16_t** indices)
+void jan_triangulate(JanMesh* mesh, Heap* heap, VertexPNC** vertices, uint16_t** indices)
 {
-    *vertices = nullptr;
-    *indices = nullptr;
+    *vertices = NULL;
+    *indices = NULL;
 
-    FOR_EACH_IN_POOL(Face, face, mesh->face_pool)
+    FOR_EACH_IN_POOL(JanFace, face, mesh->face_pool)
     {
         triangulate_face(face, heap, vertices, indices);
     }
 }
 
-void triangulate_selection(Mesh* mesh, Selection* selection, Heap* heap, VertexPNC** vertices, uint16_t** indices)
+void jan_triangulate_selection(JanMesh* mesh, JanSelection* selection, Heap* heap, VertexPNC** vertices, uint16_t** indices)
 {
-    ASSERT(selection->type == Selection::Type::Face);
+    ASSERT(selection->type == JAN_SELECTION_TYPE_FACE);
 
-    *vertices = nullptr;
-    *indices = nullptr;
+    *vertices = NULL;
+    *indices = NULL;
 
-    FOR_ALL(Part, selection->parts)
+    FOR_ALL(JanPart, selection->parts)
     {
         triangulate_face(it->face, heap, vertices, indices);
     }
 }
 
-void create_selection(Selection* selection, Heap* heap)
+void jan_create_selection(JanSelection* selection, Heap* heap)
 {
     selection->heap = heap;
 }
 
-void destroy_selection(Selection* selection)
+void jan_destroy_selection(JanSelection* selection)
 {
     if(selection && selection->heap)
     {
@@ -1252,18 +1249,18 @@ void destroy_selection(Selection* selection)
     }
 }
 
-Selection select_all(Mesh* mesh, Heap* heap)
+JanSelection jan_select_all(JanMesh* mesh, Heap* heap)
 {
-    Selection selection;
-    create_selection(&selection, heap);
-    selection.type = Selection::Type::Face;
-    selection.parts = nullptr;
+    JanSelection selection;
+    jan_create_selection(&selection, heap);
+    selection.type = JAN_SELECTION_TYPE_FACE;
+    selection.parts = NULL;
 
     ARRAY_RESERVE(selection.parts, mesh->faces_count, heap);
 
-    FOR_EACH_IN_POOL(Face, face, mesh->face_pool)
+    FOR_EACH_IN_POOL(JanFace, face, mesh->face_pool)
     {
-        Part part;
+        JanPart part;
         part.face = face;
         ARRAY_ADD(selection.parts, part, heap);
     }
@@ -1271,9 +1268,9 @@ Selection select_all(Mesh* mesh, Heap* heap)
     return selection;
 }
 
-bool edge_selected(Selection* selection, Edge* edge)
+bool jan_edge_selected(JanSelection* selection, JanEdge* edge)
 {
-    FOR_ALL(Part, selection->parts)
+    FOR_ALL(JanPart, selection->parts)
     {
         if(it->edge == edge)
         {
@@ -1283,9 +1280,9 @@ bool edge_selected(Selection* selection, Edge* edge)
     return false;
 }
 
-bool face_selected(Selection* selection, Face* face)
+bool jan_face_selected(JanSelection* selection, JanFace* face)
 {
-    FOR_ALL(Part, selection->parts)
+    FOR_ALL(JanPart, selection->parts)
     {
         if(it->face == face)
         {
@@ -1295,9 +1292,9 @@ bool face_selected(Selection* selection, Face* face)
     return false;
 }
 
-bool vertex_selected(Selection* selection, Vertex* vertex)
+bool jan_vertex_selected(JanSelection* selection, JanVertex* vertex)
 {
-    FOR_ALL(Part, selection->parts)
+    FOR_ALL(JanPart, selection->parts)
     {
         if(it->vertex == vertex)
         {
@@ -1307,7 +1304,7 @@ bool vertex_selected(Selection* selection, Vertex* vertex)
     return false;
 }
 
-static int find_edge(Selection* selection, Edge* edge)
+static int find_edge(JanSelection* selection, JanEdge* edge)
 {
     int found_index = invalid_index;
     for(int i = 0; i < array_count(selection->parts); i += 1)
@@ -1321,7 +1318,7 @@ static int find_edge(Selection* selection, Edge* edge)
     return found_index;
 }
 
-static int find_face(Selection* selection, Face* face)
+static int find_face(JanSelection* selection, JanFace* face)
 {
     int found_index = invalid_index;
     for(int i = 0; i < array_count(selection->parts); i += 1)
@@ -1335,7 +1332,7 @@ static int find_face(Selection* selection, Face* face)
     return found_index;
 }
 
-static int find_vertex(Selection* selection, Vertex* vertex)
+static int find_vertex(JanSelection* selection, JanVertex* vertex)
 {
     int found_index = invalid_index;
     for(int i = 0; i < array_count(selection->parts); i += 1)
@@ -1349,7 +1346,7 @@ static int find_vertex(Selection* selection, Vertex* vertex)
     return found_index;
 }
 
-void toggle_edge_in_selection(Selection* selection, Edge* edge)
+void jan_toggle_edge_in_selection(JanSelection* selection, JanEdge* edge)
 {
     int found_index = find_edge(selection, edge);
     if(is_valid_index(found_index))
@@ -1358,14 +1355,14 @@ void toggle_edge_in_selection(Selection* selection, Edge* edge)
     }
     else
     {
-        selection->type = Selection::Type::Edge;
-        Part part;
+        selection->type = JAN_SELECTION_TYPE_EDGE;
+        JanPart part;
         part.edge = edge;
         ARRAY_ADD(selection->parts, part, selection->heap);
     }
 }
 
-void toggle_face_in_selection(Selection* selection, Face* face)
+void jan_toggle_face_in_selection(JanSelection* selection, JanFace* face)
 {
     int found_index = find_face(selection, face);
     if(is_valid_index(found_index))
@@ -1374,14 +1371,14 @@ void toggle_face_in_selection(Selection* selection, Face* face)
     }
     else
     {
-        selection->type = Selection::Type::Face;
-        Part part;
+        selection->type = JAN_SELECTION_TYPE_FACE;
+        JanPart part;
         part.face = face;
         ARRAY_ADD(selection->parts, part, selection->heap);
     }
 }
 
-void toggle_vertex_in_selection(Selection* selection, Vertex* vertex)
+void jan_toggle_vertex_in_selection(JanSelection* selection, JanVertex* vertex)
 {
     int found_index = find_vertex(selection, vertex);
     if(is_valid_index(found_index))
@@ -1390,24 +1387,24 @@ void toggle_vertex_in_selection(Selection* selection, Vertex* vertex)
     }
     else
     {
-        selection->type = Selection::Type::Vertex;
-        Part part;
+        selection->type = JAN_SELECTION_TYPE_VERTEX;
+        JanPart part;
         part.vertex = vertex;
         ARRAY_ADD(selection->parts, part, selection->heap);
     }
 }
 
-void move_faces(Mesh* mesh, Selection* selection, Float3 translation)
+void jan_move_faces(JanMesh* mesh, JanSelection* selection, Float3 translation)
 {
-    ASSERT(selection->type == Selection::Type::Face);
+    ASSERT(selection->type == JAN_SELECTION_TYPE_FACE);
 
-    FOR_ALL(Part, selection->parts)
+    FOR_ALL(JanPart, selection->parts)
     {
-        Face* face = it->face;
-        for(Border* border = face->first_border; border; border = border->next)
+        JanFace* face = it->face;
+        for(JanBorder* border = face->first_border; border; border = border->next)
         {
-            Link* first = border->first;
-            Link* link = first;
+            JanLink* first = border->first;
+            JanLink* link = first;
             do
             {
                 link->vertex->position = float3_add(link->vertex->position, translation);
@@ -1416,24 +1413,24 @@ void move_faces(Mesh* mesh, Selection* selection, Float3 translation)
         }
     }
 
-    update_normals(mesh);
+    jan_update_normals(mesh);
 }
 
-void flip_face_normals(Mesh* mesh, Selection* selection)
+void jan_flip_face_normals(JanMesh* mesh, JanSelection* selection)
 {
-    ASSERT(selection->type == Selection::Type::Face);
+    ASSERT(selection->type == JAN_SELECTION_TYPE_FACE);
 
-    FOR_ALL(Part, selection->parts)
+    FOR_ALL(JanPart, selection->parts)
     {
         flip_face_normal(it->face);
     }
 }
 
-static bool is_edge_on_selection_boundary(Selection* selection, Link* link)
+static bool is_edge_on_selection_boundary(JanSelection* selection, JanLink* link)
 {
-    for(Link* fin = link->next_fin; fin != link; fin = fin->next_fin)
+    for(JanLink* fin = link->next_fin; fin != link; fin = fin->next_fin)
     {
-        if(face_selected(selection, fin->face))
+        if(jan_face_selected(selection, fin->face))
         {
             return false;
         }
@@ -1441,15 +1438,15 @@ static bool is_edge_on_selection_boundary(Selection* selection, Link* link)
     return true;
 }
 
-void extrude(Mesh* mesh, Selection* selection, float distance, Heap* heap, Stack* stack)
+void jan_extrude(JanMesh* mesh, JanSelection* selection, float distance, Heap* heap, Stack* stack)
 {
-    ASSERT(selection->type == Selection::Type::Face);
+    ASSERT(selection->type == JAN_SELECTION_TYPE_FACE);
 
     // Calculate the vector to extrude all the vertices along.
     Float3 average_direction = float3_zero;
-    FOR_ALL(Part, selection->parts)
+    FOR_ALL(JanPart, selection->parts)
     {
-        Face* face = it->face;
+        JanFace* face = it->face;
         average_direction = float3_add(average_direction, face->normal);
     }
     Float3 extrusion = float3_multiply(distance, float3_normalise(average_direction));
@@ -1459,85 +1456,85 @@ void extrude(Mesh* mesh, Selection* selection, float distance, Heap* heap, Stack
     Map map;
     map_create(&map, mesh->vertices_count, heap);
 
-    FOR_ALL(Part, selection->parts)
+    FOR_ALL(JanPart, selection->parts)
     {
-        Face* face = it->face;
+        JanFace* face = it->face;
 
         // @Incomplete: Holes in faces aren't yet supported!
         ASSERT(!face->first_border->next);
 
-        Link* first = face->first_border->first;
-        Link* link = first;
+        JanLink* first = face->first_border->first;
+        JanLink* link = first;
         do
         {
             if(is_edge_on_selection_boundary(selection, link))
             {
                 // Add vertices only where they haven't been added already.
-                Vertex* start = link->vertex;
-                Vertex* end = link->next->vertex;
-                if(!map_get(&map, start, nullptr))
+                JanVertex* start = link->vertex;
+                JanVertex* end = link->next->vertex;
+                if(!map_get(&map, start, NULL))
                 {
                     Float3 position = float3_add(start->position, extrusion);
-                    Vertex* vertex = add_vertex(mesh, position);
-                    add_edge(mesh, start, vertex);
+                    JanVertex* vertex = jan_add_vertex(mesh, position);
+                    jan_add_edge(mesh, start, vertex);
                     map_add(&map, start, vertex, heap);
                 }
-                if(!map_get(&map, end, nullptr))
+                if(!map_get(&map, end, NULL))
                 {
                     Float3 position = float3_add(end->position, extrusion);
-                    Vertex* vertex = add_vertex(mesh, position);
-                    add_edge(mesh, end, vertex);
+                    JanVertex* vertex = jan_add_vertex(mesh, position);
+                    jan_add_edge(mesh, end, vertex);
                     map_add(&map, end, vertex, heap);
                 }
 
                 // Add the extruded side face for this edge.
-                Vertex* vertices[4];
+                JanVertex* vertices[4];
                 vertices[0] = start;
                 vertices[1] = end;
-                map_get(&map, end, reinterpret_cast<void**>(&vertices[2]));
-                map_get(&map, start, reinterpret_cast<void**>(&vertices[3]));
-                Edge* edges[4];
+                map_get(&map, end, (void**) &vertices[2]);
+                map_get(&map, start, (void**) &vertices[3]);
+                JanEdge* edges[4];
                 edges[0] = link->edge;
                 edges[1] = vertices[2]->any_edge;
-                edges[2] = add_edge(mesh, vertices[2], vertices[3]);
+                edges[2] = jan_add_edge(mesh, vertices[2], vertices[3]);
                 edges[3] = vertices[3]->any_edge;
-                add_face(mesh, vertices, edges, 4);
+                jan_add_face(mesh, vertices, edges, 4);
             }
             link = link->next;
         } while(link != first);
     }
 
-    FOR_ALL(Part, selection->parts)
+    FOR_ALL(JanPart, selection->parts)
     {
-        Face* face = it->face;
+        JanFace* face = it->face;
 
         // @Incomplete: Holes in faces aren't yet supported!
         ASSERT(!face->first_border->next);
 
         const int vertices_count = face->edges;
-        Vertex** vertices = STACK_ALLOCATE(stack, Vertex*, vertices_count);
-        Link* link = face->first_border->first;
+        JanVertex** vertices = STACK_ALLOCATE(stack, JanVertex*, vertices_count);
+        JanLink* link = face->first_border->first;
         for(int j = 0; j < vertices_count; j += 1)
         {
-            map_get(&map, link->vertex, reinterpret_cast<void**>(&vertices[j]));
+            map_get(&map, link->vertex, (void**) &vertices[j]);
             link = link->next;
         }
-        connect_disconnected_vertices_and_add_face(mesh, vertices, vertices_count, stack);
-        remove_face_and_its_unlinked_edges_and_vertices(mesh, face);
+        jan_connect_disconnected_vertices_and_add_face(mesh, vertices, vertices_count, stack);
+        jan_remove_face_and_its_unlinked_edges_and_vertices(mesh, face);
         STACK_DEALLOCATE(stack, vertices);
     }
 
     map_destroy(&map, heap);
 
-    update_normals(mesh);
+    jan_update_normals(mesh);
 }
 
-void colour_just_the_one_face(Face* face, Float3 colour)
+void jan_colour_just_the_one_face(JanFace* face, Float3 colour)
 {
-    for(Border* border = face->first_border; border; border = border->next)
+    for(JanBorder* border = face->first_border; border; border = border->next)
     {
-        Link* first = border->first;
-        Link* link = first;
+        JanLink* first = border->first;
+        JanLink* link = first;
         do
         {
             link->colour = colour;
@@ -1546,23 +1543,21 @@ void colour_just_the_one_face(Face* face, Float3 colour)
     }
 }
 
-void colour_all_faces(Mesh* mesh, Float3 colour)
+void jan_colour_all_faces(JanMesh* mesh, Float3 colour)
 {
-    FOR_EACH_IN_POOL(Link, link, mesh->link_pool)
+    FOR_EACH_IN_POOL(JanLink, link, mesh->link_pool)
     {
         link->colour = colour;
     }
 }
 
-void colour_selection(Mesh* mesh, Selection* selection, Float3 colour)
+void jan_colour_selection(JanMesh* mesh, JanSelection* selection, Float3 colour)
 {
-    if(selection->type == Selection::Type::Face)
+    if(selection->type == JAN_SELECTION_TYPE_FACE)
     {
-        FOR_ALL(Part, selection->parts)
+        FOR_ALL(JanPart, selection->parts)
         {
-            colour_just_the_one_face(it->face, colour);
+            jan_colour_just_the_one_face(it->face, colour);
         }
     }
 }
-
-} // namespace jan

@@ -17,13 +17,6 @@ struct Font;
 
 } // namespace bmfont
 
-namespace jan {
-
-struct Mesh;
-struct Selection;
-
-} // namespace jan
-
 namespace ui {
 
 struct Context;

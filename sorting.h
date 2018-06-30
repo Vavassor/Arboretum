@@ -1,8 +1,8 @@
 #ifndef SORTING_H_
 #define SORTING_H_
 
-#define SWAP(a, b) \
-    do { auto temp = (a); (a) = (b); (b) = temp; } while(0)
+#define SWAP(type, a, b)\
+    do { type temp = (a); (a) = (b); (b) = temp; } while(0)
 
 #define DEFINE_INSERTION_SORT(type, before, suffix)\
     static void insertion_sort_##suffix(type* a, int count)\
@@ -70,7 +70,7 @@
                 }\
                 else\
                 {\
-                    SWAP(a[i], a[j]);\
+                    SWAP(type, a[i], a[j]);\
                 }\
             }\
             quick_sort_innards(a, left, pivot);\
@@ -108,7 +108,7 @@
             }\
             else\
             {\
-                SWAP(a[index], a[root]);\
+                SWAP(type, a[index], a[root]);\
                 root = index;\
             }\
         }\
@@ -121,17 +121,17 @@
         }\
         for(int right = count - 1; right > 0;)\
         {\
-            SWAP(a[right], a[0]);\
+            SWAP(type, a[right], a[0]);\
             right -= 1;\
             sift_down_##suffix(a, 0, right);\
         }\
     }
 
-#define REVERSE_ARRAY(array, count) \
+#define REVERSE_ARRAY(type, array, count) \
     do \
     { \
         for(int start = 0, end = (count) - 1; start < end; start += 1, end -= 1) \
-            SWAP((array)[start], (array)[end]); \
+            SWAP(type, (array)[start], (array)[end]); \
     } while(0)
 
 #endif // SORTING_H_

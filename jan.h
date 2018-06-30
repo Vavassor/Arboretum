@@ -1,73 +1,81 @@
 #ifndef JAN_H_
 #define JAN_H_
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #include "memory.h"
 #include "vector_math.h"
 #include "vertex_layout.h"
 
 // Editable Polygon Mesh
-namespace jan {
 
-struct Edge;
-struct Link;
-struct Face;
+typedef struct JanBorder JanBorder;
+typedef struct JanEdge JanEdge;
+typedef struct JanFace JanFace;
+typedef struct JanLink JanLink;
+typedef struct JanMesh JanMesh;
+typedef struct JanSpoke JanSpoke;
+typedef struct JanVertex JanVertex;
 
-struct Vertex
+struct JanVertex
 {
     Float3 position;
     Float3 normal;
-    Edge* any_edge;
+    JanEdge* any_edge;
 };
 
 // Spokes are for navigating edges that all meet at the same vertex "hub".
-struct Spoke
+
+struct JanSpoke
 {
-    Edge* next;
-    Edge* prior;
+    JanEdge* next;
+    JanEdge* prior;
 };
 
-struct Edge
+struct JanEdge
 {
-    Spoke spokes[2];
-    Vertex* vertices[2];
-    Link* any_link;
+    JanSpoke spokes[2];
+    JanVertex* vertices[2];
+    JanLink* any_link;
     bool sharp;
 };
 
 // Links are also known as half-edges. These have the additional responsibility
 // of storing vertex attributes that are specific to a face.
-struct Link
+struct JanLink
 {
     Float3 colour;
-    Link* next;
-    Link* prior;
-    Link* next_fin;
-    Link* prior_fin;
-    Vertex* vertex;
-    Edge* edge;
-    Face* face;
+    JanLink* next;
+    JanLink* prior;
+    JanLink* next_fin;
+    JanLink* prior_fin;
+    JanVertex* vertex;
+    JanEdge* edge;
+    JanFace* face;
 };
 
 // A Border corresponds to a boundary edge. So, either an outer edge of a face
 // or an edge of a hole in a face.
-struct Border
+struct JanBorder
 {
-    Border* next;
-    Border* prior;
-    Link* first;
-    Link* last;
+    JanBorder* next;
+    JanBorder* prior;
+    JanLink* first;
+    JanLink* last;
 };
 
-struct Face
+struct JanFace
 {
     Float3 normal;
-    Border* first_border;
-    Border* last_border;
+    JanBorder* first_border;
+    JanBorder* last_border;
     int edges;
     int borders_count;
 };
 
-struct Mesh
+struct JanMesh
 {
     Pool face_pool;
     Pool edge_pool;
@@ -79,67 +87,69 @@ struct Mesh
     int vertices_count;
 };
 
-struct Part
+typedef struct JanPart
 {
     union
     {
-        Vertex* vertex;
-        Edge* edge;
-        Face* face;
+        JanVertex* vertex;
+        JanEdge* edge;
+        JanFace* face;
     };
-};
+} JanPart;
 
-struct Selection
+typedef enum JanSelectionType
 {
-    enum class Type
-    {
-        Vertex,
-        Edge,
-        Face,
-    };
+    JAN_SELECTION_TYPE_VERTEX,
+    JAN_SELECTION_TYPE_EDGE,
+    JAN_SELECTION_TYPE_FACE,
+} JanSelectionType;
 
+typedef struct JanSelection
+{
     Heap* heap;
-    Part* parts;
-    Type type;
-};
+    JanPart* parts;
+    JanSelectionType type;
+} JanSelection;
 
-void create_mesh(Mesh* mesh);
-void destroy_mesh(Mesh* mesh);
-Vertex* add_vertex(Mesh* mesh, Float3 position);
-Edge* add_edge(Mesh* mesh, Vertex* start, Vertex* end);
-Face* add_face(Mesh* mesh, Vertex** vertices, Edge** edges, int edges_count);
-Face* connect_disconnected_vertices_and_add_face(Mesh* mesh, Vertex** vertices, int vertices_count, Stack* stack);
-void remove_vertex(Mesh* mesh, Vertex* vertex);
-void remove_edge(Mesh* mesh, Edge* edge);
-void remove_face(Mesh* mesh, Face* face);
-void remove_face_and_its_unlinked_edges_and_vertices(Mesh* mesh, Face* face);
-void update_normals(Mesh* mesh);
-void make_a_weird_face(Mesh* mesh, Stack* stack);
-void make_a_face_with_holes(Mesh* mesh, Stack* stack);
-void colour_just_the_one_face(Face* face, Float3 colour);
-void colour_all_faces(Mesh* mesh, Float3 colour);
-void colour_selection(Mesh* mesh, Selection* selection, Float3 colour);
-void move_faces(Mesh* mesh, Selection* selection, Float3 translation);
-void flip_face_normals(Mesh* mesh, Selection* selection);
-void extrude(Mesh* mesh, Selection* selection, float distance, Heap* heap, Stack* stack);
-void make_pointcloud(Mesh* mesh, Heap* heap, Float4 colour, PointVertex** vertices, uint16_t** indices);
-void make_pointcloud_selection(Mesh* mesh, Float4 colour, Vertex* hovered, Float4 hover_colour, Selection* selection, Float4 select_colour, Heap* heap, PointVertex** vertices, uint16_t** indices);
-void make_wireframe(Mesh* mesh, Heap* heap, Float4 colour, LineVertex** vertices, uint16_t** indices);
-void make_wireframe_selection(Mesh* mesh, Heap* heap, Float4 colour, Edge* hovered, Float4 hover_colour, Selection* selection, Float4 select_colour, LineVertex** vertices, uint16_t** indices);
-int count_border_edges(Border* border);
-void triangulate(Mesh* mesh, Heap* heap, VertexPNC** vertices, uint16_t** indices);
-void triangulate_selection(Mesh* mesh, Selection* selection, Heap* heap, VertexPNC** vertices, uint16_t** indices);
+void jan_create_mesh(JanMesh* mesh);
+void jan_destroy_mesh(JanMesh* mesh);
+JanVertex* jan_add_vertex(JanMesh* mesh, Float3 position);
+JanEdge* jan_add_edge(JanMesh* mesh, JanVertex* start, JanVertex* end);
+JanFace* jan_add_face(JanMesh* mesh, JanVertex** vertices, JanEdge** edges, int edges_count);
+JanFace* jan_connect_disconnected_vertices_and_add_face(JanMesh* mesh, JanVertex** vertices, int vertices_count, Stack* stack);
+void jan_remove_vertex(JanMesh* mesh, JanVertex* vertex);
+void jan_remove_edge(JanMesh* mesh, JanEdge* edge);
+void jan_remove_face(JanMesh* mesh, JanFace* face);
+void jan_remove_face_and_its_unlinked_edges_and_vertices(JanMesh* mesh, JanFace* face);
+void jan_update_normals(JanMesh* mesh);
+void jan_make_a_weird_face(JanMesh* mesh, Stack* stack);
+void jan_make_a_face_with_holes(JanMesh* mesh, Stack* stack);
+void jan_colour_just_the_one_face(JanFace* face, Float3 colour);
+void jan_colour_all_faces(JanMesh* mesh, Float3 colour);
+void jan_colour_selection(JanMesh* mesh, JanSelection* selection, Float3 colour);
+void jan_move_faces(JanMesh* mesh, JanSelection* selection, Float3 translation);
+void jan_flip_face_normals(JanMesh* mesh, JanSelection* selection);
+void jan_extrude(JanMesh* mesh, JanSelection* selection, float distance, Heap* heap, Stack* stack);
+void jan_make_pointcloud(JanMesh* mesh, Heap* heap, Float4 colour, PointVertex** vertices, uint16_t** indices);
+void jan_make_pointcloud_selection(JanMesh* mesh, Float4 colour, JanVertex* hovered, Float4 hover_colour, JanSelection* selection, Float4 select_colour, Heap* heap, PointVertex** vertices, uint16_t** indices);
+void jan_make_wireframe(JanMesh* mesh, Heap* heap, Float4 colour, LineVertex** vertices, uint16_t** indices);
+void jan_make_wireframe_selection(JanMesh* mesh, Heap* heap, Float4 colour, JanEdge* hovered, Float4 hover_colour, JanSelection* selection, Float4 select_colour, LineVertex** vertices, uint16_t** indices);
+int jan_count_border_edges(JanBorder* border);
+void jan_triangulate(JanMesh* mesh, Heap* heap, VertexPNC** vertices, uint16_t** indices);
+void jan_triangulate_selection(JanMesh* mesh, JanSelection* selection, Heap* heap, VertexPNC** vertices, uint16_t** indices);
 
-void create_selection(Selection* selection, Heap* heap);
-void destroy_selection(Selection* selection);
-Selection select_all(Mesh* mesh, Heap* heap);
-void toggle_edge_in_selection(Selection* selection, Edge* edge);
-void toggle_face_in_selection(Selection* selection, Face* face);
-void toggle_vertex_in_selection(Selection* selection, Vertex* vertex);
-bool edge_selected(Selection* selection, Edge* edge);
-bool face_selected(Selection* selection, Face* face);
-bool vertex_selected(Selection* selection, Vertex* vertex);
+void jan_create_selection(JanSelection* selection, Heap* heap);
+void jan_destroy_selection(JanSelection* selection);
+JanSelection jan_select_all(JanMesh* mesh, Heap* heap);
+void jan_toggle_edge_in_selection(JanSelection* selection, JanEdge* edge);
+void jan_toggle_face_in_selection(JanSelection* selection, JanFace* face);
+void jan_toggle_vertex_in_selection(JanSelection* selection, JanVertex* vertex);
+bool jan_edge_selected(JanSelection* selection, JanEdge* edge);
+bool jan_face_selected(JanSelection* selection, JanFace* face);
+bool jan_vertex_selected(JanSelection* selection, JanVertex* vertex);
 
-} // namespace jan
+#if defined(__cplusplus)
+} // extern "C"
+#endif
 
 #endif // JAN_H_
