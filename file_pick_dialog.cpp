@@ -60,7 +60,7 @@ static void filter_directory(Directory* directory, const char** extensions, int 
     directory->records_count = array_count(filtered);
 }
 
-static void list_directory(FilePickDialog* dialog, const char* directory, ui::Context* context, Platform* platform, Heap* heap)
+static void list_directory(FilePickDialog* dialog, const char* directory, UiContext* context, Platform* platform, Heap* heap)
 {
     // Attempt to list the directory, first.
     Directory new_directory = {};
@@ -73,15 +73,15 @@ static void list_directory(FilePickDialog* dialog, const char* directory, ui::Co
     }
 
     // Clean up a previous directory if there was one.
-    ui::Item* panel = dialog->panel;
+    UiItem* panel = dialog->panel;
 
     if(dialog->path_buttons_count > 0)
     {
-        ui::empty_item(context, &panel->container.items[0]);
+        ui_empty_item(context, &panel->container.items[0]);
     }
     if(dialog->directory.records_count > 0)
     {
-        ui::empty_item(context, &panel->container.items[1]);
+        ui_empty_item(context, &panel->container.items[1]);
     }
 
     SAFE_HEAP_DEALLOCATE(heap, dialog->path);
@@ -106,24 +106,24 @@ static void list_directory(FilePickDialog* dialog, const char* directory, ui::Co
         buttons_in_row = slashes + 1;
     }
     dialog->path_buttons_count = buttons_in_row;
-    dialog->path_buttons = HEAP_ALLOCATE(heap, ui::Id, buttons_in_row);
+    dialog->path_buttons = HEAP_ALLOCATE(heap, UiId, buttons_in_row);
 
-    ui::Item* path_bar = &panel->container.items[0];
-    path_bar->type = ui::ItemType::Container;
-    path_bar->container.style_type = ui::StyleType::Path_Bar;
-    ui::add_row(&path_bar->container, buttons_in_row, context, heap);
+    UiItem* path_bar = &panel->container.items[0];
+    path_bar->type = UI_ITEM_TYPE_CONTAINER;
+    path_bar->container.style_type = UI_STYLE_TYPE_PATH_BAR;
+    ui_add_row(&path_bar->container, buttons_in_row, context, heap);
 
     // Add buttons to the path bar.
     int i = 0;
     for(const char* path = dialog->path; *path; i += 1)
     {
-        ui::Item* item = &path_bar->container.items[i];
-        item->type = ui::ItemType::Button;
+        UiItem* item = &path_bar->container.items[i];
+        item->type = UI_ITEM_TYPE_BUTTON;
 
-        ui::Button* button = &item->button;
+        UiButton* button = &item->button;
         button->enabled = true;
         button->text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-        button->text_block.text_overflow = ui::TextOverflow::Ellipsize_End;
+        button->text_block.text_overflow = UI_TEXT_OVERFLOW_ELLIPSIZE_END;
         dialog->path_buttons[i] = item->id;
 
         int found_index = find_char(path, '/');
@@ -131,29 +131,29 @@ static void list_directory(FilePickDialog* dialog, const char* directory, ui::Co
         {
             // root directory
             const char* name = platform->localized_text.file_pick_dialog_filesystem;
-            ui::set_text(&button->text_block, name, heap);
+            ui_set_text(&button->text_block, name, heap);
         }
         else if(found_index == invalid_index)
         {
             // final path segment
-            ui::set_text(&button->text_block, path, heap);
+            ui_set_text(&button->text_block, path, heap);
             break;
         }
         else
         {
             char* temp = copy_chars_to_heap(path, found_index, heap);
-            ui::set_text(&button->text_block, temp, heap);
+            ui_set_text(&button->text_block, temp, heap);
             HEAP_DEALLOCATE(heap, temp);
         }
         path += found_index + 1;
     }
 
     // Set up the directory listing.
-    ui::Item* file_list = &panel->container.items[1];
-    file_list->type = ui::ItemType::List;
+    UiItem* file_list = &panel->container.items[1];
+    file_list->type = UI_ITEM_TYPE_LIST;
     file_list->growable = true;
 
-    ui::List* list = &file_list->list;
+    UiList* list = &file_list->list;
     list->item_spacing = 2.0f;
     list->side_margin = 2.0f;
     list->scroll_top = 0.0f;
@@ -162,7 +162,7 @@ static void list_directory(FilePickDialog* dialog, const char* directory, ui::Co
     const char* extensions[extensions_count] = {".obj"};
     filter_directory(&dialog->directory, extensions, extensions_count, dialog->show_hidden_records, heap);
 
-    ui::create_items(file_list, dialog->directory.records_count, heap);
+    ui_create_items(file_list, dialog->directory.records_count, heap);
 
     if(dialog->directory.records_count == 0)
     {
@@ -175,40 +175,40 @@ static void list_directory(FilePickDialog* dialog, const char* directory, ui::Co
         for(int i = 0; i < dialog->directory.records_count; i += 1)
         {
             DirectoryRecord record = dialog->directory.records[i];
-            ui::TextBlock* text_block = &list->items[i];
+            UiTextBlock* text_block = &list->items[i];
             text_block->padding = {1.0f, 1.0f, 1.0f, 1.0f};
-            text_block->text_overflow = ui::TextOverflow::Ellipsize_End;
-            ui::set_text(text_block, record.name, heap);
+            text_block->text_overflow = UI_TEXT_OVERFLOW_ELLIPSIZE_END;
+            ui_set_text(text_block, record.name, heap);
         }
     }
 
-    ui::focus_on_item(context, file_list);
+    ui_focus_on_item(context, file_list);
 }
 
-void open_dialog(FilePickDialog* dialog, ui::Context* context, Platform* platform, Heap* heap)
+void open_dialog(FilePickDialog* dialog, UiContext* context, Platform* platform, Heap* heap)
 {
     const char* default_path = get_user_folder(USER_FOLDER_DOCUMENTS, heap);
 
     dialog->enabled = true;
 
     // Create the panel for the dialog box.
-    ui::Item* panel = ui::create_toplevel_container(context, heap);
-    panel->type = ui::ItemType::Container;
+    UiItem* panel = ui_create_toplevel_container(context, heap);
+    panel->type = UI_ITEM_TYPE_CONTAINER;
     panel->growable = true;
-    panel->container.alignment = ui::Alignment::Stretch;
+    panel->container.alignment = UI_ALIGNMENT_STRETCH;
     dialog->panel = panel;
 
-    ui::add_column(&panel->container, 3, context, heap);
+    ui_add_column(&panel->container, 3, context, heap);
 
     list_directory(dialog, default_path, context, platform, heap);
 
     // Set up the footer.
-    ui::Item* footer = &panel->container.items[2];
-    footer->type = ui::ItemType::Container;
-    footer->container.style_type = ui::StyleType::Footer;
-    footer->container.justification = ui::Justification::Space_Between;
+    UiItem* footer = &panel->container.items[2];
+    footer->type = UI_ITEM_TYPE_CONTAINER;
+    footer->container.style_type = UI_STYLE_TYPE_FOOTER;
+    footer->container.justification = UI_JUSTIFICATION_SPACE_BETWEEN;
 
-    ui::add_row(&footer->container, 2, context, heap);
+    ui_add_row(&footer->container, 2, context, heap);
 
     const char* pick_button_text;
     switch(dialog->type)
@@ -216,13 +216,13 @@ void open_dialog(FilePickDialog* dialog, ui::Context* context, Platform* platfor
         default:
         case DialogType::Export:
         {
-            ui::Item* filename_field = &footer->container.items[0];
-            filename_field->type = ui::ItemType::Text_Input;
+            UiItem* filename_field = &footer->container.items[0];
+            filename_field->type = UI_ITEM_TYPE_TEXT_INPUT;
             filename_field->text_input.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
             filename_field->text_input.label.padding = {4.0f, 4.0f, 4.0f, 4.0f};
             filename_field->growable = true;
-            ui::set_text(&filename_field->text_input.text_block, "", heap);
-            ui::set_text(&filename_field->text_input.label, "enter filename", heap);
+            ui_set_text(&filename_field->text_input.text_block, "", heap);
+            ui_set_text(&filename_field->text_input.label, "enter filename", heap);
             dialog->filename_field_id = filename_field->id;
             dialog->filename_field = &filename_field->text_input;
 
@@ -232,10 +232,10 @@ void open_dialog(FilePickDialog* dialog, ui::Context* context, Platform* platfor
         }
         case DialogType::Import:
         {
-            ui::Item* file_readout = &footer->container.items[0];
-            file_readout->type = ui::ItemType::Text_Block;
+            UiItem* file_readout = &footer->container.items[0];
+            file_readout->type = UI_ITEM_TYPE_TEXT_BLOCK;
             file_readout->text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-            ui::set_text(&file_readout->text_block, "", heap);
+            ui_set_text(&file_readout->text_block, "", heap);
             dialog->file_readout = &file_readout->text_block;
 
             pick_button_text = platform->localized_text.file_pick_dialog_import;
@@ -244,15 +244,15 @@ void open_dialog(FilePickDialog* dialog, ui::Context* context, Platform* platfor
         }
     }
 
-    ui::Item* pick = &footer->container.items[1];
-    pick->type = ui::ItemType::Button;
+    UiItem* pick = &footer->container.items[1];
+    pick->type = UI_ITEM_TYPE_BUTTON;
     pick->button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-    ui::set_text(&pick->button.text_block, pick_button_text, heap);
+    ui_set_text(&pick->button.text_block, pick_button_text, heap);
     dialog->pick_button = pick->id;
     dialog->pick = &pick->button;
 }
 
-void close_dialog(FilePickDialog* dialog, ui::Context* context, Heap* heap)
+void close_dialog(FilePickDialog* dialog, UiContext* context, Heap* heap)
 {
     if(dialog)
     {
@@ -261,7 +261,7 @@ void close_dialog(FilePickDialog* dialog, ui::Context* context, Heap* heap)
 
         if(dialog->panel)
         {
-            ui::destroy_toplevel_container(context, dialog->panel, heap);
+            ui_destroy_toplevel_container(context, dialog->panel, heap);
             dialog->panel = nullptr;
         }
 
@@ -270,7 +270,7 @@ void close_dialog(FilePickDialog* dialog, ui::Context* context, Heap* heap)
     }
 }
 
-static void touch_record(FilePickDialog* dialog, int record_index, bool expand, ui::Context* context, Platform* platform, Heap* heap)
+static void touch_record(FilePickDialog* dialog, int record_index, bool expand, UiContext* context, Platform* platform, Heap* heap)
 {
     DirectoryRecord record = dialog->directory.records[record_index];
     switch(record.type)
@@ -281,7 +281,7 @@ static void touch_record(FilePickDialog* dialog, int record_index, bool expand, 
             {
                 case DialogType::Import:
                 {
-                    ui::set_text(dialog->file_readout, "", heap);
+                    ui_set_text(dialog->file_readout, "", heap);
                     dialog->pick->enabled = false;
                     dialog->record_selected = invalid_index;
                     break;
@@ -292,7 +292,7 @@ static void touch_record(FilePickDialog* dialog, int record_index, bool expand, 
                     // be cleared.
                     if(dialog->record_selected != invalid_index)
                     {
-                        ui::set_text(dialog->file_readout, "", heap);
+                        ui_set_text(dialog->file_readout, "", heap);
                         dialog->pick->enabled = false;
                         dialog->record_selected = invalid_index;
                     }
@@ -320,12 +320,12 @@ static void touch_record(FilePickDialog* dialog, int record_index, bool expand, 
             {
                 case DialogType::Import:
                 {
-                    ui::set_text(dialog->file_readout, filename, heap);
+                    ui_set_text(dialog->file_readout, filename, heap);
                     break;
                 }
                 case DialogType::Export:
                 {
-                    ui::set_text(&dialog->filename_field->text_block, filename, heap);
+                    ui_set_text(&dialog->filename_field->text_block, filename, heap);
                     break;
                 }
             }
@@ -339,7 +339,7 @@ static void touch_record(FilePickDialog* dialog, int record_index, bool expand, 
     }
 }
 
-static void open_parent_directory(FilePickDialog* dialog, int segment, ui::Context* context, Platform* platform, Heap* heap)
+static void open_parent_directory(FilePickDialog* dialog, int segment, UiContext* context, Platform* platform, Heap* heap)
 {
     const char* path = dialog->path;
     int slash = 0;
@@ -387,7 +387,7 @@ static void open_parent_directory(FilePickDialog* dialog, int segment, ui::Conte
     HEAP_DEALLOCATE(heap, subpath);
 }
 
-static void export_file(FilePickDialog* dialog, const char* name, ObjectLady* lady, int selected_object_index, ui::Context* context, Heap* heap)
+static void export_file(FilePickDialog* dialog, const char* name, ObjectLady* lady, int selected_object_index, UiContext* context, Heap* heap)
 {
     char* path = append_to_path(dialog->path, name, heap);
     JanMesh* mesh = &lady->objects[selected_object_index].mesh;
@@ -405,7 +405,7 @@ static void export_file(FilePickDialog* dialog, const char* name, ObjectLady* la
     }
 }
 
-static void import_file(FilePickDialog* dialog, const char* name, ObjectLady* lady, History* history, ui::Context* context, Heap* heap, Stack* stack)
+static void import_file(FilePickDialog* dialog, const char* name, ObjectLady* lady, History* history, UiContext* context, Heap* heap, Stack* stack)
 {
     char* path = append_to_path(dialog->path, name, heap);
     JanMesh mesh;
@@ -438,7 +438,7 @@ static void import_file(FilePickDialog* dialog, const char* name, ObjectLady* la
     }
 }
 
-static void pick_file(FilePickDialog* dialog, ObjectLady* lady, int selected_object_index, History* history, ui::Context* context, Heap* heap, Stack* stack)
+static void pick_file(FilePickDialog* dialog, ObjectLady* lady, int selected_object_index, History* history, UiContext* context, Heap* heap, Stack* stack)
 {
     int selected = dialog->record_selected;
 
@@ -485,13 +485,13 @@ static void pick_file(FilePickDialog* dialog, ObjectLady* lady, int selected_obj
     }
 }
 
-void handle_input(FilePickDialog* dialog, ui::Event event, ObjectLady* lady, int selected_object_index, History* history, ui::Context* context, Platform* platform, Heap* heap, Stack* stack)
+void handle_input(FilePickDialog* dialog, UiEvent event, ObjectLady* lady, int selected_object_index, History* history, UiContext* context, Platform* platform, Heap* heap, Stack* stack)
 {
     switch(event.type)
     {
-        case ui::EventType::Button:
+        case UI_EVENT_TYPE_BUTTON:
         {
-            ui::Id id = event.button.id;
+            UiId id = event.button.id;
 
             for(int i = 0; i < dialog->path_buttons_count; i += 1)
             {
@@ -507,9 +507,9 @@ void handle_input(FilePickDialog* dialog, ui::Event event, ObjectLady* lady, int
             }
             break;
         }
-        case ui::EventType::Focus_Change:
+        case UI_EVENT_TYPE_FOCUS_CHANGE:
         {
-            ui::Id scope = event.focus_change.current_scope;
+            UiId scope = event.focus_change.current_scope;
             if(scope != dialog->panel->id)
             {
                 close_dialog(dialog, context, heap);
@@ -517,15 +517,15 @@ void handle_input(FilePickDialog* dialog, ui::Event event, ObjectLady* lady, int
 
             if(dialog->type == DialogType::Export)
             {
-                ui::Id id = dialog->filename_field_id;
+                UiId id = dialog->filename_field_id;
 
-                ui::Id gained_focus = event.focus_change.now_focused;
+                UiId gained_focus = event.focus_change.now_focused;
                 if(gained_focus == id)
                 {
                     begin_composed_text(platform);
                 }
 
-                ui::Id lost_focus = event.focus_change.now_unfocused;
+                UiId lost_focus = event.focus_change.now_unfocused;
                 if(lost_focus == id)
                 {
                     end_composed_text(platform);
@@ -533,14 +533,14 @@ void handle_input(FilePickDialog* dialog, ui::Event event, ObjectLady* lady, int
             }
             break;
         }
-        case ui::EventType::List_Selection:
+        case UI_EVENT_TYPE_LIST_SELECTION:
         {
             int index = event.list_selection.index;
             bool expand = event.list_selection.expand;
             touch_record(dialog, index, expand, context, platform, heap);
             break;
         }
-        case ui::EventType::Text_Change:
+        case UI_EVENT_TYPE_TEXT_CHANGE:
         {
             if(dialog->type == DialogType::Export
                 && event.text_change.id == dialog->filename_field_id)

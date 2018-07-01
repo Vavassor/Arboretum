@@ -746,9 +746,9 @@ void system_update(UpdateState* update, Platform* platform)
     Int2 viewport = update->viewport;
     MoveTool* move_tool = update->move_tool;
     RotateTool* rotate_tool = update->rotate_tool;
-    ui::Context* ui_context = update->ui_context;
-    ui::Item* main_menu = update->main_menu;
-    ui::Item* dialog_panel = update->dialog_panel;
+    UiContext* ui_context = update->ui_context;
+    UiItem* main_menu = update->main_menu;
+    UiItem* dialog_panel = update->dialog_panel;
     bool dialog_enabled = update->dialog_enabled;
     ObjectLady* lady = update->lady;
     int hovered_object_index = update->hovered_object_index;
@@ -973,10 +973,10 @@ void system_update(UpdateState* update, Platform* platform)
         Rect space;
         space.bottom_left = {0.0f, -250.0f};
         space.dimensions = {300.0f, 500.0f};
-        ui::lay_out(dialog_panel, space, ui_context);
-        ui::draw(dialog_panel, ui_context);
+        ui_lay_out(dialog_panel, space, ui_context);
+        ui_draw(dialog_panel, ui_context);
 
-        ui::draw_focus_indicator(dialog_panel, ui_context);
+        ui_draw_focus_indicator(dialog_panel, ui_context);
     }
 
     // Draw the main menu.
@@ -990,10 +990,10 @@ void system_update(UpdateState* update, Platform* platform)
         space.dimensions.x = viewport.x;
         space.dimensions.y = 60.0f;
         space.bottom_left.y -= space.dimensions.y;
-        ui::lay_out(main_menu, space, ui_context);
-        ui::draw(main_menu, ui_context);
+        ui_lay_out(main_menu, space, ui_context);
+        ui_draw(main_menu, ui_context);
 
-        ui::draw_focus_indicator(main_menu, ui_context);
+        ui_draw_focus_indicator(main_menu, ui_context);
     }
 
     glDepthMask(GL_TRUE);

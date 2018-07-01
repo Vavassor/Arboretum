@@ -17,10 +17,10 @@ struct FilePickDialog
 {
     Directory directory;
     char* path;
-    ui::Item* panel;
-    ui::Id* path_buttons;
-    ui::Id pick_button;
-    ui::Button* pick;
+    UiItem* panel;
+    UiId* path_buttons;
+    UiId pick_button;
+    UiButton* pick;
     int path_buttons_count;
     int record_selected;
     DialogType type;
@@ -28,17 +28,17 @@ struct FilePickDialog
     bool enabled;
     union
     {
-        ui::TextBlock* file_readout;
+        UiTextBlock* file_readout;
         struct
         {
-            ui::TextInput* filename_field;
-            ui::Id filename_field_id;
+            UiTextInput* filename_field;
+            UiId filename_field_id;
         };
     };
 };
 
-void open_dialog(FilePickDialog* dialog, ui::Context* context, Platform* platform, Heap* heap);
-void close_dialog(FilePickDialog* dialog, ui::Context* context, Heap* heap);
-void handle_input(FilePickDialog* dialog, ui::Event event, ObjectLady* lady, int selected_object_index, History* history, ui::Context* context, Platform* platform, Heap* heap, Stack* stack);
+void open_dialog(FilePickDialog* dialog, UiContext* context, Platform* platform, Heap* heap);
+void close_dialog(FilePickDialog* dialog, UiContext* context, Heap* heap);
+void handle_input(FilePickDialog* dialog, UiEvent event, ObjectLady* lady, int selected_object_index, History* history, UiContext* context, Platform* platform, Heap* heap, Stack* stack);
 
 #endif // FILE_PICK_DIALOG_H_

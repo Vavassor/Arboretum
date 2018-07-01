@@ -67,14 +67,14 @@ namespace
 
     BmfFont font;
 
-    ui::Context ui_context;
-    ui::Item* main_menu;
-    ui::Id import_button_id;
-    ui::Id export_button_id;
-    ui::Id object_mode_button_id;
-    ui::Id vertex_mode_button_id;
-    ui::Id edge_mode_button_id;
-    ui::Id face_mode_button_id;
+    UiContext ui_context;
+    UiItem* main_menu;
+    UiId import_button_id;
+    UiId export_button_id;
+    UiId object_mode_button_id;
+    UiId vertex_mode_button_id;
+    UiId edge_mode_button_id;
+    UiId face_mode_button_id;
 
     struct
     {
@@ -222,7 +222,7 @@ bool editor_start_up(Platform* platform)
         add_object_to_history(&history, test_model, &heap);
     }
 
-    ui::create_context(&ui_context, &heap, &scratch);
+    ui_create_context(&ui_context, &heap, &scratch);
 
     // Fonts
     {
@@ -235,7 +235,7 @@ bool editor_start_up(Platform* platform)
 
     // Setup the UI theme.
     {
-        ui::Theme* theme = &ui_context.theme;
+        UiTheme* theme = &ui_context.theme;
 
         theme->colours.button_cap_disabled = {0.318f, 0.318f, 0.318f, 1.0f};
         theme->colours.button_cap_enabled = {0.145f, 0.145f, 0.145f, 1.0f};
@@ -257,52 +257,52 @@ bool editor_start_up(Platform* platform)
 
     // Setup the main menu.
     {
-        main_menu = ui::create_toplevel_container(&ui_context, &heap);
-        main_menu->type = ui::ItemType::Container;
+        main_menu = ui_create_toplevel_container(&ui_context, &heap);
+        main_menu->type = UI_ITEM_TYPE_CONTAINER;
         main_menu->growable = true;
-        main_menu->container.style_type = ui::StyleType::Menu_Bar;
+        main_menu->container.style_type = UI_STYLE_TYPE_MENU_BAR;
         main_menu->container.padding = {1.0f, 1.0f, 1.0f, 1.0f};
-        main_menu->container.direction = ui::Direction::Left_To_Right;
-        main_menu->container.alignment = ui::Alignment::Start;
-        main_menu->container.justification = ui::Justification::Start;
+        main_menu->container.direction = UI_DIRECTION_LEFT_TO_RIGHT;
+        main_menu->container.alignment = UI_ALIGNMENT_START;
+        main_menu->container.justification = UI_JUSTIFICATION_START;
 
         const int items_in_row = 6;
-        ui::add_row(&main_menu->container, items_in_row, &ui_context, &heap);
+        ui_add_row(&main_menu->container, items_in_row, &ui_context, &heap);
 
-        main_menu->container.items[0].type = ui::ItemType::Button;
+        main_menu->container.items[0].type = UI_ITEM_TYPE_BUTTON;
         main_menu->container.items[0].button.enabled = true;
         main_menu->container.items[0].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-        ui::set_text(&main_menu->container.items[0].button.text_block, platform->localized_text.main_menu_import_file, &heap);
+        ui_set_text(&main_menu->container.items[0].button.text_block, platform->localized_text.main_menu_import_file, &heap);
         import_button_id = main_menu->container.items[0].id;
 
-        main_menu->container.items[1].type = ui::ItemType::Button;
+        main_menu->container.items[1].type = UI_ITEM_TYPE_BUTTON;
         main_menu->container.items[1].button.enabled = true;
         main_menu->container.items[1].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-        ui::set_text(&main_menu->container.items[1].button.text_block, platform->localized_text.main_menu_export_file, &heap);
+        ui_set_text(&main_menu->container.items[1].button.text_block, platform->localized_text.main_menu_export_file, &heap);
         export_button_id = main_menu->container.items[1].id;
 
-        main_menu->container.items[2].type = ui::ItemType::Button;
+        main_menu->container.items[2].type = UI_ITEM_TYPE_BUTTON;
         main_menu->container.items[2].button.enabled = true;
         main_menu->container.items[2].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-        ui::set_text(&main_menu->container.items[2].button.text_block, platform->localized_text.main_menu_enter_object_mode, &heap);
+        ui_set_text(&main_menu->container.items[2].button.text_block, platform->localized_text.main_menu_enter_object_mode, &heap);
         object_mode_button_id = main_menu->container.items[2].id;
 
-        main_menu->container.items[3].type = ui::ItemType::Button;
+        main_menu->container.items[3].type = UI_ITEM_TYPE_BUTTON;
         main_menu->container.items[3].button.enabled = true;
         main_menu->container.items[3].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-        ui::set_text(&main_menu->container.items[3].button.text_block, platform->localized_text.main_menu_enter_face_mode, &heap);
+        ui_set_text(&main_menu->container.items[3].button.text_block, platform->localized_text.main_menu_enter_face_mode, &heap);
         face_mode_button_id = main_menu->container.items[3].id;
 
-        main_menu->container.items[4].type = ui::ItemType::Button;
+        main_menu->container.items[4].type = UI_ITEM_TYPE_BUTTON;
         main_menu->container.items[4].button.enabled = true;
         main_menu->container.items[4].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-        ui::set_text(&main_menu->container.items[4].button.text_block, platform->localized_text.main_menu_enter_edge_mode, &heap);
+        ui_set_text(&main_menu->container.items[4].button.text_block, platform->localized_text.main_menu_enter_edge_mode, &heap);
         edge_mode_button_id = main_menu->container.items[4].id;
 
-        main_menu->container.items[5].type = ui::ItemType::Button;
+        main_menu->container.items[5].type = UI_ITEM_TYPE_BUTTON;
         main_menu->container.items[5].button.enabled = true;
         main_menu->container.items[5].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-        ui::set_text(&main_menu->container.items[5].button.text_block, platform->localized_text.main_menu_enter_vertex_mode, &heap);
+        ui_set_text(&main_menu->container.items[5].button.text_block, platform->localized_text.main_menu_enter_vertex_mode, &heap);
         vertex_mode_button_id = main_menu->container.items[5].id;
     }
 
@@ -342,7 +342,7 @@ void editor_shut_down()
     jan_destroy_selection(&selection);
 
     bmf_destroy_font(&font, &heap);
-    ui::destroy_context(&ui_context, &heap);
+    ui_destroy_context(&ui_context, &heap);
 
     history_destroy(&history, &heap);
 
@@ -1128,9 +1128,9 @@ void editor_update(Platform* platform)
 
     // Update the UI system and respond to any events that occurred.
     {
-        ui::update(&ui_context, platform);
-        ui::Event event;
-        while(ui::dequeue(&ui_context.queue, &event))
+        ui_update(&ui_context, platform);
+        UiEvent event;
+        while(ui_dequeue(&ui_context.queue, &event))
         {
             if(dialog.enabled)
             {
@@ -1139,9 +1139,9 @@ void editor_update(Platform* platform)
 
             switch(event.type)
             {
-                case ui::EventType::Button:
+                case UI_EVENT_TYPE_BUTTON:
                 {
-                    ui::Id id = event.button.id;
+                    UiId id = event.button.id;
                     if(id == import_button_id)
                     {
                         dialog.type = DialogType::Import;
@@ -1170,9 +1170,9 @@ void editor_update(Platform* platform)
                     }
                     break;
                 }
-                case ui::EventType::Focus_Change:
-                case ui::EventType::List_Selection:
-                case ui::EventType::Text_Change:
+                case UI_EVENT_TYPE_FOCUS_CHANGE:
+                case UI_EVENT_TYPE_LIST_SELECTION:
+                case UI_EVENT_TYPE_TEXT_CHANGE:
                 {
                     break;
                 }
@@ -1273,7 +1273,7 @@ void editor_destroy_clipboard_copy(char* clipboard)
 
 void editor_paste_from_clipboard(Platform* platform, char* clipboard)
 {
-    ui::accept_paste_from_clipboard(&ui_context, clipboard, platform);
+    ui_accept_paste_from_clipboard(&ui_context, clipboard, platform);
 }
 
 void resize_viewport(Int2 dimensions, double dots_per_millimeter)

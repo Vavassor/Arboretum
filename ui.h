@@ -1,115 +1,115 @@
 #ifndef UI_H_
 #define UI_H_
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #include "bmfont.h"
 #include "geometry.h"
+#include "memory.h"
 #include "map.h"
+#include "platform.h"
 
-struct Platform;
-struct Heap;
-struct Stack;
-
-// User Interface
-namespace ui {
-
-struct Padding
+typedef union UiPadding
 {
-    float start;
-    float top;
-    float end;
-    float bottom;
+    struct
+    {
+        float start;
+        float top;
+        float end;
+        float bottom;
+    };
+    float e[4];
+} UiPadding;
 
-    float& operator [] (int index) {return reinterpret_cast<float*>(this)[index];}
-    const float& operator [] (int index) const {return reinterpret_cast<const float*>(this)[index];}
-};
-
-enum class Direction
+typedef enum UiDirection
 {
-    Left_To_Right,
-    Right_To_Left,
-};
+    UI_DIRECTION_LEFT_TO_RIGHT,
+    UI_DIRECTION_RIGHT_TO_LEFT,
+} UiDirection;
 
-enum class Axis
+typedef enum UiAxis
 {
-    Horizontal,
-    Vertical,
-};
+    UI_AXIS_HORIZONTAL,
+    UI_AXIS_VERTICAL,
+} UiAxis;
 
-enum class Justification
+typedef enum UiJustification
 {
-    Start,
-    End,
-    Center,
-    Space_Around,
-    Space_Between,
-};
+    UI_JUSTIFICATION_START,
+    UI_JUSTIFICATION_END,
+    UI_JUSTIFICATION_CENTER,
+    UI_JUSTIFICATION_SPACE_AROUND,
+    UI_JUSTIFICATION_SPACE_BETWEEN,
+} UiJustification;
 
-enum class Alignment
+typedef enum UiAlignment
 {
-    Start,
-    End,
-    Center,
-    Stretch,
-};
+    UI_ALIGNMENT_START,
+    UI_ALIGNMENT_END,
+    UI_ALIGNMENT_CENTER,
+    UI_ALIGNMENT_STRETCH,
+} UiAlignment;
 
-enum class TextOverflow
+typedef enum UiTextOverflow
 {
-    Wrap,
-    Ellipsize_End,
-};
+    UI_TEXT_OVERFLOW_WRAP,
+    UI_TEXT_OVERFLOW_ELLIPSIZE_END,
+} UiTextOverflow;
 
-struct Item;
+typedef struct UiItem UiItem;
 
-struct Glyph
+typedef struct UiGlyph
 {
     Rect rect;
     Rect texture_rect;
     Float2 baseline_start;
     float x_advance;
     int text_index;
-};
+} UiGlyph;
 
-struct TextBlock
+typedef struct UiTextBlock
 {
     Map glyph_map;
-    Padding padding;
+    UiPadding padding;
     char* text;
-    Glyph* glyphs;
+    UiGlyph* glyphs;
     int glyphs_cap;
     int glyphs_count;
-    TextOverflow text_overflow;
-};
+    UiTextOverflow text_overflow;
+} UiTextBlock;
 
-struct Button
+typedef struct UiButton
 {
-    TextBlock text_block;
+    UiTextBlock text_block;
     bool enabled;
     bool hovered;
-};
+} UiButton;
 
-enum class StyleType
+typedef enum UiStyleType
 {
-    Default,
-    Footer,
-    Menu_Bar,
-    Path_Bar,
-};
+    UI_STYLE_TYPE_DEFAULT,
+    UI_STYLE_TYPE_FOOTER,
+    UI_STYLE_TYPE_MENU_BAR,
+    UI_STYLE_TYPE_PATH_BAR,
+} UiStyleType;
 
-struct Container
+typedef struct UiContainer
 {
-    Padding padding;
-    Item* items;
+    UiPadding padding;
+    UiItem* items;
     int items_count;
-    StyleType style_type;
-    Direction direction;
-    Axis axis;
-    Justification justification;
-    Alignment alignment;
-};
+    UiStyleType style_type;
+    UiDirection direction;
+    UiAxis axis;
+    UiJustification justification;
+    UiAlignment alignment;
+} UiContainer;
 
-struct List
+typedef struct UiList
 {
-    TextBlock* items;
+    UiTextBlock* items;
     Rect* items_bounds;
     float item_spacing;
     float side_margin;
@@ -117,72 +117,72 @@ struct List
     int items_count;
     int hovered_item_index;
     int selected_item_index;
-};
+} UiList;
 
-struct TextInput
+typedef struct UiTextInput
 {
-    TextBlock text_block;
-    TextBlock label;
+    UiTextBlock text_block;
+    UiTextBlock label;
     int cursor_position;
     int selection_start;
     int cursor_blink_frame;
-};
+} UiTextInput;
 
-enum class ItemType
+typedef enum UiItemType
 {
-    Button,
-    Container,
-    List,
-    Text_Block,
-    Text_Input,
-};
+    UI_ITEM_TYPE_BUTTON,
+    UI_ITEM_TYPE_CONTAINER,
+    UI_ITEM_TYPE_LIST,
+    UI_ITEM_TYPE_TEXT_BLOCK,
+    UI_ITEM_TYPE_TEXT_INPUT,
+} UiItemType;
 
 // A UI-Id, User Interface Identifier, not to be confused with a UUID, a
 // Universally Unique Identifier. This id is meant to be unique among items
 // but not consistent between separate runs of the program.
-typedef unsigned int Id;
+typedef unsigned int UiId;
 
-struct Item
+struct UiItem
 {
     union
     {
-        Button button;
-        Container container;
-        List list;
-        TextBlock text_block;
-        TextInput text_input;
+        UiButton button;
+        UiContainer container;
+        UiList list;
+        UiTextBlock text_block;
+        UiTextInput text_input;
     };
     Rect bounds;
     Float2 ideal_dimensions;
     Float2 min_dimensions;
-    ItemType type;
-    Id id;
+    UiItemType type;
+    UiId id;
     bool growable;
 };
 
-enum class EventType
+typedef enum UiEventType
 {
-    Button,
-    Focus_Change,
-    List_Selection,
-    Text_Change,
-};
+    UI_EVENT_TYPE_BUTTON,
+    UI_EVENT_TYPE_FOCUS_CHANGE,
+    UI_EVENT_TYPE_LIST_SELECTION,
+    UI_EVENT_TYPE_TEXT_CHANGE,
+} UiEventType;
 
-struct Event
+typedef struct UiEvent
 {
-    EventType type;
+    UiEventType type;
     union
     {
         struct
         {
-            Id id;
+            UiId id;
         } button;
 
         struct
         {
-            Id now_focused;
-            Id now_unfocused;
-            Id current_scope;
+            UiId now_focused;
+            UiId now_unfocused;
+            UiId current_scope;
         } focus_change;
 
         struct
@@ -193,29 +193,29 @@ struct Event
 
         struct
         {
-            Id id;
+            UiId id;
         } text_change;
     };
-};
+} UiEvent;
 
-struct EventQueue
+typedef struct UiEventQueue
 {
-    Event* events;
+    UiEvent* events;
     int head;
     int tail;
     int cap;
-};
+} UiEventQueue;
 
-struct Style
+typedef struct UiStyle
 {
     Float4 background;
-};
+} UiStyle;
 
-struct Theme
+typedef struct UiTheme
 {
     BmfFont* font;
 
-    Style styles[4];
+    UiStyle styles[4];
 
     struct
     {
@@ -231,50 +231,52 @@ struct Theme
         Float4 text_input_cursor;
         Float4 text_input_selection;
     } colours;
-};
+} UiTheme;
 
-struct Context
+typedef struct UiContext
 {
-    Theme theme;
-    EventQueue queue;
+    UiTheme theme;
+    UiEventQueue queue;
     Float2 viewport;
     Heap* heap;
     Stack* scratch;
-    Item* focused_item;
-    Item* captor_item;
-    Item** tab_navigation_list;
-    Item** toplevel_containers;
-    Id seed;
+    UiItem* focused_item;
+    UiItem* captor_item;
+    UiItem** tab_navigation_list;
+    UiItem** toplevel_containers;
+    UiId seed;
 
     // This is for detecting when the mouse cursor is hovering over nothing
     // in particular, to set the mouse cursor shape to its default (arrow).
     bool anything_hovered;
-};
+} UiContext;
 
-bool dequeue(EventQueue* queue, Event* event);
-void create_context(Context* context, Heap* heap, Stack* stack);
-void destroy_context(Context* context, Heap* heap);
-bool focused_on(Context* context, Item* item);
-void focus_on_item(Context* context, Item* item);
-bool is_captor(Context* context, Item* item);
-void capture(Context* context, Item* item);
-bool is_within_container(Item* outer, Item* item);
-Item* create_toplevel_container(Context* context, Heap* heap);
-void destroy_toplevel_container(Context* context, Item* item, Heap* heap);
-void empty_item(Context* context, Item* item);
-void add_row(Container* container, int count, Context* context, Heap* heap);
-void add_column(Container* container, int count, Context* context, Heap* heap);
-void set_text(TextBlock* text_block, const char* text, Heap* heap);
-void create_items(Item* item, int lines_count, Heap* heap);
-void lay_out(Item* item, Rect space, Context* context);
-void draw(Item* item, Context* context);
-void draw_focus_indicator(Item* item, Context* context);
+bool ui_dequeue(UiEventQueue* queue, UiEvent* event);
+void ui_create_context(UiContext* context, Heap* heap, Stack* stack);
+void ui_destroy_context(UiContext* context, Heap* heap);
+bool ui_focused_on(UiContext* context, UiItem* item);
+void ui_focus_on_item(UiContext* context, UiItem* item);
+bool ui_is_captor(UiContext* context, UiItem* item);
+void ui_capture(UiContext* context, UiItem* item);
+bool ui_is_within_container(UiItem* outer, UiItem* item);
+UiItem* ui_create_toplevel_container(UiContext* context, Heap* heap);
+void ui_destroy_toplevel_container(UiContext* context, UiItem* item, Heap* heap);
+void ui_empty_item(UiContext* context, UiItem* item);
+void ui_add_row(UiContainer* container, int count, UiContext* context, Heap* heap);
+void ui_add_column(UiContainer* container, int count, UiContext* context, Heap* heap);
+void ui_set_text(UiTextBlock* text_block, const char* text, Heap* heap);
+void ui_create_items(UiItem* item, int lines_count, Heap* heap);
+void ui_lay_out(UiItem* item, Rect space, UiContext* context);
+void ui_draw(UiItem* item, UiContext* context);
+void ui_draw_focus_indicator(UiItem* item, UiContext* context);
 
-void update(Context* context, Platform* platform);
-void accept_paste_from_clipboard(Context* context, const char* clipboard, Platform* platform);
+void ui_update(UiContext* context, Platform* platform);
+void ui_accept_paste_from_clipboard(UiContext* context, const char* clipboard, Platform* platform);
 
-extern const Id invalid_id;
+extern const UiId ui_invalid_id;
 
-} // namespace ui
+#if defined(__cplusplus)
+} // extern "C"
+#endif
 
 #endif // UI_H_

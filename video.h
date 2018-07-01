@@ -12,12 +12,8 @@ struct ObjectLady;
 struct Platform;
 struct RotateTool;
 
-namespace ui {
-
-struct Context;
-struct Item;
-
-} // namespace ui
+struct UiContext;
+struct UiItem;
 
 namespace video {
 
@@ -29,9 +25,9 @@ struct UpdateState
     Camera* camera;
     MoveTool* move_tool;
     RotateTool* rotate_tool;
-    ui::Context* ui_context;
-    ui::Item* main_menu;
-    ui::Item* dialog_panel;
+    UiContext* ui_context;
+    UiItem* main_menu;
+    UiItem* dialog_panel;
     bool dialog_enabled;
     ObjectLady* lady;
     int hovered_object_index;

@@ -19,28 +19,26 @@
 #include "unicode_word_break.h"
 #include "vector_math.h"
 
-namespace ui {
+const UiId ui_invalid_id = 0;
 
-extern const Id invalid_id = 0;
-
-static void create_event_queue(EventQueue* queue, Heap* heap)
+static void create_event_queue(UiEventQueue* queue, Heap* heap)
 {
     queue->cap = 32;
-    queue->events = HEAP_ALLOCATE(heap, Event, queue->cap);
+    queue->events = HEAP_ALLOCATE(heap, UiEvent, queue->cap);
 }
 
-static void destroy_event_queue(EventQueue* queue, Heap* heap)
+static void destroy_event_queue(UiEventQueue* queue, Heap* heap)
 {
     SAFE_HEAP_DEALLOCATE(heap, queue->events);
 }
 
-static void enqueue(EventQueue* queue, Event event)
+static void enqueue(UiEventQueue* queue, UiEvent event)
 {
     queue->events[queue->tail] = event;
     queue->tail = (queue->tail + 1) % queue->cap;
 }
 
-bool dequeue(EventQueue* queue, Event* event)
+bool ui_dequeue(UiEventQueue* queue, UiEvent* event)
 {
     if(queue->head == queue->tail)
     {
@@ -54,7 +52,7 @@ bool dequeue(EventQueue* queue, Event* event)
     }
 }
 
-void create_context(Context* context, Heap* heap, Stack* scratch)
+void ui_create_context(UiContext* context, Heap* heap, Stack* scratch)
 {
     create_event_queue(&context->queue, heap);
     context->seed = 1;
@@ -62,7 +60,7 @@ void create_context(Context* context, Heap* heap, Stack* scratch)
     context->scratch = scratch;
 }
 
-static void destroy_text_block(TextBlock* text_block, Heap* heap)
+static void destroy_text_block(UiTextBlock* text_block, Heap* heap)
 {
     SAFE_HEAP_DEALLOCATE(heap, text_block->text);
     SAFE_HEAP_DEALLOCATE(heap, text_block->glyphs);
@@ -70,7 +68,7 @@ static void destroy_text_block(TextBlock* text_block, Heap* heap)
     map_destroy(&text_block->glyph_map, heap);
 }
 
-static void destroy_list(List* list, Heap* heap)
+static void destroy_list(UiList* list, Heap* heap)
 {
     for(int i = 0; i < list->items_count; i += 1)
     {
@@ -82,36 +80,36 @@ static void destroy_list(List* list, Heap* heap)
     SAFE_HEAP_DEALLOCATE(heap, list->items_bounds);
 }
 
-static void destroy_container(Container* container, Heap* heap)
+static void destroy_container(UiContainer* container, Heap* heap)
 {
     if(container)
     {
         for(int i = 0; i < container->items_count; i += 1)
         {
-            Item* item = &container->items[i];
+            UiItem* item = &container->items[i];
             switch(item->type)
             {
-                case ItemType::Button:
+                case UI_ITEM_TYPE_BUTTON:
                 {
                     destroy_text_block(&item->button.text_block, heap);
                     break;
                 }
-                case ItemType::Container:
+                case UI_ITEM_TYPE_CONTAINER:
                 {
                     destroy_container(&item->container, heap);
                     break;
                 }
-                case ItemType::List:
+                case UI_ITEM_TYPE_LIST:
                 {
                     destroy_list(&item->list, heap);
                     break;
                 }
-                case ItemType::Text_Block:
+                case UI_ITEM_TYPE_TEXT_BLOCK:
                 {
                     destroy_text_block(&item->text_block, heap);
                     break;
                 }
-                case ItemType::Text_Input:
+                case UI_ITEM_TYPE_TEXT_INPUT:
                 {
                     destroy_text_block(&item->text_input.text_block, heap);
                     destroy_text_block(&item->text_input.label, heap);
@@ -125,15 +123,15 @@ static void destroy_container(Container* container, Heap* heap)
     }
 }
 
-void destroy_context(Context* context, Heap* heap)
+void ui_destroy_context(UiContext* context, Heap* heap)
 {
     ASSERT(heap == context->heap);
 
     destroy_event_queue(&context->queue, heap);
 
-    FOR_ALL(Item*, context->toplevel_containers)
+    FOR_ALL(UiItem*, context->toplevel_containers)
     {
-        Item* item = *it;
+        UiItem* item = *it;
         destroy_container(&item->container, heap);
         SAFE_HEAP_DEALLOCATE(heap, item);
     }
@@ -142,30 +140,30 @@ void destroy_context(Context* context, Heap* heap)
     ARRAY_DESTROY(context->tab_navigation_list, heap);
 }
 
-static Id generate_id(Context* context)
+static UiId generate_id(UiContext* context)
 {
-    Id id = context->seed;
+    UiId id = context->seed;
     context->seed += 1;
     return id;
 }
 
-static bool in_focus_scope(Item* outer, Item* item)
+static bool in_focus_scope(UiItem* outer, UiItem* item)
 {
     if(outer->id == item->id)
     {
         return true;
     }
 
-    Container* container = &outer->container;
+    UiContainer* container = &outer->container;
 
     for(int i = 0; i < container->items_count; i += 1)
     {
-        Item* inside = &container->items[i];
+        UiItem* inside = &container->items[i];
         if(inside->id == item->id)
         {
             return true;
         }
-        if(inside->type == ItemType::Container)
+        if(inside->type == UI_ITEM_TYPE_CONTAINER)
         {
             bool in_scope = in_focus_scope(inside, item);
             if(in_scope)
@@ -178,16 +176,16 @@ static bool in_focus_scope(Item* outer, Item* item)
     return false;
 }
 
-static Id get_focus_scope(Context* context, Item* item)
+static UiId get_focus_scope(UiContext* context, UiItem* item)
 {
     if(!item)
     {
-        return invalid_id;
+        return ui_invalid_id;
     }
 
-    FOR_ALL(Item*, context->toplevel_containers)
+    FOR_ALL(UiItem*, context->toplevel_containers)
     {
-        Item* toplevel = *it;
+        UiItem* toplevel = *it;
         bool within = in_focus_scope(toplevel, item);
         if(within)
         {
@@ -195,20 +193,20 @@ static Id get_focus_scope(Context* context, Item* item)
         }
     }
 
-    return invalid_id;
+    return ui_invalid_id;
 }
 
-bool focused_on(Context* context, Item* item)
+bool ui_focused_on(UiContext* context, UiItem* item)
 {
     return item == context->focused_item;
 }
 
-void focus_on_item(Context* context, Item* item)
+void ui_focus_on_item(UiContext* context, UiItem* item)
 {
     if(item != context->focused_item)
     {
-        Event event = {};
-        event.type = EventType::Focus_Change;
+        UiEvent event = {};
+        event.type = UI_EVENT_TYPE_FOCUS_CHANGE;
         if(item)
         {
             event.focus_change.now_focused = item->id;
@@ -224,34 +222,34 @@ void focus_on_item(Context* context, Item* item)
     context->focused_item = item;
 }
 
-bool is_captor(Context* context, Item* item)
+bool ui_is_captor(UiContext* context, UiItem* item)
 {
     return item == context->captor_item;
 }
 
-void capture(Context* context, Item* item)
+void ui_capture(UiContext* context, UiItem* item)
 {
     context->captor_item = item;
 }
 
-static bool is_capture_within(Context* context, Item* item)
+static bool is_capture_within(UiContext* context, UiItem* item)
 {
-    ASSERT(item->type == ItemType::Container);
+    ASSERT(item->type == UI_ITEM_TYPE_CONTAINER);
 
     if(!context->captor_item)
     {
         return false;
     }
 
-    Container* container = &item->container;
+    UiContainer* container = &item->container;
     for(int i = 0; i < container->items_count; i += 1)
     {
-        Item* inside = &container->items[i];
+        UiItem* inside = &container->items[i];
         if(inside->id == context->captor_item->id)
         {
             return true;
         }
-        if(inside->type == ItemType::Container)
+        if(inside->type == UI_ITEM_TYPE_CONTAINER)
         {
             bool within = is_capture_within(context, inside);
             if(within)
@@ -264,25 +262,25 @@ static bool is_capture_within(Context* context, Item* item)
     return false;
 }
 
-Item* create_toplevel_container(Context* context, Heap* heap)
+UiItem* ui_create_toplevel_container(UiContext* context, Heap* heap)
 {
-    Item* item = HEAP_ALLOCATE(heap, Item, 1);
+    UiItem* item = HEAP_ALLOCATE(heap, UiItem, 1);
     item->id = generate_id(context);
     ARRAY_ADD(context->toplevel_containers, item, heap);
     return item;
 }
 
-void destroy_toplevel_container(Context* context, Item* item, Heap* heap)
+void ui_destroy_toplevel_container(UiContext* context, UiItem* item, Heap* heap)
 {
     // If the container is currently focused, make sure it becomes unfocused.
     if(context->focused_item && in_focus_scope(item, context->focused_item))
     {
-        focus_on_item(context, nullptr);
+        ui_focus_on_item(context, NULL);
     }
     // Release capture if it's currently holding something.
     if(is_capture_within(context, item))
     {
-        capture(context, nullptr);
+        ui_capture(context, NULL);
     }
 
     destroy_container(&item->container, heap);
@@ -291,10 +289,10 @@ void destroy_toplevel_container(Context* context, Item* item, Heap* heap)
     int count = array_count(context->toplevel_containers);
     for(int i = 0; i < count; i += 1)
     {
-        Item* next = context->toplevel_containers[i];
+        UiItem* next = context->toplevel_containers[i];
         if(next == item)
         {
-            Item* last = context->toplevel_containers[count - 1];
+            UiItem* last = context->toplevel_containers[count - 1];
             context->toplevel_containers[i] = last;
             break;
         }
@@ -306,50 +304,50 @@ void destroy_toplevel_container(Context* context, Item* item, Heap* heap)
 
     if(count)
     {
-        Item** last = &ARRAY_LAST(context->toplevel_containers);
+        UiItem** last = &ARRAY_LAST(context->toplevel_containers);
         ARRAY_REMOVE(context->toplevel_containers, last);
     }
 }
 
-void empty_item(Context* context, Item* item)
+void ui_empty_item(UiContext* context, UiItem* item)
 {
     switch(item->type)
     {
-        case ItemType::Button:
+        case UI_ITEM_TYPE_BUTTON:
         {
             break;
         }
-        case ItemType::Container:
+        case UI_ITEM_TYPE_CONTAINER:
         {
             // Release capture if it's currently holding something.
             if(is_capture_within(context, item))
             {
-                capture(context, nullptr);
+                ui_capture(context, NULL);
             }
 
             destroy_container(&item->container, context->heap);
             break;
         }
-        case ItemType::List:
+        case UI_ITEM_TYPE_LIST:
         {
             destroy_list(&item->list, context->heap);
             break;
         }
-        case ItemType::Text_Block:
+        case UI_ITEM_TYPE_TEXT_BLOCK:
         {
             break;
         }
-        case ItemType::Text_Input:
+        case UI_ITEM_TYPE_TEXT_INPUT:
         {
             break;
         }
     }
 }
 
-void add_row(Container* container, int count, Context* context, Heap* heap)
+void ui_add_row(UiContainer* container, int count, UiContext* context, Heap* heap)
 {
-    container->axis = Axis::Horizontal;
-    container->items = HEAP_ALLOCATE(heap, Item, count);
+    container->axis = UI_AXIS_HORIZONTAL;
+    container->items = HEAP_ALLOCATE(heap, UiItem, count);
     container->items_count = count;
     for(int i = 0; i < count; i += 1)
     {
@@ -357,10 +355,10 @@ void add_row(Container* container, int count, Context* context, Heap* heap)
     }
 }
 
-void add_column(Container* container, int count, Context* context, Heap* heap)
+void ui_add_column(UiContainer* container, int count, UiContext* context, Heap* heap)
 {
-    container->axis = Axis::Vertical;
-    container->items = HEAP_ALLOCATE(heap, Item, count);
+    container->axis = UI_AXIS_VERTICAL;
+    container->items = HEAP_ALLOCATE(heap, UiItem, count);
     container->items_count = count;
     for(int i = 0; i < count; i += 1)
     {
@@ -368,7 +366,7 @@ void add_column(Container* container, int count, Context* context, Heap* heap)
     }
 }
 
-void set_text(TextBlock* text_block, const char* text, Heap* heap)
+void ui_set_text(UiTextBlock* text_block, const char* text, Heap* heap)
 {
     // Clean up any prior text.
     map_destroy(&text_block->glyph_map, heap);
@@ -376,10 +374,10 @@ void set_text(TextBlock* text_block, const char* text, Heap* heap)
     replace_string(&text_block->text, text, heap);
 
     // @Incomplete: There isn't a one-to-one mapping between chars and glyphs.
-    // Glyph count should be based on the mapping of the given text in a
+    // UiGlyph count should be based on the mapping of the given text in a
     // particular font instead of the size in bytes.
     int size = MAX(string_size(text), 1);
-    text_block->glyphs = HEAP_REALLOCATE(heap, text_block->glyphs, Glyph, size);
+    text_block->glyphs = HEAP_REALLOCATE(heap, text_block->glyphs, UiGlyph, size);
     text_block->glyphs_cap = size;
     map_create(&text_block->glyph_map, size, heap);
 }
@@ -388,32 +386,32 @@ void set_text(TextBlock* text_block, const char* text, Heap* heap)
 // "cross" axis is the one perpendicular to it. The main axis could also be
 // called longitudinal and the cross axis could be called transverse.
 
-static int get_main_axis_index(Axis axis)
+static int get_main_axis_index(UiAxis axis)
 {
-    return static_cast<int>(axis);
+    return (int) axis;
 }
 
-static int get_cross_axis_index(Axis axis)
+static int get_cross_axis_index(UiAxis axis)
 {
-    return static_cast<int>(axis) ^ 1;
+    return ((int) axis) ^ 1;
 }
 
-static float padding_along_axis(Padding padding, int axis)
+static float padding_along_axis(UiPadding padding, int axis)
 {
-    return padding[axis] + padding[axis + 2];
+    return padding.e[axis] + padding.e[axis + 2];
 }
 
-static float get_list_item_height(List* list, TextBlock* text_block, float line_height)
+static float get_list_item_height(UiList* list, UiTextBlock* text_block, float line_height)
 {
     float spacing = list->item_spacing;
-    Padding padding = text_block->padding;
+    UiPadding padding = text_block->padding;
     return padding.top + line_height + padding.bottom + spacing;
 }
 
-static float get_scroll_bottom(Item* item, float line_height)
+static float get_scroll_bottom(UiItem* item, float line_height)
 {
     float inner_height = item->bounds.dimensions.y;
-    List* list = &item->list;
+    UiList* list = &item->list;
     float content_height = 0.0f;
     if(list->items_count > 0)
     {
@@ -423,46 +421,46 @@ static float get_scroll_bottom(Item* item, float line_height)
     return fmax(content_height - inner_height, 0.0f);
 }
 
-static void set_scroll(Item* item, float scroll, float line_height)
+static void set_scroll(UiItem* item, float scroll, float line_height)
 {
     float scroll_bottom = get_scroll_bottom(item, line_height);
     item->list.scroll_top = clamp(scroll, 0.0f, scroll_bottom);
 }
 
-static void scroll(Item* item, float scroll_velocity_y, float line_height)
+static void scroll(UiItem* item, float scroll_velocity_y, float line_height)
 {
     const float speed = 120.0f;
     float scroll_top = item->list.scroll_top - (speed * scroll_velocity_y);
     set_scroll(item, scroll_top, line_height);
 }
 
-void create_items(Item* item, int lines_count, Heap* heap)
+void ui_create_items(UiItem* item, int lines_count, Heap* heap)
 {
-    List* list = &item->list;
+    UiList* list = &item->list;
 
     list->items_count = lines_count;
     if(lines_count)
     {
-        list->items = HEAP_ALLOCATE(heap, TextBlock, lines_count);
+        list->items = HEAP_ALLOCATE(heap, UiTextBlock, lines_count);
         list->items_bounds = HEAP_ALLOCATE(heap, Rect, lines_count);
     }
     else
     {
-        list->items = nullptr;
-        list->items_bounds = nullptr;
+        list->items = NULL;
+        list->items_bounds = NULL;
     }
 
     list->hovered_item_index = invalid_index;
     list->selected_item_index = invalid_index;
 }
 
-static Float2 measure_ideal_dimensions(TextBlock* text_block, Context* context)
+static Float2 measure_ideal_dimensions_text_block(UiTextBlock* text_block, UiContext* context)
 {
     Float2 bounds = float2_zero;
 
     BmfFont* font = context->theme.font;
     Stack* stack = context->scratch;
-    Padding padding = text_block->padding;
+    UiPadding padding = text_block->padding;
 
     Float2 texture_dimensions;
     texture_dimensions.x = font->image_width;
@@ -474,7 +472,7 @@ static Float2 measure_ideal_dimensions(TextBlock* text_block, Context* context)
     char32_t prior_char = '\0';
     int size = string_size(text_block->text);
     int next_break = find_next_mandatory_line_break(text_block->text, 0, stack);
-    Float2 pen = {padding.start, -padding.top - font->line_height};
+    Float2 pen = {{padding.start, -padding.top - font->line_height}};
     for(int i = 0; i < size; i += 1)
     {
         // @Incomplete: There isn't a one-to-one mapping between chars and
@@ -516,7 +514,7 @@ static Float2 measure_ideal_dimensions(TextBlock* text_block, Context* context)
             texture_rect.dimensions = float2_pointwise_divide(texture_rect.dimensions, texture_dimensions);
 
             int glyph_index = text_block->glyphs_count;
-            Glyph* typeset_glyph = &text_block->glyphs[glyph_index];
+            UiGlyph* typeset_glyph = &text_block->glyphs[glyph_index];
             typeset_glyph->rect = viewport_rect;
             typeset_glyph->texture_rect = texture_rect;
             typeset_glyph->baseline_start = pen;
@@ -539,9 +537,9 @@ static Float2 measure_ideal_dimensions(TextBlock* text_block, Context* context)
             viewport_rect.bottom_left = pen;
 
             int glyph_index = text_block->glyphs_count;
-            Glyph* typeset_glyph = &text_block->glyphs[glyph_index];
+            UiGlyph* typeset_glyph = &text_block->glyphs[glyph_index];
             typeset_glyph->rect = viewport_rect;
-            typeset_glyph->texture_rect = {{0.0f, 0.0f}, {0.0f, 0.0f}};
+            typeset_glyph->texture_rect = (Rect){{{0.0f, 0.0f}}, {{0.0f, 0.0f}}};
             typeset_glyph->baseline_start = pen;
             typeset_glyph->x_advance = 0.0f;
             typeset_glyph->text_index = text_index;
@@ -562,7 +560,7 @@ static Float2 measure_ideal_dimensions(TextBlock* text_block, Context* context)
     return bounds;
 }
 
-static Float2 measure_ideal_dimensions(Container* container, Context* context)
+static Float2 measure_ideal_dimensions(UiContainer* container, UiContext* context)
 {
     Float2 bounds = float2_zero;
     int main_axis = get_main_axis_index(container->axis);
@@ -570,34 +568,34 @@ static Float2 measure_ideal_dimensions(Container* container, Context* context)
 
     for(int i = 0; i < container->items_count; i += 1)
     {
-        Item* item = &container->items[i];
+        UiItem* item = &container->items[i];
         Float2 item_ideal;
         switch(item->type)
         {
-            case ItemType::Button:
+            case UI_ITEM_TYPE_BUTTON:
             {
-                item_ideal = measure_ideal_dimensions(&item->button.text_block, context);
+                item_ideal = measure_ideal_dimensions_text_block(&item->button.text_block, context);
                 break;
             }
-            case ItemType::Container:
+            case UI_ITEM_TYPE_CONTAINER:
             {
                 item_ideal = measure_ideal_dimensions(&item->container, context);
                 break;
             }
-            case ItemType::List:
+            case UI_ITEM_TYPE_LIST:
             {
                 item_ideal = float2_plus_infinity;
                 break;
             }
-            case ItemType::Text_Block:
+            case UI_ITEM_TYPE_TEXT_BLOCK:
             {
-                item_ideal = measure_ideal_dimensions(&item->text_block, context);
+                item_ideal = measure_ideal_dimensions_text_block(&item->text_block, context);
                 break;
             }
-            case ItemType::Text_Input:
+            case UI_ITEM_TYPE_TEXT_INPUT:
             {
-                Float2 input = measure_ideal_dimensions(&item->text_input.text_block, context);
-                Float2 hint = measure_ideal_dimensions(&item->text_input.label, context);
+                Float2 input = measure_ideal_dimensions_text_block(&item->text_input.text_block, context);
+                Float2 hint = measure_ideal_dimensions_text_block(&item->text_input.label, context);
                 item_ideal = float2_max(input, hint);
                 break;
             }
@@ -608,7 +606,7 @@ static Float2 measure_ideal_dimensions(Container* container, Context* context)
         bounds.e[cross_axis] = fmaxf(bounds.e[cross_axis], item->ideal_dimensions.e[cross_axis]);
     }
 
-    Padding padding = container->padding;
+    UiPadding padding = container->padding;
     bounds.x += padding.start + padding.end;
     bounds.y += padding.top + padding.bottom;
 
@@ -636,7 +634,7 @@ static float compute_run_length(const char* text, int start, int end, BmfFont* f
     return length;
 }
 
-static void place_glyph(TextBlock* text_block, BmfGlyph* glyph, BmfFont* font, int text_index, Float2 pen, Float2 texture_dimensions, Context* context)
+static void place_glyph(UiTextBlock* text_block, BmfGlyph* glyph, BmfFont* font, int text_index, Float2 pen, Float2 texture_dimensions, UiContext* context)
 {
     Float2 top_left = pen;
     top_left.x += glyph->offset.x;
@@ -652,7 +650,7 @@ static void place_glyph(TextBlock* text_block, BmfGlyph* glyph, BmfFont* font, i
     texture_rect.dimensions = float2_pointwise_divide(texture_rect.dimensions, texture_dimensions);
 
     int glyph_index = text_block->glyphs_count;
-    Glyph* typeset_glyph = &text_block->glyphs[glyph_index];
+    UiGlyph* typeset_glyph = &text_block->glyphs[glyph_index];
     typeset_glyph->rect = viewport_rect;
     typeset_glyph->texture_rect = texture_rect;
     typeset_glyph->baseline_start = pen;
@@ -663,14 +661,14 @@ static void place_glyph(TextBlock* text_block, BmfGlyph* glyph, BmfFont* font, i
     MAP_ADD(&text_block->glyph_map, text_index, glyph_index, context->heap);
 }
 
-static Float2 measure_bound_dimensions(TextBlock* text_block, Float2 dimensions, Context* context)
+static Float2 measure_bound_dimensions_text_block(UiTextBlock* text_block, Float2 dimensions, UiContext* context)
 {
     Float2 bounds = float2_zero;
 
     BmfFont* font = context->theme.font;
     Stack* stack = context->scratch;
 
-    Padding padding = text_block->padding;
+    UiPadding padding = text_block->padding;
     float right = dimensions.x - padding.end;
     float whole_width = dimensions.x - padding.start - padding.end;
 
@@ -683,7 +681,7 @@ static Float2 measure_bound_dimensions(TextBlock* text_block, Float2 dimensions,
 
     const char* ellipsize_text = u8"…";
     float extra_length = 0.0f;
-    if(text_block->text_overflow == TextOverflow::Ellipsize_End)
+    if(text_block->text_overflow == UI_TEXT_OVERFLOW_ELLIPSIZE_END)
     {
         int size = string_size(ellipsize_text);
         extra_length = compute_run_length(ellipsize_text, 0, size, font);
@@ -695,7 +693,7 @@ static Float2 measure_bound_dimensions(TextBlock* text_block, Float2 dimensions,
     float run_length = compute_run_length(text_block->text, 0, next_break, font);
 
     char32_t prior_char = '\0';
-    Float2 pen = {padding.start, -padding.top - font->line_height};
+    Float2 pen = {{padding.start, -padding.top - font->line_height}};
     int text_index = 0;
     int size = string_size(text_block->text);
 
@@ -720,13 +718,13 @@ static Float2 measure_bound_dimensions(TextBlock* text_block, Float2 dimensions,
 
             if(pen.x + run_length > right || is_mandatory)
             {
-                if(text_block->text_overflow == TextOverflow::Wrap)
+                if(text_block->text_overflow == UI_TEXT_OVERFLOW_WRAP)
                 {
                     bounds.x = fmax(bounds.x, pen.x);
                     pen.x = padding.start;
                     pen.y -= font->line_height;
                 }
-                else if(text_block->text_overflow == TextOverflow::Ellipsize_End)
+                else if(text_block->text_overflow == UI_TEXT_OVERFLOW_ELLIPSIZE_END)
                 {
                     if(is_mandatory)
                     {
@@ -754,7 +752,7 @@ static Float2 measure_bound_dimensions(TextBlock* text_block, Float2 dimensions,
             // If the right size is close, but a line break wasn't expected.
             if(pen.x + glyph->x_advance + extra_length > right)
             {
-                if(text_block->text_overflow == TextOverflow::Wrap && run_length > whole_width)
+                if(text_block->text_overflow == UI_TEXT_OVERFLOW_WRAP && run_length > whole_width)
                 {
                     // If there is a long section of text with no break opportunities
                     // make an emergency break so it doesn't overflow the text box.
@@ -762,7 +760,7 @@ static Float2 measure_bound_dimensions(TextBlock* text_block, Float2 dimensions,
                     pen.x = padding.start;
                     pen.y -= font->line_height;
                 }
-                else if(text_block->text_overflow == TextOverflow::Ellipsize_End)
+                else if(text_block->text_overflow == UI_TEXT_OVERFLOW_ELLIPSIZE_END)
                 {
                     // This is the normal end of an ellipsized text block.
                     add_ellipsis_pattern = true;
@@ -788,9 +786,9 @@ static Float2 measure_bound_dimensions(TextBlock* text_block, Float2 dimensions,
             viewport_rect.bottom_left = pen;
 
             int glyph_index = text_block->glyphs_count;
-            Glyph* typeset_glyph = &text_block->glyphs[glyph_index];
+            UiGlyph* typeset_glyph = &text_block->glyphs[glyph_index];
             typeset_glyph->rect = viewport_rect;
-            typeset_glyph->texture_rect = {{0.0f, 0.0f}, {0.0f, 0.0f}};
+            typeset_glyph->texture_rect = (Rect){{{0.0f, 0.0f}}, {{0.0f, 0.0f}}};
             typeset_glyph->baseline_start = pen;
             typeset_glyph->x_advance = 0.0f;
             typeset_glyph->text_index = text_index;
@@ -803,7 +801,7 @@ static Float2 measure_bound_dimensions(TextBlock* text_block, Float2 dimensions,
         i = text_index;
     }
 
-    if(text_block->text_overflow == TextOverflow::Ellipsize_End && add_ellipsis_pattern)
+    if(text_block->text_overflow == UI_TEXT_OVERFLOW_ELLIPSIZE_END && add_ellipsis_pattern)
     {
         int size = string_size(ellipsize_text);
         for(int i = 0; i < size; i += 1)
@@ -836,7 +834,7 @@ static Float2 measure_bound_dimensions(TextBlock* text_block, Float2 dimensions,
     return bounds;
 }
 
-static Float2 measure_bound_dimensions(Container* container, Float2 container_space, float shrink, Axis shrink_along, Context* context)
+static Float2 measure_bound_dimensions(UiContainer* container, Float2 container_space, float shrink, UiAxis shrink_along, UiContext* context)
 {
     Float2 result = float2_zero;
     int main_axis = get_main_axis_index(container->axis);
@@ -846,7 +844,7 @@ static Float2 measure_bound_dimensions(Container* container, Float2 container_sp
 
     for(int i = 0; i < container->items_count; i += 1)
     {
-        Item* item = &container->items[i];
+        UiItem* item = &container->items[i];
 
         Float2 space;
         space.e[shrink_axis] = shrink * item->ideal_dimensions.e[shrink_axis];
@@ -856,30 +854,30 @@ static Float2 measure_bound_dimensions(Container* container, Float2 container_sp
         Float2 dimensions;
         switch(item->type)
         {
-            case ItemType::Button:
+            case UI_ITEM_TYPE_BUTTON:
             {
-                dimensions = measure_bound_dimensions(&item->button.text_block, space, context);
+                dimensions = measure_bound_dimensions_text_block(&item->button.text_block, space, context);
                 break;
             }
-            case ItemType::Container:
+            case UI_ITEM_TYPE_CONTAINER:
             {
                 dimensions = measure_bound_dimensions(&item->container, space, shrink, shrink_along, context);
                 break;
             }
-            case ItemType::List:
+            case UI_ITEM_TYPE_LIST:
             {
                 dimensions = float2_zero;
                 break;
             }
-            case ItemType::Text_Block:
+            case UI_ITEM_TYPE_TEXT_BLOCK:
             {
-                dimensions = measure_bound_dimensions(&item->text_block, space, context);
+                dimensions = measure_bound_dimensions_text_block(&item->text_block, space, context);
                 break;
             }
-            case ItemType::Text_Input:
+            case UI_ITEM_TYPE_TEXT_INPUT:
             {
-                Float2 input = measure_bound_dimensions(&item->text_input.text_block, space, context);
-                Float2 hint = measure_bound_dimensions(&item->text_input.label, space, context);
+                Float2 input = measure_bound_dimensions_text_block(&item->text_input.text_block, space, context);
+                Float2 hint = measure_bound_dimensions_text_block(&item->text_input.label, space, context);
                 dimensions = float2_max(input, hint);
                 break;
             }
@@ -890,7 +888,7 @@ static Float2 measure_bound_dimensions(Container* container, Float2 container_sp
         result.e[cross_axis] = fmaxf(result.e[cross_axis], item->bounds.dimensions.e[cross_axis]);
     }
 
-    Padding padding = container->padding;
+    UiPadding padding = container->padding;
     result.x += padding.start + padding.end;
     result.y += padding.top + padding.bottom;
 
@@ -900,7 +898,7 @@ static Float2 measure_bound_dimensions(Container* container, Float2 container_sp
         int growable_items = 0;
         for(int i = 0; i < container->items_count; i += 1)
         {
-            Item item = container->items[i];
+            UiItem item = container->items[i];
             if(item.growable)
             {
                 growable_items += 1;
@@ -911,7 +909,7 @@ static Float2 measure_bound_dimensions(Container* container, Float2 container_sp
             float grow = (container_space.e[main_axis] - result.e[main_axis]) / growable_items;
             for(int i = 0; i < container->items_count; i += 1)
             {
-                Item* item = &container->items[i];
+                UiItem* item = &container->items[i];
                 if(item->growable)
                 {
                     item->bounds.dimensions.e[main_axis] += grow;
@@ -919,12 +917,12 @@ static Float2 measure_bound_dimensions(Container* container, Float2 container_sp
             }
         }
     }
-    if(container->alignment == Alignment::Stretch && result.e[cross_axis] < container_space.e[cross_axis])
+    if(container->alignment == UI_ALIGNMENT_STRETCH && result.e[cross_axis] < container_space.e[cross_axis])
     {
         result.e[cross_axis] = container_space.e[cross_axis];
         for(int i = 0; i < container->items_count; i += 1)
         {
-            Item* item = &container->items[i];
+            UiItem* item = &container->items[i];
             item->bounds.dimensions.e[cross_axis] = container_space.e[cross_axis];
         }
     }
@@ -932,7 +930,7 @@ static Float2 measure_bound_dimensions(Container* container, Float2 container_sp
     return result;
 }
 
-static float compute_shrink_factor(Container* container, Rect space, float ideal_length)
+static float compute_shrink_factor(UiContainer* container, Rect space, float ideal_length)
 {
     int main_axis = get_main_axis_index(container->axis);
     float available = space.dimensions.e[main_axis] - padding_along_axis(container->padding, main_axis);
@@ -947,7 +945,7 @@ static float compute_shrink_factor(Container* container, Rect space, float ideal
         float fit = 0.0f;
         for(int i = 0; i < container->items_count; i += 1)
         {
-            Item* item = &container->items[i];
+            UiItem* item = &container->items[i];
 
             float length = shrink * item->ideal_dimensions.e[main_axis];
             if(length < item->min_dimensions.e[main_axis])
@@ -976,9 +974,9 @@ static float compute_shrink_factor(Container* container, Rect space, float ideal
     return shrink;
 }
 
-static void grow_or_commit_ideal_dimensions(Item* item, Float2 container_space)
+static void grow_or_commit_ideal_dimensions(UiItem* item, Float2 container_space)
 {
-    Container* container = &item->container;
+    UiContainer* container = &item->container;
     int main_axis = get_main_axis_index(container->axis);
     int cross_axis = get_cross_axis_index(container->axis);
 
@@ -991,7 +989,7 @@ static void grow_or_commit_ideal_dimensions(Item* item, Float2 container_space)
     float ideal_length = 0.0f;
     for(int i = 0; i < container->items_count; i += 1)
     {
-        Item* next = &container->items[i];
+        UiItem* next = &container->items[i];
         if(!next->growable)
         {
             ungrowable_length += next->bounds.dimensions.e[main_axis];
@@ -1006,7 +1004,7 @@ static void grow_or_commit_ideal_dimensions(Item* item, Float2 container_space)
     // Grow them.
     for(int i = 0; i < container->items_count; i += 1)
     {
-        Item* next = &container->items[i];
+        UiItem* next = &container->items[i];
 
         Float2 space;
         if(next->growable)
@@ -1018,22 +1016,22 @@ static void grow_or_commit_ideal_dimensions(Item* item, Float2 container_space)
         {
             space = next->ideal_dimensions;
         }
-        if(container->alignment == Alignment::Stretch)
+        if(container->alignment == UI_ALIGNMENT_STRETCH)
         {
             space.e[cross_axis] = item->ideal_dimensions.e[cross_axis];
         }
 
         switch(next->type)
         {
-            case ItemType::Container:
+            case UI_ITEM_TYPE_CONTAINER:
             {
                 grow_or_commit_ideal_dimensions(next, space);
                 break;
             }
-            case ItemType::Button:
-            case ItemType::List:
-            case ItemType::Text_Block:
-            case ItemType::Text_Input:
+            case UI_ITEM_TYPE_BUTTON:
+            case UI_ITEM_TYPE_LIST:
+            case UI_ITEM_TYPE_TEXT_BLOCK:
+            case UI_ITEM_TYPE_TEXT_INPUT:
             {
                 next->bounds.dimensions = space;
                 break;
@@ -1042,33 +1040,33 @@ static void grow_or_commit_ideal_dimensions(Item* item, Float2 container_space)
     }
 }
 
-static float measure_length(Container* container)
+static float measure_length(UiContainer* container)
 {
     int axis = get_main_axis_index(container->axis);
     float length = 0.0f;
     for(int i = 0; i < container->items_count; i += 1)
     {
-        Item item = container->items[i];
+        UiItem item = container->items[i];
         length += item.bounds.dimensions.e[axis];
     }
     return length;
 }
 
-static void place_items_along_main_axis(Item* item, Rect space)
+static void place_items_along_main_axis(UiItem* item, Rect space)
 {
-    Container* container = &item->container;
-    Padding padding = container->padding;
+    UiContainer* container = &item->container;
+    UiPadding padding = container->padding;
     int axis = get_main_axis_index(container->axis);
 
     // Place the container within the space.
     switch(container->axis)
     {
-        case Axis::Horizontal:
+        case UI_AXIS_HORIZONTAL:
         {
             item->bounds.bottom_left.x = space.bottom_left.x;
             break;
         }
-        case Axis::Vertical:
+        case UI_AXIS_VERTICAL:
         {
             float top = rect_top(space);
             item->bounds.bottom_left.y = top - item->bounds.dimensions.y;
@@ -1080,19 +1078,19 @@ static void place_items_along_main_axis(Item* item, Rect space)
     float last;
     switch(container->axis)
     {
-        case Axis::Horizontal:
+        case UI_AXIS_HORIZONTAL:
         {
             float left = item->bounds.bottom_left.x;
             float right = rect_right(item->bounds);
             switch(container->direction)
             {
-                case Direction::Left_To_Right:
+                case UI_DIRECTION_LEFT_TO_RIGHT:
                 {
                     first = left + padding.start;
                     last = right - padding.end;
                     break;
                 }
-                case Direction::Right_To_Left:
+                case UI_DIRECTION_RIGHT_TO_LEFT:
                 {
                     first = right - padding.start;
                     last = left + padding.end;
@@ -1101,7 +1099,7 @@ static void place_items_along_main_axis(Item* item, Rect space)
             }
             break;
         }
-        case Axis::Vertical:
+        case UI_AXIS_VERTICAL:
         {
             float top = rect_top(item->bounds);
             float bottom = item->bounds.bottom_left.y;
@@ -1111,19 +1109,19 @@ static void place_items_along_main_axis(Item* item, Rect space)
         }
     }
 
-    bool fill_backward = (container->axis == Axis::Horizontal && container->direction == Direction::Right_To_Left) ||
-        container->axis == Axis::Vertical;
+    bool fill_backward = (container->axis == UI_AXIS_HORIZONTAL && container->direction == UI_DIRECTION_RIGHT_TO_LEFT) ||
+        container->axis == UI_AXIS_VERTICAL;
 
     float cursor;
     float apart = 0.0f;
     switch(container->justification)
     {
-        case Justification::Start:
+        case UI_JUSTIFICATION_START:
         {
             cursor = first;
             break;
         }
-        case Justification::End:
+        case UI_JUSTIFICATION_END:
         {
             float length = measure_length(container);
             if(fill_backward)
@@ -1136,7 +1134,7 @@ static void place_items_along_main_axis(Item* item, Rect space)
             }
             break;
         }
-        case Justification::Center:
+        case UI_JUSTIFICATION_CENTER:
         {
             float length = measure_length(container);
             float center = (last + first) / 2.0f;
@@ -1150,7 +1148,7 @@ static void place_items_along_main_axis(Item* item, Rect space)
             }
             break;
         }
-        case Justification::Space_Around:
+        case UI_JUSTIFICATION_SPACE_AROUND:
         {
             float length = measure_length(container);
             float container_length = fabsf(last - first);
@@ -1165,7 +1163,7 @@ static void place_items_along_main_axis(Item* item, Rect space)
             }
             break;
         }
-        case Justification::Space_Between:
+        case UI_JUSTIFICATION_SPACE_BETWEEN:
         {
             float length = measure_length(container);
             float container_length = fabsf(last - first);
@@ -1179,13 +1177,13 @@ static void place_items_along_main_axis(Item* item, Rect space)
     {
         for(int i = 0; i < container->items_count; i += 1)
         {
-            Item* next = &container->items[i];
+            UiItem* next = &container->items[i];
 
             cursor -= next->bounds.dimensions.e[axis];
             next->bounds.bottom_left.e[axis] = cursor;
             cursor -= apart;
 
-            if(next->type == ItemType::Container && next->container.items_count > 0)
+            if(next->type == UI_ITEM_TYPE_CONTAINER && next->container.items_count > 0)
             {
                 place_items_along_main_axis(next, next->bounds);
             }
@@ -1195,12 +1193,12 @@ static void place_items_along_main_axis(Item* item, Rect space)
     {
         for(int i = 0; i < container->items_count; i += 1)
         {
-            Item* next = &container->items[i];
+            UiItem* next = &container->items[i];
 
             next->bounds.bottom_left.e[axis] = cursor;
             cursor += next->bounds.dimensions.e[axis] + apart;
 
-            if(next->type == ItemType::Container && next->container.items_count > 0)
+            if(next->type == UI_ITEM_TYPE_CONTAINER && next->container.items_count > 0)
             {
                 place_items_along_main_axis(next, next->bounds);
             }
@@ -1208,10 +1206,10 @@ static void place_items_along_main_axis(Item* item, Rect space)
     }
 }
 
-static void place_items_along_cross_axis(Item* item, Rect space)
+static void place_items_along_cross_axis(UiItem* item, Rect space)
 {
-    Container* container = &item->container;
-    Padding padding = container->padding;
+    UiContainer* container = &item->container;
+    UiPadding padding = container->padding;
     int cross_axis = get_cross_axis_index(container->axis);
 
     float space_top = rect_top(space);
@@ -1221,30 +1219,30 @@ static void place_items_along_cross_axis(Item* item, Rect space)
     float position;
     switch(container->alignment)
     {
-        case Alignment::Start:
-        case Alignment::Stretch:
+        case UI_ALIGNMENT_START:
+        case UI_ALIGNMENT_STRETCH:
         {
             switch(container->axis)
             {
-                case Axis::Horizontal:
+                case UI_AXIS_HORIZONTAL:
                 {
                     float top = rect_top(item->bounds);
                     position = top - padding.top;
                     centering = 1.0f;
                     break;
                 }
-                case Axis::Vertical:
+                case UI_AXIS_VERTICAL:
                 {
                     switch(container->direction)
                     {
-                        case Direction::Left_To_Right:
+                        case UI_DIRECTION_LEFT_TO_RIGHT:
                         {
                             float left = item->bounds.bottom_left.x;
                             position = left + padding.start;
                             centering = 0.0f;
                             break;
                         }
-                        case Direction::Right_To_Left:
+                        case UI_DIRECTION_RIGHT_TO_LEFT:
                         {
                             float right = rect_right(item->bounds);
                             position = right - padding.start;
@@ -1257,28 +1255,28 @@ static void place_items_along_cross_axis(Item* item, Rect space)
             }
             break;
         }
-        case Alignment::End:
+        case UI_ALIGNMENT_END:
         {
             switch(container->axis)
             {
-                case Axis::Horizontal:
+                case UI_AXIS_HORIZONTAL:
                 {
                     position = item->bounds.bottom_left.y + padding.bottom;
                     centering = 0.0f;
                     break;
                 }
-                case Axis::Vertical:
+                case UI_AXIS_VERTICAL:
                 {
                     switch(container->direction)
                     {
-                        case Direction::Left_To_Right:
+                        case UI_DIRECTION_LEFT_TO_RIGHT:
                         {
                             float right = rect_right(item->bounds);
                             position = right - padding.end;
                             centering = 1.0f;
                             break;
                         }
-                        case Direction::Right_To_Left:
+                        case UI_DIRECTION_RIGHT_TO_LEFT:
                         {
                             float left = item->bounds.bottom_left.x;
                             position = left + padding.end;
@@ -1291,7 +1289,7 @@ static void place_items_along_cross_axis(Item* item, Rect space)
             }
             break;
         }
-        case Alignment::Center:
+        case UI_ALIGNMENT_CENTER:
         {
             position = item->bounds.bottom_left.e[cross_axis] + (item->bounds.dimensions.e[cross_axis] / 2.0f);
             centering = 0.5f;
@@ -1301,18 +1299,18 @@ static void place_items_along_cross_axis(Item* item, Rect space)
 
     for(int i = 0; i < container->items_count; i += 1)
     {
-        Item* next = &container->items[i];
+        UiItem* next = &container->items[i];
         next->bounds.bottom_left.e[cross_axis] = position - (centering * next->bounds.dimensions.e[cross_axis]);
-        if(next->type == ItemType::Container && next->container.items_count > 0)
+        if(next->type == UI_ITEM_TYPE_CONTAINER && next->container.items_count > 0)
         {
             place_items_along_cross_axis(next, next->bounds);
         }
     }
 }
 
-void lay_out(Item* item, Rect space, Context* context)
+void ui_lay_out(UiItem* item, Rect space, UiContext* context)
 {
-    Container* container = &item->container;
+    UiContainer* container = &item->container;
     int main_axis = get_main_axis_index(container->axis);
 
     // Compute the ideal dimensions of the container and its contents.
@@ -1321,7 +1319,7 @@ void lay_out(Item* item, Rect space, Context* context)
     float ideal_length = 0.0f;
     for(int i = 0; i < container->items_count; i += 1)
     {
-        Item next = container->items[i];
+        UiItem next = container->items[i];
         ideal_length += next.ideal_dimensions.e[main_axis];
     }
 
@@ -1351,13 +1349,13 @@ void lay_out(Item* item, Rect space, Context* context)
     place_items_along_cross_axis(item, space);
 }
 
-static void draw_text_block(TextBlock* text_block, Rect bounds)
+static void draw_text_block(UiTextBlock* text_block, Rect bounds)
 {
     Float2 top_left = rect_top_left(bounds);
 
     for(int i = 0; i < text_block->glyphs_count; i += 1)
     {
-        Glyph glyph = text_block->glyphs[i];
+        UiGlyph glyph = text_block->glyphs[i];
         Rect rect = glyph.rect;
         rect.bottom_left = float2_add(rect.bottom_left, top_left);
         Quad quad = rect_to_quad(rect);
@@ -1367,13 +1365,13 @@ static void draw_text_block(TextBlock* text_block, Rect bounds)
     immediate_draw();
 }
 
-static void draw_button(Item* item, Context* context)
+static void draw_button(UiItem* item, UiContext* context)
 {
-    ASSERT(item->type == ItemType::Button);
+    ASSERT(item->type == UI_ITEM_TYPE_BUTTON);
 
-    Button* button = &item->button;
+    UiButton* button = &item->button;
 
-    Theme* theme = &context->theme;
+    UiTheme* theme = &context->theme;
 
     Float4 non_hovered_colour;
     Float4 hovered_colour;
@@ -1406,29 +1404,29 @@ static void draw_button(Item* item, Context* context)
     draw_text_block(&item->button.text_block, item->bounds);
 }
 
-static void draw_container(Item* item, Context* context)
+static void draw_container(UiItem* item, UiContext* context)
 {
-    ASSERT(item->type == ItemType::Container);
+    ASSERT(item->type == UI_ITEM_TYPE_CONTAINER);
 
-    int style_index = static_cast<int>(item->container.style_type);
-    Style style = context->theme.styles[style_index];
+    int style_index = (int) item->container.style_type;
+    UiStyle style = context->theme.styles[style_index];
 
     immediate_draw_opaque_rect(item->bounds, style.background);
 
     for(int i = 0; i < item->container.items_count; i += 1)
     {
-        draw(&item->container.items[i], context);
+        ui_draw(&item->container.items[i], context);
     }
 }
 
-static void place_glyphs(TextBlock* text_block, Float2 bounds, Context* context)
+static void place_glyphs(UiTextBlock* text_block, Float2 bounds, UiContext* context)
 {
-    measure_bound_dimensions(text_block, bounds, context);
+    measure_bound_dimensions_text_block(text_block, bounds, context);
 }
 
-static void place_list_items(Item* item, Context* context)
+static void place_list_items(UiItem* item, UiContext* context)
 {
-    List* list = &item->list;
+    UiList* list = &item->list;
 
     if(list->items_count > 0)
     {
@@ -1452,17 +1450,17 @@ static void place_list_items(Item* item, Context* context)
     }
 }
 
-static void draw_list(Item* item, Context* context)
+static void draw_list(UiItem* item, UiContext* context)
 {
-    ASSERT(item->type == ItemType::List);
+    ASSERT(item->type == UI_ITEM_TYPE_LIST);
 
     place_list_items(item, context);
 
     immediate_set_clip_area(item->bounds, context->viewport.x, context->viewport.y);
 
-    List* list = &item->list;
+    UiList* list = &item->list;
 
-    Theme* theme = &context->theme;
+    UiTheme* theme = &context->theme;
     float line_height = theme->font->line_height;
     Float4 hover_colour = theme->colours.list_item_background_hovered;
     Float4 selection_colour = theme->colours.list_item_background_selected;
@@ -1495,7 +1493,7 @@ static void draw_list(Item* item, Context* context)
 
         for(int i = start_index; i < end_index; i += 1)
         {
-            TextBlock* next = &list->items[i];
+            UiTextBlock* next = &list->items[i];
             Rect bounds = list->items_bounds[i];
             bounds.bottom_left.y += list->scroll_top;
             draw_text_block(next, bounds);
@@ -1505,17 +1503,17 @@ static void draw_list(Item* item, Context* context)
     immediate_stop_clip_area();
 }
 
-static Float2 compute_cursor_position(TextBlock* text_block, Float2 dimensions, float line_height, int index)
+static Float2 compute_cursor_position(UiTextBlock* text_block, Float2 dimensions, float line_height, int index)
 {
-    Padding padding = text_block->padding;
+    UiPadding padding = text_block->padding;
 
     // @Incomplete: There isn't a one-to-one mapping between chars and glyphs
     // Add a lookup to find the glyph given and index in the string.
-    Float2 position = {padding.start, -padding.top - line_height};
+    Float2 position = {{padding.start, -padding.top - line_height}};
     int size = string_size(text_block->text);
     if(index >= size && size > 0)
     {
-        Glyph glyph = text_block->glyphs[text_block->glyphs_count - 1];
+        UiGlyph glyph = text_block->glyphs[text_block->glyphs_count - 1];
         Float2 bottom_right;
         bottom_right.x = glyph.baseline_start.x + glyph.x_advance;
         bottom_right.y = glyph.baseline_start.y;
@@ -1524,12 +1522,12 @@ static Float2 compute_cursor_position(TextBlock* text_block, Float2 dimensions, 
     else if(index >= 0)
     {
         void* value;
-        void* key = reinterpret_cast<void*>(index);
+        void* key = (void*) (uintptr_t) index;
         bool found = map_get(&text_block->glyph_map, key, &value);
         if(found)
         {
-            uintptr_t glyph_index = reinterpret_cast<uintptr_t>(value);
-            Glyph glyph = text_block->glyphs[glyph_index];
+            uintptr_t glyph_index = (uintptr_t) value;
+            UiGlyph glyph = text_block->glyphs[glyph_index];
             position = glyph.baseline_start;
         }
     }
@@ -1537,7 +1535,7 @@ static Float2 compute_cursor_position(TextBlock* text_block, Float2 dimensions, 
     return position;
 }
 
-static int find_index_at_position(TextBlock* text_block, Float2 dimensions, float line_height, Float2 position)
+static int find_index_at_position(UiTextBlock* text_block, Float2 dimensions, float line_height, Float2 position)
 {
     int index = invalid_index;
 
@@ -1545,7 +1543,7 @@ static int find_index_at_position(TextBlock* text_block, Float2 dimensions, floa
     int count = text_block->glyphs_count;
     for(int i = 0; i < count; i += 1)
     {
-        Glyph glyph = text_block->glyphs[i];
+        UiGlyph glyph = text_block->glyphs[i];
         Float2 point = glyph.baseline_start;
 
         if(position.y >= point.y + line_height)
@@ -1563,7 +1561,7 @@ static int find_index_at_position(TextBlock* text_block, Float2 dimensions, floa
         }
     }
 
-    Glyph last = text_block->glyphs[count - 1];
+    UiGlyph last = text_block->glyphs[count - 1];
     Float2 point;
     point.x = last.baseline_start.x + last.x_advance;
     point.y = last.baseline_start.y;
@@ -1580,18 +1578,18 @@ static int find_index_at_position(TextBlock* text_block, Float2 dimensions, floa
     return index;
 }
 
-void draw_text_input(Item* item, Context* context)
+static void draw_text_input(UiItem* item, UiContext* context)
 {
-    ASSERT(item->type == ItemType::Text_Input);
+    ASSERT(item->type == UI_ITEM_TYPE_TEXT_INPUT);
 
     Float4 selection_colour = context->theme.colours.text_input_selection;
     Float4 cursor_colour = context->theme.colours.text_input_cursor;
     float line_height = context->theme.font->line_height;
 
-    TextInput* text_input = &item->text_input;
-    TextBlock* text_block = &text_input->text_block;
+    UiTextInput* text_input = &item->text_input;
+    UiTextBlock* text_block = &text_input->text_block;
 
-    bool in_focus = focused_on(context, item);
+    bool in_focus = ui_focused_on(context, item);
 
     if(in_focus || text_block->glyphs_count > 0)
     {
@@ -1613,7 +1611,7 @@ void draw_text_input(Item* item, Context* context)
         cursor = float2_add(cursor, top_left);
 
         Rect rect;
-        rect.dimensions = {1.7f, line_height};
+        rect.dimensions = (Float2){{1.7f, line_height}};
         rect.bottom_left = cursor;
 
         text_input->cursor_blink_frame = (text_input->cursor_blink_frame + 1) & 0x3f;
@@ -1651,7 +1649,7 @@ void draw_text_input(Item* item, Context* context)
             else
             {
                 // The selection endpoints are on different lines.
-                Padding padding = text_block->padding;
+                UiPadding padding = text_block->padding;
                 float left = item->bounds.bottom_left.x + padding.start;
                 float right = left + item->bounds.dimensions.x - padding.end;
 
@@ -1681,31 +1679,31 @@ void draw_text_input(Item* item, Context* context)
     }
 }
 
-void draw(Item* item, Context* context)
+void ui_draw(UiItem* item, UiContext* context)
 {
     switch(item->type)
     {
-        case ItemType::Button:
+        case UI_ITEM_TYPE_BUTTON:
         {
             draw_button(item, context);
             break;
         }
-        case ItemType::Container:
+        case UI_ITEM_TYPE_CONTAINER:
         {
             draw_container(item, context);
             break;
         }
-        case ItemType::List:
+        case UI_ITEM_TYPE_LIST:
         {
             draw_list(item, context);
             break;
         }
-        case ItemType::Text_Block:
+        case UI_ITEM_TYPE_TEXT_BLOCK:
         {
             draw_text_block(&item->text_block, item->bounds);
             break;
         }
-        case ItemType::Text_Input:
+        case UI_ITEM_TYPE_TEXT_INPUT:
         {
             draw_text_input(item, context);
             break;
@@ -1713,11 +1711,11 @@ void draw(Item* item, Context* context)
     }
 }
 
-void draw_focus_indicator(Item* item, Context* context)
+void ui_draw_focus_indicator(UiItem* item, UiContext* context)
 {
     if(context->focused_item && in_focus_scope(item, context->focused_item))
     {
-        Item* focused = context->focused_item;
+        UiItem* focused = context->focused_item;
 
         Float4 colour = context->theme.colours.focus_indicator;
         const float line_width = 2.0f;
@@ -1733,19 +1731,19 @@ void draw_focus_indicator(Item* item, Context* context)
 
         Rect top;
         top.bottom_left = top_left;
-        top.dimensions = {width, line_width};
+        top.dimensions = (Float2){{width, line_width}};
 
         Rect bottom;
-        bottom.bottom_left = {bottom_left.x, bottom_left.y - line_width};
-        bottom.dimensions = {width, line_width};
+        bottom.bottom_left = (Float2){{bottom_left.x, bottom_left.y - line_width}};
+        bottom.dimensions = (Float2){{width, line_width}};
 
         Rect left;
-        left.bottom_left = {bottom_left.x - line_width, bottom_left.y - line_width};
-        left.dimensions = {line_width, height + (2 * line_width)};
+        left.bottom_left = (Float2){{bottom_left.x - line_width, bottom_left.y - line_width}};
+        left.dimensions = (Float2){{line_width, height + (2 * line_width)}};
 
         Rect right;
-        right.bottom_left = {bottom_right.x, bottom_right.y - line_width};
-        right.dimensions = {line_width, height + (2 * line_width)};
+        right.bottom_left = (Float2){{bottom_right.x, bottom_right.y - line_width}};
+        right.dimensions = (Float2){{line_width, height + (2 * line_width)}};
 
         immediate_draw_transparent_rect(top, colour);
         immediate_draw_transparent_rect(bottom, colour);
@@ -1754,15 +1752,15 @@ void draw_focus_indicator(Item* item, Context* context)
     }
 }
 
-static bool detect_hover(Item* item, Float2 pointer_position, Platform* platform)
+static bool detect_hover(UiItem* item, Float2 pointer_position, Platform* platform)
 {
     bool detected = false;
 
     switch(item->type)
     {
-        case ItemType::Button:
+        case UI_ITEM_TYPE_BUTTON:
         {
-            Button* button = &item->button;
+            UiButton* button = &item->button;
             bool hovered = point_in_rect(item->bounds, pointer_position);
             button->hovered = hovered;
             if(hovered)
@@ -1779,19 +1777,19 @@ static bool detect_hover(Item* item, Float2 pointer_position, Platform* platform
             detected = hovered;
             break;
         }
-        case ItemType::Container:
+        case UI_ITEM_TYPE_CONTAINER:
         {
-            Container* container = &item->container;
+            UiContainer* container = &item->container;
             for(int i = 0; i < container->items_count; i += 1)
             {
-                Item* inside = &container->items[i];
+                UiItem* inside = &container->items[i];
                 detected |= detect_hover(inside, pointer_position, platform);
             }
             break;
         }
-        case ItemType::List:
+        case UI_ITEM_TYPE_LIST:
         {
-            List* list = &item->list;
+            UiList* list = &item->list;
             list->hovered_item_index = invalid_index;
             for(int i = 0; i < list->items_count; i += 1)
             {
@@ -1808,11 +1806,11 @@ static bool detect_hover(Item* item, Float2 pointer_position, Platform* platform
             }
             break;
         }
-        case ItemType::Text_Block:
+        case UI_ITEM_TYPE_TEXT_BLOCK:
         {
             break;
         }
-        case ItemType::Text_Input:
+        case UI_ITEM_TYPE_TEXT_INPUT:
         {
             bool hovered = point_in_rect(item->bounds, pointer_position);
             if(hovered)
@@ -1827,26 +1825,26 @@ static bool detect_hover(Item* item, Float2 pointer_position, Platform* platform
     return detected;
 }
 
-static bool detect_focus_changes(Context* context, Item* item, Float2 mouse_position)
+static bool detect_focus_changes(UiContext* context, UiItem* item, Float2 mouse_position)
 {
     bool focus_taken;
 
     switch(item->type)
     {
-        case ItemType::Button:
+        case UI_ITEM_TYPE_BUTTON:
         {
-            focus_on_item(context, item);
+            ui_focus_on_item(context, item);
             focus_taken = true;
             break;
         }
-        case ItemType::Container:
+        case UI_ITEM_TYPE_CONTAINER:
         {
-            Container* container = &item->container;
+            UiContainer* container = &item->container;
 
             focus_taken = false;
             for(int i = 0; i < container->items_count; i += 1)
             {
-                Item* inside = &container->items[i];
+                UiItem* inside = &container->items[i];
 
                 if(point_in_rect(inside->bounds, mouse_position))
                 {
@@ -1859,20 +1857,20 @@ static bool detect_focus_changes(Context* context, Item* item, Float2 mouse_posi
             }
             break;
         }
-        case ItemType::List:
+        case UI_ITEM_TYPE_LIST:
         {
-            focus_on_item(context, item);
+            ui_focus_on_item(context, item);
             focus_taken = true;
             break;
         }
-        case ItemType::Text_Block:
+        case UI_ITEM_TYPE_TEXT_BLOCK:
         {
             focus_taken = false;
             break;
         }
-        case ItemType::Text_Input:
+        case UI_ITEM_TYPE_TEXT_INPUT:
         {
-            focus_on_item(context, item);
+            ui_focus_on_item(context, item);
             focus_taken = true;
             break;
         }
@@ -1881,7 +1879,7 @@ static bool detect_focus_changes(Context* context, Item* item, Float2 mouse_posi
     return focus_taken;
 }
 
-static void detect_focus_changes_for_toplevel_containers(Context* context)
+static void detect_focus_changes_for_toplevel_containers(UiContext* context)
 {
     bool clicked = input_get_mouse_clicked(MOUSE_BUTTON_LEFT)
             || input_get_mouse_clicked(MOUSE_BUTTON_MIDDLE)
@@ -1892,10 +1890,10 @@ static void detect_focus_changes_for_toplevel_containers(Context* context)
     mouse_position.x = position.x - context->viewport.x / 2.0f;
     mouse_position.y = -(position.y - context->viewport.y / 2.0f);
 
-    Item* highest = nullptr;
-    FOR_ALL(Item*, context->toplevel_containers)
+    UiItem* highest = NULL;
+    FOR_ALL(UiItem*, context->toplevel_containers)
     {
-        Item* item = *it;
+        UiItem* item = *it;
         bool above = point_in_rect(item->bounds, mouse_position);
         if(above)
         {
@@ -1910,29 +1908,29 @@ static void detect_focus_changes_for_toplevel_containers(Context* context)
         }
         else
         {
-            focus_on_item(context, nullptr);
+            ui_focus_on_item(context, NULL);
         }
     }
 }
 
-static bool detect_capture_changes(Context* context, Item* item, Float2 mouse_position)
+static bool detect_capture_changes(UiContext* context, UiItem* item, Float2 mouse_position)
 {
     bool captured = false;
 
     switch(item->type)
     {
-        case ItemType::Button:
+        case UI_ITEM_TYPE_BUTTON:
         {
-            capture(context, item);
+            ui_capture(context, item);
             captured = true;
             break;
         }
-        case ItemType::Container:
+        case UI_ITEM_TYPE_CONTAINER:
         {
-            Container* container = &item->container;
+            UiContainer* container = &item->container;
             for(int i = 0; i < container->items_count; i += 1)
             {
-                Item* inside = &container->items[i];
+                UiItem* inside = &container->items[i];
 
                 if(point_in_rect(inside->bounds, mouse_position))
                 {
@@ -1946,26 +1944,26 @@ static bool detect_capture_changes(Context* context, Item* item, Float2 mouse_po
 
             if(!captured)
             {
-                capture(context, item);
+                ui_capture(context, item);
                 captured = true;
             }
             break;
         }
-        case ItemType::List:
+        case UI_ITEM_TYPE_LIST:
         {
-            capture(context, item);
+            ui_capture(context, item);
             captured = true;
             break;
         }
-        case ItemType::Text_Block:
+        case UI_ITEM_TYPE_TEXT_BLOCK:
         {
-            capture(context, item);
+            ui_capture(context, item);
             captured = true;
             break;
         }
-        case ItemType::Text_Input:
+        case UI_ITEM_TYPE_TEXT_INPUT:
         {
-            capture(context, item);
+            ui_capture(context, item);
             captured = true;
             break;
         }
@@ -1974,7 +1972,7 @@ static bool detect_capture_changes(Context* context, Item* item, Float2 mouse_po
     return captured;
 }
 
-static void detect_capture_changes_for_toplevel_containers(Context* context, Platform* platform)
+static void detect_capture_changes_for_toplevel_containers(UiContext* context, Platform* platform)
 {
     bool clicked = input_get_mouse_clicked(MOUSE_BUTTON_LEFT)
             || input_get_mouse_clicked(MOUSE_BUTTON_MIDDLE)
@@ -1985,10 +1983,10 @@ static void detect_capture_changes_for_toplevel_containers(Context* context, Pla
     mouse_position.x = position.x - context->viewport.x / 2.0f;
     mouse_position.y = -(position.y - context->viewport.y / 2.0f);
 
-    Item* highest = nullptr;
-    FOR_ALL(Item*, context->toplevel_containers)
+    UiItem* highest = NULL;
+    FOR_ALL(UiItem*, context->toplevel_containers)
     {
-        Item* item = *it;
+        UiItem* item = *it;
         bool above = point_in_rect(item->bounds, mouse_position);
         if(above)
         {
@@ -2009,34 +2007,34 @@ static void detect_capture_changes_for_toplevel_containers(Context* context, Pla
     {
         if(clicked)
         {
-            capture(context, nullptr);
+            ui_capture(context, NULL);
         }
         context->anything_hovered = false;
     }
 }
 
-static void signal_text_change(Context* context, Id id)
+static void signal_text_change(UiContext* context, UiId id)
 {
-    Event event = {};
-    event.type = EventType::Text_Change;
+    UiEvent event = {};
+    event.type = UI_EVENT_TYPE_TEXT_CHANGE;
     event.text_change.id = id;
     enqueue(&context->queue, event);
 }
 
-static void update_removed_glyphs(TextBlock* text_block, Float2 dimensions, Id id, Context* context)
+static void update_removed_glyphs(UiTextBlock* text_block, Float2 dimensions, UiId id, UiContext* context)
 {
     place_glyphs(text_block, dimensions, context);
     signal_text_change(context, id);
 }
 
-static void update_added_glyphs(TextBlock* text_block, Float2 dimensions, Id id, Context* context)
+static void update_added_glyphs(UiTextBlock* text_block, Float2 dimensions, UiId id, UiContext* context)
 {
     // @Incomplete: There isn't a one-to-one mapping between chars and glyphs.
-    // Glyph count should be based on the mapping of the given text in a
+    // UiGlyph count should be based on the mapping of the given text in a
     // particular font instead of the size in bytes.
     Heap* heap = context->heap;
     int glyphs_cap = string_size(text_block->text);
-    text_block->glyphs = HEAP_REALLOCATE(heap, text_block->glyphs, Glyph, glyphs_cap);
+    text_block->glyphs = HEAP_REALLOCATE(heap, text_block->glyphs, UiGlyph, glyphs_cap);
     text_block->glyphs_cap = glyphs_cap;
     map_destroy(&text_block->glyph_map, heap);
     map_create(&text_block->glyph_map, glyphs_cap, heap);
@@ -2045,7 +2043,7 @@ static void update_added_glyphs(TextBlock* text_block, Float2 dimensions, Id id,
     signal_text_change(context, id);
 }
 
-static void update_cursor_position(TextInput* text_input, Rect bounds, Context* context, Platform* platform)
+static void update_cursor_position(UiTextInput* text_input, Rect bounds, UiContext* context, Platform* platform)
 {
     BmfFont* font = context->theme.font;
     float line_height = font->line_height;
@@ -2068,7 +2066,7 @@ static void update_cursor_position(TextInput* text_input, Rect bounds, Context* 
     }
 }
 
-static void remove_selected_text(TextInput* text_input, Float2 dimensions, Id id, Context* context, Platform* platform)
+static void remove_selected_text(UiTextInput* text_input, Float2 dimensions, UiId id, UiContext* context, Platform* platform)
 {
     if(text_input->cursor_position != text_input->selection_start)
     {
@@ -2081,10 +2079,10 @@ static void remove_selected_text(TextInput* text_input, Float2 dimensions, Id id
     }
 }
 
-void insert_text(Item* item, const char* text_to_add, Context* context, Platform* platform)
+void ui_insert_text(UiItem* item, const char* text_to_add, UiContext* context, Platform* platform)
 {
-    TextInput* text_input = &item->text_input;
-    TextBlock* text_block = &text_input->text_block;
+    UiTextInput* text_input = &item->text_input;
+    UiTextBlock* text_block = &text_input->text_block;
     Float2 dimensions = item->bounds.dimensions;
 
     int text_to_add_size = string_size(text_to_add);
@@ -2107,9 +2105,9 @@ void insert_text(Item* item, const char* text_to_add, Context* context, Platform
     }
 }
 
-static bool copy_selected_text(TextInput* text_input, Platform* platform, Heap* heap)
+static bool copy_selected_text(UiTextInput* text_input, Platform* platform, Heap* heap)
 {
-    TextBlock* text_block = &text_input->text_block;
+    UiTextBlock* text_block = &text_input->text_block;
 
     int start = MIN(text_input->cursor_position, text_input->selection_start);
     int end = MAX(text_input->cursor_position, text_input->selection_start);
@@ -2125,21 +2123,21 @@ static bool copy_selected_text(TextInput* text_input, Platform* platform, Heap* 
     return copied;
 }
 
-static int find_beginning_of_line(TextBlock* text_block, int start_index)
+static int find_beginning_of_line(UiTextBlock* text_block, int start_index)
 {
     start_index = MIN(start_index, string_size(text_block->text) - 1);
 
-    void* key = reinterpret_cast<void*>(start_index);
+    void* key = (void*) (uintptr_t) start_index;
     void* value;
     bool found = map_get(&text_block->glyph_map, key, &value);
     if(found)
     {
-        uintptr_t glyph_index = reinterpret_cast<uintptr_t>(value);
-        Glyph first = text_block->glyphs[glyph_index];
+        uintptr_t glyph_index = (uintptr_t) value;
+        UiGlyph first = text_block->glyphs[glyph_index];
         float first_y = first.baseline_start.y;
         for(int i = glyph_index - 1; i >= 0; i -= 1)
         {
-            Glyph glyph = text_block->glyphs[i];
+            UiGlyph glyph = text_block->glyphs[i];
             if(glyph.baseline_start.y > first_y)
             {
                 return text_block->glyphs[i + 1].text_index;
@@ -2150,22 +2148,22 @@ static int find_beginning_of_line(TextBlock* text_block, int start_index)
     return 0;
 }
 
-static int find_end_of_line(TextBlock* text_block, int start_index)
+static int find_end_of_line(UiTextBlock* text_block, int start_index)
 {
     int end_of_text = string_size(text_block->text);
     start_index = MIN(start_index, end_of_text - 1);
 
-    void* key = reinterpret_cast<void*>(start_index);
+    void* key = (void*) (uintptr_t) start_index;
     void* value;
     bool found = map_get(&text_block->glyph_map, key, &value);
     if(found)
     {
-        uintptr_t glyph_index = reinterpret_cast<uintptr_t>(value);
-        Glyph first = text_block->glyphs[glyph_index];
+        uintptr_t glyph_index = (uintptr_t) value;
+        UiGlyph first = text_block->glyphs[glyph_index];
         float first_y = first.baseline_start.y;
         for(int i = glyph_index + 1; i < text_block->glyphs_count; i += 1)
         {
-            Glyph glyph = text_block->glyphs[i];
+            UiGlyph glyph = text_block->glyphs[i];
             if(glyph.baseline_start.y < first_y)
             {
                 return text_block->glyphs[i - 1].text_index;
@@ -2176,38 +2174,38 @@ static int find_end_of_line(TextBlock* text_block, int start_index)
     return end_of_text;
 }
 
-static void update_keyboard_input(Item* item, Context* context, Platform* platform)
+static void update_keyboard_input(UiItem* item, UiContext* context, Platform* platform)
 {
     switch(item->type)
     {
-        case ItemType::Button:
+        case UI_ITEM_TYPE_BUTTON:
         {
-            Button* button = &item->button;
+            UiButton* button = &item->button;
 
             bool activated = input_get_key_tapped(INPUT_KEY_SPACE)
                     || input_get_key_tapped(INPUT_KEY_ENTER);
 
             if(activated && button->enabled)
             {
-                Event event;
-                event.type = EventType::Button;
+                UiEvent event;
+                event.type = UI_EVENT_TYPE_BUTTON;
                 event.button.id = item->id;
                 enqueue(&context->queue, event);
             }
             break;
         }
-        case ItemType::Container:
+        case UI_ITEM_TYPE_CONTAINER:
         {
-            Container* container = &item->container;
+            UiContainer* container = &item->container;
             for(int i = 0; i < container->items_count; i += 1)
             {
                 update_keyboard_input(&container->items[i], context, platform);
             }
             break;
         }
-        case ItemType::List:
+        case UI_ITEM_TYPE_LIST:
         {
-            List* list = &item->list;
+            UiList* list = &item->list;
             int count = list->items_count;
 
             bool selection_changed = false;
@@ -2263,8 +2261,8 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
 
             if(selection_changed)
             {
-                Event event;
-                event.type = EventType::List_Selection;
+                UiEvent event;
+                event.type = UI_EVENT_TYPE_LIST_SELECTION;
                 event.list_selection.index = list->selected_item_index;
                 event.list_selection.expand = expand;
                 enqueue(&context->queue, event);
@@ -2308,19 +2306,19 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
             }
             break;
         }
-        case ItemType::Text_Block:
+        case UI_ITEM_TYPE_TEXT_BLOCK:
         {
             break;
         }
-        case ItemType::Text_Input:
+        case UI_ITEM_TYPE_TEXT_INPUT:
         {
-            TextInput* text_input = &item->text_input;
-            TextBlock* text_block = &text_input->text_block;
+            UiTextInput* text_input = &item->text_input;
+            UiTextBlock* text_block = &text_input->text_block;
             float line_height = context->theme.font->line_height;
 
             // Type out any new text.
             char* text_to_add = input_get_composed_text();
-            insert_text(item, text_to_add, context, platform);
+            ui_insert_text(item, text_to_add, context, platform);
 
             // Record the cursor position before any movement so that change can
             // be detected at a single point after any possible cursor moves.
@@ -2519,36 +2517,36 @@ static void update_keyboard_input(Item* item, Context* context, Platform* platfo
     }
 }
 
-static void build_tab_navigation_list(Context* context, Item* at)
+static void build_tab_navigation_list_for_container(UiContext* context, UiItem* at)
 {
-    Container* container = &at->container;
+    UiContainer* container = &at->container;
 
     for(int i = 0; i < container->items_count; i += 1)
     {
-        Item* item = &container->items[i];
+        UiItem* item = &container->items[i];
 
         switch(item->type)
         {
-            case ItemType::Button:
+            case UI_ITEM_TYPE_BUTTON:
             {
                 ARRAY_ADD(context->tab_navigation_list, item, context->heap);
                 break;
             }
-            case ItemType::Container:
+            case UI_ITEM_TYPE_CONTAINER:
             {
-                build_tab_navigation_list(context, item);
+                build_tab_navigation_list_for_container(context, item);
                 break;
             }
-            case ItemType::List:
+            case UI_ITEM_TYPE_LIST:
             {
                 ARRAY_ADD(context->tab_navigation_list, item, context->heap);
                 break;
             }
-            case ItemType::Text_Block:
+            case UI_ITEM_TYPE_TEXT_BLOCK:
             {
                 break;
             }
-            case ItemType::Text_Input:
+            case UI_ITEM_TYPE_TEXT_INPUT:
             {
                 ARRAY_ADD(context->tab_navigation_list, item, context->heap);
                 break;
@@ -2557,18 +2555,18 @@ static void build_tab_navigation_list(Context* context, Item* at)
     }
 }
 
-static void build_tab_navigation_list(Context* context)
+static void build_tab_navigation_list(UiContext* context)
 {
     ARRAY_DESTROY(context->tab_navigation_list, context->heap);
 
-    FOR_ALL(Item*, context->toplevel_containers)
+    FOR_ALL(UiItem*, context->toplevel_containers)
     {
-        Item* toplevel = *it;
-        build_tab_navigation_list(context, toplevel);
+        UiItem* toplevel = *it;
+        build_tab_navigation_list_for_container(context, toplevel);
     }
 }
 
-static void update_non_item_specific_keyboard_input(Context* context)
+static void update_non_item_specific_keyboard_input(UiContext* context)
 {
     if(input_get_key_auto_repeated(INPUT_KEY_TAB))
     {
@@ -2581,11 +2579,11 @@ static void update_non_item_specific_keyboard_input(Context* context)
         {
             if(backward)
             {
-                focus_on_item(context, ARRAY_LAST(context->tab_navigation_list));
+                ui_focus_on_item(context, ARRAY_LAST(context->tab_navigation_list));
             }
             else
             {
-                focus_on_item(context, context->tab_navigation_list[0]);
+                ui_focus_on_item(context, context->tab_navigation_list[0]);
             }
         }
         else
@@ -2595,7 +2593,7 @@ static void update_non_item_specific_keyboard_input(Context* context)
 
             for(int i = 0; i < count; i += 1)
             {
-                Item* item = context->tab_navigation_list[i];
+                UiItem* item = context->tab_navigation_list[i];
                 if(item->id == context->focused_item->id)
                 {
                     found_index = i;
@@ -2614,40 +2612,40 @@ static void update_non_item_specific_keyboard_input(Context* context)
                 {
                     index = (found_index + 1) % count;
                 }
-                focus_on_item(context, context->tab_navigation_list[index]);
+                ui_focus_on_item(context, context->tab_navigation_list[index]);
             }
         }
     }
 }
 
-static void update_pointer_input(Item* item, Context* context, Platform* platform)
+static void update_pointer_input(UiItem* item, UiContext* context, Platform* platform)
 {
     switch(item->type)
     {
-        case ItemType::Button:
+        case UI_ITEM_TYPE_BUTTON:
         {
-            Button* button = &item->button;
+            UiButton* button = &item->button;
             if(button->hovered && input_get_mouse_clicked(MOUSE_BUTTON_LEFT) && button->enabled)
             {
-                Event event;
-                event.type = EventType::Button;
+                UiEvent event;
+                event.type = UI_EVENT_TYPE_BUTTON;
                 event.button.id = item->id;
                 enqueue(&context->queue, event);
             }
             break;
         }
-        case ItemType::Container:
+        case UI_ITEM_TYPE_CONTAINER:
         {
-            Container* container = &item->container;
+            UiContainer* container = &item->container;
             for(int i = 0; i < container->items_count; i += 1)
             {
                 update_pointer_input(&container->items[i], context, platform);
             }
             break;
         }
-        case ItemType::List:
+        case UI_ITEM_TYPE_LIST:
         {
-            List* list = &item->list;
+            UiList* list = &item->list;
 
             float line_height = context->theme.font->line_height;
 
@@ -2659,22 +2657,22 @@ static void update_pointer_input(Item* item, Context* context, Platform* platfor
             {
                 list->selected_item_index = list->hovered_item_index;
 
-                Event event;
-                event.type = EventType::List_Selection;
+                UiEvent event;
+                event.type = UI_EVENT_TYPE_LIST_SELECTION;
                 event.list_selection.index = list->selected_item_index;
                 event.list_selection.expand = true;
                 enqueue(&context->queue, event);
             }
             break;
         }
-        case ItemType::Text_Block:
+        case UI_ITEM_TYPE_TEXT_BLOCK:
         {
             break;
         }
-        case ItemType::Text_Input:
+        case UI_ITEM_TYPE_TEXT_INPUT:
         {
-            TextInput* text_input = &item->text_input;
-            TextBlock* text_block = &text_input->text_block;
+            UiTextInput* text_input = &item->text_input;
+            UiTextBlock* text_block = &text_input->text_block;
             float line_height = context->theme.font->line_height;
 
             bool clicked = input_get_mouse_clicked(MOUSE_BUTTON_LEFT);
@@ -2704,7 +2702,7 @@ static void update_pointer_input(Item* item, Context* context, Platform* platfor
     }
 }
 
-void update(Context* context, Platform* platform)
+void ui_update(UiContext* context, Platform* platform)
 {
     // @Incomplete: Tab order doesn't need to be updated every frame, only when
     // the order or number of total items changes. Possibly during layout is a
@@ -2726,16 +2724,14 @@ void update(Context* context, Platform* platform)
     update_non_item_specific_keyboard_input(context);
 }
 
-void accept_paste_from_clipboard(Context* context, const char* clipboard, Platform* platform)
+void ui_accept_paste_from_clipboard(UiContext* context, const char* clipboard, Platform* platform)
 {
     if(context->focused_item)
     {
-        Item* item = context->focused_item;
-        if(item->type == ItemType::Text_Input)
+        UiItem* item = context->focused_item;
+        if(item->type == UI_ITEM_TYPE_TEXT_INPUT)
         {
-            insert_text(item, clipboard, context, platform);
+            ui_insert_text(item, clipboard, context, platform);
         }
     }
 }
-
-} // namespace ui
