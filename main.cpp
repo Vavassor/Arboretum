@@ -776,7 +776,7 @@ bool main_start_up()
 
     input_system_start_up();
 
-    bool started = video::system_start_up();
+    bool started = video_system_start_up();
     if(!started)
     {
         LOG_ERROR("Video system failed startup.");
@@ -801,7 +801,7 @@ bool main_start_up()
 void main_shut_down()
 {
     editor_shut_down();
-    video::system_shut_down(functions_loaded);
+    video_system_shut_down(functions_loaded);
     destroy_stack(&platform.base);
 
     if(platform.visual_info)

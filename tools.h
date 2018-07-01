@@ -1,9 +1,13 @@
 #ifndef TOOLS_H_
 #define TOOLS_H_
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #include "vector_math.h"
 
-struct MoveTool
+typedef struct MoveTool
 {
     Quaternion orientation;
     Float3 position;
@@ -20,13 +24,17 @@ struct MoveTool
     int hovered_plane;
     int selected_axis;
     int selected_plane;
-};
+} MoveTool;
 
-struct RotateTool
+typedef struct RotateTool
 {
     float angles[3];
     Float3 position;
     float radius;
-};
+} RotateTool;
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
 
 #endif // TOOLS_H_

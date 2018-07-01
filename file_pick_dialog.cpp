@@ -419,18 +419,18 @@ static void import_file(FilePickDialog* dialog, const char* name, ObjectLady* la
     }
     else
     {
-        Object* imported_model = add_object(lady, heap);
+        Object* imported_model = object_lady_add_object(lady, heap);
         imported_model->mesh = mesh;
         object_set_position(imported_model, {-2.0f, 0.0f, 0.0f});
 
         jan_colour_all_faces(&imported_model->mesh, float3_magenta);
-        video::Object* video_object = video::get_object(imported_model->video_object);
-        video::object_update_mesh(video_object, &imported_model->mesh, heap);
+        VideoObject* video_object = video_get_object(imported_model->video_object);
+        video_object_update_mesh(video_object, &imported_model->mesh, heap);
 
         add_object_to_history(history, imported_model, heap);
 
         Change change;
-        change.type = ChangeType::Create_Object;
+        change.type = CHANGE_TYPE_CREATE_OBJECT;
         change.create_object.object_id = imported_model->id;
         history_add(history, change);
 

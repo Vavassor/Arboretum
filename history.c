@@ -13,7 +13,7 @@ void history_create(History* history, Heap* heap)
     const int changes_cap = 200;
     const int cleanup_cap = 200;
 
-    history->base_states = nullptr;
+    history->base_states = NULL;
     history->changes = HEAP_ALLOCATE(heap, Change, changes_cap);
     history->changes_to_clean_up = HEAP_ALLOCATE(heap, Change, cleanup_cap);
     history->changes_cap = changes_cap;
@@ -58,7 +58,7 @@ void history_add(History* history, Change change)
 
     if(history->head == history->tail)
     {
-        if(save.type != ChangeType::Invalid)
+        if(save.type != CHANGE_TYPE_INVALID)
         {
             history->changes_to_clean_up[history->changes_to_clean_up_count] = save;
             history->changes_to_clean_up_count += 1;
@@ -78,7 +78,7 @@ void history_remove_base_state(History* history, ObjectId object_id)
 {
     FOR_ALL(Change, history->base_states)
     {
-        ASSERT(it->type == ChangeType::Move);
+        ASSERT(it->type == CHANGE_TYPE_MOVE);
         if(it->move.object_id == object_id)
         {
             ARRAY_REMOVE(history->base_states, it);
@@ -107,7 +107,7 @@ Change* history_get(History* history, int index)
     }
     else
     {
-        return nullptr;
+        return NULL;
     }
 }
 
@@ -131,17 +131,17 @@ Change* history_find_past_change(History* history)
 
     switch(change.type)
     {
-        case ChangeType::Invalid:
+        case CHANGE_TYPE_INVALID:
         {
             ASSERT(false);
             break;
         }
-        case ChangeType::Create_Object:
-        case ChangeType::Delete_Object:
+        case CHANGE_TYPE_CREATE_OBJECT:
+        case CHANGE_TYPE_DELETE_OBJECT:
         {
             return &history->changes[history->index];
         }
-        case ChangeType::Move:
+        case CHANGE_TYPE_MOVE:
         {
             ObjectId object_id = change.move.object_id;
 
@@ -175,7 +175,7 @@ Change* history_find_past_change(History* history)
             break;
         }
     }
-    return nullptr;
+    return NULL;
 }
 
 void history_log(History* history)
@@ -190,22 +190,22 @@ void history_log(History* history)
         }
         switch(change.type)
         {
-            case ChangeType::Invalid:
+            case CHANGE_TYPE_INVALID:
             {
                 ASSERT(false);
                 break;
             }
-            case ChangeType::Create_Object:
+            case CHANGE_TYPE_CREATE_OBJECT:
             {
                 LOG_DEBUG("Create_Object object = %u%s", change.create_object.object_id, pointer);
                 break;
             }
-            case ChangeType::Delete_Object:
+            case CHANGE_TYPE_DELETE_OBJECT:
             {
                 LOG_DEBUG("Delete_Object object = %u%s", change.delete_object.object_id, pointer);
                 break;
             }
-            case ChangeType::Move:
+            case CHANGE_TYPE_MOVE:
             {
                 LOG_DEBUG("Move object = %u position = <%f, %f, %f>%s", change.move.object_id, change.move.position.x, change.move.position.y, change.move.position.z, pointer);
                 break;
@@ -218,7 +218,7 @@ void history_log(History* history)
 void add_object_to_history(History* history, Object* object, Heap* heap)
 {
     Change state;
-    state.type = ChangeType::Move;
+    state.type = CHANGE_TYPE_MOVE;
     state.move.object_id = object->id;
     state.move.position = object->position;
     history_add_base_state(history, state, heap);
@@ -236,27 +236,27 @@ void undo(History* history, ObjectLady* lady, Heap* heap, Platform* platform)
     Change* change = history_find_past_change(history);
     switch(change->type)
     {
-        case ChangeType::Invalid:
+        case CHANGE_TYPE_INVALID:
         {
             ASSERT(false);
             break;
         }
-        case ChangeType::Create_Object:
+        case CHANGE_TYPE_CREATE_OBJECT:
         {
             ObjectId id = change->create_object.object_id;
             clear_object_from_hover_and_selection(id, platform);
-            store_object(lady, id, heap);
+            object_lady_store_object(lady, id, heap);
             break;
         }
-        case ChangeType::Delete_Object:
+        case CHANGE_TYPE_DELETE_OBJECT:
         {
-            take_out_of_storage(lady, change->delete_object.object_id, heap);
+            object_lady_take_out_of_storage(lady, change->delete_object.object_id, heap);
             break;
         }
-        case ChangeType::Move:
+        case CHANGE_TYPE_MOVE:
         {
             ObjectId id = change->move.object_id;
-            Object* object = get_object_by_id(lady, id);
+            Object* object = object_lady_get_object_by_id(lady, id);
             object_set_position(object, change->move.position);
             break;
         }
@@ -273,25 +273,25 @@ void redo(History* history, ObjectLady* lady, Heap* heap)
     Change* change = history_get(history, history->index);
     switch(change->type)
     {
-        case ChangeType::Invalid:
+        case CHANGE_TYPE_INVALID:
         {
             ASSERT(false);
             break;
         }
-        case ChangeType::Create_Object:
+        case CHANGE_TYPE_CREATE_OBJECT:
         {
-            take_out_of_storage(lady, change->create_object.object_id, heap);
+            object_lady_take_out_of_storage(lady, change->create_object.object_id, heap);
             break;
         }
-        case ChangeType::Delete_Object:
+        case CHANGE_TYPE_DELETE_OBJECT:
         {
-            store_object(lady, change->delete_object.object_id, heap);
+            object_lady_store_object(lady, change->delete_object.object_id, heap);
             break;
         }
-        case ChangeType::Move:
+        case CHANGE_TYPE_MOVE:
         {
             ObjectId id = change->move.object_id;
-            Object* object = get_object_by_id(lady, id);
+            Object* object = object_lady_get_object_by_id(lady, id);
             object_set_position(object, change->move.position);
             break;
         }

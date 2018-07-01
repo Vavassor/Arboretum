@@ -1,16 +1,16 @@
 #ifndef VIDEO_OBJECT_H_
 #define VIDEO_OBJECT_H_
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #include "gl_core_3_3.h"
+#include "memory.h"
 #include "vector_math.h"
 #include "video.h"
 
-struct Heap;
-struct Stack;
-
-namespace video {
-
-struct Object
+typedef struct VideoObject
 {
     Matrix4 model;
     Matrix4 model_view_projection;
@@ -20,20 +20,22 @@ struct Object
     GLuint vertex_array;
     int indices_count;
     VertexLayout vertex_layout;
-};
+} VideoObject;
 
-void object_create(Object* object, VertexLayout vertex_layout);
-void object_destroy(Object* object);
-void object_update_mesh(Object* object, JanMesh* mesh, Heap* heap);
-void object_update_selection(Object* object, JanMesh* mesh, JanSelection* selection, Heap* heap);
-void object_update_pointcloud(Object* object, JanMesh* mesh, Heap* heap);
-void object_update_pointcloud_selection(Object* object, JanMesh* mesh, JanSelection* selection, JanVertex* hovered, Heap* heap);
-void object_update_wireframe(Object* object, JanMesh* mesh, Heap* heap);
-void object_update_wireframe_selection(Object* object, JanMesh* mesh, JanSelection* selection, JanEdge* hovered, Heap* heap);
-void object_set_matrices(Object* object, Matrix4 view, Matrix4 projection);
-void object_generate_sky(Object* object, Stack* stack);
-void object_set_model(Object* object, Matrix4 model);
+void video_object_create(VideoObject* object, VertexLayout vertex_layout);
+void video_object_destroy(VideoObject* object);
+void video_object_update_mesh(VideoObject* object, JanMesh* mesh, Heap* heap);
+void video_object_update_selection(VideoObject* object, JanMesh* mesh, JanSelection* selection, Heap* heap);
+void video_object_update_pointcloud(VideoObject* object, JanMesh* mesh, Heap* heap);
+void video_object_update_pointcloud_selection(VideoObject* object, JanMesh* mesh, JanSelection* selection, JanVertex* hovered, Heap* heap);
+void video_object_update_wireframe(VideoObject* object, JanMesh* mesh, Heap* heap);
+void video_object_update_wireframe_selection(VideoObject* object, JanMesh* mesh, JanSelection* selection, JanEdge* hovered, Heap* heap);
+void video_object_set_matrices(VideoObject* object, Matrix4 view, Matrix4 projection);
+void video_object_generate_sky(VideoObject* object, Stack* stack);
+void video_object_set_model(VideoObject* object, Matrix4 model);
 
-} // namespace video
+#if defined(__cplusplus)
+} // extern "C"
+#endif
 
 #endif // VIDEO_OBJECT_H_

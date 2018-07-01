@@ -1,18 +1,23 @@
 #ifndef HISTORY_H_
 #define HISTORY_H_
 
-#include "vector_math.h"
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+#include "memory.h"
 #include "object.h"
+#include "vector_math.h"
 
-enum class ChangeType
+typedef enum ChangeType
 {
-    Invalid,
-    Create_Object,
-    Delete_Object,
-    Move,
-};
+    CHANGE_TYPE_INVALID,
+    CHANGE_TYPE_CREATE_OBJECT,
+    CHANGE_TYPE_DELETE_OBJECT,
+    CHANGE_TYPE_MOVE,
+} ChangeType;
 
-struct Change
+typedef struct Change
 {
     union
     {
@@ -33,9 +38,9 @@ struct Change
         } move;
     };
     ChangeType type;
-};
+} Change;
 
-struct History
+typedef struct History
 {
     Change* base_states;
     Change* changes;
@@ -46,11 +51,7 @@ struct History
     int head;
     int tail;
     int index;
-};
-
-struct Heap;
-struct Object;
-struct ObjectLady;
+} History;
 
 void history_create(History* history, Heap* heap);
 void history_destroy(History* history, Heap* heap);
@@ -66,8 +67,12 @@ void history_step(History* history, int step);
 Change* history_find_past_change(History* history);
 void history_log(History* history);
 
-void add_object_to_history(History* history, Object* object, Heap* heap);
-void undo(History* history, ObjectLady* lady, Heap* heap, Platform* platform);
-void redo(History* history, ObjectLady* lady, Heap* heap);
+void add_object_to_history(History* history, struct Object* object, Heap* heap);
+void undo(History* history, struct ObjectLady* lady, Heap* heap, Platform* platform);
+void redo(History* history, struct ObjectLady* lady, Heap* heap);
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
 
 #endif // HISTORY_H_

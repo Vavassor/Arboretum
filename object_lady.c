@@ -3,14 +3,14 @@
 #include "array2.h"
 #include "memory.h"
 
-void create_object_lady(ObjectLady* lady, Heap* heap)
+void object_lady_create(ObjectLady* lady, Heap* heap)
 {
-    lady->objects = nullptr;
-    lady->storage = nullptr;
+    lady->objects = NULL;
+    lady->storage = NULL;
     lady->seed = 1;
 }
 
-void destroy_object_lady(ObjectLady* lady, Heap* heap)
+void object_lady_destroy(ObjectLady* lady, Heap* heap)
 {
     if(lady)
     {
@@ -34,7 +34,7 @@ static ObjectId generate_object_id(ObjectLady* lady)
     return id;
 }
 
-Object* add_object(ObjectLady* lady, Heap* heap)
+Object* object_lady_add_object(ObjectLady* lady, Heap* heap)
 {
     Object object = {};
     object.id = generate_object_id(lady);
@@ -45,7 +45,7 @@ Object* add_object(ObjectLady* lady, Heap* heap)
     return &ARRAY_LAST(lady->objects);
 }
 
-Object* get_object_by_id(ObjectLady* lady, ObjectId id)
+Object* object_lady_get_object_by_id(ObjectLady* lady, ObjectId id)
 {
     FOR_ALL(Object, lady->objects)
     {
@@ -54,12 +54,12 @@ Object* get_object_by_id(ObjectLady* lady, ObjectId id)
             return it;
         }
     }
-    return nullptr;
+    return NULL;
 }
 
-void store_object(ObjectLady* lady, ObjectId id, Heap* heap)
+void object_lady_store_object(ObjectLady* lady, ObjectId id, Heap* heap)
 {
-    Object* object = get_object_by_id(lady, id);
+    Object* object = object_lady_get_object_by_id(lady, id);
     if(object)
     {
         ARRAY_ADD(lady->storage, *object, heap);
@@ -76,10 +76,10 @@ static Object* get_object_in_storage_by_id(ObjectLady* lady, ObjectId id)
             return it;
         }
     }
-    return nullptr;
+    return NULL;
 }
 
-void take_out_of_storage(ObjectLady* lady, ObjectId id, Heap* heap)
+void object_lady_take_out_of_storage(ObjectLady* lady, ObjectId id, Heap* heap)
 {
     Object* object = get_object_in_storage_by_id(lady, id);
     if(object)
@@ -89,7 +89,7 @@ void take_out_of_storage(ObjectLady* lady, ObjectId id, Heap* heap)
     }
 }
 
-void remove_from_storage(ObjectLady* lady, ObjectId id)
+void object_lady_remove_from_storage(ObjectLady* lady, ObjectId id)
 {
     Object* object = get_object_in_storage_by_id(lady, id);
     if(object)

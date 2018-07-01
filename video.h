@@ -1,25 +1,20 @@
 #ifndef VIDEO_H_
 #define VIDEO_H_
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #include "bmfont.h"
 #include "camera.h"
 #include "dense_map.h"
 #include "int2.h"
+#include "memory.h"
+#include "platform.h"
+#include "tools.h"
+#include "ui.h"
 
-struct Heap;
-struct MoveTool;
-struct ObjectLady;
-struct Platform;
-struct RotateTool;
-
-struct UiContext;
-struct UiItem;
-
-namespace video {
-
-struct Object;
-
-struct UpdateState
+typedef struct VideoUpdateState
 {
     Int2 viewport;
     Camera* camera;
@@ -29,31 +24,33 @@ struct UpdateState
     UiItem* main_menu;
     UiItem* dialog_panel;
     bool dialog_enabled;
-    ObjectLady* lady;
+    struct ObjectLady* lady;
     int hovered_object_index;
     int selected_object_index;
     DenseMapId selection_id;
     DenseMapId selection_pointcloud_id;
     DenseMapId selection_wireframe_id;
-};
+} VideoUpdateState;
 
-enum class VertexLayout
+typedef enum VertexLayout
 {
-    PNC,
-    Point,
-    Line,
-};
+    VERTEX_LAYOUT_PNC,
+    VERTEX_LAYOUT_POINT,
+    VERTEX_LAYOUT_LINE,
+} VertexLayout;
 
-bool system_start_up();
-void system_shut_down(bool functions_loaded);
-void system_update(UpdateState* update, Platform* platform);
-void resize_viewport(Int2 dimensions, double dots_per_millimeter, float fov);
+bool video_system_start_up();
+void video_system_shut_down(bool functions_loaded);
+void video_system_update(VideoUpdateState* update, Platform* platform);
+void video_resize_viewport(Int2 dimensions, double dots_per_millimeter, float fov);
 
-DenseMapId add_object(VertexLayout vertex_layout);
-void remove_object(DenseMapId id);
-Object* get_object(DenseMapId id);
-void set_up_font(BmfFont* font);
+DenseMapId video_add_object(VertexLayout vertex_layout);
+void video_remove_object(DenseMapId id);
+struct VideoObject* video_get_object(DenseMapId id);
+void video_set_up_font(BmfFont* font);
 
-} // namespace video
+#if defined(__cplusplus)
+} // extern "C"
+#endif
 
 #endif // VIDEO_H_

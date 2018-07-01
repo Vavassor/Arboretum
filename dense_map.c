@@ -2,22 +2,19 @@
 
 #include "array2.h"
 #include "assert.h"
-#include "memory.h"
 #include "video_object.h"
 
-namespace video {
-
-void create(DenseMap* map, Heap* heap)
+void dense_map_create(DenseMap* map, Heap* heap)
 {
     const int cap = 1024;
 
-    map->array = nullptr;
+    map->array = NULL;
     map_create(&map->id_map, cap, heap);
     map_create(&map->index_map, cap, heap);
     map->seed = 1;
 }
 
-void destroy(DenseMap* map, Heap* heap)
+void dense_map_destroy(DenseMap* map, Heap* heap)
 {
     if(map)
     {
@@ -40,12 +37,12 @@ static void add_pair(DenseMap* map, DenseMapId id, int index, Heap* heap)
     MAP_ADD(&map->index_map, id, index, heap);
 }
 
-DenseMapId add(DenseMap* map, Heap* heap)
+DenseMapId dense_map_add(DenseMap* map, Heap* heap)
 {
     int index = array_count(map->array);
     DenseMapId id = generate_id(map);
 
-    Object nobody = {};
+    VideoObject nobody = {};
     ARRAY_ADD(map->array, nobody, heap);
     add_pair(map, id, index, heap);
 
@@ -54,23 +51,23 @@ DenseMapId add(DenseMap* map, Heap* heap)
 
 static int look_up_index(DenseMap* map, DenseMapId id)
 {
-    void* key = reinterpret_cast<void*>(id);
+    void* key = (void*) (uintptr_t) id;
     void* value;
     bool got = map_get(&map->index_map, key, &value);
     ASSERT(got);
-    return reinterpret_cast<uintptr_t>(value);
+    return (uintptr_t) value;
 }
 
 static DenseMapId look_up_id(DenseMap* map, int index)
 {
-    void* key = reinterpret_cast<void*>(index);
+    void* key = (void*) (uintptr_t) index;
     void* value;
     bool got = map_get(&map->id_map, key, &value);
     ASSERT(got);
-    return reinterpret_cast<uintptr_t>(value);
+    return (uintptr_t) value;
 }
 
-Object* look_up(DenseMap* map, DenseMapId id)
+VideoObject* dense_map_look_up(DenseMap* map, DenseMapId id)
 {
     int index = look_up_index(map, id);
     return &map->array[index];
@@ -82,10 +79,10 @@ static void remove_pair(DenseMap* map, DenseMapId id, int index)
     MAP_REMOVE(&map->index_map, id);
 }
 
-void remove(DenseMap* map, DenseMapId id, Heap* heap)
+void dense_map_remove(DenseMap* map, DenseMapId id, Heap* heap)
 {
     int index = look_up_index(map, id);
-    Object* object = &map->array[index];
+    VideoObject* object = &map->array[index];
     ARRAY_REMOVE(map->array, object);
 
     remove_pair(map, id, index);
@@ -98,5 +95,3 @@ void remove(DenseMap* map, DenseMapId id, Heap* heap)
         add_pair(map, moved_id, index, heap);
     }
 }
-
-} // namespace video
