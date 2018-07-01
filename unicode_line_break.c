@@ -2731,10 +2731,10 @@ LineBreak get_line_break(char32_t c)
     uint8_t b = line_break_stage2[block_offset + c % BLOCK_SIZE];
 
     ASSERT(b >= 0 && b <= 42);
-    return static_cast<LineBreak>(b);
+    return (LineBreak) b;
 }
 
-struct LineBreakContext
+typedef struct LineBreakContext
 {
     const char* text;
     LineBreak* breaks;
@@ -2746,28 +2746,28 @@ struct LineBreakContext
     int breaks_cap;
     int head;
     int tail;
-};
+} LineBreakContext;
 
 static LineBreak substitute_line_break(LineBreak line_break)
 {
     switch(line_break)
     {
-        case LineBreak::Ambiguous:
-        case LineBreak::Surrogate:
-        case LineBreak::Unknown:
-            return LineBreak::Ordinary_Alphabetic_Or_Symbol;
+        case LINE_BREAK_AMBIGUOUS:
+        case LINE_BREAK_SURROGATE:
+        case LINE_BREAK_UNKNOWN:
+            return LINE_BREAK_ORDINARY_ALPHABETIC_OR_SYMBOL;
 
         // @Incomplete: Unicode actually recommends substituting
-        // LineBreak::Combining_Mark (CM) for complex context-dependent
+        // LINE_BREAK_Combining_Mark (CM) for complex context-dependent
         // codepoints that are spacing or nonspacing marks (general categories
         // Mc and Mn). But, looking up general category is too much hassle,
         // especially since this substitution process is already a fallback for
         // real "good" behaviour. So this just substitutes AL for those, also.
-        case LineBreak::Complex_Context_Dependent:
-            return LineBreak::Ordinary_Alphabetic_Or_Symbol;
+        case LINE_BREAK_COMPLEX_CONTEXT_DEPENDENT:
+            return LINE_BREAK_ORDINARY_ALPHABETIC_OR_SYMBOL;
 
-        case LineBreak::Conditional_Japanese_Starter:
-            return LineBreak::Nonstarters;
+        case LINE_BREAK_CONDITIONAL_JAPANESE_STARTER:
+            return LINE_BREAK_NONSTARTERS;
 
         default:
             return line_break;
@@ -2858,8 +2858,8 @@ static int get_break_at(LineBreakContext* context, int start_index, int break_in
 
 LineBreak resolve_combining_mark(LineBreakContext* context, LineBreak line_break, int index, int break_index)
 {
-    bool next = line_break != LineBreak::Combining_Mark
-        && line_break != LineBreak::Zero_Width_Joiner;
+    bool next = line_break != LINE_BREAK_COMBINING_MARK
+        && line_break != LINE_BREAK_ZERO_WIDTH_JOINER;
     if(next)
     {
         return line_break;
@@ -2872,22 +2872,22 @@ LineBreak resolve_combining_mark(LineBreakContext* context, LineBreak line_break
         int c_index = get_break_at(context, i, j, &c);
         if(c_index == invalid_index)
         {
-            return LineBreak::Ordinary_Alphabetic_Or_Symbol;
+            return LINE_BREAK_ORDINARY_ALPHABETIC_OR_SYMBOL;
         }
         i = c_index - 1;
-        next = c != LineBreak::Combining_Mark
-            && c != LineBreak::Zero_Width_Joiner;
+        next = c != LINE_BREAK_COMBINING_MARK
+            && c != LINE_BREAK_ZERO_WIDTH_JOINER;
         if(next)
         {
-            next = c == LineBreak::Mandatory_Break
-                || c == LineBreak::Carriage_Return
-                || c == LineBreak::Line_Feed
-                || c == LineBreak::Next_Line
-                || c == LineBreak::Space
-                || c == LineBreak::Zero_Width_Space;
+            next = c == LINE_BREAK_MANDATORY_BREAK
+                || c == LINE_BREAK_CARRIAGE_RETURN
+                || c == LINE_BREAK_LINE_FEED
+                || c == LINE_BREAK_NEXT_LINE
+                || c == LINE_BREAK_SPACE
+                || c == LINE_BREAK_ZERO_WIDTH_SPACE;
             if(next)
             {
-                return LineBreak::Ordinary_Alphabetic_Or_Symbol;
+                return LINE_BREAK_ORDINARY_ALPHABETIC_OR_SYMBOL;
             }
             else
             {
@@ -2897,7 +2897,7 @@ LineBreak resolve_combining_mark(LineBreakContext* context, LineBreak line_break
     }
     if(line_break == unresolved)
     {
-        return LineBreak::Ordinary_Alphabetic_Or_Symbol;
+        return LINE_BREAK_ORDINARY_ALPHABETIC_OR_SYMBOL;
     }
 
     return line_break;
@@ -2921,13 +2921,13 @@ static LineBreakCategory categorise_line_break(LineBreakContext* context, int in
     // Never break at the start of text.
     if(index == 0)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
     // Always break at the end of text.
     if(index >= context->text_size)
     {
-        return LineBreakCategory::Mandatory;
+        return LINE_BREAK_CATEGORY_MANDATORY;
     }
 
     LineBreak a;
@@ -2936,60 +2936,60 @@ static LineBreakCategory categorise_line_break(LineBreakContext* context, int in
     int b_index = get_break_at(context, index, break_index, &b);
     if(a_index == invalid_index)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
     if(b_index == invalid_index)
     {
-        return LineBreakCategory::Mandatory;
+        return LINE_BREAK_CATEGORY_MANDATORY;
     }
 
     // Never break between carriage return followed by line feed, but always
     // break after a lone carriage return.
-    if(a == LineBreak::Carriage_Return)
+    if(a == LINE_BREAK_CARRIAGE_RETURN)
     {
-        if(b == LineBreak::Line_Feed)
+        if(b == LINE_BREAK_LINE_FEED)
         {
-            return LineBreakCategory::Prohibited;
+            return LINE_BREAK_CATEGORY_PROHIBITED;
         }
         else
         {
-            return LineBreakCategory::Mandatory;
+            return LINE_BREAK_CATEGORY_MANDATORY;
         }
     }
 
     // Treat line feed, next line, and mandatory break properties as hard line
     // breaks.
-    bool left = a == LineBreak::Line_Feed
-        || a == LineBreak::Next_Line
-        || a == LineBreak::Mandatory_Break;
+    bool left = a == LINE_BREAK_LINE_FEED
+        || a == LINE_BREAK_NEXT_LINE
+        || a == LINE_BREAK_MANDATORY_BREAK;
     if(left)
     {
-        return LineBreakCategory::Mandatory;
+        return LINE_BREAK_CATEGORY_MANDATORY;
     }
 
     // Never break before hard line breaks.
-    bool right = b == LineBreak::Mandatory_Break
-        || b == LineBreak::Carriage_Return
-        || b == LineBreak::Line_Feed
-        || b == LineBreak::Next_Line;
+    bool right = b == LINE_BREAK_MANDATORY_BREAK
+        || b == LINE_BREAK_CARRIAGE_RETURN
+        || b == LINE_BREAK_LINE_FEED
+        || b == LINE_BREAK_NEXT_LINE;
     if(right)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
     // Never break before a space or zero-width space.
-    if(b == LineBreak::Space || b == LineBreak::Zero_Width_Space)
+    if(b == LINE_BREAK_SPACE || b == LINE_BREAK_ZERO_WIDTH_SPACE)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
     // Break before any character following a zero-width space, even if one or
     // more spaces intervene.
-    if(a == LineBreak::Zero_Width_Space)
+    if(a == LINE_BREAK_ZERO_WIDTH_SPACE)
     {
-        return LineBreakCategory::Optional;
+        return LINE_BREAK_CATEGORY_OPTIONAL;
     }
-    if(a == LineBreak::Space)
+    if(a == LINE_BREAK_SPACE)
     {
         for(int i = a_index - 1, j = break_index - 2; i >= 0; j -= 1)
         {
@@ -3000,11 +3000,11 @@ static LineBreakCategory categorise_line_break(LineBreakContext* context, int in
                 break;
             }
             i = c_index - 1;
-            if(c == LineBreak::Zero_Width_Space)
+            if(c == LINE_BREAK_ZERO_WIDTH_SPACE)
             {
-                return LineBreakCategory::Optional;
+                return LINE_BREAK_CATEGORY_OPTIONAL;
             }
-            if(c != LineBreak::Space)
+            if(c != LINE_BREAK_SPACE)
             {
                 break;
             }
@@ -3013,17 +3013,17 @@ static LineBreakCategory categorise_line_break(LineBreakContext* context, int in
 
     // Do not break between a zero width joiner and an ideograph, emoji base,
     // or emoji modifier.
-    left = a == LineBreak::Zero_Width_Joiner;
-    right = b == LineBreak::Ideographic
-        || b == LineBreak::Emoji_Base
-        || b == LineBreak::Emoji_Modifier;
+    left = a == LINE_BREAK_ZERO_WIDTH_JOINER;
+    right = b == LINE_BREAK_IDEOGRAPHIC
+        || b == LINE_BREAK_EMOJI_BASE
+        || b == LINE_BREAK_EMOJI_MODIFIER;
     if(left && right)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
     // Do not break a combining character sequence.
-    if(a == LineBreak::Combining_Mark || a == LineBreak::Zero_Width_Joiner)
+    if(a == LINE_BREAK_COMBINING_MARK || a == LINE_BREAK_ZERO_WIDTH_JOINER)
     {
         LineBreak a_unresolved = a;
         for(int i = a_index - 1, j = break_index - 2; i >= 0; j -= 1)
@@ -3035,19 +3035,19 @@ static LineBreakCategory categorise_line_break(LineBreakContext* context, int in
                 break;
             }
             i = c_index - 1;
-            bool next = c != LineBreak::Combining_Mark
-                && c != LineBreak::Zero_Width_Joiner;
+            bool next = c != LINE_BREAK_COMBINING_MARK
+                && c != LINE_BREAK_ZERO_WIDTH_JOINER;
             if(next)
             {
-                next = c == LineBreak::Mandatory_Break
-                    || c == LineBreak::Carriage_Return
-                    || c == LineBreak::Line_Feed
-                    || c == LineBreak::Next_Line
-                    || c == LineBreak::Space
-                    || c == LineBreak::Zero_Width_Space;
+                next = c == LINE_BREAK_MANDATORY_BREAK
+                    || c == LINE_BREAK_CARRIAGE_RETURN
+                    || c == LINE_BREAK_LINE_FEED
+                    || c == LINE_BREAK_NEXT_LINE
+                    || c == LINE_BREAK_SPACE
+                    || c == LINE_BREAK_ZERO_WIDTH_SPACE;
                 if(next)
                 {
-                    a = LineBreak::Ordinary_Alphabetic_Or_Symbol;
+                    a = LINE_BREAK_ORDINARY_ALPHABETIC_OR_SYMBOL;
                 }
                 else
                 {
@@ -3058,69 +3058,69 @@ static LineBreakCategory categorise_line_break(LineBreakContext* context, int in
         }
         if(a == a_unresolved)
         {
-            a = LineBreak::Ordinary_Alphabetic_Or_Symbol;
+            a = LINE_BREAK_ORDINARY_ALPHABETIC_OR_SYMBOL;
         }
     }
-    if(b == LineBreak::Combining_Mark || b == LineBreak::Zero_Width_Joiner)
+    if(b == LINE_BREAK_COMBINING_MARK || b == LINE_BREAK_ZERO_WIDTH_JOINER)
     {
-        left = a == LineBreak::Mandatory_Break
-            || a == LineBreak::Carriage_Return
-            || a == LineBreak::Line_Feed
-            || a == LineBreak::Next_Line
-            || a == LineBreak::Space
-            || a == LineBreak::Zero_Width_Space;
+        left = a == LINE_BREAK_MANDATORY_BREAK
+            || a == LINE_BREAK_CARRIAGE_RETURN
+            || a == LINE_BREAK_LINE_FEED
+            || a == LINE_BREAK_NEXT_LINE
+            || a == LINE_BREAK_SPACE
+            || a == LINE_BREAK_ZERO_WIDTH_SPACE;
         if(left)
         {
-            b = LineBreak::Ordinary_Alphabetic_Or_Symbol;
+            b = LINE_BREAK_ORDINARY_ALPHABETIC_OR_SYMBOL;
         }
         else
         {
-            return LineBreakCategory::Prohibited;
+            return LINE_BREAK_CATEGORY_PROHIBITED;
         }
     }
 
     // Do not break before or after word joiner and related characters.
-    if(a == LineBreak::Word_Joiner || b == LineBreak::Word_Joiner)
+    if(a == LINE_BREAK_WORD_JOINER || b == LINE_BREAK_WORD_JOINER)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
     // Do not break after Non-breaking space and related characters.
-    if(a == LineBreak::Non_Breaking)
+    if(a == LINE_BREAK_NON_BREAKING)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
     //--- Tailorable Rules ---
 
     // Do not break before Non-breaking space and related characters, except
     // after spaces and hyphens.
-    left = a != LineBreak::Space
-        && a != LineBreak::Break_After
-        && a != LineBreak::Hyphen;
-    right = b == LineBreak::Non_Breaking;
+    left = a != LINE_BREAK_SPACE
+        && a != LINE_BREAK_BREAK_AFTER
+        && a != LINE_BREAK_HYPHEN;
+    right = b == LINE_BREAK_NON_BREAKING;
     if(left && right)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
     // Do not break before ']' or '!'or ';' or '/', even after spaces.
-    right = b == LineBreak::Close_Punctuation
-        || b == LineBreak::Closing_Parenthesis
-        || b == LineBreak::Exclamation_Interrogation
-        || b == LineBreak::Infix_Numeric_Separator
-        || b == LineBreak::Symbols;
+    right = b == LINE_BREAK_CLOSE_PUNCTUATION
+        || b == LINE_BREAK_CLOSING_PARENTHESIS
+        || b == LINE_BREAK_EXCLAMATION_INTERROGATION
+        || b == LINE_BREAK_INFIX_NUMERIC_SEPARATOR
+        || b == LINE_BREAK_SYMBOLS;
     if(right)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
     // Do not break after open punctuation, even after spaces.
-    if(a == LineBreak::Open_Punctuation)
+    if(a == LINE_BREAK_OPEN_PUNCTUATION)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
-    else if(a == LineBreak::Space)
+    else if(a == LINE_BREAK_SPACE)
     {
         for(int i = a_index - 1, j = break_index - 2; i >= 0; j -= 1)
         {
@@ -3131,11 +3131,11 @@ static LineBreakCategory categorise_line_break(LineBreakContext* context, int in
                 break;
             }
             c = resolve_combining_mark(context, c, c_index, j);
-            if(c == LineBreak::Open_Punctuation)
+            if(c == LINE_BREAK_OPEN_PUNCTUATION)
             {
-                return LineBreakCategory::Prohibited;
+                return LINE_BREAK_CATEGORY_PROHIBITED;
             }
-            if(c != LineBreak::Space)
+            if(c != LINE_BREAK_SPACE)
             {
                 break;
             }
@@ -3145,7 +3145,7 @@ static LineBreakCategory categorise_line_break(LineBreakContext* context, int in
 
     // Do not break between a quotation mark and open punctuation, even with
     // intervening spaces.
-    if(b == LineBreak::Open_Punctuation)
+    if(b == LINE_BREAK_OPEN_PUNCTUATION)
     {
         for(int i = a_index, j = break_index - 1; i >= 0; j -= 1)
         {
@@ -3156,11 +3156,11 @@ static LineBreakCategory categorise_line_break(LineBreakContext* context, int in
                 break;
             }
             c = resolve_combining_mark(context, c, c_index, j);
-            if(c == LineBreak::Quotation)
+            if(c == LINE_BREAK_QUOTATION)
             {
-                return LineBreakCategory::Prohibited;
+                return LINE_BREAK_CATEGORY_PROHIBITED;
             }
-            if(c != LineBreak::Space)
+            if(c != LINE_BREAK_SPACE)
             {
                 break;
             }
@@ -3170,7 +3170,7 @@ static LineBreakCategory categorise_line_break(LineBreakContext* context, int in
 
     // Do not break between closing punctuation and a nonstarter, even with
     // intervening spaces.
-    if(b == LineBreak::Nonstarters)
+    if(b == LINE_BREAK_NONSTARTERS)
     {
         for(int i = a_index, j = break_index - 1; i >= 0; j -= 1)
         {
@@ -3181,13 +3181,13 @@ static LineBreakCategory categorise_line_break(LineBreakContext* context, int in
                 break;
             }
             c = resolve_combining_mark(context, c, c_index, j);
-            bool next = c == LineBreak::Close_Punctuation
-                || c == LineBreak::Closing_Parenthesis;
+            bool next = c == LINE_BREAK_CLOSE_PUNCTUATION
+                || c == LINE_BREAK_CLOSING_PARENTHESIS;
             if(next)
             {
-                return LineBreakCategory::Prohibited;
+                return LINE_BREAK_CATEGORY_PROHIBITED;
             }
-            if(c != LineBreak::Space)
+            if(c != LINE_BREAK_SPACE)
             {
                 break;
             }
@@ -3196,11 +3196,11 @@ static LineBreakCategory categorise_line_break(LineBreakContext* context, int in
     }
 
     // Do not break within B2, even with intervening spaces.
-    if(b == LineBreak::Break_Opportunity_Before_and_After)
+    if(b == LINE_BREAK_BREAK_OPPORTUNITY_BEFORE_AND_AFTER)
     {
-        if(a == LineBreak::Break_Opportunity_Before_and_After)
+        if(a == LINE_BREAK_BREAK_OPPORTUNITY_BEFORE_AND_AFTER)
         {
-            return LineBreakCategory::Prohibited;
+            return LINE_BREAK_CATEGORY_PROHIBITED;
         }
         for(int i = a_index - 1, j = break_index - 2; i >= 0; j -= 1)
         {
@@ -3211,11 +3211,11 @@ static LineBreakCategory categorise_line_break(LineBreakContext* context, int in
                 break;
             }
             c = resolve_combining_mark(context, c, c_index, j);
-            if(c == LineBreak::Break_Opportunity_Before_and_After)
+            if(c == LINE_BREAK_BREAK_OPPORTUNITY_BEFORE_AND_AFTER)
             {
-                return LineBreakCategory::Prohibited;
+                return LINE_BREAK_CATEGORY_PROHIBITED;
             }
-            if(c != LineBreak::Space)
+            if(c != LINE_BREAK_SPACE)
             {
                 break;
             }
@@ -3224,34 +3224,34 @@ static LineBreakCategory categorise_line_break(LineBreakContext* context, int in
     }
 
     // Break after spaces.
-    if(a == LineBreak::Space)
+    if(a == LINE_BREAK_SPACE)
     {
-        return LineBreakCategory::Optional;
+        return LINE_BREAK_CATEGORY_OPTIONAL;
     }
 
     // Do not break before or after quotation marks.
-    if(a == LineBreak::Quotation || b == LineBreak::Quotation)
+    if(a == LINE_BREAK_QUOTATION || b == LINE_BREAK_QUOTATION)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
     // Break before and after unresolved contingent breaks.
-    left = a == LineBreak::Contingent_Break_Opportunity;
-    right = b == LineBreak::Contingent_Break_Opportunity;
+    left = a == LINE_BREAK_CONTINGENT_BREAK_OPPORTUNITY;
+    right = b == LINE_BREAK_CONTINGENT_BREAK_OPPORTUNITY;
     if(left || right)
     {
-        return LineBreakCategory::Optional;
+        return LINE_BREAK_CATEGORY_OPTIONAL;
     }
 
     // Do not break before hyphen-minus, other hyphens, fixed-width spaces,
     // small kana, and other non-starters, or after acute accents.
-    left = a == LineBreak::Break_Before;
-    right = b == LineBreak::Break_After
-        || b == LineBreak::Hyphen
-        || b == LineBreak::Nonstarters;
+    left = a == LINE_BREAK_BREAK_BEFORE;
+    right = b == LINE_BREAK_BREAK_AFTER
+        || b == LINE_BREAK_HYPHEN
+        || b == LINE_BREAK_NONSTARTERS;
     if(left || right)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
     // Don't break after Hebrew followed by a hyphen.
@@ -3260,207 +3260,207 @@ static LineBreakCategory categorise_line_break(LineBreakContext* context, int in
     if(c_index != invalid_index)
     {
         c = resolve_combining_mark(context, c, c_index, break_index - 2);
-        left = a == LineBreak::Hyphen || a == LineBreak::Break_After;
-        bool next = c == LineBreak::Hebrew_Letter;
+        left = a == LINE_BREAK_HYPHEN || a == LINE_BREAK_BREAK_AFTER;
+        bool next = c == LINE_BREAK_HEBREW_LETTER;
         if(left && next)
         {
-            return LineBreakCategory::Prohibited;
+            return LINE_BREAK_CATEGORY_PROHIBITED;
         }
     }
 
     // Don’t break between Solidus and Hebrew letters.
-    if(a == LineBreak::Symbols && b == LineBreak::Hebrew_Letter)
+    if(a == LINE_BREAK_SYMBOLS && b == LINE_BREAK_HEBREW_LETTER)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
     // Do not break between two ellipses, or between letters, numbers or
     // exclamations and ellipsis.
-    left = a == LineBreak::Ordinary_Alphabetic_Or_Symbol
-        || a == LineBreak::Emoji_Base
-        || a == LineBreak::Emoji_Modifier
-        || a == LineBreak::Exclamation_Interrogation
-        || a == LineBreak::Hebrew_Letter
-        || a == LineBreak::Ideographic
-        || a == LineBreak::Inseparable_Characters
-        || a == LineBreak::Numeric;
-    right = b == LineBreak::Inseparable_Characters;
+    left = a == LINE_BREAK_ORDINARY_ALPHABETIC_OR_SYMBOL
+        || a == LINE_BREAK_EMOJI_BASE
+        || a == LINE_BREAK_EMOJI_MODIFIER
+        || a == LINE_BREAK_EXCLAMATION_INTERROGATION
+        || a == LINE_BREAK_HEBREW_LETTER
+        || a == LINE_BREAK_IDEOGRAPHIC
+        || a == LINE_BREAK_INSEPARABLE_CHARACTERS
+        || a == LINE_BREAK_NUMERIC;
+    right = b == LINE_BREAK_INSEPARABLE_CHARACTERS;
     if(left && right)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
     // Do not break between digits and letters.
-    left = a == LineBreak::Ordinary_Alphabetic_Or_Symbol
-        || a == LineBreak::Hebrew_Letter;
-    right = b == LineBreak::Numeric;
+    left = a == LINE_BREAK_ORDINARY_ALPHABETIC_OR_SYMBOL
+        || a == LINE_BREAK_HEBREW_LETTER;
+    right = b == LINE_BREAK_NUMERIC;
     if(left && right)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
-    left = a == LineBreak::Numeric;
-    right = b == LineBreak::Ordinary_Alphabetic_Or_Symbol
-        || b == LineBreak::Hebrew_Letter;
+    left = a == LINE_BREAK_NUMERIC;
+    right = b == LINE_BREAK_ORDINARY_ALPHABETIC_OR_SYMBOL
+        || b == LINE_BREAK_HEBREW_LETTER;
     if(left && right)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
     // Do not break between numeric prefixes and ideographs, or between
     // ideographs and numeric postfixes.
-    left = a == LineBreak::Prefix_Numeric;
-    right = b == LineBreak::Ideographic
-        || b == LineBreak::Emoji_Base
-        || b == LineBreak::Emoji_Modifier;
+    left = a == LINE_BREAK_PREFIX_NUMERIC;
+    right = b == LINE_BREAK_IDEOGRAPHIC
+        || b == LINE_BREAK_EMOJI_BASE
+        || b == LINE_BREAK_EMOJI_MODIFIER;
     if(left && right)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
-    left = a == LineBreak::Ideographic
-        || a == LineBreak::Emoji_Base
-        || a == LineBreak::Emoji_Modifier;
-    right = b == LineBreak::Postfix_Numeric;
+    left = a == LINE_BREAK_IDEOGRAPHIC
+        || a == LINE_BREAK_EMOJI_BASE
+        || a == LINE_BREAK_EMOJI_MODIFIER;
+    right = b == LINE_BREAK_POSTFIX_NUMERIC;
     if(left && right)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
     // Do not break between numeric prefix/postfix and letters, or between
     // letters and prefix/postfix.
-    left = a == LineBreak::Prefix_Numeric
-        || a == LineBreak::Postfix_Numeric;
-    right = b == LineBreak::Ordinary_Alphabetic_Or_Symbol
-        || b == LineBreak::Hebrew_Letter;
+    left = a == LINE_BREAK_PREFIX_NUMERIC
+        || a == LINE_BREAK_POSTFIX_NUMERIC;
+    right = b == LINE_BREAK_ORDINARY_ALPHABETIC_OR_SYMBOL
+        || b == LINE_BREAK_HEBREW_LETTER;
     if(left && right)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
-    left = a == LineBreak::Ordinary_Alphabetic_Or_Symbol
-        || a == LineBreak::Hebrew_Letter;
-    right = b == LineBreak::Prefix_Numeric
-        || b == LineBreak::Postfix_Numeric;
+    left = a == LINE_BREAK_ORDINARY_ALPHABETIC_OR_SYMBOL
+        || a == LINE_BREAK_HEBREW_LETTER;
+    right = b == LINE_BREAK_PREFIX_NUMERIC
+        || b == LINE_BREAK_POSTFIX_NUMERIC;
     if(left && right)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
     // Do not break between the following pairs of classes relevant to numbers.
-    bool uhh = (a == LineBreak::Close_Punctuation && b == LineBreak::Postfix_Numeric)
-        || (a == LineBreak::Closing_Parenthesis && b == LineBreak::Postfix_Numeric)
-        || (a == LineBreak::Close_Punctuation && b == LineBreak::Prefix_Numeric)
-        || (a == LineBreak::Closing_Parenthesis && b == LineBreak::Prefix_Numeric)
-        || (a == LineBreak::Numeric && b == LineBreak::Postfix_Numeric)
-        || (a == LineBreak::Numeric && b == LineBreak::Prefix_Numeric)
-        || (a == LineBreak::Postfix_Numeric && b == LineBreak::Open_Punctuation)
-        || (a == LineBreak::Postfix_Numeric && b == LineBreak::Numeric)
-        || (a == LineBreak::Prefix_Numeric && b == LineBreak::Open_Punctuation)
-        || (a == LineBreak::Prefix_Numeric && b == LineBreak::Numeric)
-        || (a == LineBreak::Hyphen && b == LineBreak::Numeric)
-        || (a == LineBreak::Infix_Numeric_Separator && b == LineBreak::Numeric)
-        || (a == LineBreak::Numeric && b == LineBreak::Numeric)
-        || (a == LineBreak::Symbols && b == LineBreak::Numeric);
+    bool uhh = (a == LINE_BREAK_CLOSE_PUNCTUATION && b == LINE_BREAK_POSTFIX_NUMERIC)
+        || (a == LINE_BREAK_CLOSING_PARENTHESIS && b == LINE_BREAK_POSTFIX_NUMERIC)
+        || (a == LINE_BREAK_CLOSE_PUNCTUATION && b == LINE_BREAK_PREFIX_NUMERIC)
+        || (a == LINE_BREAK_CLOSING_PARENTHESIS && b == LINE_BREAK_PREFIX_NUMERIC)
+        || (a == LINE_BREAK_NUMERIC && b == LINE_BREAK_POSTFIX_NUMERIC)
+        || (a == LINE_BREAK_NUMERIC && b == LINE_BREAK_PREFIX_NUMERIC)
+        || (a == LINE_BREAK_POSTFIX_NUMERIC && b == LINE_BREAK_OPEN_PUNCTUATION)
+        || (a == LINE_BREAK_POSTFIX_NUMERIC && b == LINE_BREAK_NUMERIC)
+        || (a == LINE_BREAK_PREFIX_NUMERIC && b == LINE_BREAK_OPEN_PUNCTUATION)
+        || (a == LINE_BREAK_PREFIX_NUMERIC && b == LINE_BREAK_NUMERIC)
+        || (a == LINE_BREAK_HYPHEN && b == LINE_BREAK_NUMERIC)
+        || (a == LINE_BREAK_INFIX_NUMERIC_SEPARATOR && b == LINE_BREAK_NUMERIC)
+        || (a == LINE_BREAK_NUMERIC && b == LINE_BREAK_NUMERIC)
+        || (a == LINE_BREAK_SYMBOLS && b == LINE_BREAK_NUMERIC);
     if(uhh)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
     // Do not break a Korean syllable.
-    left = a == LineBreak::Hangul_L_Jamo;
-    right = b == LineBreak::Hangul_L_Jamo
-        || b == LineBreak::Hangul_V_Jamo
-        || b == LineBreak::Hangul_LV_Syllable
-        || b == LineBreak::Hangul_LVT_Syllable;
+    left = a == LINE_BREAK_HANGUL_L_JAMO;
+    right = b == LINE_BREAK_HANGUL_L_JAMO
+        || b == LINE_BREAK_HANGUL_V_JAMO
+        || b == LINE_BREAK_HANGUL_LV_SYLLABLE
+        || b == LINE_BREAK_HANGUL_LVT_SYLLABLE;
     if(left && right)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
-    left = a == LineBreak::Hangul_V_Jamo
-        || a == LineBreak::Hangul_LV_Syllable;
-    right = b == LineBreak::Hangul_V_Jamo
-        || b == LineBreak::Hangul_T_Jamo;
+    left = a == LINE_BREAK_HANGUL_V_JAMO
+        || a == LINE_BREAK_HANGUL_LV_SYLLABLE;
+    right = b == LINE_BREAK_HANGUL_V_JAMO
+        || b == LINE_BREAK_HANGUL_T_JAMO;
     if(left && right)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
-    left = a == LineBreak::Hangul_T_Jamo
-        || a == LineBreak::Hangul_LVT_Syllable;
-    right = b == LineBreak::Hangul_T_Jamo;
+    left = a == LINE_BREAK_HANGUL_T_JAMO
+        || a == LINE_BREAK_HANGUL_LVT_SYLLABLE;
+    right = b == LINE_BREAK_HANGUL_T_JAMO;
     if(left && right)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
     // Treat a Korean syllable block the same as an ideographic codepoint.
-    left = a == LineBreak::Hangul_L_Jamo
-        || a == LineBreak::Hangul_T_Jamo
-        || a == LineBreak::Hangul_V_Jamo
-        || a == LineBreak::Hangul_LV_Syllable
-        || a == LineBreak::Hangul_LVT_Syllable;
-    right = b == LineBreak::Inseparable_Characters
-        || b == LineBreak::Postfix_Numeric;
+    left = a == LINE_BREAK_HANGUL_L_JAMO
+        || a == LINE_BREAK_HANGUL_T_JAMO
+        || a == LINE_BREAK_HANGUL_V_JAMO
+        || a == LINE_BREAK_HANGUL_LV_SYLLABLE
+        || a == LINE_BREAK_HANGUL_LVT_SYLLABLE;
+    right = b == LINE_BREAK_INSEPARABLE_CHARACTERS
+        || b == LINE_BREAK_POSTFIX_NUMERIC;
     if(left && right)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
-    left = a == LineBreak::Prefix_Numeric;
-    right = b == LineBreak::Hangul_L_Jamo
-        || b == LineBreak::Hangul_T_Jamo
-        || b == LineBreak::Hangul_V_Jamo
-        || b == LineBreak::Hangul_LV_Syllable
-        || b == LineBreak::Hangul_LVT_Syllable;
+    left = a == LINE_BREAK_PREFIX_NUMERIC;
+    right = b == LINE_BREAK_HANGUL_L_JAMO
+        || b == LINE_BREAK_HANGUL_T_JAMO
+        || b == LINE_BREAK_HANGUL_V_JAMO
+        || b == LINE_BREAK_HANGUL_LV_SYLLABLE
+        || b == LINE_BREAK_HANGUL_LVT_SYLLABLE;
     if(left && right)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
     // Do not break between alphabetics.
-    left = a == LineBreak::Ordinary_Alphabetic_Or_Symbol
-        || a == LineBreak::Hebrew_Letter;
-    right = b == LineBreak::Ordinary_Alphabetic_Or_Symbol
-        || b == LineBreak::Hebrew_Letter;
+    left = a == LINE_BREAK_ORDINARY_ALPHABETIC_OR_SYMBOL
+        || a == LINE_BREAK_HEBREW_LETTER;
+    right = b == LINE_BREAK_ORDINARY_ALPHABETIC_OR_SYMBOL
+        || b == LINE_BREAK_HEBREW_LETTER;
     if(left && right)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
     // Do not break between numeric punctuation and alphabetics.
-    left = a == LineBreak::Infix_Numeric_Separator;
-    right = b == LineBreak::Ordinary_Alphabetic_Or_Symbol
-        || b == LineBreak::Hebrew_Letter;
+    left = a == LINE_BREAK_INFIX_NUMERIC_SEPARATOR;
+    right = b == LINE_BREAK_ORDINARY_ALPHABETIC_OR_SYMBOL
+        || b == LINE_BREAK_HEBREW_LETTER;
     if(left && right)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
     // Do not break between letters, numbers, or ordinary symbols and opening
     // or closing parentheses.
-    left = a == LineBreak::Ordinary_Alphabetic_Or_Symbol
-        || a == LineBreak::Hebrew_Letter
-        || a == LineBreak::Numeric;
-    right = b == LineBreak::Open_Punctuation;
+    left = a == LINE_BREAK_ORDINARY_ALPHABETIC_OR_SYMBOL
+        || a == LINE_BREAK_HEBREW_LETTER
+        || a == LINE_BREAK_NUMERIC;
+    right = b == LINE_BREAK_OPEN_PUNCTUATION;
     if(left && right)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
-    left = a == LineBreak::Closing_Parenthesis;
-    right = b == LineBreak::Ordinary_Alphabetic_Or_Symbol
-        || b == LineBreak::Hebrew_Letter
-        || b == LineBreak::Numeric;
+    left = a == LINE_BREAK_CLOSING_PARENTHESIS;
+    right = b == LINE_BREAK_ORDINARY_ALPHABETIC_OR_SYMBOL
+        || b == LINE_BREAK_HEBREW_LETTER
+        || b == LINE_BREAK_NUMERIC;
     if(left && right)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
     // Break between two regional indicator symbols if and only if there are an
     // even number of regional indicators preceding the position of the break.
-    if(a == LineBreak::Regional_Indicator && b == LineBreak::Regional_Indicator)
+    if(a == LINE_BREAK_REGIONAL_INDICATOR && b == LINE_BREAK_REGIONAL_INDICATOR)
     {
         int count = 0;
         for(int i = a_index, j = break_index - 1; i >= 0; j -= 1)
@@ -3473,11 +3473,11 @@ static LineBreakCategory categorise_line_break(LineBreakContext* context, int in
             else
             {
                 LineBreak resolved = resolve_combining_mark(context, c, c_index, j);
-                if(resolved != LineBreak::Regional_Indicator)
+                if(resolved != LINE_BREAK_REGIONAL_INDICATOR)
                 {
                     break;
                 }
-                else if(c == LineBreak::Combining_Mark || c == LineBreak::Zero_Width_Joiner)
+                else if(c == LINE_BREAK_COMBINING_MARK || c == LINE_BREAK_ZERO_WIDTH_JOINER)
                 {
                     // Skip counting combining marks.
                     i = c_index - 1;
@@ -3489,17 +3489,17 @@ static LineBreakCategory categorise_line_break(LineBreakContext* context, int in
         }
         if(count & 1)
         {
-            return LineBreakCategory::Prohibited;
+            return LINE_BREAK_CATEGORY_PROHIBITED;
         }
     }
 
     // Do not break between an emoji base and an emoji modifier.
-    if(a == LineBreak::Emoji_Base && b == LineBreak::Emoji_Modifier)
+    if(a == LINE_BREAK_EMOJI_BASE && b == LINE_BREAK_EMOJI_MODIFIER)
     {
-        return LineBreakCategory::Prohibited;
+        return LINE_BREAK_CATEGORY_PROHIBITED;
     }
 
-    return LineBreakCategory::Optional;
+    return LINE_BREAK_CATEGORY_OPTIONAL;
 }
 
 int find_next_line_break(const char* text, int start_index, bool* mandatory, Stack* stack)
@@ -3522,10 +3522,10 @@ int find_next_line_break(const char* text, int start_index, bool* mandatory, Sta
     for(int i = adjusted_start, j = 0; i != invalid_index; j += 1)
     {
         LineBreakCategory category = categorise_line_break(&context, i, j);
-        if(category != LineBreakCategory::Prohibited)
+        if(category != LINE_BREAK_CATEGORY_PROHIBITED)
         {
             found = i;
-            *mandatory = category == LineBreakCategory::Mandatory;
+            *mandatory = category == LINE_BREAK_CATEGORY_MANDATORY;
             break;
         }
 

@@ -1758,10 +1758,10 @@ GraphemeClusterBreak get_grapheme_cluster_break(char32_t c)
     uint8_t value = grapheme_cluster_break_stage2[block_offset + c % BLOCK_SIZE];
 
     ASSERT(value >= 0 && value <= 17);
-    return static_cast<GraphemeClusterBreak>(value);
+    return (GraphemeClusterBreak) value;
 }
 
-struct GraphemeClusterBreakContext
+typedef struct GraphemeClusterBreakContext
 {
     const char* text;
     GraphemeClusterBreak* breaks;
@@ -1773,7 +1773,7 @@ struct GraphemeClusterBreakContext
     int breaks_cap;
     int head;
     int tail;
-};
+} GraphemeClusterBreakContext;
 
 static bool is_empty(GraphemeClusterBreakContext* context)
 {
@@ -1883,8 +1883,8 @@ bool allow_grapheme_cluster_break(GraphemeClusterBreakContext* context, int text
     }
 
     // Do not break between a carriage return and line feed.
-    bool left = a == GraphemeClusterBreak::Carriage_Return;
-    bool right = b == GraphemeClusterBreak::Line_Feed;
+    bool left = a == GRAPHEME_CLUSTER_BREAK_CARRIAGE_RETURN;
+    bool right = b == GRAPHEME_CLUSTER_BREAK_LINE_FEED;
     if(left && right)
     {
         return false;
@@ -1892,40 +1892,40 @@ bool allow_grapheme_cluster_break(GraphemeClusterBreakContext* context, int text
 
     // Break between control characters, line feeds, and carriage returns that
     // don't violate the prior carriage return/line feed rule.
-    left = a == GraphemeClusterBreak::Carriage_Return
-            || a == GraphemeClusterBreak::Line_Feed
-            || a == GraphemeClusterBreak::Control;
-    right = b == GraphemeClusterBreak::Carriage_Return
-        || b == GraphemeClusterBreak::Line_Feed
-        || b == GraphemeClusterBreak::Control;
+    left = a == GRAPHEME_CLUSTER_BREAK_CARRIAGE_RETURN
+            || a == GRAPHEME_CLUSTER_BREAK_LINE_FEED
+            || a == GRAPHEME_CLUSTER_BREAK_CONTROL;
+    right = b == GRAPHEME_CLUSTER_BREAK_CARRIAGE_RETURN
+        || b == GRAPHEME_CLUSTER_BREAK_LINE_FEED
+        || b == GRAPHEME_CLUSTER_BREAK_CONTROL;
     if(left || right)
     {
         return true;
     }
 
     // Do not break Hangul syllable sequences.
-    left = a == GraphemeClusterBreak::Hangul_Syllable_L;
-    right = b == GraphemeClusterBreak::Hangul_Syllable_L
-        || b == GraphemeClusterBreak::Hangul_Syllable_V
-        || b == GraphemeClusterBreak::Hangul_Syllable_LV
-        || b == GraphemeClusterBreak::Hangul_Syllable_LVT;
+    left = a == GRAPHEME_CLUSTER_BREAK_HANGUL_SYLLABLE_L;
+    right = b == GRAPHEME_CLUSTER_BREAK_HANGUL_SYLLABLE_L
+        || b == GRAPHEME_CLUSTER_BREAK_HANGUL_SYLLABLE_V
+        || b == GRAPHEME_CLUSTER_BREAK_HANGUL_SYLLABLE_LV
+        || b == GRAPHEME_CLUSTER_BREAK_HANGUL_SYLLABLE_LVT;
     if(left && right)
     {
         return false;
     }
 
-    left = a == GraphemeClusterBreak::Hangul_Syllable_V
-        || a == GraphemeClusterBreak::Hangul_Syllable_LV;
-    right = b == GraphemeClusterBreak::Hangul_Syllable_V
-        || b == GraphemeClusterBreak::Hangul_Syllable_T;
+    left = a == GRAPHEME_CLUSTER_BREAK_HANGUL_SYLLABLE_V
+        || a == GRAPHEME_CLUSTER_BREAK_HANGUL_SYLLABLE_LV;
+    right = b == GRAPHEME_CLUSTER_BREAK_HANGUL_SYLLABLE_V
+        || b == GRAPHEME_CLUSTER_BREAK_HANGUL_SYLLABLE_T;
     if(left && right)
     {
         return false;
     }
 
-    left = a == GraphemeClusterBreak::Hangul_Syllable_T
-        || a == GraphemeClusterBreak::Hangul_Syllable_LVT;
-    right = b == GraphemeClusterBreak::Hangul_Syllable_T;
+    left = a == GRAPHEME_CLUSTER_BREAK_HANGUL_SYLLABLE_T
+        || a == GRAPHEME_CLUSTER_BREAK_HANGUL_SYLLABLE_LVT;
+    right = b == GRAPHEME_CLUSTER_BREAK_HANGUL_SYLLABLE_T;
     if(left && right)
     {
         return false;
@@ -1933,23 +1933,23 @@ bool allow_grapheme_cluster_break(GraphemeClusterBreakContext* context, int text
 
     // Do not break before extending characters, zero-width joiner, or spacing
     // marks.
-    right = b == GraphemeClusterBreak::Extend
-        || b == GraphemeClusterBreak::Zero_Width_Joiner
-        || b == GraphemeClusterBreak::Spacing_Mark;
+    right = b == GRAPHEME_CLUSTER_BREAK_EXTEND
+        || b == GRAPHEME_CLUSTER_BREAK_ZERO_WIDTH_JOINER
+        || b == GRAPHEME_CLUSTER_BREAK_SPACING_MARK;
     if(right)
     {
         return false;
     }
 
     // Do not break after Prepend characters.
-    left = a == GraphemeClusterBreak::Prepend;
+    left = a == GRAPHEME_CLUSTER_BREAK_PREPEND;
     if(left)
     {
         return false;
     }
 
     // Do not break within emoji modifier sequences.
-    if(b == GraphemeClusterBreak::Emoji_Modifier)
+    if(b == GRAPHEME_CLUSTER_BREAK_EMOJI_MODIFIER)
     {
         for(int i = a_index, j = break_index - 1; i >= 0; j -= 1)
         {
@@ -1960,13 +1960,13 @@ bool allow_grapheme_cluster_break(GraphemeClusterBreakContext* context, int text
                 break;
             }
             i = index - 1;
-            bool next = value == GraphemeClusterBreak::Emoji_Base
-                || value == GraphemeClusterBreak::Emoji_Base_GAZ;
+            bool next = value == GRAPHEME_CLUSTER_BREAK_EMOJI_BASE
+                || value == GRAPHEME_CLUSTER_BREAK_EMOJI_BASE_GAZ;
             if(next)
             {
                 return false;
             }
-            else if(value != GraphemeClusterBreak::Extend)
+            else if(value != GRAPHEME_CLUSTER_BREAK_EXTEND)
             {
                 break;
             }
@@ -1974,9 +1974,9 @@ bool allow_grapheme_cluster_break(GraphemeClusterBreakContext* context, int text
     }
 
     // Do not break within emoji zero-width joiner sequences.
-    left = a == GraphemeClusterBreak::Zero_Width_Joiner;
-    right = b == GraphemeClusterBreak::Glue_After_ZWJ
-        || b == GraphemeClusterBreak::Emoji_Base_GAZ;
+    left = a == GRAPHEME_CLUSTER_BREAK_ZERO_WIDTH_JOINER;
+    right = b == GRAPHEME_CLUSTER_BREAK_GLUE_AFTER_ZWJ
+        || b == GRAPHEME_CLUSTER_BREAK_EMOJI_BASE_GAZ;
     if(left && right)
     {
         return false;
@@ -1984,8 +1984,8 @@ bool allow_grapheme_cluster_break(GraphemeClusterBreakContext* context, int text
 
     // Do not break between regional indicator (RI) symbols if there is an odd
     // number of RI characters before the break point.
-    left = a == GraphemeClusterBreak::Regional_Indicator;
-    right = b == GraphemeClusterBreak::Regional_Indicator;
+    left = a == GRAPHEME_CLUSTER_BREAK_REGIONAL_INDICATOR;
+    right = b == GRAPHEME_CLUSTER_BREAK_REGIONAL_INDICATOR;
     if(left && right)
     {
         int count = 0;
@@ -1993,7 +1993,7 @@ bool allow_grapheme_cluster_break(GraphemeClusterBreakContext* context, int text
         {
             GraphemeClusterBreak value;
             int index = get_break_at(context, i, j, &value);
-            if(index == invalid_index || value != GraphemeClusterBreak::Regional_Indicator)
+            if(index == invalid_index || value != GRAPHEME_CLUSTER_BREAK_REGIONAL_INDICATOR)
             {
                 break;
             }
