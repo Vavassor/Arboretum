@@ -1,10 +1,6 @@
 #ifndef INT2_H_
 #define INT2_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include <stdbool.h>
 
 // A pair of integers. This name could be confused with sized integer types like
@@ -20,9 +16,5 @@ bool int2_equals(Int2 a, Int2 b);
 bool int2_not_equals(Int2 a, Int2 b);
 
 extern const Int2 int2_zero;
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // INT2_H_

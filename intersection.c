@@ -7,7 +7,6 @@
 #include "jan.h"
 #include "math_basics.h"
 #include "memory.h"
-#include "restrict.h"
 
 static float orient(Float2 v0, Float2 v1, Float2 v2)
 {
@@ -74,7 +73,7 @@ LineSegment transform_line_segment(LineSegment segment, Matrix4 transform)
     return result;
 }
 
-static bool solve_quadratic_equation(float a, float b, float c, float* RESTRICT t0, float* RESTRICT t1)
+static bool solve_quadratic_equation(float a, float b, float c, float* restrict t0, float* restrict t1)
 {
     float discriminant = (b * b) - (4.0f * a * c);
     if(discriminant < 0.0f)

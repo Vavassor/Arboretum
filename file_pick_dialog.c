@@ -28,7 +28,7 @@ DEFINE_QUICK_SORT(DirectoryRecord, record_is_before, by_filename);
 
 static void filter_directory(Directory* directory, const char** extensions, int extensions_count, bool show_hidden, Heap* heap)
 {
-    DirectoryRecord* filtered = nullptr;
+    DirectoryRecord* filtered = NULL;
 
     for(int i = 0; i < directory->records_count; i += 1)
     {
@@ -59,6 +59,8 @@ static void filter_directory(Directory* directory, const char** extensions, int 
     directory->records = filtered;
     directory->records_count = array_count(filtered);
 }
+
+#define EXTENSIONS_COUNT 1
 
 static void list_directory(FilePickDialog* dialog, const char* directory, UiContext* context, Platform* platform, Heap* heap)
 {
@@ -122,7 +124,7 @@ static void list_directory(FilePickDialog* dialog, const char* directory, UiCont
 
         UiButton* button = &item->button;
         button->enabled = true;
-        button->text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+        button->text_block.padding = (UiPadding){{4.0f, 4.0f, 4.0f, 4.0f}};
         button->text_block.text_overflow = UI_TEXT_OVERFLOW_ELLIPSIZE_END;
         dialog->path_buttons[i] = item->id;
 
@@ -158,9 +160,8 @@ static void list_directory(FilePickDialog* dialog, const char* directory, UiCont
     list->side_margin = 2.0f;
     list->scroll_top = 0.0f;
 
-    const int extensions_count = 1;
-    const char* extensions[extensions_count] = {".obj"};
-    filter_directory(&dialog->directory, extensions, extensions_count, dialog->show_hidden_records, heap);
+    const char* extensions[EXTENSIONS_COUNT] = {".obj"};
+    filter_directory(&dialog->directory, extensions, EXTENSIONS_COUNT, dialog->show_hidden_records, heap);
 
     ui_create_items(file_list, dialog->directory.records_count, heap);
 
@@ -176,7 +177,7 @@ static void list_directory(FilePickDialog* dialog, const char* directory, UiCont
         {
             DirectoryRecord record = dialog->directory.records[i];
             UiTextBlock* text_block = &list->items[i];
-            text_block->padding = {1.0f, 1.0f, 1.0f, 1.0f};
+            text_block->padding = (UiPadding){{1.0f, 1.0f, 1.0f, 1.0f}};
             text_block->text_overflow = UI_TEXT_OVERFLOW_ELLIPSIZE_END;
             ui_set_text(text_block, record.name, heap);
         }
@@ -214,12 +215,12 @@ void open_dialog(FilePickDialog* dialog, UiContext* context, Platform* platform,
     switch(dialog->type)
     {
         default:
-        case DialogType::Export:
+        case DIALOG_TYPE_EXPORT:
         {
             UiItem* filename_field = &footer->container.items[0];
             filename_field->type = UI_ITEM_TYPE_TEXT_INPUT;
-            filename_field->text_input.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
-            filename_field->text_input.label.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+            filename_field->text_input.text_block.padding = (UiPadding){{4.0f, 4.0f, 4.0f, 4.0f}};
+            filename_field->text_input.label.padding = (UiPadding){{4.0f, 4.0f, 4.0f, 4.0f}};
             filename_field->growable = true;
             ui_set_text(&filename_field->text_input.text_block, "", heap);
             ui_set_text(&filename_field->text_input.label, "enter filename", heap);
@@ -230,11 +231,11 @@ void open_dialog(FilePickDialog* dialog, UiContext* context, Platform* platform,
 
             break;
         }
-        case DialogType::Import:
+        case DIALOG_TYPE_IMPORT:
         {
             UiItem* file_readout = &footer->container.items[0];
             file_readout->type = UI_ITEM_TYPE_TEXT_BLOCK;
-            file_readout->text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+            file_readout->text_block.padding = (UiPadding){{4.0f, 4.0f, 4.0f, 4.0f}};
             ui_set_text(&file_readout->text_block, "", heap);
             dialog->file_readout = &file_readout->text_block;
 
@@ -246,7 +247,7 @@ void open_dialog(FilePickDialog* dialog, UiContext* context, Platform* platform,
 
     UiItem* pick = &footer->container.items[1];
     pick->type = UI_ITEM_TYPE_BUTTON;
-    pick->button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+    pick->button.text_block.padding = (UiPadding){{4.0f, 4.0f, 4.0f, 4.0f}};
     ui_set_text(&pick->button.text_block, pick_button_text, heap);
     dialog->pick_button = pick->id;
     dialog->pick = &pick->button;
@@ -262,7 +263,7 @@ void close_dialog(FilePickDialog* dialog, UiContext* context, Heap* heap)
         if(dialog->panel)
         {
             ui_destroy_toplevel_container(context, dialog->panel, heap);
-            dialog->panel = nullptr;
+            dialog->panel = NULL;
         }
 
         destroy_directory(&dialog->directory, heap);
@@ -279,14 +280,14 @@ static void touch_record(FilePickDialog* dialog, int record_index, bool expand, 
         {
             switch(dialog->type)
             {
-                case DialogType::Import:
+                case DIALOG_TYPE_IMPORT:
                 {
                     ui_set_text(dialog->file_readout, "", heap);
                     dialog->pick->enabled = false;
                     dialog->record_selected = invalid_index;
                     break;
                 }
-                case DialogType::Export:
+                case DIALOG_TYPE_EXPORT:
                 {
                     // If the user typed in an arbitrary filename, it shouldn't
                     // be cleared.
@@ -318,12 +319,12 @@ static void touch_record(FilePickDialog* dialog, int record_index, bool expand, 
 
             switch(dialog->type)
             {
-                case DialogType::Import:
+                case DIALOG_TYPE_IMPORT:
                 {
                     ui_set_text(dialog->file_readout, filename, heap);
                     break;
                 }
-                case DialogType::Export:
+                case DIALOG_TYPE_EXPORT:
                 {
                     ui_set_text(&dialog->filename_field->text_block, filename, heap);
                     break;
@@ -421,7 +422,7 @@ static void import_file(FilePickDialog* dialog, const char* name, ObjectLady* la
     {
         Object* imported_model = object_lady_add_object(lady, heap);
         imported_model->mesh = mesh;
-        object_set_position(imported_model, {-2.0f, 0.0f, 0.0f});
+        object_set_position(imported_model, (Float3){{-2.0f, 0.0f, 0.0f}});
 
         jan_colour_all_faces(&imported_model->mesh, float3_magenta);
         VideoObject* video_object = video_get_object(imported_model->video_object);
@@ -444,7 +445,7 @@ static void pick_file(FilePickDialog* dialog, ObjectLady* lady, int selected_obj
 
     switch(dialog->type)
     {
-        case DialogType::Export:
+        case DIALOG_TYPE_EXPORT:
         {
             char* filename;
 
@@ -475,7 +476,7 @@ static void pick_file(FilePickDialog* dialog, ObjectLady* lady, int selected_obj
 
             break;
         }
-        case DialogType::Import:
+        case DIALOG_TYPE_IMPORT:
         {
             ASSERT(is_valid_index(selected));
             DirectoryRecord record = dialog->directory.records[selected];
@@ -515,7 +516,7 @@ void handle_input(FilePickDialog* dialog, UiEvent event, ObjectLady* lady, int s
                 close_dialog(dialog, context, heap);
             }
 
-            if(dialog->type == DialogType::Export)
+            if(dialog->type == DIALOG_TYPE_EXPORT)
             {
                 UiId id = dialog->filename_field_id;
 
@@ -542,7 +543,7 @@ void handle_input(FilePickDialog* dialog, UiEvent event, ObjectLady* lady, int s
         }
         case UI_EVENT_TYPE_TEXT_CHANGE:
         {
-            if(dialog->type == DialogType::Export
+            if(dialog->type == DIALOG_TYPE_EXPORT
                 && event.text_change.id == dialog->filename_field_id)
             {
                 int size = string_size(dialog->filename_field->text_block.text);

@@ -1,10 +1,6 @@
 #ifndef UNICODE_WORD_BREAK_H_
 #define UNICODE_WORD_BREAK_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "memory.h"
 
 #include <uchar.h>
@@ -40,9 +36,5 @@ WordBreak get_word_break(char32_t c);
 int find_prior_beginning_of_word(const char* text, int start_index, Stack* stack);
 int find_next_end_of_word(const char* text, int start_index, Stack* stack);
 bool test_word_break(const char* text, int text_index, Stack* stack);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // UNICODE_WORD_BREAK_H_

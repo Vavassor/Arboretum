@@ -7,13 +7,13 @@
 #include "object_lady.h"
 #include "ui.h"
 
-enum class DialogType
+typedef enum DialogType
 {
-    Import,
-    Export,
-};
+    DIALOG_TYPE_IMPORT,
+    DIALOG_TYPE_EXPORT,
+} DialogType;
 
-struct FilePickDialog
+typedef struct FilePickDialog
 {
     Directory directory;
     char* path;
@@ -35,7 +35,7 @@ struct FilePickDialog
             UiId filename_field_id;
         };
     };
-};
+} FilePickDialog;
 
 void open_dialog(FilePickDialog* dialog, UiContext* context, Platform* platform, Heap* heap);
 void close_dialog(FilePickDialog* dialog, UiContext* context, Heap* heap);

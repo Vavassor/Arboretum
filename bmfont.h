@@ -1,10 +1,6 @@
 #ifndef BMFONT_H_
 #define BMFONT_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "vector_math.h"
 #include "geometry.h"
 #include "memory.h"
@@ -52,9 +48,5 @@ void bmf_destroy_font(BmfFont* font, Heap* heap);
 bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack);
 BmfGlyph* bmf_find_glyph(BmfFont* font, char32_t c);
 float bmf_lookup_kerning(BmfFont* font, char32_t prior, char32_t current);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // BMFONT_H_

@@ -24,77 +24,74 @@
 #include "vector_math.h"
 #include "video_object.h"
 
-enum class Mode
+typedef enum Mode
 {
-    Object,
-    Face,
-    Edge,
-    Vertex,
-};
+    MODE_OBJECT,
+    MODE_FACE,
+    MODE_EDGE,
+    MODE_VERTEX,
+} Mode;
 
-enum class Action
+typedef enum Action
 {
-    None,
-    Zoom_Camera,
-    Orbit_Camera,
-    Pan_Camera,
-    Select,
-    Move,
-    Rotate,
-    Scale,
-};
+    ACTION_NONE,
+    ACTION_ZOOM_CAMERA,
+    ACTION_ORBIT_CAMERA,
+    ACTION_PAN_CAMERA,
+    ACTION_SELECT,
+    ACTION_MOVE,
+    ACTION_ROTATE,
+    ACTION_SCALE,
+} Action;
 
-namespace
+static Heap heap;
+static Stack scratch;
+
+static ObjectLady lady;
+
+static Mode mode;
+static Action action_in_progress;
+static bool translating;
+static MoveTool move_tool;
+static RotateTool rotate_tool;
+static History history;
+
+static int hovered_object_index;
+static int selected_object_index;
+static JanSelection selection;
+static DenseMapId selection_id;
+static DenseMapId selection_pointcloud_id;
+static DenseMapId selection_wireframe_id;
+
+static BmfFont font;
+
+static UiContext ui_context;
+static UiItem* main_menu;
+static UiId import_button_id;
+static UiId export_button_id;
+static UiId object_mode_button_id;
+static UiId vertex_mode_button_id;
+static UiId edge_mode_button_id;
+static UiId face_mode_button_id;
+
+static struct
 {
-    Heap heap;
-    Stack scratch;
+    Float2 position;
+    Float2 velocity;
+    float scroll_velocity_y;
+    MouseButton button;
+    bool drag;
+} mouse;
 
-    ObjectLady lady;
-
-    Mode mode;
-    Action action_in_progress;
-    bool translating;
-    MoveTool move_tool;
-    RotateTool rotate_tool;
-    History history;
-
-    int hovered_object_index;
-    int selected_object_index;
-    JanSelection selection;
-    DenseMapId selection_id;
-    DenseMapId selection_pointcloud_id;
-    DenseMapId selection_wireframe_id;
-
-    BmfFont font;
-
-    UiContext ui_context;
-    UiItem* main_menu;
-    UiId import_button_id;
-    UiId export_button_id;
-    UiId object_mode_button_id;
-    UiId vertex_mode_button_id;
-    UiId edge_mode_button_id;
-    UiId face_mode_button_id;
-
-    struct
-    {
-        Float2 position;
-        Float2 velocity;
-        float scroll_velocity_y;
-        MouseButton button;
-        bool drag;
-    } mouse;
-
-    Camera camera;
-    Int2 viewport;
-    FilePickDialog dialog;
-}
+static Camera camera;
+static Int2 viewport;
+static FilePickDialog dialog;
 
 // Action.......................................................................
 
 static bool action_allowed(Action action)
 {
-    return action_in_progress == Action::None || action_in_progress == action;
+    return action_in_progress == ACTION_NONE || action_in_progress == action;
 }
 
 static void action_perform(Action action)
@@ -106,7 +103,7 @@ static void action_stop(Action action)
 {
     if(action_in_progress == action)
     {
-        action_in_progress = Action::None;
+        action_in_progress = ACTION_NONE;
     }
 }
 
@@ -156,7 +153,7 @@ bool editor_start_up(Platform* platform)
 
     // Camera
     {
-        camera.position = {-4.0f, -4.0f, 2.0f};
+        camera.position = (Float3){{-4.0f, -4.0f, 2.0f}};
         camera.target = float3_zero;
         camera.field_of_view =  pi_over_2 * (2.0f / 3.0f);
         camera.near_plane = 0.001f;
@@ -179,7 +176,7 @@ bool editor_start_up(Platform* platform)
         VideoObject* video_object = video_get_object(dodecahedron->video_object);
         video_object_update_mesh(video_object, mesh, &heap);
 
-        Float3 position = {2.0f, 0.0f, 0.0f};
+        Float3 position = (Float3){{2.0f, 0.0f, 0.0f}};
         Quaternion orientation = quaternion_axis_angle(float3_unit_x, pi / 4.0f);
         dodecahedron->orientation = orientation;
         object_set_position(dodecahedron, position);
@@ -197,7 +194,7 @@ bool editor_start_up(Platform* platform)
         VideoObject* video_object = video_get_object(cheese->video_object);
         video_object_update_mesh(video_object, mesh, &heap);
 
-        Float3 position = {0.0f, -2.0f, 0.0f};
+        Float3 position = (Float3){{0.0f, -2.0f, 0.0f}};
         object_set_position(cheese, position);
 
         add_object_to_history(&history, cheese, &heap);
@@ -213,7 +210,7 @@ bool editor_start_up(Platform* platform)
         STACK_DEALLOCATE(&scratch, path);
         jan_colour_all_faces(mesh, float3_yellow);
 
-        Float3 position = {-2.0f, 0.0f, 0.0f};
+        Float3 position = (Float3){{-2.0f, 0.0f, 0.0f}};
         object_set_position(test_model, position);
 
         VideoObject* video_object = video_get_object(test_model->video_object);
@@ -237,21 +234,21 @@ bool editor_start_up(Platform* platform)
     {
         UiTheme* theme = &ui_context.theme;
 
-        theme->colours.button_cap_disabled = {0.318f, 0.318f, 0.318f, 1.0f};
-        theme->colours.button_cap_enabled = {0.145f, 0.145f, 0.145f, 1.0f};
-        theme->colours.button_cap_hovered_disabled = {0.382f, 0.386f, 0.418f, 1.0f};
-        theme->colours.button_cap_hovered_enabled = {0.247f, 0.251f, 0.271f, 1.0f};
-        theme->colours.button_label_disabled = {0.782f, 0.786f, 0.818f};
+        theme->colours.button_cap_disabled = (Float4){{0.318f, 0.318f, 0.318f, 1.0f}};
+        theme->colours.button_cap_enabled = (Float4){{0.145f, 0.145f, 0.145f, 1.0f}};
+        theme->colours.button_cap_hovered_disabled = (Float4){{0.382f, 0.386f, 0.418f, 1.0f}};
+        theme->colours.button_cap_hovered_enabled = (Float4){{0.247f, 0.251f, 0.271f, 1.0f}};
+        theme->colours.button_label_disabled = (Float3){{0.782f, 0.786f, 0.818f}};
         theme->colours.button_label_enabled = float3_white;
-        theme->colours.focus_indicator = {1.0f, 1.0f, 0.0f, 0.6f};
-        theme->colours.list_item_background_hovered = {1.0f, 1.0f, 1.0f, 0.3f};
-        theme->colours.list_item_background_selected = {1.0f, 1.0f, 1.0f, 0.5f};
+        theme->colours.focus_indicator = (Float4){{1.0f, 1.0f, 0.0f, 0.6f}};
+        theme->colours.list_item_background_hovered = (Float4){{1.0f, 1.0f, 1.0f, 0.3f}};
+        theme->colours.list_item_background_selected = (Float4){{1.0f, 1.0f, 1.0f, 0.5f}};
         theme->colours.text_input_cursor = float4_white;
-        theme->colours.text_input_selection = {1.0f, 1.0f, 1.0f, 0.4f};
+        theme->colours.text_input_selection = (Float4){{1.0f, 1.0f, 1.0f, 0.4f}};
 
         theme->styles[0].background = float4_black;
         theme->styles[1].background = float4_blue;
-        theme->styles[2].background = {0.145f, 0.145f, 0.145f, 1.0f};
+        theme->styles[2].background = (Float4){{0.145f, 0.145f, 0.145f, 1.0f}};
         theme->styles[3].background = float4_yellow;
     }
 
@@ -261,7 +258,7 @@ bool editor_start_up(Platform* platform)
         main_menu->type = UI_ITEM_TYPE_CONTAINER;
         main_menu->growable = true;
         main_menu->container.style_type = UI_STYLE_TYPE_MENU_BAR;
-        main_menu->container.padding = {1.0f, 1.0f, 1.0f, 1.0f};
+        main_menu->container.padding = (UiPadding){{1.0f, 1.0f, 1.0f, 1.0f}};
         main_menu->container.direction = UI_DIRECTION_LEFT_TO_RIGHT;
         main_menu->container.alignment = UI_ALIGNMENT_START;
         main_menu->container.justification = UI_JUSTIFICATION_START;
@@ -271,37 +268,37 @@ bool editor_start_up(Platform* platform)
 
         main_menu->container.items[0].type = UI_ITEM_TYPE_BUTTON;
         main_menu->container.items[0].button.enabled = true;
-        main_menu->container.items[0].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+        main_menu->container.items[0].button.text_block.padding = (UiPadding){{4.0f, 4.0f, 4.0f, 4.0f}};
         ui_set_text(&main_menu->container.items[0].button.text_block, platform->localized_text.main_menu_import_file, &heap);
         import_button_id = main_menu->container.items[0].id;
 
         main_menu->container.items[1].type = UI_ITEM_TYPE_BUTTON;
         main_menu->container.items[1].button.enabled = true;
-        main_menu->container.items[1].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+        main_menu->container.items[1].button.text_block.padding = (UiPadding){{4.0f, 4.0f, 4.0f, 4.0f}};
         ui_set_text(&main_menu->container.items[1].button.text_block, platform->localized_text.main_menu_export_file, &heap);
         export_button_id = main_menu->container.items[1].id;
 
         main_menu->container.items[2].type = UI_ITEM_TYPE_BUTTON;
         main_menu->container.items[2].button.enabled = true;
-        main_menu->container.items[2].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+        main_menu->container.items[2].button.text_block.padding = (UiPadding){{4.0f, 4.0f, 4.0f, 4.0f}};
         ui_set_text(&main_menu->container.items[2].button.text_block, platform->localized_text.main_menu_enter_object_mode, &heap);
         object_mode_button_id = main_menu->container.items[2].id;
 
         main_menu->container.items[3].type = UI_ITEM_TYPE_BUTTON;
         main_menu->container.items[3].button.enabled = true;
-        main_menu->container.items[3].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+        main_menu->container.items[3].button.text_block.padding = (UiPadding){{4.0f, 4.0f, 4.0f, 4.0f}};
         ui_set_text(&main_menu->container.items[3].button.text_block, platform->localized_text.main_menu_enter_face_mode, &heap);
         face_mode_button_id = main_menu->container.items[3].id;
 
         main_menu->container.items[4].type = UI_ITEM_TYPE_BUTTON;
         main_menu->container.items[4].button.enabled = true;
-        main_menu->container.items[4].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+        main_menu->container.items[4].button.text_block.padding = (UiPadding){{4.0f, 4.0f, 4.0f, 4.0f}};
         ui_set_text(&main_menu->container.items[4].button.text_block, platform->localized_text.main_menu_enter_edge_mode, &heap);
         edge_mode_button_id = main_menu->container.items[4].id;
 
         main_menu->container.items[5].type = UI_ITEM_TYPE_BUTTON;
         main_menu->container.items[5].button.enabled = true;
-        main_menu->container.items[5].button.text_block.padding = {4.0f, 4.0f, 4.0f, 4.0f};
+        main_menu->container.items[5].button.text_block.padding = (UiPadding){{4.0f, 4.0f, 4.0f, 4.0f}};
         ui_set_text(&main_menu->container.items[5].button.text_block, platform->localized_text.main_menu_enter_vertex_mode, &heap);
         vertex_mode_button_id = main_menu->container.items[5].id;
     }
@@ -356,7 +353,7 @@ static void update_camera_controls()
     Float3 right = float3_normalise(float3_cross(float3_unit_z, forward));
     Matrix4 projection = matrix4_perspective_projection(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
 
-    if(mouse.scroll_velocity_y != 0.0f && action_allowed(Action::Zoom_Camera))
+    if(mouse.scroll_velocity_y != 0.0f && action_allowed(ACTION_ZOOM_CAMERA))
     {
         Float3 moved = float3_add(float3_multiply(-mouse.scroll_velocity_y, forward), camera.position);
         Float3 forward_moved = float3_subtract(moved, camera.target);
@@ -376,20 +373,20 @@ static void update_camera_controls()
         {
             camera.position = moved;
         }
-        action_in_progress = Action::Zoom_Camera;
+        action_in_progress = ACTION_ZOOM_CAMERA;
     }
     else
     {
-        action_stop(Action::Zoom_Camera);
+        action_stop(ACTION_ZOOM_CAMERA);
     }
 
-    if(mouse.drag && (action_allowed(Action::Orbit_Camera) || action_allowed(Action::Pan_Camera)))
+    if(mouse.drag && (action_allowed(ACTION_ORBIT_CAMERA) || action_allowed(ACTION_PAN_CAMERA)))
     {
         switch(mouse.button)
         {
             case MOUSE_BUTTON_LEFT:
             {
-                const Float2 orbit_speed = {0.01f, 0.01f};
+                const Float2 orbit_speed = (Float2){{0.01f, 0.01f}};
                 Float2 angular_velocity = float2_pointwise_multiply(orbit_speed, float2_negate(mouse.velocity));
                 Quaternion orbit_x = quaternion_axis_angle(float3_unit_z, angular_velocity.x);
                 Quaternion orbit_y = quaternion_axis_angle(right, angular_velocity.y);
@@ -408,7 +405,7 @@ static void update_camera_controls()
                 Quaternion orbit = quaternion_multiply(orbit_y, orbit_x);
                 camera.position = float3_add(quaternion_rotate(orbit, forward), camera.target);
 
-                action_perform(Action::Orbit_Camera);
+                action_perform(ACTION_ORBIT_CAMERA);
                 break;
             }
             case MOUSE_BUTTON_RIGHT:
@@ -433,7 +430,7 @@ static void update_camera_controls()
                 camera.position = float3_add(camera.position, pan);
                 camera.target = float3_add(camera.target, pan);
 
-                action_perform(Action::Pan_Camera);
+                action_perform(ACTION_PAN_CAMERA);
                 break;
             }
             default:
@@ -444,8 +441,8 @@ static void update_camera_controls()
     }
     else
     {
-        action_stop(Action::Orbit_Camera);
-        action_stop(Action::Pan_Camera);
+        action_stop(ACTION_ORBIT_CAMERA);
+        action_stop(ACTION_PAN_CAMERA);
     }
 }
 
@@ -530,7 +527,7 @@ static void update_object_mode(Platform* platform)
     Matrix4 projection = matrix4_perspective_projection(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
 
     // Update the move tool.
-    if(is_valid_index(selected_object_index) && action_allowed(Action::Move))
+    if(is_valid_index(selected_object_index) && action_allowed(ACTION_MOVE))
     {
         Float3 scale = float3_set_all(move_tool.scale);
         Matrix4 model = matrix4_compose_transform(move_tool.position, move_tool.orientation, scale);
@@ -613,13 +610,13 @@ static void update_object_mode(Platform* platform)
             {
                 move_tool.selected_axis = hovered_axis;
                 begin_move(ray);
-                action_perform(Action::Move);
+                action_perform(ACTION_MOVE);
             }
             else if(is_valid_index(hovered_plane))
             {
                 move_tool.selected_plane = hovered_plane;
                 begin_move(ray);
-                action_perform(Action::Move);
+                action_perform(ACTION_MOVE);
             }
         }
         if(mouse.drag && mouse.button == MOUSE_BUTTON_LEFT && (is_valid_index(move_tool.selected_axis) || is_valid_index(move_tool.selected_plane)))
@@ -628,18 +625,18 @@ static void update_object_mode(Platform* platform)
         }
         else
         {
-            if(action_in_progress == Action::Move)
+            if(action_in_progress == ACTION_MOVE)
             {
                 end_move();
             }
 
             move_tool.selected_axis = invalid_index;
             move_tool.selected_plane = invalid_index;
-            action_stop(Action::Move);
+            action_stop(ACTION_MOVE);
         }
     }
 
-    if(action_allowed(Action::Select))
+    if(action_allowed(ACTION_SELECT))
     {
         // Update pointer hover detection.
         // Casually raycast against every triangle in the scene.
@@ -680,11 +677,11 @@ static void update_object_mode(Platform* platform)
             {
                 select_mesh(hovered_object_index);
             }
-            action_perform(Action::Select);
+            action_perform(ACTION_SELECT);
         }
         else
         {
-            action_stop(Action::Select);
+            action_stop(ACTION_SELECT);
         }
     }
 
@@ -702,7 +699,7 @@ static void update_object_mode(Platform* platform)
 
     // Update the rotate tool.
     {
-        Float3 center = {0.0f, -5.0f, 0.0f};
+        Float3 center = (Float3){{0.0f, -5.0f, 0.0f}};
         Float3 normal = float3_normalise(float3_subtract(camera.target, camera.position));
         float radius = 0.2f * distance_point_plane(center, camera.position, normal);
 
@@ -750,7 +747,7 @@ static void update_object_mode(Platform* platform)
 
     update_camera_controls();
 
-    if(action_in_progress == Action::None)
+    if(action_in_progress == ACTION_NONE)
     {
         if(input_get_hotkey_tapped(INPUT_FUNCTION_UNDO))
         {
@@ -881,7 +878,7 @@ static void update_face_mode()
         Float3 right = float3_normalise(float3_cross(float3_unit_z, forward));
         Float3 up = float3_normalise(float3_cross(right, forward));
 
-        const Float2 move_speed = {0.007f, 0.007f};
+        const Float2 move_speed = (Float2){{0.007f, 0.007f}};
         Float2 move_velocity = float2_pointwise_multiply(move_speed, mouse.velocity);
         Float3 move = float3_add(float3_multiply(move_velocity.x, right), float3_multiply(move_velocity.y, up));
         jan_move_faces(mesh, &selection, move);
@@ -896,7 +893,7 @@ static void update_face_mode()
         Matrix4 view = matrix4_look_at(camera.position, camera.target, float3_unit_z);
         Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
         ray = transform_ray(ray, matrix4_inverse_transform(model));
-        JanFace* face = jan_first_face_hit_by_ray(mesh, ray, nullptr, &scratch);
+        JanFace* face = jan_first_face_hit_by_ray(mesh, ray, NULL, &scratch);
         if(face && input_get_mouse_clicked(MOUSE_BUTTON_LEFT))
         {
             jan_toggle_face_in_selection(&selection, face);
@@ -969,27 +966,27 @@ static void request_mode_change(Mode requested_mode)
 {
     switch(requested_mode)
     {
-        case Mode::Edge:
+        case MODE_EDGE:
         {
             if(is_valid_index(selected_object_index))
             {
                 switch(mode)
                 {
-                    case Mode::Edge:
+                    case MODE_EDGE:
                     {
                         break;
                     }
-                    case Mode::Face:
+                    case MODE_FACE:
                     {
                         exit_face_mode();
                         break;
                     }
-                    case Mode::Vertex:
+                    case MODE_VERTEX:
                     {
                         exit_vertex_mode();
                         break;
                     }
-                    case Mode::Object:
+                    case MODE_OBJECT:
                     {
                         break;
                     }
@@ -999,27 +996,27 @@ static void request_mode_change(Mode requested_mode)
             }
             break;
         }
-        case Mode::Face:
+        case MODE_FACE:
         {
             if(is_valid_index(selected_object_index))
             {
                 switch(mode)
                 {
-                    case Mode::Edge:
+                    case MODE_EDGE:
                     {
                         exit_edge_mode();
                         break;
                     }
-                    case Mode::Face:
+                    case MODE_FACE:
                     {
                         break;
                     }
-                    case Mode::Vertex:
+                    case MODE_VERTEX:
                     {
                         exit_vertex_mode();
                         break;
                     }
-                    case Mode::Object:
+                    case MODE_OBJECT:
                     {
                         break;
                     }
@@ -1029,26 +1026,26 @@ static void request_mode_change(Mode requested_mode)
             }
             break;
         }
-        case Mode::Object:
+        case MODE_OBJECT:
         {
             switch(mode)
             {
-                case Mode::Edge:
+                case MODE_EDGE:
                 {
                     exit_edge_mode();
                     break;
                 }
-                case Mode::Face:
+                case MODE_FACE:
                 {
                     exit_face_mode();
                     break;
                 }
-                case Mode::Vertex:
+                case MODE_VERTEX:
                 {
                     exit_vertex_mode();
                     break;
                 }
-                case Mode::Object:
+                case MODE_OBJECT:
                 {
                     break;
                 }
@@ -1056,27 +1053,27 @@ static void request_mode_change(Mode requested_mode)
             mode = requested_mode;
             break;
         }
-        case Mode::Vertex:
+        case MODE_VERTEX:
         {
             if(is_valid_index(selected_object_index))
             {
                 switch(mode)
                 {
-                    case Mode::Edge:
+                    case MODE_EDGE:
                     {
                         exit_edge_mode();
                         break;
                     }
-                    case Mode::Face:
+                    case MODE_FACE:
                     {
                         exit_face_mode();
                         break;
                     }
-                    case Mode::Vertex:
+                    case MODE_VERTEX:
                     {
                         break;
                     }
-                    case Mode::Object:
+                    case MODE_OBJECT:
                     {
                         break;
                     }
@@ -1144,29 +1141,29 @@ void editor_update(Platform* platform)
                     UiId id = event.button.id;
                     if(id == import_button_id)
                     {
-                        dialog.type = DialogType::Import;
+                        dialog.type = DIALOG_TYPE_IMPORT;
                         open_dialog(&dialog, &ui_context, platform, &heap);
                     }
                     else if(id == export_button_id)
                     {
-                        dialog.type = DialogType::Export;
+                        dialog.type = DIALOG_TYPE_EXPORT;
                         open_dialog(&dialog, &ui_context, platform, &heap);
                     }
                     else if(id == edge_mode_button_id)
                     {
-                        request_mode_change(Mode::Edge);
+                        request_mode_change(MODE_EDGE);
                     }
                     else if(id == face_mode_button_id)
                     {
-                        request_mode_change(Mode::Face);
+                        request_mode_change(MODE_FACE);
                     }
                     else if(id == object_mode_button_id)
                     {
-                        request_mode_change(Mode::Object);
+                        request_mode_change(MODE_OBJECT);
                     }
                     else if(id == vertex_mode_button_id)
                     {
-                        request_mode_change(Mode::Vertex);
+                        request_mode_change(MODE_VERTEX);
                     }
                     break;
                 }
@@ -1190,22 +1187,22 @@ void editor_update(Platform* platform)
     {
         switch(mode)
         {
-            case Mode::Edge:
+            case MODE_EDGE:
             {
                 update_edge_mode();
                 break;
             }
-            case Mode::Face:
+            case MODE_FACE:
             {
                 update_face_mode();
                 break;
             }
-            case Mode::Object:
+            case MODE_OBJECT:
             {
                 update_object_mode(platform);
                 break;
             }
-            case Mode::Vertex:
+            case MODE_VERTEX:
             {
                 update_vertex_mode();
                 break;

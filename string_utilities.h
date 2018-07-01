@@ -1,15 +1,6 @@
 #ifndef STRING_UTILITES_H_
 #define STRING_UTILITES_H_
 
-#if defined(__cplusplus)
-#include "restrict.h"
-#define restrict RESTRICT
-#endif
-
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "invalid_index.h"
 #include "variable_arguments.h"
 
@@ -41,9 +32,5 @@ void float_to_string(char* string, int size, float value, unsigned int precision
 
 void va_list_format_string(char* buffer, int buffer_size, const char* format, va_list* arguments);
 void format_string(char* buffer, int buffer_size, const char* format, ...);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // STRING_UTILITES_H_

@@ -1,10 +1,6 @@
 #ifndef TOOLS_H_
 #define TOOLS_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "vector_math.h"
 
 typedef struct MoveTool
@@ -32,9 +28,5 @@ typedef struct RotateTool
     Float3 position;
     float radius;
 } RotateTool;
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // TOOLS_H_

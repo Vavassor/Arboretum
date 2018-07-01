@@ -1,10 +1,6 @@
 #ifndef GEOMETRY_H_
 #define GEOMETRY_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "vector_math.h"
 
 #include <stdbool.h>
@@ -36,9 +32,5 @@ float rect_top(Rect rect);
 float rect_right(Rect rect);
 bool point_in_rect(Rect rect, Float2 point);
 bool clip_rects(Rect inner, Rect outer, Rect* result);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // GEOMETRY_H_

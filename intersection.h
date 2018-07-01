@@ -1,10 +1,6 @@
 #ifndef INTERSECTION_H_
 #define INTERSECTION_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "int2.h"
 #include "jan.h"
 #include "memory.h"
@@ -77,9 +73,5 @@ bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Float3* intersection);
 bool intersect_ray_cone(Ray ray, Cone cone, Float3* intersection);
 bool intersect_ray_torus(Ray ray, Torus torus, Float3* intersection);
 bool intersect_ray_box(Ray ray, Box box, Float3* intersection);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // INTERSECTION_H_

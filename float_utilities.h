@@ -1,10 +1,6 @@
 #ifndef FLOAT_UTILITIES_H_
 #define FLOAT_UTILITIES_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include <stdbool.h>
 
 extern const float infinity;
@@ -21,9 +17,5 @@ float unlerp(float v0, float v1, float t);
 bool almost_zero(float x);
 bool almost_one(float x);
 bool almost_equals(float x, float y);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // FLOAT_UTILITIES_H_

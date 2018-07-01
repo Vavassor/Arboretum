@@ -1,10 +1,6 @@
 #ifndef PLATFORM_H_
 #define PLATFORM_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "memory.h"
 
 typedef enum CursorType
@@ -56,9 +52,5 @@ void request_paste_from_clipboard(Platform* platform);
 void create_stack(Platform* platform);
 void destroy_stack(Platform* platform);
 bool load_localized_text(Platform* platform);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // PLATFORM_H_

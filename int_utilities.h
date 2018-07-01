@@ -1,10 +1,6 @@
 #ifndef INT_UTILITIES_H_
 #define INT_UTILITIES_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -25,9 +21,5 @@ int imin(int a, int b);
 
 #define CLAMP(x, min, max) \
     MIN(MAX(x, min), max)
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // INT_UTILITIES_H_

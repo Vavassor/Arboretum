@@ -24,14 +24,14 @@
 #include "string_utilities.h"
 #include "video.h"
 
-#include <climits>
-#include <clocale>
-#include <cstdlib>
-#include <ctime>
+#include <limits.h>
+#include <locale.h>
+#include <stdlib.h>
+#include <time.h>
 
 typedef GLXContext (*glXCreateContextAttribsARBProc)(Display*, GLXFBConfig, GLXContext, Bool, const int*);
 
-struct PlatformX11
+typedef struct PlatformX11
 {
     Platform base;
 
@@ -65,7 +65,7 @@ struct PlatformX11
     int clipboard_size;
 
     bool close_window_requested;
-};
+} PlatformX11;
 
 static double get_dots_per_millimeter(PlatformX11* platform)
 {
@@ -78,7 +78,7 @@ static double get_dots_per_millimeter(PlatformX11* platform)
     if(resource)
     {
         XrmValue value;
-        char* type = nullptr;
+        char* type = NULL;
         if(XrmGetResource(database, "Xft.dpi", "String", &type, &value) == True)
         {
             if(value.addr)
@@ -117,7 +117,7 @@ static const char* translate_cursor_type(CursorType type)
 
 void change_cursor(Platform* base, CursorType type)
 {
-    PlatformX11* platform = reinterpret_cast<PlatformX11*>(base);
+    PlatformX11* platform = (PlatformX11*) base;
     if(platform->cursor_type != type)
     {
         const char* name = translate_cursor_type(type);
@@ -129,14 +129,14 @@ void change_cursor(Platform* base, CursorType type)
 
 void begin_composed_text(Platform* base)
 {
-    PlatformX11* platform = reinterpret_cast<PlatformX11*>(base);
+    PlatformX11* platform = (PlatformX11*) base;
     XSetICFocus(platform->input_context);
     platform->input_context_focused = true;
 }
 
 void end_composed_text(Platform* base)
 {
-    PlatformX11* platform = reinterpret_cast<PlatformX11*>(base);
+    PlatformX11* platform = (PlatformX11*) base;
     if(platform->input_context)
     {
         XUnsetICFocus(platform->input_context);
@@ -146,20 +146,20 @@ void end_composed_text(Platform* base)
 
 void set_composed_text_position(Platform* base, int x, int y)
 {
-    PlatformX11* platform = reinterpret_cast<PlatformX11*>(base);
+    PlatformX11* platform = (PlatformX11*) base;
     ASSERT(platform->input_context_focused);
 
     XPoint location;
     location.x = x;
     location.y = y;
-    XVaNestedList list = XVaCreateNestedList(0, XNSpotLocation, &location, nullptr);
-    XSetICValues(platform->input_context, XNPreeditAttributes, list, nullptr);
+    XVaNestedList list = XVaCreateNestedList(0, XNSpotLocation, &location, NULL);
+    XSetICValues(platform->input_context, XNPreeditAttributes, list, NULL);
     XFree(list);
 }
 
 bool copy_to_clipboard(Platform* base, char* clipboard)
 {
-    PlatformX11* platform = reinterpret_cast<PlatformX11*>(base);
+    PlatformX11* platform = (PlatformX11*) base;
 
     XSetSelectionOwner(platform->display, platform->selection_clipboard, platform->window, CurrentTime);
 
@@ -176,10 +176,9 @@ bool copy_to_clipboard(Platform* base, char* clipboard)
             return true;
         }
 
-        const int count = 1;
-        Atom target_types[count] = {platform->utf8_string};
-        unsigned char* property = reinterpret_cast<unsigned char*>(target_types);
-        XChangeProperty(platform->display, platform->window, platform->save_code, XA_ATOM, 32, PropModeReplace, property, count);
+        Atom target_types[1] = {platform->utf8_string};
+        unsigned char* property = (unsigned char*) target_types;
+        XChangeProperty(platform->display, platform->window, platform->save_code, XA_ATOM, 32, PropModeReplace, property, 1);
 
         XConvertSelection(platform->display, platform->clipboard_manager, platform->save_targets, platform->save_code, platform->window, CurrentTime);
     }
@@ -189,20 +188,17 @@ bool copy_to_clipboard(Platform* base, char* clipboard)
 
 void request_paste_from_clipboard(Platform* base)
 {
-    PlatformX11* platform = reinterpret_cast<PlatformX11*>(base);
+    PlatformX11* platform = (PlatformX11*) base;
 
     XConvertSelection(platform->display, platform->selection_clipboard, platform->utf8_string, platform->paste_code, platform->window, CurrentTime);
 }
 
-namespace
-{
-    const int window_width = 800;
-    const int window_height = 600;
+static const int window_width = 800;
+static const int window_height = 600;
 
-    PlatformX11 platform;
-    GLXContext rendering_context;
-    bool functions_loaded;
-}
+static PlatformX11 platform;
+static GLXContext rendering_context;
+static bool functions_loaded;
 
 static InputKey translate_key_sym(KeySym key_sym)
 {
@@ -405,11 +401,11 @@ static XIMStyle choose_better_style(XIMStyle style1, XIMStyle style2)
 
 static void destroy_input_method(XIM input_method, XPointer client_data, XPointer call_data)
 {
-    static_cast<void>(call_data); // always null
+    (void) call_data; // always null
 
-    PlatformX11* platform = reinterpret_cast<PlatformX11*>(client_data);
-    platform->input_context = nullptr;
-    platform->input_method = nullptr;
+    PlatformX11* platform = (PlatformX11*) client_data;
+    platform->input_context = NULL;
+    platform->input_method = NULL;
     platform->input_method_connected = false;
 
     LOG_ERROR("Input method closed unexpectedly.");
@@ -417,9 +413,9 @@ static void destroy_input_method(XIM input_method, XPointer client_data, XPointe
 
 static void instantiate_input_method(Display* display, XPointer client_data, XPointer call_data)
 {
-    static_cast<void>(call_data); // always null
+    (void) call_data; // always null
 
-    PlatformX11* platform = reinterpret_cast<PlatformX11*>(client_data);
+    PlatformX11* platform = (PlatformX11*) client_data;
 
     // Close the previous input method and context, if there was one.
     if(platform->input_method_connected)
@@ -427,18 +423,18 @@ static void instantiate_input_method(Display* display, XPointer client_data, XPo
         if(platform->input_context)
         {
             XDestroyIC(platform->input_context);
-            platform->input_context = nullptr;
+            platform->input_context = NULL;
         }
         if(platform->input_method)
         {
             XCloseIM(platform->input_method);
-            platform->input_method = nullptr;
+            platform->input_method = NULL;
         }
         platform->input_method_connected = false;
     }
 
     // input method
-    platform->input_method = XOpenIM(display, nullptr, nullptr, nullptr);
+    platform->input_method = XOpenIM(display, NULL, NULL, NULL);
     if(!platform->input_method)
     {
         LOG_ERROR("X Input Method failed to open.");
@@ -479,11 +475,11 @@ static void instantiate_input_method(Display* display, XPointer client_data, XPo
 
     // input context
     XPoint spot_location = {0, 0};
-    XVaNestedList list = XVaCreateNestedList(0, XNFontSet, platform->font_set, XNSpotLocation, &spot_location, nullptr);
+    XVaNestedList list = XVaCreateNestedList(0, XNFontSet, platform->font_set, XNSpotLocation, &spot_location, NULL);
     XIMCallback destroy_callback;
-    destroy_callback.client_data = reinterpret_cast<XPointer>(platform);
+    destroy_callback.client_data = (XPointer) platform;
     destroy_callback.callback = destroy_input_method;
-    platform->input_context = XCreateIC(platform->input_method, XNInputStyle, best_style, XNClientWindow, platform->window, XNPreeditAttributes, list, XNStatusAttributes, list, XNDestroyCallback, &destroy_callback, nullptr);
+    platform->input_context = XCreateIC(platform->input_method, XNInputStyle, best_style, XNClientWindow, platform->window, XNPreeditAttributes, list, XNStatusAttributes, list, XNDestroyCallback, &destroy_callback, NULL);
     XFree(list);
     if(!platform->input_context)
     {
@@ -496,7 +492,7 @@ static void instantiate_input_method(Display* display, XPointer client_data, XPo
     XGetWindowAttributes(display, platform->window, &attributes);
     long event_mask = attributes.your_event_mask;
     long input_method_event_mask;
-    XGetICValues(platform->input_context, XNFilterEvents, &input_method_event_mask, nullptr);
+    XGetICValues(platform->input_context, XNFilterEvents, &input_method_event_mask, NULL);
     XSelectInput(display, platform->window, event_mask | input_method_event_mask);
 
     // By default, it seems to be in focus and will pop up the input method
@@ -569,7 +565,7 @@ bool main_start_up()
     }
 
     // Connect to the X server, which is used for display and input services.
-    platform.display = XOpenDisplay(nullptr);
+    platform.display = XOpenDisplay(NULL);
     if(!platform.display)
     {
         LOG_ERROR("X Display failed to open.");
@@ -706,8 +702,8 @@ bool main_start_up()
     XSetIconName(platform.display, platform.window, platform.base.nonlocalized_text.app_name);
 
     // Register for the input method context to be created.
-    XPointer client_data = reinterpret_cast<XPointer>(&platform);
-    XRegisterIMInstantiateCallback(platform.display, nullptr, nullptr, nullptr, instantiate_input_method, client_data);
+    XPointer client_data = (XPointer) &platform;
+    XRegisterIMInstantiateCallback(platform.display, NULL, NULL, NULL, instantiate_input_method, client_data);
 
     // Set up the clipboard.
     {
@@ -735,7 +731,7 @@ bool main_start_up()
         platform.save_code = XInternAtom(platform.display, code, False);
     }
 
-    glXCreateContextAttribsARBProc glXCreateContextAttribsARB = nullptr;
+    glXCreateContextAttribsARBProc glXCreateContextAttribsARB = NULL;
 	glXCreateContextAttribsARB = (glXCreateContextAttribsARBProc) glXGetProcAddressARB((const GLubyte*) "glXCreateContextAttribsARB");
 	if(!glXCreateContextAttribsARB)
 	{
@@ -751,7 +747,7 @@ bool main_start_up()
 		GLX_CONTEXT_MINOR_VERSION_ARB, 3,
 		X11_NONE,
 	};
-    rendering_context = glXCreateContextAttribsARB(platform.display, chosen_framebuffer_config, nullptr, True, context_attributes);
+    rendering_context = glXCreateContextAttribsARB(platform.display, chosen_framebuffer_config, NULL, True, context_attributes);
     if(!rendering_context)
     {
         LOG_ERROR("Couldn't create a GLX rendering context.");
@@ -863,7 +859,7 @@ static void handle_selection_clear()
     // Another application overwrote our clipboard contents, so they can
     // be deallocated now.
     editor_destroy_clipboard_copy(platform.clipboard);
-    platform.clipboard = nullptr;
+    platform.clipboard = NULL;
     platform.clipboard_size = 0;
 }
 
@@ -876,7 +872,7 @@ static void handle_selection_notify(XEvent* event)
         int format;
         unsigned long count;
         unsigned long size;
-        unsigned char* property = nullptr;
+        unsigned char* property = NULL;
         XGetWindowProperty(platform.display, platform.window, notification.property, 0, 0, False, AnyPropertyType, &type, &format, &count, &size, &property);
         XFree(property);
 
@@ -888,7 +884,7 @@ static void handle_selection_notify(XEvent* event)
         else
         {
             XGetWindowProperty(platform.display, platform.window, notification.property, 0, size, False, AnyPropertyType, &type, &format, &count, &size, &property);
-            char* paste = reinterpret_cast<char*>(property);
+            char* paste = (char*) property;
             editor_paste_from_clipboard(&platform.base, paste);
 
             XFree(property);
@@ -903,7 +899,7 @@ static void handle_selection_request(XEvent* event)
     XSelectionRequestEvent request = event->xselectionrequest;
     if(request.target == platform.utf8_string && request.property != X11_NONE)
     {
-        unsigned char* contents = reinterpret_cast<unsigned char*>(platform.clipboard);
+        unsigned char* contents = (unsigned char*) platform.clipboard;
         XChangeProperty(request.display, request.requestor, request.property, platform.utf8_string, 8, PropModeReplace, contents, platform.clipboard_size);
 
         XEvent response = {};
@@ -924,14 +920,14 @@ static void handle_selection_request(XEvent* event)
         unsigned char* property;
         XGetWindowProperty(request.display, request.requestor, request.property, 0, LONG_MAX, False, platform.atom_pair, &type, &format, &count, &bytes_after, &property);
 
-        Atom* targets = reinterpret_cast<Atom*>(property);
+        Atom* targets = (Atom*) property;
         for(unsigned long i = 0; i < count; i += 2)
         {
             char* name = XGetAtomName(platform.display, targets[i]);
             XFree(name);
             if(targets[i] == platform.utf8_string)
             {
-                unsigned char* contents = reinterpret_cast<unsigned char*>(platform.clipboard);
+                unsigned char* contents = (unsigned char*) platform.clipboard;
                 XChangeProperty(request.display, request.requestor, targets[i + 1], targets[i], 8, PropModeReplace, contents, platform.clipboard_size);
             }
             else
@@ -954,16 +950,15 @@ static void handle_selection_request(XEvent* event)
     }
     else if(request.target == platform.targets)
     {
-        const int count = 4;
-        Atom target_types[count] =
+        Atom target_types[4] =
         {
             platform.targets,
             platform.multiple,
             platform.save_targets,
             platform.utf8_string,
         };
-        unsigned char* targets = reinterpret_cast<unsigned char*>(target_types);
-        XChangeProperty(request.display, request.requestor, request.property, XA_ATOM, 32, PropModeReplace, targets, count);
+        unsigned char* targets = (unsigned char*) target_types;
+        XChangeProperty(request.display, request.requestor, request.property, XA_ATOM, 32, PropModeReplace, targets, 4);
 
         XEvent response = {};
         response.xselection.type = SelectionNotify;
@@ -1040,7 +1035,7 @@ static void handle_event(XEvent event)
         case ClientMessage:
         {
             XClientMessageEvent client_message = event.xclient;
-            Atom message = static_cast<Atom>(client_message.data.l[0]);
+            Atom message = (Atom) client_message.data.l[0];
             if(message == platform.wm_delete_window)
             {
                 platform.close_window_requested = true;
@@ -1098,13 +1093,13 @@ static void handle_event(XEvent event)
                     {
                         break;
                     }
-                    [[fallthrough]]
                     case XLookupBoth:
                     {
                         if(key_sym == XK_BackSpace || key_sym == XK_Delete || key_sym == XK_Return)
                         {
                             break;
                         }
+                        // fallthrough
                     }
                     case XLookupChars:
                     {
@@ -1182,7 +1177,7 @@ static double get_clock_frequency()
     struct timespec resolution;
     clock_getres(CLOCK_MONOTONIC, &resolution);
     int64_t nanoseconds = resolution.tv_nsec + resolution.tv_sec * 1000000000;
-    return static_cast<double>(nanoseconds) / 1.0e9;
+    return ((double) nanoseconds) / 1.0e9;
 }
 
 double get_time(double clock_frequency)
@@ -1190,15 +1185,15 @@ double get_time(double clock_frequency)
     struct timespec timestamp;
     clock_gettime(CLOCK_MONOTONIC, &timestamp);
     int64_t nanoseconds = timestamp.tv_nsec + timestamp.tv_sec * 1000000000;
-    return static_cast<double>(nanoseconds) * clock_frequency;
+    return ((double) nanoseconds) * clock_frequency;
 }
 
 void go_to_sleep(double amount_to_sleep)
 {
     struct timespec requested_time;
     requested_time.tv_sec = 0;
-    requested_time.tv_nsec = static_cast<int64_t>(1.0e9 * amount_to_sleep);
-    clock_nanosleep(CLOCK_MONOTONIC, 0, &requested_time, nullptr);
+    requested_time.tv_nsec = (int64_t) (1.0e9 * amount_to_sleep);
+    clock_nanosleep(CLOCK_MONOTONIC, 0, &requested_time, NULL);
 }
 
 void main_loop()
@@ -1243,8 +1238,8 @@ void main_loop()
 
 int main(int argc, char** argv)
 {
-    static_cast<void>(argc);
-    static_cast<void>(argv);
+    (void) argc;
+    (void) argv;
 
     if(!main_start_up())
     {
@@ -1300,10 +1295,10 @@ struct PlatformWindows
 static void load_cursors(PlatformWindows* platform)
 {
     UINT flags = LR_DEFAULTSIZE | LR_SHARED;
-    platform->cursor_arrow = static_cast<HCURSOR>(LoadImage(nullptr, IDC_ARROW, IMAGE_CURSOR, 0, 0, flags));
-    platform->cursor_hand_pointing = static_cast<HCURSOR>(LoadImage(nullptr, IDC_HAND, IMAGE_CURSOR, 0, 0, flags));
-    platform->cursor_i_beam = static_cast<HCURSOR>(LoadImage(nullptr, IDC_IBEAM, IMAGE_CURSOR, 0, 0, flags));
-    platform->cursor_prohibition_sign = static_cast<HCURSOR>(LoadImage(nullptr, IDC_NO, IMAGE_CURSOR, 0, 0, flags));
+    platform->cursor_arrow = static_cast<HCURSOR>(LoadImage(NULL, IDC_ARROW, IMAGE_CURSOR, 0, 0, flags));
+    platform->cursor_hand_pointing = static_cast<HCURSOR>(LoadImage(NULL, IDC_HAND, IMAGE_CURSOR, 0, 0, flags));
+    platform->cursor_i_beam = static_cast<HCURSOR>(LoadImage(NULL, IDC_IBEAM, IMAGE_CURSOR, 0, 0, flags));
+    platform->cursor_prohibition_sign = static_cast<HCURSOR>(LoadImage(NULL, IDC_NO, IMAGE_CURSOR, 0, 0, flags));
 }
 
 static HCURSOR get_cursor_by_type(PlatformWindows* platform, CursorType type)
@@ -1370,7 +1365,7 @@ void begin_composed_text(Platform* base)
 {
     PlatformWindows* platform = reinterpret_cast<PlatformWindows*>(base);
 
-    ImmAssociateContextEx(platform->window, nullptr, IACE_DEFAULT);
+    ImmAssociateContextEx(platform->window, NULL, IACE_DEFAULT);
 
     platform->input_context_focused = true;
 }
@@ -1386,7 +1381,7 @@ void end_composed_text(Platform* base)
         ImmReleaseContext(platform->window, context);
     }
     
-    ImmAssociateContextEx(platform->window, nullptr, 0);
+    ImmAssociateContextEx(platform->window, NULL, 0);
 
     platform->input_context_focused = false;
 }
@@ -1448,7 +1443,7 @@ void request_paste_from_clipboard(Platform* base)
     }
 
     // Get the actual paste and convert to UTF-8 text.
-    char* paste = nullptr;
+    char* paste = NULL;
     BOOL opened = OpenClipboard(platform->window);
     if(opened)
     {
@@ -1637,14 +1632,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
             if(rc)
             {
                 HDC dc = wglGetCurrentDC();
-                wglMakeCurrent(nullptr, nullptr);
+                wglMakeCurrent(NULL, NULL);
                 ReleaseDC(hwnd, dc);
                 wglDeleteContext(rc);
             }
             DestroyWindow(hwnd);
             if(hwnd == platform.window)
             {
-                platform.window = nullptr;
+                platform.window = NULL;
             }
             return 0;
         }
@@ -1660,7 +1655,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
             int width = suggested_rect->right - suggested_rect->left;
             int height = suggested_rect->bottom - suggested_rect->top;
             UINT flags = SWP_NOZORDER | SWP_NOACTIVATE;
-            SetWindowPos(hwnd, nullptr, left, top, width, height, flags);
+            SetWindowPos(hwnd, NULL, left, top, width, height, flags);
 
             return 0;
         }
@@ -1693,7 +1688,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
 
                 move_input_method(context, platform.composed_text_position);
 
-                int bytes = ImmGetCompositionStringW(context, GCS_RESULTSTR, nullptr, 0);
+                int bytes = ImmGetCompositionStringW(context, GCS_RESULTSTR, NULL, 0);
                 bytes += sizeof(wchar_t);
                 wchar_t* string = static_cast<wchar_t*>(stack_allocate(&platform.base.stack, bytes));
 
@@ -1892,7 +1887,7 @@ static bool main_start_up(HINSTANCE instance, int show_command)
     window_class.hInstance = instance;
     window_class.hIcon = LoadIcon(instance, IDI_APPLICATION);
     window_class.hIconSm = static_cast<HICON>(LoadIcon(instance, IDI_APPLICATION));
-    window_class.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    window_class.hCursor = LoadCursor(NULL, IDC_ARROW);
     window_class.lpszClassName = L"ArboretumWindowClass";
     ATOM registered_class = RegisterClassExW(&window_class);
     if(registered_class == 0)
@@ -1904,7 +1899,7 @@ static bool main_start_up(HINSTANCE instance, int show_command)
     DWORD window_style = WS_OVERLAPPEDWINDOW;
     const char* app_name = platform.base.nonlocalized_text.app_name;
     wchar_t* title = utf8_to_wide_char(app_name, &platform.base.stack);
-    platform.window = CreateWindowExW(WS_EX_APPWINDOW, MAKEINTATOMW(registered_class), title, window_style, CW_USEDEFAULT, CW_USEDEFAULT, window_width, window_height, nullptr, nullptr, instance, nullptr);
+    platform.window = CreateWindowExW(WS_EX_APPWINDOW, MAKEINTATOMW(registered_class), title, window_style, CW_USEDEFAULT, CW_USEDEFAULT, window_width, window_height, NULL, NULL, instance, NULL);
     STACK_DEALLOCATE(&platform.base.stack, title);
     if(!platform.window)
     {
@@ -1994,7 +1989,7 @@ static void main_shut_down()
 
     if(rendering_context)
     {
-        wglMakeCurrent(nullptr, nullptr);
+        wglMakeCurrent(NULL, NULL);
         ReleaseDC(platform.window, platform.device_context);
         wglDeleteContext(rendering_context);
     }
@@ -2048,7 +2043,7 @@ static int main_loop()
 
         SwapBuffers(platform.device_context);
 
-        while(PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+        while(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
         {
             if(msg.message == WM_QUIT)
             {

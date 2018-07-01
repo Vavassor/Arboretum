@@ -1,15 +1,6 @@
 #ifndef MEMORY_H_
 #define MEMORY_H_
 
-#if defined(__cplusplus)
-#include "restrict.h"
-#define restrict RESTRICT
-#endif
-
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -158,9 +149,5 @@ HeapInfo heap_get_info(Heap* heap);
 
 #define SAFE_HEAP_DEALLOCATE(heap, array) \
     {heap_deallocate(heap, array); (array) = NULL;}
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // MEMORY_H_

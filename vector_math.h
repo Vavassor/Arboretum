@@ -1,10 +1,6 @@
 #ifndef VECTOR_MATH_H_
 #define VECTOR_MATH_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include <stdbool.h>
 
 // Vectors......................................................................
@@ -155,9 +151,5 @@ Matrix4 matrix4_inverse_view(Matrix4 m);
 Matrix4 matrix4_inverse_perspective(Matrix4 m);
 Matrix4 matrix4_inverse_orthographic(Matrix4 m);
 Matrix4 matrix4_inverse_transform(Matrix4 m);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // VECTOR_MATH_H_

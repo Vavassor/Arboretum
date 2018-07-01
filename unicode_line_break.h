@@ -1,10 +1,6 @@
 #ifndef UNICODE_LINE_BREAK_H_
 #define UNICODE_LINE_BREAK_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "memory.h"
 
 #include <uchar.h>
@@ -66,9 +62,5 @@ typedef enum LineBreakCategory
 LineBreak get_line_break(char32_t c);
 int find_next_line_break(const char* text, int start_index, bool* mandatory, Stack* stack);
 int find_next_mandatory_line_break(const char* text, int start_index, Stack* stack);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // UNICODE_LINE_BREAK_H_

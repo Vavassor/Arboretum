@@ -1,10 +1,6 @@
 #ifndef FILESYSTEM_H_
 #define FILESYSTEM_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "memory.h"
 
 #include <stdbool.h>
@@ -85,9 +81,5 @@ typedef enum UserFolder
 } UserFolder;
 
 char* get_user_folder(UserFolder folder, Heap* heap);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // FILESYSTEM_H_

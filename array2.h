@@ -1,10 +1,6 @@
 #ifndef ARRAY2_H_
 #define ARRAY2_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "memory.h"
 
 #include <stddef.h>
@@ -70,9 +66,5 @@ void* resize_array_stack(void* array, int count, int element_size, Stack* stack)
 
 ArrayHeader* array_header_(void* array);
 bool array_fits_(void* array, int extra);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // ARRAY2_H_

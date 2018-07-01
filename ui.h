@@ -1,10 +1,6 @@
 #ifndef UI_H_
 #define UI_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "bmfont.h"
 #include "geometry.h"
 #include "memory.h"
@@ -274,9 +270,5 @@ void ui_update(UiContext* context, Platform* platform);
 void ui_accept_paste_from_clipboard(UiContext* context, const char* clipboard, Platform* platform);
 
 extern const UiId ui_invalid_id;
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // UI_H_

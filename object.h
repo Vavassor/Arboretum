@@ -1,10 +1,6 @@
 #ifndef OBJECT_H_
 #define OBJECT_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "jan.h"
 #include "video.h"
 
@@ -26,9 +22,5 @@ typedef struct Object
 void object_create(Object* object);
 void object_destroy(Object* object);
 void object_set_position(Object* object, Float3 position);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // OBJECT_H_

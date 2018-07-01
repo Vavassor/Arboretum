@@ -1,10 +1,6 @@
 #ifndef VIDEO_OBJECT_H_
 #define VIDEO_OBJECT_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "gl_core_3_3.h"
 #include "memory.h"
 #include "vector_math.h"
@@ -33,9 +29,5 @@ void video_object_update_wireframe_selection(VideoObject* object, JanMesh* mesh,
 void video_object_set_matrices(VideoObject* object, Matrix4 view, Matrix4 projection);
 void video_object_generate_sky(VideoObject* object, Stack* stack);
 void video_object_set_model(VideoObject* object, Matrix4 model);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // VIDEO_OBJECT_H_

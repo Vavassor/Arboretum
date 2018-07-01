@@ -1,10 +1,6 @@
 #ifndef BITMAP_H_
 #define BITMAP_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "gl_core_3_3.h"
 #include "memory.h"
 
@@ -42,9 +38,5 @@ GLuint upload_bitmap(Bitmap* bitmap);
 GLuint upload_bitmap_with_mipmaps(Bitmap* bitmap, Heap* heap);
 int get_mipmap_level_count(int width, int height);
 Bitmap generate_mipmap(Bitmap* bitmap, Heap* heap);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // BITMAP_H_

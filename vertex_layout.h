@@ -1,10 +1,6 @@
 #ifndef VERTEX_LAYOUT_H_
 #define VERTEX_LAYOUT_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "vector_math.h"
 
 #include <stdint.h>
@@ -51,9 +47,5 @@ Float4 u32_to_rgba(uint32_t u);
 Float3 u32_to_rgb(uint32_t u);
 
 uint32_t texcoord_to_u32(Float2 v);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // VERTEX_LAYOUT_H_

@@ -1,10 +1,6 @@
 #ifndef JAN_H_
 #define JAN_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "memory.h"
 #include "vector_math.h"
 #include "vertex_layout.h"
@@ -147,9 +143,5 @@ void jan_toggle_vertex_in_selection(JanSelection* selection, JanVertex* vertex);
 bool jan_edge_selected(JanSelection* selection, JanEdge* edge);
 bool jan_face_selected(JanSelection* selection, JanFace* face);
 bool jan_vertex_selected(JanSelection* selection, JanVertex* vertex);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // JAN_H_

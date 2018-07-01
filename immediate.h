@@ -1,10 +1,6 @@
 #ifndef IMMEDIATE_H_
 #define IMMEDIATE_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "vector_math.h"
 #include "geometry.h"
 #include "gl_core_3_3.h"
@@ -48,9 +44,5 @@ void immediate_add_wire_arc(Float3 center, Float3 axis, float angle, float start
 
 void immediate_draw_opaque_rect(Rect rect, Float4 colour);
 void immediate_draw_transparent_rect(Rect rect, Float4 colour);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // IMMEDIATE_H_

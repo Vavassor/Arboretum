@@ -1,10 +1,6 @@
 #ifndef DENSE_MAP_H_
 #define DENSE_MAP_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "map.h"
 #include "memory.h"
 
@@ -25,9 +21,5 @@ void dense_map_destroy(DenseMap* map, Heap* heap);
 struct VideoObject* dense_map_look_up(DenseMap* map, DenseMapId id);
 DenseMapId dense_map_add(DenseMap* map, Heap* heap);
 void dense_map_remove(DenseMap* map, DenseMapId id, Heap* heap);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // DENSE_MAP_H_

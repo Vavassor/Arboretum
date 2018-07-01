@@ -1,10 +1,6 @@
 #ifndef INPUT_H_
 #define INPUT_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "int2.h"
 
 #include <stdbool.h>
@@ -176,9 +172,5 @@ char* input_get_composed_text();
 
 void input_system_start_up();
 void input_system_update();
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // INPUT_H_

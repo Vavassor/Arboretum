@@ -1,10 +1,6 @@
 #ifndef MAP_H_
 #define MAP_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "memory.h"
 
 #include <stdint.h>
@@ -49,9 +45,5 @@ void* map_iterator_get_value(MapIterator it);
 
 #define ITERATE_MAP(it, map) \
     for(MapIterator it = map_iterator_start(map); map_iterator_is_not_end(it); it = map_iterator_next(it))
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // MAP_H_

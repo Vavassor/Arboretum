@@ -1,10 +1,6 @@
 #ifndef UNICODE_GRAPHEME_CLUSTER_BREAK_H_
 #define UNICODE_GRAPHEME_CLUSTER_BREAK_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "memory.h"
 
 #include <uchar.h>
@@ -37,9 +33,5 @@ GraphemeClusterBreak get_grapheme_cluster_break(char32_t c);
 int find_prior_beginning_of_grapheme_cluster(const char* text, int start_index, Stack* stack);
 int find_next_end_of_grapheme_cluster(const char* text, int start_index, Stack* stack);
 bool test_grapheme_cluster_break(const char* text, int text_index, Stack* stack);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // UNICODE_GRAPHEME_CLUSTER_BREAK_H_

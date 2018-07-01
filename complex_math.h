@@ -1,10 +1,6 @@
 #ifndef COMPLEX_MATH_H_
 #define COMPLEX_MATH_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 typedef struct Complex
 {
     float r, i;
@@ -33,9 +29,5 @@ Complex complex_conjugate(Complex x);
 Complex complex_reciprocal(Complex x);
 
 extern const Complex complex_zero;
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // COMPLEX_MATH_H_

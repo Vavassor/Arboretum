@@ -1,10 +1,6 @@
 #ifndef HISTORY_H_
 #define HISTORY_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "memory.h"
 #include "object.h"
 #include "vector_math.h"
@@ -70,9 +66,5 @@ void history_log(History* history);
 void add_object_to_history(History* history, struct Object* object, Heap* heap);
 void undo(History* history, struct ObjectLady* lady, Heap* heap, Platform* platform);
 void redo(History* history, struct ObjectLady* lady, Heap* heap);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // HISTORY_H_

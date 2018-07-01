@@ -1,10 +1,6 @@
 #ifndef VIDEO_H_
 #define VIDEO_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #include "bmfont.h"
 #include "camera.h"
 #include "dense_map.h"
@@ -48,9 +44,5 @@ DenseMapId video_add_object(VertexLayout vertex_layout);
 void video_remove_object(DenseMapId id);
 struct VideoObject* video_get_object(DenseMapId id);
 void video_set_up_font(BmfFont* font);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
 
 #endif // VIDEO_H_

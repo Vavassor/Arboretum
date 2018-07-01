@@ -188,7 +188,7 @@ void video_object_update_selection(VideoObject* object, JanMesh* mesh, JanSelect
 
 void video_object_update_wireframe(VideoObject* object, JanMesh* mesh, Heap* heap)
 {
-    const Float4 colour = {1.0f, 0.5f, 0.0f, 0.8f};
+    const Float4 colour = (Float4){{1.0f, 0.5f, 0.0f, 0.8f}};
 
     LineVertex* vertices;
     uint16_t* indices;
@@ -199,9 +199,9 @@ void video_object_update_wireframe(VideoObject* object, JanMesh* mesh, Heap* hea
 
 void video_object_update_wireframe_selection(VideoObject* object, JanMesh* mesh, JanSelection* selection, JanEdge* hovered, Heap* heap)
 {
-    const Float4 colour = {1.0f, 1.0f, 1.0f, 1.0f};
-    const Float4 hover_colour = {0.0f, 1.0f, 1.0f, 1.0f};
-    const Float4 select_colour = {1.0f, 0.5f, 0.0f, 0.8f};
+    const Float4 colour = (Float4){{1.0f, 1.0f, 1.0f, 1.0f}};
+    const Float4 hover_colour = (Float4){{0.0f, 1.0f, 1.0f, 1.0f}};
+    const Float4 select_colour = (Float4){{1.0f, 0.5f, 0.0f, 0.8f}};
 
     LineVertex* vertices;
     uint16_t* indices;
@@ -212,7 +212,7 @@ void video_object_update_wireframe_selection(VideoObject* object, JanMesh* mesh,
 
 void video_object_update_pointcloud(VideoObject* object, JanMesh* mesh, Heap* heap)
 {
-    const Float4 colour = {1.0f, 0.5f, 0.0f, 1.0f};
+    const Float4 colour = (Float4){{1.0f, 0.5f, 0.0f, 1.0f}};
 
     PointVertex* vertices;
     uint16_t* indices;
@@ -223,9 +223,9 @@ void video_object_update_pointcloud(VideoObject* object, JanMesh* mesh, Heap* he
 
 void video_object_update_pointcloud_selection(VideoObject* object, JanMesh* mesh, JanSelection* selection, JanVertex* hovered, Heap* heap)
 {
-    const Float4 colour = {1.0f, 1.0f, 1.0f, 1.0f};
-    const Float4 hover_colour = {0.0f, 1.0f, 1.0f, 1.0f};
-    const Float4 select_colour = {1.0f, 0.5f, 0.0f, 1.0f};
+    const Float4 colour = (Float4){{1.0f, 1.0f, 1.0f, 1.0f}};
+    const Float4 hover_colour = (Float4){{0.0f, 1.0f, 1.0f, 1.0f}};
+    const Float4 select_colour = (Float4){{1.0f, 0.5f, 0.0f, 1.0f}};
 
     PointVertex* vertices;
     uint16_t* indices;
@@ -255,8 +255,8 @@ void video_object_generate_sky(VideoObject* object, Stack* stack)
         return;
     }
 
-    const Float3 top_colour = {1.0f, 1.0f, 0.2f};
-    const Float3 bottom_colour = {0.1f, 0.7f, 0.6f};
+    const Float3 top_colour = (Float3){{1.0f, 1.0f, 0.2f}};
+    const Float3 bottom_colour = (Float3){{0.1f, 0.7f, 0.6f}};
     vertices[0].position = float3_multiply(radius, float3_unit_z);
     vertices[0].normal = float3_negate(float3_unit_z);
     vertices[0].colour = rgb_to_u32(top_colour);
@@ -271,7 +271,7 @@ void video_object_generate_sky(VideoObject* object, Stack* stack)
             float x = radius * sinf(theta) * cosf(phi);
             float y = radius * sinf(theta) * sinf(phi);
             float z = radius * cosf(theta);
-            Float3 position = {x, y, z};
+            Float3 position = (Float3){{x, y, z}};
             VertexPNC* vertex = &vertices[meridians * i + j + 1];
             vertex->position = position;
             vertex->normal = float3_negate(float3_normalise(position));
