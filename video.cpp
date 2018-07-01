@@ -333,10 +333,10 @@ bool system_start_up()
         stbi_image_free(bitmap.pixels);
     }
 
-    immediate::context_create(&heap);
-    immediate::set_shader(shader_vertex_colour.program);
-    immediate::set_line_shader(shader_line.program);
-    immediate::set_textured_shader(shader_font.program);
+    immediate_context_create(&heap);
+    immediate_set_shader(shader_vertex_colour.program);
+    immediate_set_line_shader(shader_line.program);
+    immediate_set_textured_shader(shader_font.program);
 
     return true;
 }
@@ -368,7 +368,7 @@ void system_shut_down(bool functions_loaded)
 
         object_destroy(&sky);
 
-        immediate::context_destroy(&heap);
+        immediate_context_destroy(&heap);
     }
 
     destroy(&objects, &heap);
@@ -481,22 +481,22 @@ static void draw_move_tool(MoveTool* tool, bool silhouetted)
     Float3 xz_plane_extents = {plane_extent, plane_thickness, plane_extent};
     Float3 xy_plane_extents = {plane_extent, plane_extent, plane_thickness};
 
-    immediate::add_cone(shaft_axis_x, head_axis_x, head_radius, x_axis_colour, x_axis_shadow_colour);
-    immediate::add_cylinder(float3_zero, shaft_axis_x, shaft_radius, x_axis_colour);
+    immediate_add_cone(shaft_axis_x, head_axis_x, head_radius, x_axis_colour, x_axis_shadow_colour);
+    immediate_add_cylinder(float3_zero, shaft_axis_x, shaft_radius, x_axis_colour);
 
-    immediate::add_cone(shaft_axis_y, head_axis_y, head_radius, y_axis_colour, y_axis_shadow_colour);
-    immediate::add_cylinder(float3_zero, shaft_axis_y, shaft_radius, y_axis_colour);
+    immediate_add_cone(shaft_axis_y, head_axis_y, head_radius, y_axis_colour, y_axis_shadow_colour);
+    immediate_add_cylinder(float3_zero, shaft_axis_y, shaft_radius, y_axis_colour);
 
-    immediate::add_cone(shaft_axis_z, head_axis_z, head_radius, z_axis_colour, z_axis_shadow_colour);
-    immediate::add_cylinder(float3_zero, shaft_axis_z, shaft_radius, z_axis_colour);
+    immediate_add_cone(shaft_axis_z, head_axis_z, head_radius, z_axis_colour, z_axis_shadow_colour);
+    immediate_add_cylinder(float3_zero, shaft_axis_z, shaft_radius, z_axis_colour);
 
-    immediate::add_box(yz_plane, yz_plane_extents, yz_plane_colour);
-    immediate::add_box(xz_plane, xz_plane_extents, xz_plane_colour);
-    immediate::add_box(xy_plane, xy_plane_extents, xy_plane_colour);
+    immediate_add_box(yz_plane, yz_plane_extents, yz_plane_colour);
+    immediate_add_box(xz_plane, xz_plane_extents, xz_plane_colour);
+    immediate_add_box(xy_plane, xy_plane_extents, xy_plane_colour);
 
-    immediate::add_sphere(float3_zero, ball_radius, ball_colour);
+    immediate_add_sphere(float3_zero, ball_radius, ball_colour);
 
-    immediate::draw();
+    immediate_draw();
 }
 
 static void draw_arrow(Float3 start, Float3 end, float shaft_radius, float head_height, float head_radius)
@@ -510,8 +510,8 @@ static void draw_arrow(Float3 start, Float3 end, float shaft_radius, float head_
         Float3 direction = float3_divide(arrow, distance);
         Float3 shaft = float3_madd(distance - head_height, direction, start);
         Float3 head_axis = float3_multiply(head_height, direction);
-        immediate::add_cone(shaft, head_axis, head_radius, colour, shadow_colour);
-        immediate::add_cylinder(start, shaft, shaft_radius, colour);
+        immediate_add_cone(shaft, head_axis, head_radius, colour, shadow_colour);
+        immediate_add_cylinder(start, shaft, shaft_radius, colour);
     }
 }
 
@@ -559,7 +559,7 @@ static void draw_move_tool_vectors(MoveTool* tool)
         draw_arrow(corner, tool->position, shaft_radius, head_height, head_radius);
     }
 
-    immediate::draw();
+    immediate_draw();
 }
 
 void draw_rotate_tool(bool silhouetted)
@@ -573,16 +573,16 @@ void draw_rotate_tool(bool silhouetted)
 
     Float3 center = {-1.0f, 2.0f, 0.0f};
 
-    immediate::add_arc(center, float3_unit_x, pi_over_2, -pi_over_2, radius, width, x_axis_colour);
-    immediate::add_arc(center, float3_negate(float3_unit_x), pi_over_2, pi, radius, width, x_axis_colour);
+    immediate_add_arc(center, float3_unit_x, pi_over_2, -pi_over_2, radius, width, x_axis_colour);
+    immediate_add_arc(center, float3_negate(float3_unit_x), pi_over_2, pi, radius, width, x_axis_colour);
 
-    immediate::add_arc(center, float3_unit_y, pi_over_2, -pi_over_2, radius, width, y_axis_colour);
-    immediate::add_arc(center, float3_negate(float3_unit_y), pi_over_2, pi, radius, width, y_axis_colour);
+    immediate_add_arc(center, float3_unit_y, pi_over_2, -pi_over_2, radius, width, y_axis_colour);
+    immediate_add_arc(center, float3_negate(float3_unit_y), pi_over_2, pi, radius, width, y_axis_colour);
 
-    immediate::add_arc(center, float3_unit_z, pi_over_2, pi_over_2, radius, width, z_axis_colour);
-    immediate::add_arc(center, float3_negate(float3_unit_z), pi_over_2, 0.0f, radius, width, z_axis_colour);
+    immediate_add_arc(center, float3_unit_z, pi_over_2, pi_over_2, radius, width, z_axis_colour);
+    immediate_add_arc(center, float3_negate(float3_unit_z), pi_over_2, 0.0f, radius, width, z_axis_colour);
 
-    immediate::draw();
+    immediate_draw();
 }
 
 void draw_scale_tool(bool silhouetted)
@@ -611,24 +611,24 @@ void draw_scale_tool(bool silhouetted)
     const Float4 y_axis_colour = {0.3569f, 1.0f, 0.0f, 1.0f};
     const Float4 z_axis_colour = {0.0863f, 0.0314f, 1.0f, 1.0f};
 
-    immediate::add_cylinder(float3_zero, shaft_axis_x, shaft_radius, x_axis_colour);
-    immediate::add_box(shaft_axis_x, knob_extents, x_axis_colour);
-    immediate::add_cylinder(brace_x, brace_xy, brace_radius, x_axis_colour);
-    immediate::add_cylinder(brace_x, brace_xz, brace_radius, x_axis_colour);
+    immediate_add_cylinder(float3_zero, shaft_axis_x, shaft_radius, x_axis_colour);
+    immediate_add_box(shaft_axis_x, knob_extents, x_axis_colour);
+    immediate_add_cylinder(brace_x, brace_xy, brace_radius, x_axis_colour);
+    immediate_add_cylinder(brace_x, brace_xz, brace_radius, x_axis_colour);
 
-    immediate::add_cylinder(float3_zero, shaft_axis_y, shaft_radius, y_axis_colour);
-    immediate::add_box(shaft_axis_y, knob_extents, y_axis_colour);
-    immediate::add_cylinder(brace_y, brace_xy, brace_radius, y_axis_colour);
-    immediate::add_cylinder(brace_y, brace_yz, brace_radius, y_axis_colour);
+    immediate_add_cylinder(float3_zero, shaft_axis_y, shaft_radius, y_axis_colour);
+    immediate_add_box(shaft_axis_y, knob_extents, y_axis_colour);
+    immediate_add_cylinder(brace_y, brace_xy, brace_radius, y_axis_colour);
+    immediate_add_cylinder(brace_y, brace_yz, brace_radius, y_axis_colour);
 
-    immediate::add_cylinder(float3_zero, shaft_axis_z, shaft_radius, z_axis_colour);
-    immediate::add_box(shaft_axis_z, knob_extents, z_axis_colour);
-    immediate::add_cylinder(brace_z, brace_xz, brace_radius, z_axis_colour);
-    immediate::add_cylinder(brace_z, brace_yz, brace_radius, z_axis_colour);
+    immediate_add_cylinder(float3_zero, shaft_axis_z, shaft_radius, z_axis_colour);
+    immediate_add_box(shaft_axis_z, knob_extents, z_axis_colour);
+    immediate_add_cylinder(brace_z, brace_xz, brace_radius, z_axis_colour);
+    immediate_add_cylinder(brace_z, brace_yz, brace_radius, z_axis_colour);
 
-    immediate::add_box(float3_zero, knob_extents, origin_colour);
+    immediate_add_box(float3_zero, knob_extents, origin_colour);
 
-    immediate::draw();
+    immediate_draw();
 }
 
 static void draw_object_with_halo(ObjectLady* lady, int index, Float4 colour)
@@ -774,7 +774,7 @@ void system_update(UpdateState* update, Platform* platform)
             object_set_matrices(it, view, projection);
         }
 
-        immediate::set_matrices(view, projection);
+        immediate_set_matrices(view, projection);
 
         // Update light parameters.
 
@@ -818,7 +818,7 @@ void system_update(UpdateState* update, Platform* platform)
     // rotate tool
     {
         Matrix4 view = matrix4_look_at(camera->position, camera->target, float3_unit_z);
-        immediate::set_matrices(view, projection);
+        immediate_set_matrices(view, projection);
         draw_rotate_tool(false);
     }
 
@@ -830,25 +830,25 @@ void system_update(UpdateState* update, Platform* platform)
 
         // silhouette
         glDisable(GL_DEPTH_TEST);
-        immediate::set_shader(shader_screen_pattern.program);
+        immediate_set_shader(shader_screen_pattern.program);
         glActiveTexture(GL_TEXTURE0 + 0);
         glBindTexture(GL_TEXTURE_2D, hatch_pattern);
         glBindSampler(0, linear_repeat);
 
-        immediate::set_matrices(matrix4_multiply(view, model), projection);
+        immediate_set_matrices(matrix4_multiply(view, model), projection);
         draw_move_tool(move_tool, true);
 
-        immediate::set_matrices(view, projection);
+        immediate_set_matrices(view, projection);
         draw_move_tool_vectors(move_tool);
 
         // draw solid parts on top of silhouette
         glEnable(GL_DEPTH_TEST);
-        immediate::set_shader(shader_vertex_colour.program);
+        immediate_set_shader(shader_vertex_colour.program);
 
-        immediate::set_matrices(matrix4_multiply(view, model), projection);
+        immediate_set_matrices(matrix4_multiply(view, model), projection);
         draw_move_tool(move_tool, false);
 
-        immediate::set_matrices(view, projection);
+        immediate_set_matrices(view, projection);
         draw_move_tool_vectors(move_tool);
     }
 
@@ -904,11 +904,11 @@ void system_update(UpdateState* update, Platform* platform)
         glUseProgram(shader_line.program);
         glUniform1f(shader_line.line_width, 8.0f);
 
-        immediate::add_wire_arc(center, float3_unit_x, pi, rotate_tool->angles[0], radius, x_axis_colour);
-        immediate::add_wire_arc(center, float3_unit_y, pi, rotate_tool->angles[1], radius, y_axis_colour);
-        immediate::add_wire_arc(center, float3_unit_z, pi, rotate_tool->angles[2], radius, z_axis_colour);
-        immediate::set_blend_mode(immediate::BlendMode::Transparent);
-        immediate::draw();
+        immediate_add_wire_arc(center, float3_unit_x, pi, rotate_tool->angles[0], radius, x_axis_colour);
+        immediate_add_wire_arc(center, float3_unit_y, pi, rotate_tool->angles[1], radius, y_axis_colour);
+        immediate_add_wire_arc(center, float3_unit_z, pi, rotate_tool->angles[2], radius, z_axis_colour);
+        immediate_set_blend_mode(BLEND_MODE_TRANSPARENT);
+        immediate_draw();
 
         glUniform1f(shader_line.line_width, 4.0f);
     }
@@ -940,19 +940,19 @@ void system_update(UpdateState* update, Platform* platform)
         Float3 direction = float3_normalise(float3_subtract(camera->target, camera->position));
         Matrix4 view = matrix4_look_at(float3_zero, direction, float3_unit_z);
         Matrix4 axis_projection = matrix4_orthographic_projection(across, across, -extent, extent);
-        immediate::set_matrices(view, axis_projection);
+        immediate_set_matrices(view, axis_projection);
 
         Float3 double_x = float3_multiply(2.0f, x_axis);
         Float3 double_y = float3_multiply(2.0f, y_axis);
         Float3 double_z = float3_multiply(2.0f, z_axis);
 
-        immediate::add_cone(double_x, x_axis, 0.5f, x_axis_colour, x_axis_shadow_colour);
-        immediate::add_cylinder(float3_zero, double_x, 0.125f, x_axis_colour);
-        immediate::add_cone(double_y, y_axis, 0.5f, y_axis_colour, y_axis_shadow_colour);
-        immediate::add_cylinder(float3_zero, double_y, 0.125f, y_axis_colour);
-        immediate::add_cone(double_z, z_axis, 0.5f, z_axis_colour, z_axis_shadow_colour);
-        immediate::add_cylinder(float3_zero, double_z, 0.125f, z_axis_colour);
-        immediate::draw();
+        immediate_add_cone(double_x, x_axis, 0.5f, x_axis_colour, x_axis_shadow_colour);
+        immediate_add_cylinder(float3_zero, double_x, 0.125f, x_axis_colour);
+        immediate_add_cone(double_y, y_axis, 0.5f, y_axis_colour, y_axis_shadow_colour);
+        immediate_add_cylinder(float3_zero, double_y, 0.125f, y_axis_colour);
+        immediate_add_cone(double_z, z_axis, 0.5f, z_axis_colour, z_axis_shadow_colour);
+        immediate_add_cylinder(float3_zero, double_z, 0.125f, z_axis_colour);
+        immediate_draw();
     }
 
     // Draw the screen-space UI.
@@ -961,7 +961,7 @@ void system_update(UpdateState* update, Platform* platform)
     glDepthMask(GL_FALSE);
 
     Matrix4 screen_view = matrix4_identity;
-    immediate::set_matrices(screen_view, screen_projection);
+    immediate_set_matrices(screen_view, screen_projection);
 
     // Draw the open file dialog.
     if(dialog_enabled)

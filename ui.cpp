@@ -1361,10 +1361,10 @@ static void draw_text_block(TextBlock* text_block, Rect bounds)
         Rect rect = glyph.rect;
         rect.bottom_left = float2_add(rect.bottom_left, top_left);
         Quad quad = rect_to_quad(rect);
-        immediate::add_quad_textured(&quad, glyph.texture_rect);
+        immediate_add_quad_textured(&quad, glyph.texture_rect);
     }
-    immediate::set_blend_mode(immediate::BlendMode::Transparent);
-    immediate::draw();
+    immediate_set_blend_mode(BLEND_MODE_TRANSPARENT);
+    immediate_draw();
 }
 
 static void draw_button(Item* item, Context* context)
@@ -1400,9 +1400,9 @@ static void draw_button(Item* item, Context* context)
     {
         colour = non_hovered_colour;
     }
-    immediate::draw_opaque_rect(item->bounds, colour);
+    immediate_draw_opaque_rect(item->bounds, colour);
 
-    immediate::set_text_colour(text_colour);
+    immediate_set_text_colour(text_colour);
     draw_text_block(&item->button.text_block, item->bounds);
 }
 
@@ -1413,7 +1413,7 @@ static void draw_container(Item* item, Context* context)
     int style_index = static_cast<int>(item->container.style_type);
     Style style = context->theme.styles[style_index];
 
-    immediate::draw_opaque_rect(item->bounds, style.background);
+    immediate_draw_opaque_rect(item->bounds, style.background);
 
     for(int i = 0; i < item->container.items_count; i += 1)
     {
@@ -1458,7 +1458,7 @@ static void draw_list(Item* item, Context* context)
 
     place_list_items(item, context);
 
-    immediate::set_clip_area(item->bounds, context->viewport.x, context->viewport.y);
+    immediate_set_clip_area(item->bounds, context->viewport.x, context->viewport.y);
 
     List* list = &item->list;
 
@@ -1474,7 +1474,7 @@ static void draw_list(Item* item, Context* context)
         {
             Rect rect = list->items_bounds[list->hovered_item_index];
             rect.bottom_left.y += list->scroll_top;
-            immediate::draw_transparent_rect(rect, hover_colour);
+            immediate_draw_transparent_rect(rect, hover_colour);
         }
 
         // Draw the selection highlight for the records.
@@ -1482,7 +1482,7 @@ static void draw_list(Item* item, Context* context)
         {
             Rect rect = list->items_bounds[list->selected_item_index];
             rect.bottom_left.y += list->scroll_top;
-            immediate::draw_transparent_rect(rect, selection_colour);
+            immediate_draw_transparent_rect(rect, selection_colour);
         }
 
         // Draw each item's contents.
@@ -1502,7 +1502,7 @@ static void draw_list(Item* item, Context* context)
         }
     }
 
-    immediate::stop_clip_area();
+    immediate_stop_clip_area();
 }
 
 static Float2 compute_cursor_position(TextBlock* text_block, Float2 dimensions, float line_height, int index)
@@ -1619,7 +1619,7 @@ void draw_text_input(Item* item, Context* context)
         text_input->cursor_blink_frame = (text_input->cursor_blink_frame + 1) & 0x3f;
         if((text_input->cursor_blink_frame / 32) & 1)
         {
-            immediate::draw_opaque_rect(rect, cursor_colour);
+            immediate_draw_opaque_rect(rect, cursor_colour);
         }
 
         // Draw the selection highlight.
@@ -1646,7 +1646,7 @@ void draw_text_input(Item* item, Context* context)
                 rect.bottom_left = first;
                 rect.dimensions.x = second.x - first.x;
                 rect.dimensions.y = line_height;
-                immediate::draw_transparent_rect(rect, selection_colour);
+                immediate_draw_transparent_rect(rect, selection_colour);
             }
             else
             {
@@ -1658,7 +1658,7 @@ void draw_text_input(Item* item, Context* context)
                 rect.bottom_left = first;
                 rect.dimensions.x = right - first.x;
                 rect.dimensions.y = line_height;
-                immediate::add_rect(rect, selection_colour);
+                immediate_add_rect(rect, selection_colour);
 
                 int between_lines = (first.y - second.y) / line_height - 1;
                 for(int i = 0; i < between_lines; i += 1)
@@ -1666,16 +1666,16 @@ void draw_text_input(Item* item, Context* context)
                     rect.dimensions.x = right - left;
                     rect.bottom_left.x = left;
                     rect.bottom_left.y = first.y - (line_height * (i + 1));
-                    immediate::add_rect(rect, selection_colour);
+                    immediate_add_rect(rect, selection_colour);
                 }
 
                 rect.dimensions.x = second.x - left;
                 rect.bottom_left.x = left;
                 rect.bottom_left.y = second.y;
-                immediate::add_rect(rect, selection_colour);
+                immediate_add_rect(rect, selection_colour);
 
-                immediate::set_blend_mode(immediate::BlendMode::Transparent);
-                immediate::draw();
+                immediate_set_blend_mode(BLEND_MODE_TRANSPARENT);
+                immediate_draw();
             }
         }
     }
@@ -1747,10 +1747,10 @@ void draw_focus_indicator(Item* item, Context* context)
         right.bottom_left = {bottom_right.x, bottom_right.y - line_width};
         right.dimensions = {line_width, height + (2 * line_width)};
 
-        immediate::draw_transparent_rect(top, colour);
-        immediate::draw_transparent_rect(bottom, colour);
-        immediate::draw_transparent_rect(left, colour);
-        immediate::draw_transparent_rect(right, colour);
+        immediate_draw_transparent_rect(top, colour);
+        immediate_draw_transparent_rect(bottom, colour);
+        immediate_draw_transparent_rect(left, colour);
+        immediate_draw_transparent_rect(right, colour);
     }
 }
 
