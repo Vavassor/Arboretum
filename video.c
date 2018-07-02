@@ -298,7 +298,7 @@ bool video_system_start_up()
         stbi_image_free(bitmap.pixels);
 
         glUseProgram(shader_screen_pattern.program);
-        glUniform2i(shader_screen_pattern.texture_dimensions, bitmap.width, bitmap.height);
+        glUniform2f(shader_screen_pattern.texture_dimensions, (float) bitmap.width, (float) bitmap.height);
     }
 
     // Line pattern texture
@@ -311,7 +311,7 @@ bool video_system_start_up()
         stbi_image_free(bitmap.pixels);
 
         glUseProgram(shader_line.program);
-        glUniform2i(shader_line.texture_dimensions, bitmap.width, bitmap.height);
+        glUniform2f(shader_line.texture_dimensions, (float) bitmap.width, (float) bitmap.height);
     }
 
     // Point pattern texture

@@ -33,19 +33,11 @@ typedef struct ArrayHeader
 #define ARRAY_LAST(array) \
     ((array)[array_header_(array)->count - 1])
 
-#if defined(__cplusplus)
-#define ARRAY_RESIZE_(array, extra, heap) \
-    ((array) = static_cast<decltype(array)>(resize_array_heap(array, array_count(array) + (extra), sizeof(*(array)), heap)))
-
-#define ARRAY_RESIZE_STACK_(array, extra, stack) \
-    ((array) = static_cast<decltype(array)>(resize_array_stack(array, array_count(array) + (extra), sizeof(*(array)), stack)))
-#else
 #define ARRAY_RESIZE_(array, extra, heap) \
     ((array) = resize_array_heap(array, array_count(array) + (extra), sizeof(*(array)), heap))
 
 #define ARRAY_RESIZE_STACK_(array, extra, stack) \
     ((array) = resize_array_stack(array, array_count(array) + (extra), sizeof(*(array)), stack))
-#endif
 
 #define ARRAY_FIT_(array, extra, heap) \
     (array_fits_(array, extra) ? 0 : ARRAY_RESIZE_(array, extra, heap))
