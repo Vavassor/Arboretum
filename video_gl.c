@@ -664,7 +664,7 @@ static Buffer* fetch_buffer(Backend* backend, BufferId id)
     if(id.value != invalid_id)
     {
         uint32_t slot = get_id_slot(id.value);
-        ASSERT(slot >= 0 && slot < backend->buffer_id_pool.cap);
+        ASSERT(slot >= 0 && slot < (uint32_t) backend->buffer_id_pool.cap);
         return &backend->buffers[slot];
     }
     return NULL;
@@ -675,7 +675,7 @@ static Image* fetch_image(Backend* backend, ImageId id)
     if(id.value != invalid_id)
     {
         uint32_t slot = get_id_slot(id.value);
-        ASSERT(slot >= 0 && slot < backend->image_id_pool.cap);
+        ASSERT(slot >= 0 && slot < (uint32_t) backend->image_id_pool.cap);
         return &backend->images[slot];
     }
     return NULL;
@@ -686,7 +686,7 @@ static Pass* fetch_pass(Backend* backend, PassId id)
     if(id.value != invalid_id)
     {
         uint32_t slot = get_id_slot(id.value);
-        ASSERT(slot >= 0 && slot < backend->pass_id_pool.cap);
+        ASSERT(slot >= 0 && slot < (uint32_t) backend->pass_id_pool.cap);
         return &backend->passes[slot];
     }
     return NULL;
@@ -697,7 +697,7 @@ static Pipeline* fetch_pipeline(Backend* backend, PipelineId id)
     if(id.value != invalid_id)
     {
         uint32_t slot = get_id_slot(id.value);
-        ASSERT(slot >= 0 && slot < backend->pipeline_id_pool.cap);
+        ASSERT(slot >= 0 && slot < (uint32_t) backend->pipeline_id_pool.cap);
         return &backend->pipelines[slot];
     }
     return NULL;
@@ -708,7 +708,7 @@ static Sampler* fetch_sampler(Backend* backend, SamplerId id)
     if(id.value != invalid_id)
     {
         uint32_t slot = get_id_slot(id.value);
-        ASSERT(slot >= 0 && slot < backend->sampler_id_pool.cap);
+        ASSERT(slot >= 0 && slot < (uint32_t) backend->sampler_id_pool.cap);
         return &backend->samplers[slot];
     }
     return NULL;
@@ -719,7 +719,7 @@ static Shader* fetch_shader(Backend* backend, ShaderId id)
     if(id.value != invalid_id)
     {
         uint32_t slot = get_id_slot(id.value);
-        ASSERT(slot >= 0 && slot < backend->shader_id_pool.cap);
+        ASSERT(slot >= 0 && slot < (uint32_t) backend->shader_id_pool.cap);
         return &backend->shaders[slot];
     }
     return NULL;

@@ -142,8 +142,8 @@ void clear_object_from_hover_and_selection(ObjectId id, Platform* platform)
 
 bool editor_start_up(Platform* platform)
 {
-    stack_create(&scratch, uptibytes(1));
-    heap_create(&heap, uptibytes(1));
+    stack_create(&scratch, (uint32_t) uptibytes(1));
+    heap_create(&heap, (uint32_t) uptibytes(1));
 
     hovered_object_index = invalid_index;
     selected_object_index = invalid_index;
@@ -351,7 +351,7 @@ static void update_camera_controls()
 {
     Float3 forward = float3_subtract(camera.position, camera.target);
     Float3 right = float3_normalise(float3_cross(float3_unit_z, forward));
-    Matrix4 projection = matrix4_perspective_projection(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
+    Matrix4 projection = matrix4_perspective_projection(camera.field_of_view, (float) viewport.x, (float) viewport.y, camera.near_plane, camera.far_plane);
 
     if(mouse.scroll_velocity_y != 0.0f && action_allowed(ACTION_ZOOM_CAMERA))
     {
@@ -524,7 +524,7 @@ static void delete_object(Platform* platform)
 
 static void update_object_mode(Platform* platform)
 {
-    Matrix4 projection = matrix4_perspective_projection(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
+    Matrix4 projection = matrix4_perspective_projection(camera.field_of_view, (float) viewport.x, (float) viewport.y, camera.near_plane, camera.far_plane);
 
     // Update the move tool.
     if(is_valid_index(selected_object_index) && action_allowed(ACTION_MOVE))
@@ -797,7 +797,7 @@ static void update_edge_mode()
 
     Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
     Matrix4 view = matrix4_look_at(camera.position, camera.target, float3_unit_z);
-    Matrix4 projection = matrix4_perspective_projection(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
+    Matrix4 projection = matrix4_perspective_projection(camera.field_of_view, (float) viewport.x, (float) viewport.y, camera.near_plane, camera.far_plane);
     Matrix4 model_view_projection = matrix4_multiply(projection, matrix4_multiply(view, model));
     Matrix4 inverse_model = matrix4_inverse_transform(model);
     Matrix4 inverse = matrix4_multiply(matrix4_inverse_view(view), matrix4_inverse_perspective(projection));
@@ -855,7 +855,7 @@ static void update_face_mode()
 
     Object* object = &lady.objects[selected_object_index];
     JanMesh* mesh = &object->mesh;
-    Matrix4 projection = matrix4_perspective_projection(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
+    Matrix4 projection = matrix4_perspective_projection(camera.field_of_view, (float) viewport.x, (float) viewport.y, camera.near_plane, camera.far_plane);
 
     if(input_get_key_tapped(INPUT_KEY_G))
     {
@@ -871,8 +871,8 @@ static void update_face_mode()
     if(translating)
     {
         Int2 velocity = input_get_mouse_velocity();
-        mouse.velocity.x = velocity.x;
-        mouse.velocity.y = velocity.y;
+        mouse.velocity.x = (float) velocity.x;
+        mouse.velocity.y = (float) velocity.y;
 
         Float3 forward = float3_subtract(camera.position, camera.target);
         Float3 right = float3_normalise(float3_cross(float3_unit_z, forward));
@@ -940,13 +940,13 @@ static void update_vertex_mode()
 
     Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
     Matrix4 view = matrix4_look_at(camera.position, camera.target, float3_unit_z);
-    Matrix4 projection = matrix4_perspective_projection(camera.field_of_view, viewport.x, viewport.y, camera.near_plane, camera.far_plane);
+    Matrix4 projection = matrix4_perspective_projection(camera.field_of_view, (float) viewport.x, (float) viewport.y, camera.near_plane, camera.far_plane);
 
     Ray ray = ray_from_viewport_point(mouse.position, viewport, view, projection, false);
     ray = transform_ray(ray, matrix4_inverse_transform(model));
 
     float distance_to_vertex;
-    JanVertex* vertex = jan_first_vertex_hit_by_ray(mesh, ray, touch_radius, viewport.x, &distance_to_vertex);
+    JanVertex* vertex = jan_first_vertex_hit_by_ray(mesh, ray, touch_radius, (float) viewport.x, &distance_to_vertex);
     if(vertex)
     {
         float distance_to_face;
@@ -1105,8 +1105,8 @@ void editor_update(Platform* platform)
                 || input_get_mouse_pressed(MOUSE_BUTTON_RIGHT))
         {
             Int2 velocity = input_get_mouse_velocity();
-            mouse.velocity.x = velocity.x;
-            mouse.velocity.y = velocity.y;
+            mouse.velocity.x = (float) velocity.x;
+            mouse.velocity.y = (float) velocity.y;
         }
         else
         {
@@ -1115,8 +1115,8 @@ void editor_update(Platform* platform)
     }
     {
         Int2 position = input_get_mouse_position();
-        mouse.position.x = position.x;
-        mouse.position.y = position.y;
+        mouse.position.x = (float) position.x;
+        mouse.position.y = (float) position.y;
 
         const float scroll_speed = 0.15f;
         Int2 scroll_velocity = input_get_mouse_scroll_velocity();
@@ -1277,8 +1277,8 @@ void resize_viewport(Int2 dimensions, double dots_per_millimeter)
 {
     viewport = dimensions;
 
-    ui_context.viewport.x = dimensions.x;
-    ui_context.viewport.y = dimensions.y;
+    ui_context.viewport.x = (float) dimensions.x;
+    ui_context.viewport.y = (float) dimensions.y;
 
     video_resize_viewport(dimensions, dots_per_millimeter, camera.field_of_view);
 }

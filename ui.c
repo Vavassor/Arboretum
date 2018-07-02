@@ -205,7 +205,7 @@ void ui_focus_on_item(UiContext* context, UiItem* item)
 {
     if(item != context->focused_item)
     {
-        UiEvent event = {};
+        UiEvent event = {0};
         event.type = UI_EVENT_TYPE_FOCUS_CHANGE;
         if(item)
         {
@@ -415,10 +415,10 @@ static float get_scroll_bottom(UiItem* item, float line_height)
     float content_height = 0.0f;
     if(list->items_count > 0)
     {
-        float lines = list->items_count;
+        float lines = (float) list->items_count;
         content_height = lines * get_list_item_height(list, &list->items[0], line_height);
     }
-    return fmax(content_height - inner_height, 0.0f);
+    return fmaxf(content_height - inner_height, 0.0f);
 }
 
 static void set_scroll(UiItem* item, float scroll, float line_height)
@@ -463,8 +463,8 @@ static Float2 measure_ideal_dimensions_text_block(UiTextBlock* text_block, UiCon
     UiPadding padding = text_block->padding;
 
     Float2 texture_dimensions;
-    texture_dimensions.x = font->image_width;
-    texture_dimensions.y = font->image_height;
+    texture_dimensions.x = (float) font->image_width;
+    texture_dimensions.y = (float)font->image_height;
 
     text_block->glyphs_count = 0;
     map_clear(&text_block->glyph_map);
@@ -488,7 +488,7 @@ static Float2 measure_ideal_dimensions_text_block(UiTextBlock* text_block, UiCon
         {
             next_break = find_next_mandatory_line_break(text_block->text, next_break, stack);
 
-            bounds.x = fmax(bounds.x, pen.x);
+            bounds.x = fmaxf(bounds.x, pen.x);
             pen.x = padding.start;
             pen.y -= font->line_height;
         }
@@ -676,8 +676,8 @@ static Float2 measure_bound_dimensions_text_block(UiTextBlock* text_block, Float
     map_clear(&text_block->glyph_map);
 
     Float2 texture_dimensions;
-    texture_dimensions.x = font->image_width;
-    texture_dimensions.y = font->image_height;
+    texture_dimensions.x = (float) font->image_width;
+    texture_dimensions.y = (float) font->image_height;
 
     const char* ellipsize_text = u8"…";
     float extra_length = 0.0f;
@@ -720,7 +720,7 @@ static Float2 measure_bound_dimensions_text_block(UiTextBlock* text_block, Float
             {
                 if(text_block->text_overflow == UI_TEXT_OVERFLOW_WRAP)
                 {
-                    bounds.x = fmax(bounds.x, pen.x);
+                    bounds.x = fmaxf(bounds.x, pen.x);
                     pen.x = padding.start;
                     pen.y -= font->line_height;
                 }
@@ -756,7 +756,7 @@ static Float2 measure_bound_dimensions_text_block(UiTextBlock* text_block, Float
                 {
                     // If there is a long section of text with no break opportunities
                     // make an emergency break so it doesn't overflow the text box.
-                    bounds.x = fmax(bounds.x, pen.x);
+                    bounds.x = fmaxf(bounds.x, pen.x);
                     pen.x = padding.start;
                     pen.y -= font->line_height;
                 }
@@ -1456,7 +1456,7 @@ static void draw_list(UiItem* item, UiContext* context)
 
     place_list_items(item, context);
 
-    immediate_set_clip_area(item->bounds, context->viewport.x, context->viewport.y);
+    immediate_set_clip_area(item->bounds, (int) context->viewport.x, (int) context->viewport.y);
 
     UiList* list = &item->list;
 
@@ -1486,9 +1486,9 @@ static void draw_list(UiItem* item, UiContext* context)
         // Draw each item's contents.
         float item_height = get_list_item_height(list, &list->items[0], line_height);
         float scroll = list->scroll_top;
-        int start_index = scroll / item_height;
+        int start_index = (int) (scroll / item_height);
         start_index = MAX(start_index, 0);
-        int end_index = ceil((scroll + item->bounds.dimensions.y) / item_height);
+        int end_index = (int) ceilf((scroll + item->bounds.dimensions.y) / item_height);
         end_index = MIN(end_index, list->items_count);
 
         for(int i = start_index; i < end_index; i += 1)
@@ -1658,7 +1658,7 @@ static void draw_text_input(UiItem* item, UiContext* context)
                 rect.dimensions.y = line_height;
                 immediate_add_rect(rect, selection_colour);
 
-                int between_lines = (first.y - second.y) / line_height - 1;
+                int between_lines = (int) ((first.y - second.y) / line_height) - 1;
                 for(int i = 0; i < between_lines; i += 1)
                 {
                     rect.dimensions.x = right - left;
@@ -2015,7 +2015,7 @@ static void detect_capture_changes_for_toplevel_containers(UiContext* context, P
 
 static void signal_text_change(UiContext* context, UiId id)
 {
-    UiEvent event = {};
+    UiEvent event = {0};
     event.type = UI_EVENT_TYPE_TEXT_CHANGE;
     event.text_change.id = id;
     enqueue(&context->queue, event);
@@ -2060,8 +2060,8 @@ static void update_cursor_position(UiTextInput* text_input, Rect bounds, UiConte
         position.y = (viewport.y / 2.0f) - position.y;
 
         // Set the input method to anchor itself nearby.
-        int x = position.x;
-        int y = position.y;
+        int x = (int) position.x;
+        int y = (int) position.y;
         set_composed_text_position(platform, x, y);
     }
 }
@@ -2135,7 +2135,7 @@ static int find_beginning_of_line(UiTextBlock* text_block, int start_index)
         uintptr_t glyph_index = (uintptr_t) value;
         UiGlyph first = text_block->glyphs[glyph_index];
         float first_y = first.baseline_start.y;
-        for(int i = glyph_index - 1; i >= 0; i -= 1)
+        for(uintptr_t i = glyph_index - 1; i >= 0; i -= 1)
         {
             UiGlyph glyph = text_block->glyphs[i];
             if(glyph.baseline_start.y > first_y)
@@ -2161,7 +2161,7 @@ static int find_end_of_line(UiTextBlock* text_block, int start_index)
         uintptr_t glyph_index = (uintptr_t) value;
         UiGlyph first = text_block->glyphs[glyph_index];
         float first_y = first.baseline_start.y;
-        for(int i = glyph_index + 1; i < text_block->glyphs_count; i += 1)
+        for(uintptr_t i = glyph_index + 1; i < text_block->glyphs_count; i += 1)
         {
             UiGlyph glyph = text_block->glyphs[i];
             if(glyph.baseline_start.y < first_y)
@@ -2238,7 +2238,7 @@ static void update_keyboard_input(UiItem* item, UiContext* context, Platform* pl
                 }
 
                 float item_height = list->items_bounds[0].dimensions.y + list->item_spacing;
-                int items_per_page = round(item->bounds.dimensions.y / item_height);
+                int items_per_page = (int) roundf(item->bounds.dimensions.y / item_height);
 
                 if(input_get_key_tapped(INPUT_KEY_PAGE_UP))
                 {
@@ -2294,13 +2294,13 @@ static void update_keyboard_input(UiItem* item, UiContext* context, Platform* pl
                 if(above_window < 0.0f)
                 {
                     float velocity = (factor * above_window) - min_speed;
-                    scroll_top += fmax(velocity, above_window);
+                    scroll_top += fmaxf(velocity, above_window);
                     set_scroll(item, scroll_top, line_height);
                 }
                 else if(below_window > 0.0f)
                 {
                     float velocity = (factor * below_window) + min_speed;
-                    scroll_top += fmin(velocity, below_window);
+                    scroll_top += fminf(velocity, below_window);
                     set_scroll(item, scroll_top, line_height);
                 }
             }

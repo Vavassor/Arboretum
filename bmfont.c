@@ -68,7 +68,7 @@ static char* next_token(Stream* stream, Stack* stack)
     const char* first = stream->buffer;
     const char* s;
     for(s = first; *s && !is_whitespace(*s); ++s);
-    int token_size = s - first;
+    int token_size = (int) (s - first);
 
     if(token_size == 0)
     {
@@ -92,7 +92,7 @@ static Pair next_pair(Stream* stream, Stack* stack)
 {
     skip_spacing(stream);
 
-    Pair result = {};
+    Pair result = {0};
     const char* s;
     int i;
 
@@ -160,7 +160,7 @@ bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
     int kerning_pairs_index = 0;
     bool error = false;
 
-    Stream stream = {};
+    Stream stream = {0};
     stream.buffer = (const char*) contents;
     for(; stream_has_more(&stream) && !error; next_line(&stream))
     {
@@ -194,7 +194,7 @@ bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
                         error = true;
                         break;
                     }
-                    output_font.line_height = line_height;
+                    output_font.line_height = (float) line_height;
                 }
                 else if(strings_match(pair.key, "base"))
                 {
@@ -205,7 +205,7 @@ bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
                         error = true;
                         break;
                     }
-                    output_font.baseline = baseline;
+                    output_font.baseline = (float) baseline;
                 }
                 else if(strings_match(pair.key, "scaleW"))
                 {
@@ -295,7 +295,7 @@ bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
                         error = true;
                         break;
                     }
-                    glyph->rect.bottom_left.x = x;
+                    glyph->rect.bottom_left.x = (float) x;
                 }
                 else if(strings_match(pair.key, "y"))
                 {
@@ -306,7 +306,7 @@ bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
                         error = true;
                         break;
                     }
-                    glyph->rect.bottom_left.y = y;
+                    glyph->rect.bottom_left.y = (float) y;
                 }
                 else if(strings_match(pair.key, "width"))
                 {
@@ -317,7 +317,7 @@ bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
                         error = true;
                         break;
                     }
-                    glyph->rect.dimensions.x = width;
+                    glyph->rect.dimensions.x = (float) width;
                 }
                 else if(strings_match(pair.key, "height"))
                 {
@@ -328,7 +328,7 @@ bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
                         error = true;
                         break;
                     }
-                    glyph->rect.dimensions.y = height;
+                    glyph->rect.dimensions.y = (float) height;
                 }
                 else if(strings_match(pair.key, "xoffset"))
                 {
@@ -339,7 +339,7 @@ bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
                         error = true;
                         break;
                     }
-                    glyph->offset.x = x_offset;
+                    glyph->offset.x = (float) x_offset;
                 }
                 else if(strings_match(pair.key, "yoffset"))
                 {
@@ -350,7 +350,7 @@ bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
                         error = true;
                         break;
                     }
-                    glyph->offset.y = y_offset;
+                    glyph->offset.y = (float) y_offset;
                 }
                 else if(strings_match(pair.key, "xadvance"))
                 {
@@ -361,7 +361,7 @@ bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
                         error = true;
                         break;
                     }
-                    glyph->x_advance = x_advance;
+                    glyph->x_advance = (float) x_advance;
                 }
                 else if(strings_match(pair.key, "page"))
                 {
@@ -426,7 +426,7 @@ bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
                         error = true;
                         break;
                     }
-                    kerning_pair->kerning = kerning;
+                    kerning_pair->kerning = (float) kerning;
                 }
             }
 

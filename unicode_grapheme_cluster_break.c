@@ -2013,7 +2013,7 @@ int find_prior_beginning_of_grapheme_cluster(const char* text, int start_index, 
 {
     const int breaks_cap = 64;
 
-    GraphemeClusterBreakContext context = {};
+    GraphemeClusterBreakContext context = {0};
     context.text = text;
     context.breaks = STACK_ALLOCATE(stack, GraphemeClusterBreak, breaks_cap);
     context.lowest_in_text = start_index;
@@ -2052,7 +2052,7 @@ int find_next_end_of_grapheme_cluster(const char* text, int start_index, Stack* 
 {
     const int breaks_cap = 64;
 
-    GraphemeClusterBreakContext context = {};
+    GraphemeClusterBreakContext context = {0};
     context.text = text;
     context.breaks = STACK_ALLOCATE(stack, GraphemeClusterBreak, breaks_cap);
     context.lowest_in_text = start_index;
@@ -2092,7 +2092,7 @@ bool test_grapheme_cluster_break(const char* text, int text_index, Stack* stack)
 {
     const int breaks_cap = 64;
 
-    GraphemeClusterBreakContext context = {};
+    GraphemeClusterBreakContext context = {0};
     context.text = text;
     context.breaks = STACK_ALLOCATE(stack, GraphemeClusterBreak, breaks_cap);
     context.lowest_in_text = text_index;

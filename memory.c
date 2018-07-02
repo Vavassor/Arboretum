@@ -18,7 +18,7 @@
 
 void* virtual_allocate(uint64_t bytes)
 {
-    return VirtualAlloc(nullptr, bytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    return VirtualAlloc(NULL, bytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 }
 
 void virtual_deallocate(void* memory)
@@ -54,7 +54,7 @@ void set_memory(void* memory, uint8_t value, uint64_t bytes)
     }
 }
 
-void copy_memory(void* restrict to, const void* restrict from, uint64_t bytes)
+void copy_memory(void* RESTRICT to, const void* RESTRICT from, uint64_t bytes)
 {
     const uint8_t* p0 = from;
     uint8_t* p1 = to;
@@ -181,7 +181,7 @@ void* stack_reallocate(Stack* stack, void* memory, uint32_t bytes)
     }
 
     uint8_t* place = (uint8_t*) memory;
-    uint32_t present_bytes = stack->top - (place - stack->memory);
+    uint32_t present_bytes = (uint32_t) (stack->top - (place - stack->memory));
     uint32_t more_bytes = bytes - present_bytes;
     if(stack->top + more_bytes > stack->bytes)
     {
@@ -272,7 +272,7 @@ void pool_destroy(Pool* pool)
 static void mark_block_status(Pool* pool, void* object, PoolBlockStatus status)
 {
     uint8_t* offset = ((uint8_t*) object);
-    int index = (offset - pool->memory) / pool->object_size;
+    int index = (int) ((offset - pool->memory) / pool->object_size);
     pool->statuses[index] = status;
 }
 
@@ -457,7 +457,7 @@ static uint32_t assimilate_down(Heap* heap, uint32_t c, uint32_t freemask)
 
 static uint32_t index_from_pointer(void* base, void* p, uint32_t size)
 {
-    return (((uintptr_t) p) - ((uintptr_t) base)) / size;
+    return (uint32_t) ((((uintptr_t) p) - ((uintptr_t) base)) / size);
 }
 
 void* heap_reallocate(Heap* heap, void* memory, uint32_t bytes)
@@ -562,7 +562,7 @@ void heap_deallocate(Heap* heap, void* memory)
 
 HeapInfo heap_get_info(Heap* heap)
 {
-    HeapInfo info = {};
+    HeapInfo info = {0};
     uint32_t blockno = 0;
     for(
         blockno = NEXT_BLOCK(blockno) & blockno_mask;

@@ -763,9 +763,9 @@ char* get_user_folder(UserFolder folder, Heap* heap)
 #endif
 #include <Windows.h>
 
-bool load_whole_file(const char* path, void** contents, u64* bytes, Stack* stack)
+bool load_whole_file(const char* path, void** contents, uint64_t* bytes, Stack* stack)
 {
-    wchar_t* wide_path = utf8_to_wide_char(path, stack);
+    wchar_t* wide_path = utf8_to_wide_char_stack(path, stack);
     HANDLE handle = CreateFileW(wide_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     STACK_DEALLOCATE(stack, wide_path);
     if(handle == INVALID_HANDLE_VALUE)
@@ -781,7 +781,7 @@ bool load_whole_file(const char* path, void** contents, u64* bytes, Stack* stack
         return false;
     }
 
-    u64 size = info.nFileSizeHigh << 32 | info.nFileSizeLow;
+    uint64_t size = (uint64_t) info.nFileSizeHigh << 32 | info.nFileSizeLow;
     char* buffer = STACK_ALLOCATE(stack, char, size + 1);
     DWORD bytes_read;
     BOOL read = ReadFile(handle, buffer, size, &bytes_read, NULL);
@@ -803,7 +803,7 @@ bool load_whole_file(const char* path, void** contents, u64* bytes, Stack* stack
     return true;
 }
 
-bool save_whole_file(const char* path, const void* contents, u64 bytes, Stack* stack)
+bool save_whole_file(const char* path, const void* contents, uint64_t bytes, Stack* stack)
 {
     wchar_t* wide_path = utf8_to_wide_char(path, stack);
     HANDLE handle = CreateFileW(wide_path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -827,6 +827,8 @@ struct File
     wchar_t* wide_path;
 };
 
+#define WIDE_PATH_CAP MAX_PATH
+
 File* open_file(const char* path, FileOpenMode open_mode, Heap* heap)
 {
     wchar_t* wide_path = NULL;
@@ -837,7 +839,7 @@ File* open_file(const char* path, FileOpenMode open_mode, Heap* heap)
     DWORD flags;
     switch(open_mode)
     {
-        case FileOpenMode::Write_Temporary:
+        case FILE_OPEN_MODE_WRITE_TEMPORARY:
         {
             access = GENERIC_WRITE;
             share_mode = 0;
@@ -845,14 +847,13 @@ File* open_file(const char* path, FileOpenMode open_mode, Heap* heap)
             flags = FILE_ATTRIBUTE_NORMAL;
             if(!path)
             {
-                const int wide_path_cap = MAX_PATH;
-                wchar_t just_path[wide_path_cap];
-                DWORD count = GetTempPathW(wide_path_cap, just_path);
+                wchar_t just_path[WIDE_PATH_CAP];
+                DWORD count = GetTempPathW(WIDE_PATH_CAP, just_path);
                 if(count == 0)
                 {
                     return NULL;
                 }
-                wide_path = HEAP_ALLOCATE(heap, wchar_t, wide_path_cap);
+                wide_path = HEAP_ALLOCATE(heap, wchar_t, WIDE_PATH_CAP);
                 UINT unique = GetTempFileNameW(just_path, L"ARB", 0, wide_path);
                 if(unique == 0)
                 {
@@ -904,7 +905,7 @@ bool make_file_permanent(File* file, const char* path)
     return moved;
 }
 
-bool write_file(File* file, const void* data, u64 bytes)
+bool write_file(File* file, const void* data, uint64_t bytes)
 {
     DWORD bytes_written;
     BOOL wrote = WriteFile(file->handle, data, bytes, &bytes_written, NULL);
@@ -940,15 +941,15 @@ static DirectoryRecordType translate_directory_record_type(DWORD attributes)
 {
     if(attributes & FILE_ATTRIBUTE_DIRECTORY)
     {
-        return DirectoryRecordType::Directory;
+        return DIRECTORY_RECORD_TYPE_DIRECTORY;
     }
     else if(attributes & FILE_ATTRIBUTE_NORMAL)
     {
-        return DirectoryRecordType::File;
+        return DIRECTORY_RECORD_TYPE_FILE;
     }
     else
     {
-        return DirectoryRecordType::Unknown;
+        return DIRECTORY_RECORD_TYPE_UNKNOWN;
     }
 }
 
@@ -1042,11 +1043,12 @@ static wchar_t* get_path_chain(const wchar_t* volume_name, Heap* heap)
     return NULL;
 }
 
+#define LABEL_CAP (MAX_PATH + 1)
+
 static char* get_label(const wchar_t* path_chain, Heap* heap)
 {
-    const int label_cap = MAX_PATH + 1;
-    wchar_t label[label_cap];
-    BOOL got = GetVolumeInformationW(path_chain, label, label_cap, NULL, NULL, NULL, NULL, 0);
+    wchar_t label[LABEL_CAP];
+    BOOL got = GetVolumeInformationW(path_chain, label, LABEL_CAP, NULL, NULL, NULL, NULL, 0);
     if(got)
     {
         return wide_char_to_utf8(label, heap);
@@ -1060,11 +1062,12 @@ static bool is_volume_ready(const wchar_t* name)
     return result && GetLastError() != ERROR_NOT_READY;
 }
 
+#define VOLUME_NAME_CAP 50
+
 bool list_volumes(VolumeList* list, Heap* heap)
 {
-    const int volume_name_cap = 50;
-    wchar_t volume_name[volume_name_cap];
-    HANDLE handle = FindFirstVolumeW(volume_name, volume_name_cap);
+    wchar_t volume_name[VOLUME_NAME_CAP];
+    HANDLE handle = FindFirstVolumeW(volume_name, VOLUME_NAME_CAP);
     if(handle == INVALID_HANDLE_VALUE)
     {
         return false;
@@ -1096,7 +1099,7 @@ bool list_volumes(VolumeList* list, Heap* heap)
 
             HEAP_DEALLOCATE(heap, path_chain);
         }
-        found = FindNextVolumeW(handle, volume_name, volume_name_cap);
+        found = FindNextVolumeW(handle, volume_name, VOLUME_NAME_CAP);
     } while(found);
 
     DWORD error = GetLastError();
@@ -1117,14 +1120,16 @@ KNOWNFOLDERID translate_to_known_folder_id(UserFolder folder)
 {
     switch(folder)
     {
-        case UserFolder::Cache:     return FOLDERID_LocalAppData;
-        case UserFolder::Config:    return FOLDERID_RoamingAppData;
-        case UserFolder::Data:      return FOLDERID_LocalAppData;
-        case UserFolder::Desktop:   return FOLDERID_Desktop;
-        case UserFolder::Documents: return FOLDERID_Documents;
-        case UserFolder::Music:     return FOLDERID_Music;
-        case UserFolder::Pictures:  return FOLDERID_Pictures;
-        case UserFolder::Videos:    return FOLDERID_Videos;
+        case USER_FOLDER_CACHE:     return FOLDERID_LocalAppData;
+        case USER_FOLDER_CONFIG:    return FOLDERID_RoamingAppData;
+        case USER_FOLDER_DATA:      return FOLDERID_LocalAppData;
+        case USER_FOLDER_DESKTOP:   return FOLDERID_Desktop;
+        case USER_FOLDER_DOCUMENTS: return FOLDERID_Documents;
+        case USER_FOLDER_DOWNLOADS: return FOLDERID_Downloads;
+        case USER_FOLDER_MUSIC:     return FOLDERID_Music;
+        case USER_FOLDER_PICTURES:  return FOLDERID_Pictures;
+        case USER_FOLDER_VIDEOS:    return FOLDERID_Videos;
+        default:                    return FOLDERID_Desktop;
     }
 }
 
@@ -1132,7 +1137,7 @@ char* get_user_folder(UserFolder folder, Heap* heap)
 {
     KNOWNFOLDERID folder_id = translate_to_known_folder_id(folder);
     PWSTR path = NULL;
-    HRESULT result = SHGetKnownFolderPath(folder_id, 0, NULL, &path);
+    HRESULT result = SHGetKnownFolderPath(&folder_id, 0, NULL, &path);
     if(FAILED(result))
     {
         CoTaskMemFree(path);

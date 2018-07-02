@@ -1,6 +1,8 @@
 #ifndef MEMORY_H_
 #define MEMORY_H_
 
+#include "restrict.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -10,7 +12,7 @@
 void* virtual_allocate(uint64_t bytes);
 void virtual_deallocate(void* memory);
 void set_memory(void* memory, uint8_t value, uint64_t bytes);
-void copy_memory(void* restrict to, const void* restrict from, uint64_t bytes);
+void copy_memory(void* RESTRICT to, const void* RESTRICT from, uint64_t bytes);
 void move_memory(void* to, const void* from, uint64_t bytes);
 uint64_t kilobytes(uint64_t count);
 uint64_t megabytes(uint64_t count);
@@ -40,10 +42,10 @@ void* stack_reallocate(Stack* stack, void* memory, uint32_t bytes);
 void stack_deallocate(Stack* stack, void* memory);
 
 #define STACK_ALLOCATE(stack, type, count) \
-    ((type*) stack_allocate(stack, sizeof(type) * (count)))
+    ((type*) stack_allocate(stack, (uint32_t) (sizeof(type) * (count))))
 
 #define STACK_REALLOCATE(stack, memory, type, count) \
-    ((type*) stack_reallocate(stack, memory, sizeof(*(memory)) * (count)))
+    ((type*) stack_reallocate(stack, memory, (uint32_t) (sizeof(*(memory)) * (count))))
 
 #define STACK_DEALLOCATE(stack, memory) \
     stack_deallocate(stack, memory)

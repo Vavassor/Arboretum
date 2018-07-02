@@ -38,10 +38,10 @@ void* map_iterator_get_key(MapIterator it);
 void* map_iterator_get_value(MapIterator it);
 
 #define MAP_ADD(map, key, value, heap) \
-    map_add(map, ((void*) key), ((void*) value), heap)
+    map_add(map, ((void*) (uintptr_t) key), ((void*) (uintptr_t) value), heap)
 
 #define MAP_REMOVE(map, key) \
-    map_remove(map, ((void*) key))
+    map_remove(map, ((void*) (uintptr_t) key))
 
 #define ITERATE_MAP(it, map) \
     for(MapIterator it = map_iterator_start(map); map_iterator_is_not_end(it); it = map_iterator_next(it))

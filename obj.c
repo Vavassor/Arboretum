@@ -59,7 +59,7 @@ static char* next_token(Stream* stream, Stack* stack)
     const char* first = stream->buffer;
     const char* s;
     for(s = first; *s && !is_whitespace(*s); ++s);
-    int token_size = s - first;
+    int token_size = (int) (s - first);
 
     if(token_size == 0)
     {
@@ -86,7 +86,7 @@ static char* next_index(Stream* stream, Stack* stack)
             break;
         }
     }
-    int index_size = s - first;
+    int index_size = (int) (s - first);
 
     if(index_size == 0)
     {
@@ -455,12 +455,13 @@ static bool vertex_attached_to_face(JanVertex* vertex)
     return vertex->any_edge && vertex->any_edge->any_link;
 }
 
+#define LINE_SIZE 128
+
 bool obj_save_file(const char* path, JanMesh* mesh, Heap* heap)
 {
     File* file = open_file(NULL, FILE_OPEN_MODE_WRITE_TEMPORARY, heap);
 
-    const int line_size = 128;
-    char line[line_size];
+    char line[LINE_SIZE];
 
     Map map;
     map_create(&map, mesh->vertices_count, heap);
@@ -474,7 +475,7 @@ bool obj_save_file(const char* path, JanMesh* mesh, Heap* heap)
         }
 
         Float3 v = vertex->position;
-        format_string(line, line_size, "v %.6f %.6f %.6f\n", v.x, v.y, v.z);
+        format_string(line, LINE_SIZE, "v %.6f %.6f %.6f\n", v.x, v.y, v.z);
         write_file(file, line, string_size(line));
 
         void* value = (void*) (uintptr_t) index;
@@ -491,7 +492,7 @@ bool obj_save_file(const char* path, JanMesh* mesh, Heap* heap)
     FOR_EACH_IN_POOL(JanFace, face, mesh->face_pool)
     {
         int i = 0;
-        int line_left = line_size;
+        int line_left = LINE_SIZE;
         int copied = copy_string(&line[i], line_left, "f");
         i += copied;
         line_left -= copied;
@@ -511,7 +512,7 @@ bool obj_save_file(const char* path, JanMesh* mesh, Heap* heap)
             uintptr_t index = (uintptr_t) value;
             char text[22];
             text[0] = ' ';
-            int_to_string(text + 1, 21, index);
+            int_to_string(text + 1, 21, (int) index);
             copied = copy_string(&line[i], line_left, text);
             i += copied;
             line_left -= copied;

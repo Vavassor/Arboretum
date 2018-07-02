@@ -3506,7 +3506,7 @@ int find_next_line_break(const char* text, int start_index, bool* mandatory, Sta
 {
     const int breaks_cap = 64;
 
-    LineBreakContext context = {};
+    LineBreakContext context = {0};
     context.text = text;
     context.breaks = STACK_ALLOCATE(stack, LineBreak, breaks_cap);
     context.lowest_in_text = start_index;

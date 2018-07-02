@@ -42,7 +42,7 @@ DenseMapId dense_map_add(DenseMap* map, Heap* heap)
     int index = array_count(map->array);
     DenseMapId id = generate_id(map);
 
-    VideoObject nobody = {};
+    VideoObject nobody = {0};
     ARRAY_ADD(map->array, nobody, heap);
     add_pair(map, id, index, heap);
 
@@ -55,7 +55,7 @@ static int look_up_index(DenseMap* map, DenseMapId id)
     void* value;
     bool got = map_get(&map->index_map, key, &value);
     ASSERT(got);
-    return (uintptr_t) value;
+    return (int) (uintptr_t) value;
 }
 
 static DenseMapId look_up_id(DenseMap* map, int index)
@@ -64,7 +64,7 @@ static DenseMapId look_up_id(DenseMap* map, int index)
     void* value;
     bool got = map_get(&map->id_map, key, &value);
     ASSERT(got);
-    return (uintptr_t) value;
+    return (DenseMapId) (uintptr_t) value;
 }
 
 VideoObject* dense_map_look_up(DenseMap* map, DenseMapId id)

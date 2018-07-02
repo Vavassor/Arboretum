@@ -36,7 +36,7 @@ static ObjectId generate_object_id(ObjectLady* lady)
 
 Object* object_lady_add_object(ObjectLady* lady, Heap* heap)
 {
-    Object object = {};
+    Object object = {0};
     object.id = generate_object_id(lady);
     object_create(&object);
 

@@ -254,8 +254,8 @@ static bool process_next_entry(Stream* stream, Platform* platform, Stack* stack)
 
 bool loc_load_file(Platform* platform, const char* path)
 {
-    Stack stack = {};
-    stack_create(&stack, capobytes(16));
+    Stack stack = {0};
+    stack_create(&stack, (uint32_t) capobytes(16));
 
     void* contents;
     uint64_t file_size;

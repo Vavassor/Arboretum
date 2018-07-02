@@ -65,7 +65,7 @@ static void filter_directory(Directory* directory, const char** extensions, int 
 static void list_directory(FilePickDialog* dialog, const char* directory, UiContext* context, Platform* platform, Heap* heap)
 {
     // Attempt to list the directory, first.
-    Directory new_directory = {};
+    Directory new_directory = {0};
     bool listed = list_files_in_directory(directory, &new_directory, heap);
     if(!listed)
     {

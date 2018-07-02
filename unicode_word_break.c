@@ -2716,7 +2716,7 @@ int find_prior_beginning_of_word(const char* text, int start_index, Stack* stack
 {
     const int breaks_cap = 64;
 
-    WordBreakContext context = {};
+    WordBreakContext context = {0};
     context.text = text;
     context.breaks = STACK_ALLOCATE(stack, WordBreak, breaks_cap);
     context.lowest_in_text = start_index;
@@ -2766,7 +2766,7 @@ int find_next_end_of_word(const char* text, int start_index, Stack* stack)
 {
     const int breaks_cap = 64;
 
-    WordBreakContext context = {};
+    WordBreakContext context = {0};
     context.text = text;
     context.breaks = STACK_ALLOCATE(stack, WordBreak, breaks_cap);
     context.lowest_in_text = start_index;
@@ -2816,7 +2816,7 @@ bool test_word_break(const char* text, int text_index, Stack* stack)
 {
     const int breaks_cap = 64;
 
-    WordBreakContext context = {};
+    WordBreakContext context = {0};
     context.text = text;
     context.breaks = STACK_ALLOCATE(stack, WordBreak, breaks_cap);
     context.lowest_in_text = text_index;

@@ -122,8 +122,8 @@ bool video_system_start_up()
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
 
-    stack_create(&scratch, uptibytes(1));
-    heap_create(&heap, uptibytes(1));
+    stack_create(&scratch, (uint32_t) uptibytes(1));
+    heap_create(&heap, (uint32_t) uptibytes(1));
 
     // Setup samplers.
     {
@@ -298,7 +298,7 @@ bool video_system_start_up()
         stbi_image_free(bitmap.pixels);
 
         glUseProgram(shader_screen_pattern.program);
-        glUniform2f(shader_screen_pattern.texture_dimensions, bitmap.width, bitmap.height);
+        glUniform2i(shader_screen_pattern.texture_dimensions, bitmap.width, bitmap.height);
     }
 
     // Line pattern texture
@@ -311,7 +311,7 @@ bool video_system_start_up()
         stbi_image_free(bitmap.pixels);
 
         glUseProgram(shader_line.program);
-        glUniform2f(shader_line.texture_dimensions, bitmap.width, bitmap.height);
+        glUniform2i(shader_line.texture_dimensions, bitmap.width, bitmap.height);
     }
 
     // Point pattern texture
@@ -752,7 +752,7 @@ void video_system_update(VideoUpdateState* update, Platform* platform)
 
     // Update matrices.
     {
-        projection = matrix4_perspective_projection(camera->field_of_view, viewport.x, viewport.y, camera->near_plane, camera->far_plane);
+        projection = matrix4_perspective_projection(camera->field_of_view, (float) viewport.x, (float) viewport.y, camera->near_plane, camera->far_plane);
 
         Float3 direction = float3_normalise(float3_subtract(camera->target, camera->position));
         Matrix4 view = matrix4_look_at(float3_zero, direction, float3_unit_z);
@@ -925,7 +925,7 @@ void video_system_update(VideoUpdateState* update, Platform* platform)
         glViewport(corner_x, corner_y, scale, scale);
         glClear(GL_DEPTH_BUFFER_BIT);
 
-        const float across = 3.0f * sqrt(3.0f);
+        const float across = 3.0f * sqrtf(3.0f);
         const float extent = across / 2.0f;
 
         Float3 direction = float3_normalise(float3_subtract(camera->target, camera->position));
@@ -978,7 +978,7 @@ void video_system_update(VideoUpdateState* update, Platform* platform)
 
         Rect space;
         space.bottom_left = (Float2){{-viewport.x / 2.0f, viewport.y / 2.0f}};
-        space.dimensions.x = viewport.x;
+        space.dimensions.x = (float) viewport.x;
         space.dimensions.y = 60.0f;
         space.bottom_left.y -= space.dimensions.y;
         ui_lay_out(main_menu, space, ui_context);
@@ -994,8 +994,8 @@ void video_system_update(VideoUpdateState* update, Platform* platform)
 
 void video_resize_viewport(Int2 dimensions, double dots_per_millimeter, float fov)
 {
-    int width = dimensions.x;
-    int height = dimensions.y;
+    float width = (float) dimensions.x;
+    float height = (float) dimensions.y;
     sky_projection = matrix4_perspective_projection(fov, width, height, 0.001f, 1.0f);
     screen_projection = matrix4_orthographic_projection(width, height, -1.0f, 1.0f);
 

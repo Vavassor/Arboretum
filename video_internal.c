@@ -6,7 +6,7 @@
 
 int count_mip_levels(int width, int height)
 {
-    return floor(log2(imax(width, height))) + 1;
+    return (int) floor(log2(imax(width, height))) + 1;
 }
 
 int get_vertex_format_component_count(VertexFormat format)

@@ -13,10 +13,10 @@ int string_size(const char* string)
     ASSERT(string);
     const char* s;
     for(s = string; *s; s += 1);
-    return s - string;
+    return (int) (s - string);
 }
 
-bool strings_match(const char* restrict a, const char* restrict b)
+bool strings_match(const char* RESTRICT a, const char* RESTRICT b)
 {
     ASSERT(a);
     ASSERT(b);
@@ -28,7 +28,7 @@ bool strings_match(const char* restrict a, const char* restrict b)
     return *a == *b;
 }
 
-int copy_string(char* restrict to, int to_size, const char* restrict from)
+int copy_string(char* RESTRICT to, int to_size, const char* RESTRICT from)
 {
     ASSERT(from);
     ASSERT(to);
@@ -46,7 +46,7 @@ int copy_string(char* restrict to, int to_size, const char* restrict from)
     return i;
 }
 
-static bool memory_matches(const void* restrict a, const void* restrict b, int n)
+static bool memory_matches(const void* RESTRICT a, const void* RESTRICT b, int n)
 {
     ASSERT(a);
     ASSERT(b);
@@ -67,7 +67,7 @@ static bool memory_matches(const void* restrict a, const void* restrict b, int n
     return true;
 }
 
-char* find_string(const char* restrict a, const char* restrict b)
+char* find_string(const char* RESTRICT a, const char* RESTRICT b)
 {
     ASSERT(a);
     ASSERT(b);
@@ -96,7 +96,7 @@ int find_char(const char* s, char c)
     return invalid_index;
 }
 
-bool string_starts_with(const char* restrict a, const char* restrict b)
+bool string_starts_with(const char* RESTRICT a, const char* RESTRICT b)
 {
     ASSERT(a);
     ASSERT(b);
@@ -112,7 +112,7 @@ bool string_starts_with(const char* restrict a, const char* restrict b)
     }
 }
 
-bool string_ends_with(const char* restrict a, const char* restrict b)
+bool string_ends_with(const char* RESTRICT a, const char* RESTRICT b)
 {
     ASSERT(a);
     ASSERT(b);
@@ -199,7 +199,7 @@ static bool is_control_character(char c)
     return is_ascii(c) && (c <= 0x1f || (c >= 0x7f && c <= 0x9f));
 }
 
-int compare_alphabetic_ascii(const char* restrict a, const char* restrict b)
+int compare_alphabetic_ascii(const char* RESTRICT a, const char* RESTRICT b)
 {
     while(*a && (*a == *b))
     {
@@ -357,7 +357,7 @@ bool string_to_int(const char* string, int* value)
 {
     uint64_t u;
     bool success = string_to_u64(string, NULL, 0, &u);
-    *value = u;
+    *value = (int) u;
     return success;
 }
 
@@ -365,7 +365,7 @@ bool string_to_int_extra(const char* string, char** after, int base, int* value)
 {
     uint64_t u;
     bool success = string_to_u64(string, after, base, &u);
-    *value = u;
+    *value = (int) u;
     return success;
 }
 
@@ -469,7 +469,7 @@ bool string_to_float(const char* string, float* value)
 {
     double d;
     bool success = string_to_double(string, &d);
-    *value = d;
+    *value = (float) d;
     return success;
 }
 
@@ -568,7 +568,7 @@ static void double_to_string(char* string, int size, double value, unsigned int 
         }
 
         // Calculate the magnitude.
-        int m = log10(n);
+        int m = (int) log10(n);
         bool include_exponent;
         switch(form)
         {
@@ -610,13 +610,13 @@ static void double_to_string(char* string, int size, double value, unsigned int 
         {
             if(m < 0)
             {
-                m -= 1.0;
+                m -= 1;
             }
             n /= pow(10.0, m);
             m1 = m;
             m = 0;
         }
-        if(m < 1.0)
+        if(m < 1)
         {
             m = 0;
         }
@@ -628,7 +628,7 @@ static void double_to_string(char* string, int size, double value, unsigned int 
             double weight = pow(10.0, m);
             if(weight > 0 && !isinf(weight))
             {
-                int digit = floor(n / weight);
+                int digit = (int) floor(n / weight);
                 n -= digit * weight;
                 *s = '0' + digit;
                 s += 1;
@@ -942,21 +942,21 @@ static void find_length(FormatContext* context)
     ASSERT(false);
 }
 
+#define INT_BUFFER_SIZE 21
+#define FLOAT_BUFFER_SIZE 32
+
 static void process_specifier(FormatContext* context, va_list* arguments)
 {
     char specifier = *context->format;
     char* buffer = context->buffer + context->chars_written;
     int buffer_left = context->buffer_size - context->chars_written;
 
-    const int int_buffer_size = 21;
-    const int float_buffer_size = 32;
-
     switch(specifier)
     {
         case 'd':
         case 'i':
         {
-            char int_buffer[int_buffer_size];
+            char int_buffer[INT_BUFFER_SIZE];
             switch(context->length)
             {
                 case LENGTH_LONG_DOUBLE:
@@ -969,37 +969,37 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                 case LENGTH_SHORT:
                 {
                     int value = va_arg(*arguments, int);
-                    int_to_string(int_buffer, int_buffer_size, value);
+                    int_to_string(int_buffer, INT_BUFFER_SIZE, value);
                     break;
                 }
                 case LENGTH_LONG:
                 {
                     long value = va_arg(*arguments, long);
-                    s64_to_string(int_buffer, int_buffer_size, value, 10);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 10);
                     break;
                 }
                 case LENGTH_LONG_LONG:
                 {
                     long long value = va_arg(*arguments, long long);
-                    s64_to_string(int_buffer, int_buffer_size, value, 10);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 10);
                     break;
                 }
                 case LENGTH_INT_MAX:
                 {
                     intmax_t value = va_arg(*arguments, intmax_t);
-                    s64_to_string(int_buffer, int_buffer_size, value, 10);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 10);
                     break;
                 }
                 case LENGTH_SIZE_T:
                 {
                     size_t value = va_arg(*arguments, size_t);
-                    s64_to_string(int_buffer, int_buffer_size, value, 10);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 10);
                     break;
                 }
                 case LENGTH_PTR_DIFF:
                 {
                     ptrdiff_t value = va_arg(*arguments, ptrdiff_t);
-                    s64_to_string(int_buffer, int_buffer_size, value, 10);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 10);
                     break;
                 }
             }
@@ -1009,7 +1009,7 @@ static void process_specifier(FormatContext* context, va_list* arguments)
         }
         case 'u':
         {
-            char int_buffer[int_buffer_size];
+            char int_buffer[INT_BUFFER_SIZE];
             switch(context->length)
             {
                 case LENGTH_LONG_DOUBLE:
@@ -1022,37 +1022,37 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                 case LENGTH_SHORT:
                 {
                     unsigned int value = va_arg(*arguments, unsigned int);
-                    int_to_string(int_buffer, int_buffer_size, value);
+                    int_to_string(int_buffer, INT_BUFFER_SIZE, value);
                     break;
                 }
                 case LENGTH_LONG:
                 {
                     unsigned long value = va_arg(*arguments, unsigned long);
-                    s64_to_string(int_buffer, int_buffer_size, value, 10);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 10);
                     break;
                 }
                 case LENGTH_LONG_LONG:
                 {
                     unsigned long long value = va_arg(*arguments, unsigned long long);
-                    s64_to_string(int_buffer, int_buffer_size, value, 10);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 10);
                     break;
                 }
                 case LENGTH_INT_MAX:
                 {
                     uintmax_t value = va_arg(*arguments, uintmax_t);
-                    s64_to_string(int_buffer, int_buffer_size, value, 10);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 10);
                     break;
                 }
                 case LENGTH_SIZE_T:
                 {
                     size_t value = va_arg(*arguments, size_t);
-                    s64_to_string(int_buffer, int_buffer_size, value, 10);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 10);
                     break;
                 }
                 case LENGTH_PTR_DIFF:
                 {
                     ptrdiff_t value = va_arg(*arguments, ptrdiff_t);
-                    s64_to_string(int_buffer, int_buffer_size, value, 10);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 10);
                     break;
                 }
             }
@@ -1062,7 +1062,7 @@ static void process_specifier(FormatContext* context, va_list* arguments)
         }
         case 'o':
         {
-            char int_buffer[int_buffer_size];
+            char int_buffer[INT_BUFFER_SIZE];
             switch(context->length)
             {
                 case LENGTH_LONG_DOUBLE:
@@ -1075,37 +1075,37 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                 case LENGTH_SHORT:
                 {
                     unsigned int value = va_arg(*arguments, unsigned int);
-                    s64_to_string(int_buffer, int_buffer_size, value, 8);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 8);
                     break;
                 }
                 case LENGTH_LONG:
                 {
                     unsigned long value = va_arg(*arguments, unsigned long);
-                    s64_to_string(int_buffer, int_buffer_size, value, 8);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 8);
                     break;
                 }
                 case LENGTH_LONG_LONG:
                 {
                     unsigned long long value = va_arg(*arguments, unsigned long long);
-                    s64_to_string(int_buffer, int_buffer_size, value, 8);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 8);
                     break;
                 }
                 case LENGTH_INT_MAX:
                 {
                     uintmax_t value = va_arg(*arguments, uintmax_t);
-                    s64_to_string(int_buffer, int_buffer_size, value, 8);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 8);
                     break;
                 }
                 case LENGTH_SIZE_T:
                 {
                     size_t value = va_arg(*arguments, size_t);
-                    s64_to_string(int_buffer, int_buffer_size, value, 8);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 8);
                     break;
                 }
                 case LENGTH_PTR_DIFF:
                 {
                     ptrdiff_t value = va_arg(*arguments, ptrdiff_t);
-                    s64_to_string(int_buffer, int_buffer_size, value, 8);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 8);
                     break;
                 }
             }
@@ -1115,7 +1115,7 @@ static void process_specifier(FormatContext* context, va_list* arguments)
         }
         case 'x':
         {
-            char int_buffer[int_buffer_size];
+            char int_buffer[INT_BUFFER_SIZE];
             switch(context->length)
             {
                 case LENGTH_LONG_DOUBLE:
@@ -1128,37 +1128,37 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                 case LENGTH_SHORT:
                 {
                     unsigned int value = va_arg(*arguments, unsigned int);
-                    s64_to_string(int_buffer, int_buffer_size, value, 16);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 16);
                     break;
                 }
                 case LENGTH_LONG:
                 {
                     unsigned long value = va_arg(*arguments, unsigned long);
-                    s64_to_string(int_buffer, int_buffer_size, value, 16);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 16);
                     break;
                 }
                 case LENGTH_LONG_LONG:
                 {
                     unsigned long long value = va_arg(*arguments, unsigned long long);
-                    s64_to_string(int_buffer, int_buffer_size, value, 16);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 16);
                     break;
                 }
                 case LENGTH_INT_MAX:
                 {
                     uintmax_t value = va_arg(*arguments, uintmax_t);
-                    s64_to_string(int_buffer, int_buffer_size, value, 16);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 16);
                     break;
                 }
                 case LENGTH_SIZE_T:
                 {
                     size_t value = va_arg(*arguments, size_t);
-                    s64_to_string(int_buffer, int_buffer_size, value, 16);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 16);
                     break;
                 }
                 case LENGTH_PTR_DIFF:
                 {
                     ptrdiff_t value = va_arg(*arguments, ptrdiff_t);
-                    s64_to_string(int_buffer, int_buffer_size, value, 16);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 16);
                     break;
                 }
             }
@@ -1168,7 +1168,7 @@ static void process_specifier(FormatContext* context, va_list* arguments)
         }
         case 'X':
         {
-            char int_buffer[int_buffer_size];
+            char int_buffer[INT_BUFFER_SIZE];
             switch(context->length)
             {
                 case LENGTH_LONG_DOUBLE:
@@ -1181,37 +1181,37 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                 case LENGTH_SHORT:
                 {
                     unsigned int value = va_arg(*arguments, unsigned int);
-                    s64_to_string(int_buffer, int_buffer_size, value, 16);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 16);
                     break;
                 }
                 case LENGTH_LONG:
                 {
                     unsigned long value = va_arg(*arguments, unsigned long);
-                    s64_to_string(int_buffer, int_buffer_size, value, 16);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 16);
                     break;
                 }
                 case LENGTH_LONG_LONG:
                 {
                     unsigned long long value = va_arg(*arguments, unsigned long long);
-                    s64_to_string(int_buffer, int_buffer_size, value, 16);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 16);
                     break;
                 }
                 case LENGTH_INT_MAX:
                 {
                     uintmax_t value = va_arg(*arguments, uintmax_t);
-                    s64_to_string(int_buffer, int_buffer_size, value, 16);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 16);
                     break;
                 }
                 case LENGTH_SIZE_T:
                 {
                     size_t value = va_arg(*arguments, size_t);
-                    s64_to_string(int_buffer, int_buffer_size, value, 16);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 16);
                     break;
                 }
                 case LENGTH_PTR_DIFF:
                 {
                     ptrdiff_t value = va_arg(*arguments, ptrdiff_t);
-                    s64_to_string(int_buffer, int_buffer_size, value, 16);
+                    s64_to_string(int_buffer, INT_BUFFER_SIZE, value, 16);
                     break;
                 }
             }
@@ -1222,7 +1222,7 @@ static void process_specifier(FormatContext* context, va_list* arguments)
         }
         case 'f':
         {
-            char float_buffer[float_buffer_size];
+            char float_buffer[FLOAT_BUFFER_SIZE];
             switch(context->length)
             {
                 default:
@@ -1233,13 +1233,13 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                 case LENGTH_UNSPECIFIED:
                 {
                     double value = va_arg(*arguments, double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_FORCE_DECIMAL, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, FLOAT_BUFFER_SIZE, value, context->precision, FORM_FORCE_DECIMAL, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
                 case LENGTH_LONG_DOUBLE:
                 {
                     long double value = va_arg(*arguments, long double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_FORCE_DECIMAL, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, FLOAT_BUFFER_SIZE, value, context->precision, FORM_FORCE_DECIMAL, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
             }
@@ -1249,7 +1249,7 @@ static void process_specifier(FormatContext* context, va_list* arguments)
         }
         case 'F':
         {
-            char float_buffer[float_buffer_size];
+            char float_buffer[FLOAT_BUFFER_SIZE];
             switch(context->length)
             {
                 default:
@@ -1260,13 +1260,13 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                 case LENGTH_UNSPECIFIED:
                 {
                     double value = va_arg(*arguments, double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_FORCE_DECIMAL, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, FLOAT_BUFFER_SIZE, value, context->precision, FORM_FORCE_DECIMAL, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
                 case LENGTH_LONG_DOUBLE:
                 {
                     long double value = va_arg(*arguments, long double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_FORCE_DECIMAL, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, FLOAT_BUFFER_SIZE, value, context->precision, FORM_FORCE_DECIMAL, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
             }
@@ -1277,7 +1277,7 @@ static void process_specifier(FormatContext* context, va_list* arguments)
         }
         case 'e':
         {
-            char float_buffer[float_buffer_size];
+            char float_buffer[FLOAT_BUFFER_SIZE];
             switch(context->length)
             {
                 default:
@@ -1288,13 +1288,13 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                 case LENGTH_UNSPECIFIED:
                 {
                     double value = va_arg(*arguments, double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_FORCE_SCIENTIFIC_NOTATION, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, FLOAT_BUFFER_SIZE, value, context->precision, FORM_FORCE_SCIENTIFIC_NOTATION, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
                 case LENGTH_LONG_DOUBLE:
                 {
                     long double value = va_arg(*arguments, long double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_FORCE_SCIENTIFIC_NOTATION, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, FLOAT_BUFFER_SIZE, value, context->precision, FORM_FORCE_SCIENTIFIC_NOTATION, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
             }
@@ -1304,7 +1304,7 @@ static void process_specifier(FormatContext* context, va_list* arguments)
         }
         case 'E':
         {
-            char float_buffer[float_buffer_size];
+            char float_buffer[FLOAT_BUFFER_SIZE];
             switch(context->length)
             {
                 default:
@@ -1315,13 +1315,13 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                 case LENGTH_UNSPECIFIED:
                 {
                     double value = va_arg(*arguments, double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_FORCE_SCIENTIFIC_NOTATION, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, FLOAT_BUFFER_SIZE, value, context->precision, FORM_FORCE_SCIENTIFIC_NOTATION, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
                 case LENGTH_LONG_DOUBLE:
                 {
                     long double value = va_arg(*arguments, long double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_FORCE_SCIENTIFIC_NOTATION, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, FLOAT_BUFFER_SIZE, value, context->precision, FORM_FORCE_SCIENTIFIC_NOTATION, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
             }
@@ -1332,7 +1332,7 @@ static void process_specifier(FormatContext* context, va_list* arguments)
         }
         case 'g':
         {
-            char float_buffer[float_buffer_size];
+            char float_buffer[FLOAT_BUFFER_SIZE];
             switch(context->length)
             {
                 default:
@@ -1343,13 +1343,13 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                 case LENGTH_UNSPECIFIED:
                 {
                     double value = va_arg(*arguments, double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_USE_SHORTEST, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, FLOAT_BUFFER_SIZE, value, context->precision, FORM_USE_SHORTEST, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
                 case LENGTH_LONG_DOUBLE:
                 {
                     long double value = va_arg(*arguments, long double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_USE_SHORTEST, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, FLOAT_BUFFER_SIZE, value, context->precision, FORM_USE_SHORTEST, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
             }
@@ -1359,7 +1359,7 @@ static void process_specifier(FormatContext* context, va_list* arguments)
         }
         case 'G':
         {
-            char float_buffer[float_buffer_size];
+            char float_buffer[FLOAT_BUFFER_SIZE];
             switch(context->length)
             {
                 default:
@@ -1370,13 +1370,13 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                 case LENGTH_UNSPECIFIED:
                 {
                     double value = va_arg(*arguments, double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_USE_SHORTEST, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, FLOAT_BUFFER_SIZE, value, context->precision, FORM_USE_SHORTEST, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
                 case LENGTH_LONG_DOUBLE:
                 {
                     long double value = va_arg(*arguments, long double);
-                    double_to_string(float_buffer, float_buffer_size, value, context->precision, FORM_USE_SHORTEST, context->force_sign, context->positive_space, context->pound_flag);
+                    double_to_string(float_buffer, FLOAT_BUFFER_SIZE, value, context->precision, FORM_USE_SHORTEST, context->force_sign, context->positive_space, context->pound_flag);
                     break;
                 }
             }
@@ -1417,7 +1417,7 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                 case LENGTH_LONG:
                 {
                     wint_t value = va_arg(*arguments, wint_t);
-                    add_char(context, value);
+                    add_char(context, (char) value);
                     break;
                 }
             }
@@ -1456,8 +1456,8 @@ static void process_specifier(FormatContext* context, va_list* arguments)
             void* value = va_arg(*arguments, void*);
             uintptr_t address = (uintptr_t) value;
 
-            char int_buffer[int_buffer_size];
-            s64_to_string(int_buffer, int_buffer_size, address, 16);
+            char int_buffer[INT_BUFFER_SIZE];
+            s64_to_string(int_buffer, INT_BUFFER_SIZE, address, 16);
             int copied = copy_string(buffer, buffer_left, int_buffer);
             context->chars_written += copied;
             break;
@@ -1490,7 +1490,7 @@ static void process_specifier(FormatContext* context, va_list* arguments)
 // exceeding the buffer_size.
 void va_list_format_string(char* buffer, int buffer_size, const char* format, va_list* arguments)
 {
-    FormatContext context = {};
+    FormatContext context = {0};
     context.buffer = buffer;
     context.buffer_size = buffer_size;
     context.format = format;

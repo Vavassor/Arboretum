@@ -527,10 +527,11 @@ void jan_update_normals(JanMesh* mesh)
     }
 }
 
+#define WEIRD_FACE_VERTICES_COUNT 8
+
 void jan_make_a_weird_face(JanMesh* mesh, Stack* stack)
 {
-    const int vertices_count = 8;
-    Float3 positions[vertices_count];
+    Float3 positions[WEIRD_FACE_VERTICES_COUNT];
     positions[0] = (Float3){{-0.20842f, +0.20493f, 0.0f}};
     positions[1] = (Float3){{+0.53383f, -0.31467f, 0.0f}};
     positions[2] = (Float3){{+0.19402f, -0.55426f, 0.0f}};
@@ -540,13 +541,13 @@ void jan_make_a_weird_face(JanMesh* mesh, Stack* stack)
     positions[6] = (Float3){{-0.59335f, -0.28583f, 0.0f}};
     positions[7] = (Float3){{-0.05012f, -0.82722f, 0.0f}};
 
-    JanVertex* vertices[vertices_count];
-    for(int i = 0; i < vertices_count; i += 1)
+    JanVertex* vertices[WEIRD_FACE_VERTICES_COUNT];
+    for(int i = 0; i < WEIRD_FACE_VERTICES_COUNT; i += 1)
     {
         vertices[i] = jan_add_vertex(mesh, positions[i]);
     }
 
-    JanFace* face = connect_vertices_and_add_face(mesh, vertices, vertices_count, stack);
+    JanFace* face = connect_vertices_and_add_face(mesh, vertices, WEIRD_FACE_VERTICES_COUNT, stack);
 
     compute_face_normal(face);
 }
