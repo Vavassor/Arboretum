@@ -9,7 +9,7 @@
 #include "sorting.h"
 #include "string_build.h"
 #include "string_utilities.h"
-#include "video_object.h"
+#include "video.h"
 
 static bool record_is_before(DirectoryRecord a, DirectoryRecord b)
 {
@@ -425,8 +425,7 @@ static void import_file(FilePickDialog* dialog, const char* name, ObjectLady* la
         object_set_position(imported_model, (Float3){{-2.0f, 0.0f, 0.0f}});
 
         jan_colour_all_faces(&imported_model->mesh, float3_magenta);
-        VideoObject* video_object = video_get_object(imported_model->video_object);
-        video_object_update_mesh(video_object, &imported_model->mesh, heap);
+        video_update_mesh(imported_model->video_object, &imported_model->mesh, heap);
 
         add_object_to_history(history, imported_model, heap);
 

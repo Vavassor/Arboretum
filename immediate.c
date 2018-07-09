@@ -3,13 +3,14 @@
 #include "assert.h"
 #include "colours.h"
 #include "float_utilities.h"
-#include "gl_core_3_3.h"
 #include "math_basics.h"
 #include "memory.h"
+#include "uniform_blocks.h"
 #include "vertex_layout.h"
 
 #define CONTEXT_VERTICES_CAP 8192
 #define CONTEXT_VERTEX_TYPE_COUNT 3
+#define CONTEXT_BLEND_MODE_COUNT 2
 
 typedef enum VertexType
 {
@@ -30,79 +31,178 @@ typedef struct Context
     Matrix4 view_projection;
     Matrix4 projection;
     Float3 text_colour;
-    GLuint vertex_arrays[CONTEXT_VERTEX_TYPE_COUNT];
-    GLuint buffers[CONTEXT_VERTEX_TYPE_COUNT];
-    GLuint shaders[CONTEXT_VERTEX_TYPE_COUNT];
+    float line_width;
+    BufferId buffers[CONTEXT_VERTEX_TYPE_COUNT];
+    BufferId uniform_buffers[2];
+    PipelineId pipelines[CONTEXT_BLEND_MODE_COUNT][CONTEXT_VERTEX_TYPE_COUNT];
+    Backend* backend;
     int filled;
     BlendMode blend_mode;
     VertexType vertex_type;
-    bool blend_mode_changed;
 } Context;
 
 static Context* context;
 
-void immediate_context_create(Heap* heap)
+void immediate_context_create(ImmediateContextSpec* spec, Heap* heap, Log* log)
 {
     context = HEAP_ALLOCATE(heap, Context, 1);
     Context* c = context;
 
-    glGenVertexArrays(CONTEXT_VERTEX_TYPE_COUNT, c->vertex_arrays);
-    glGenBuffers(CONTEXT_VERTEX_TYPE_COUNT, c->buffers);
+    c->backend = spec->backend;
+    c->uniform_buffers[0] = spec->uniform_buffers[0];
+    c->uniform_buffers[1] = spec->uniform_buffers[1];
 
-    glBindVertexArray(c->vertex_arrays[0]);
-    glBindBuffer(GL_ARRAY_BUFFER, c->buffers[0]);
+    BufferSpec buffer_spec =
+    {
+        .format = BUFFER_FORMAT_VERTEX,
+        .usage = BUFFER_USAGE_DYNAMIC,
+        .size = sizeof(c->vertices),
+    };
+    c->buffers[0] = create_buffer(c->backend, &buffer_spec, log);
 
-    glBufferData(GL_ARRAY_BUFFER, sizeof(c->vertices), NULL, GL_DYNAMIC_DRAW);
+    BufferSpec textured_buffer_spec =
+    {
+        .format = BUFFER_FORMAT_VERTEX,
+        .usage = BUFFER_USAGE_DYNAMIC,
+        .size = sizeof(c->vertices_textured),
+    };
+    c->buffers[1] = create_buffer(c->backend, &textured_buffer_spec, log);
 
-    GLvoid* offset0 = (GLvoid*) offsetof(VertexPC, position);
-    GLvoid* offset1 = (GLvoid*) offsetof(VertexPC, colour);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(VertexPC), offset0);
-    glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(VertexPC), offset1);
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(2);
+    BufferSpec line_buffer_spec =
+    {
+        .format = BUFFER_FORMAT_VERTEX,
+        .usage = BUFFER_USAGE_DYNAMIC,
+        .size = sizeof(c->line_vertices),
+    };
+    c->buffers[2] = create_buffer(c->backend, &line_buffer_spec, log);
 
-    glBindVertexArray(c->vertex_arrays[1]);
-    glBindBuffer(GL_ARRAY_BUFFER, c->buffers[1]);
+    BlendStateSpec blend_state_specs[CONTEXT_BLEND_MODE_COUNT] =
+    {
+        [0] =
+        {
+            .enabled = false,
+        },
+        [1] =
+        {
+            .enabled = true,
+            .alpha_op = BLEND_OP_ADD,
+            .alpha_source_factor = BLEND_FACTOR_SRC_ALPHA,
+            .alpha_destination_factor = BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .rgb_op = BLEND_OP_ADD,
+            .rgb_source_factor = BLEND_FACTOR_SRC_ALPHA,
+            .rgb_destination_factor = BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        },
+    };
 
-    glBufferData(GL_ARRAY_BUFFER, sizeof(c->line_vertices), NULL, GL_DYNAMIC_DRAW);
+    DepthStencilStateSpec depth_stencil_specs[CONTEXT_BLEND_MODE_COUNT] =
+    {
+        [0] =
+        {
+            .depth_compare_enabled = true,
+            .depth_write_enabled = true,
+            .depth_compare_op = COMPARE_OP_LESS_OR_EQUAL,
+        },
+        [1] =
+        {
+            .depth_compare_enabled = true,
+            .depth_write_enabled = false,
+            .depth_compare_op = COMPARE_OP_LESS_OR_EQUAL,
+        },
+    };
 
-    offset0 = (GLvoid*) offsetof(LineVertex, position);
-    offset1 = (GLvoid*) offsetof(LineVertex, direction);
-    GLvoid* offset2 = (GLvoid*) offsetof(LineVertex, colour);
-    GLvoid* offset3 = (GLvoid*) offsetof(LineVertex, texcoord);
-    GLvoid* offset4 = (GLvoid*) offsetof(LineVertex, side);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(LineVertex), offset0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(LineVertex), offset1);
-    glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(LineVertex), offset2);
-    glVertexAttribPointer(3, 2, GL_UNSIGNED_SHORT, GL_TRUE, sizeof(LineVertex), offset3);
-    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, sizeof(LineVertex), offset4);
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-    glEnableVertexAttribArray(2);
-    glEnableVertexAttribArray(3);
-    glEnableVertexAttribArray(4);
+    InputAssemblySpec input_assembly_spec =
+    {
+        .index_type = INDEX_TYPE_NONE,
+    };
 
-    glBindVertexArray(c->vertex_arrays[2]);
-    glBindBuffer(GL_ARRAY_BUFFER, c->buffers[2]);
+    RasterizerStateSpec rasterizer_state_specs[CONTEXT_BLEND_MODE_COUNT] =
+    {
+        [0] =
+        {
+            .cull_mode = CULL_MODE_BACK,
+        },
+        [1] =
+        {
+            .cull_mode = CULL_MODE_NONE,
+        },
+    };
 
-    glBufferData(GL_ARRAY_BUFFER, sizeof(c->vertices_textured), NULL, GL_DYNAMIC_DRAW);
+    for(int i = 0; i < CONTEXT_BLEND_MODE_COUNT; i += 1)
+    {
+        PipelineSpec pipeline_spec =
+        {
+            .blend = blend_state_specs[i],
+            .depth_stencil = depth_stencil_specs[i],
+            .input_assembly = input_assembly_spec,
+            .rasterizer = rasterizer_state_specs[i],
+            .shader = spec->shaders[0],
+            .vertex_layout =
+            {
+                .attributes =
+                {
+                    [0] = {.format = VERTEX_FORMAT_FLOAT3},
+                    [1] = {.format = VERTEX_FORMAT_UBYTE4_NORM},
+                },
+            },
+        };
+        c->pipelines[i][0] = create_pipeline(c->backend, &pipeline_spec, log);
 
-    offset0 = (GLvoid*) offsetof(VertexPT, position);
-    offset1 = (GLvoid*) offsetof(VertexPT, texcoord);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(VertexPT), offset0);
-    glVertexAttribPointer(3, 2, GL_UNSIGNED_SHORT, GL_TRUE, sizeof(VertexPT), offset1);
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(3);
+        PipelineSpec textured_pipeline_spec =
+        {
+            .blend = blend_state_specs[i],
+            .depth_stencil = depth_stencil_specs[i],
+            .input_assembly = input_assembly_spec,
+            .rasterizer = rasterizer_state_specs[i],
+            .shader = spec->shaders[1],
+            .vertex_layout =
+            {
+                .attributes =
+                {
+                    [0] = {.format = VERTEX_FORMAT_FLOAT3},
+                    [1] = {.format = VERTEX_FORMAT_USHORT2_NORM},
+                },
+            },
+        };
+        c->pipelines[i][1] = create_pipeline(c->backend, &textured_pipeline_spec, log);
 
-    glBindVertexArray(0);
+        PipelineSpec line_pipeline_spec =
+        {
+            .blend = blend_state_specs[i],
+            .depth_stencil = depth_stencil_specs[i],
+            .input_assembly = input_assembly_spec,
+            .rasterizer = rasterizer_state_specs[i],
+            .shader = spec->shaders[2],
+            .vertex_layout =
+            {
+                .attributes =
+                {
+                    [0] = {.format = VERTEX_FORMAT_FLOAT3},
+                    [1] = {.format = VERTEX_FORMAT_FLOAT3},
+                    [2] = {.format = VERTEX_FORMAT_UBYTE4_NORM},
+                    [3] = {.format = VERTEX_FORMAT_USHORT2_NORM},
+                    [4] = {.format = VERTEX_FORMAT_FLOAT1},
+                },
+            },
+        };
+        c->pipelines[i][2] = create_pipeline(c->backend, &line_pipeline_spec, log);
+    }
 }
 
 void immediate_context_destroy(Heap* heap)
 {
     if(context)
     {
-        glDeleteBuffers(CONTEXT_VERTEX_TYPE_COUNT, context->buffers);
-        glDeleteVertexArrays(CONTEXT_VERTEX_TYPE_COUNT, context->vertex_arrays);
+        for(int i = 0; i < CONTEXT_VERTEX_TYPE_COUNT; i += 1)
+        {
+            destroy_buffer(context->backend, context->buffers[i]);
+        }
+        for(int i = 0; i < CONTEXT_BLEND_MODE_COUNT; i += 1)
+        {
+            for(int j = 0; j < CONTEXT_VERTEX_TYPE_COUNT; j += 1)
+            {
+                destroy_pipeline(context->backend, context->pipelines[i][j]);
+            }
+        }
         HEAP_DEALLOCATE(heap, context);
     }
 }
@@ -113,28 +213,19 @@ void immediate_set_matrices(Matrix4 view, Matrix4 projection)
     context->projection = projection;
 }
 
-void immediate_set_shader(GLuint program)
-{
-    context->shaders[0] = program;
-}
-
-void immediate_set_line_shader(GLuint program)
-{
-    context->shaders[1] = program;
-}
-
-void immediate_set_textured_shader(GLuint program)
-{
-    context->shaders[2] = program;
-}
-
 void immediate_set_blend_mode(BlendMode mode)
 {
-    if(context->blend_mode != mode)
-    {
-        context->blend_mode = mode;
-        context->blend_mode_changed = true;
-    }
+    context->blend_mode = mode;
+}
+
+void immediate_set_line_width(float line_width)
+{
+    context->line_width = line_width;
+}
+
+static void set_vertex_type(VertexType type)
+{
+    context->vertex_type = type;
 }
 
 void immediate_set_text_colour(Float3 text_colour)
@@ -144,15 +235,26 @@ void immediate_set_text_colour(Float3 text_colour)
 
 void immediate_set_clip_area(Rect rect, int viewport_width, int viewport_height)
 {
-    glEnable(GL_SCISSOR_TEST);
-    int x = rect.bottom_left.x + (viewport_width / 2);
-    int y = rect.bottom_left.y + (viewport_height / 2);
-    glScissor(x, y, rect.dimensions.x, rect.dimensions.y);
+    ScissorRect scissor_rect =
+    {
+        .bottom_left =
+        {
+            .x = rect.bottom_left.x + (viewport_width / 2),
+            .y = rect.bottom_left.y + (viewport_height / 2),
+        },
+        .dimensions = {rect.dimensions.x, rect.dimensions.y},
+    };
+    set_scissor_rect(context->backend, &scissor_rect);
 }
 
 void immediate_stop_clip_area()
 {
-    glDisable(GL_SCISSOR_TEST);
+    set_scissor_rect(context->backend, NULL);
+}
+
+static bool is_fresh(Context* c)
+{
+    return c->filled == 0;
 }
 
 void immediate_draw()
@@ -163,88 +265,89 @@ void immediate_draw()
         return;
     }
 
-    if(c->blend_mode_changed)
-    {
-        switch(c->blend_mode)
-        {
-            case BLEND_MODE_NONE:
-            case BLEND_MODE_OPAQUE:
-            {
-                glDisable(GL_BLEND);
-                glDepthMask(GL_TRUE);
-                glEnable(GL_CULL_FACE);
-                break;
-            }
-            case BLEND_MODE_TRANSPARENT:
-            {
-                glEnable(GL_BLEND);
-                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-                glDepthMask(GL_FALSE);
-                glDisable(GL_CULL_FACE);
-                break;
-            }
-        }
-        c->blend_mode_changed = false;
-    }
-
-    GLuint shader;
+    int vertex_type_index;
     switch(c->vertex_type)
     {
         case VERTEX_TYPE_NONE:
         case VERTEX_TYPE_COLOUR:
         {
-            glBindBuffer(GL_ARRAY_BUFFER, c->buffers[0]);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(VertexPC) * c->filled, c->vertices, GL_DYNAMIC_DRAW);
-            glBindVertexArray(c->vertex_arrays[0]);
-            shader = c->shaders[0];
-            break;
-        }
-        case VERTEX_TYPE_LINE:
-        {
-            glBindBuffer(GL_ARRAY_BUFFER, c->buffers[1]);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(LineVertex) * c->filled, c->line_vertices, GL_DYNAMIC_DRAW);
-            glBindVertexArray(c->vertex_arrays[1]);
-            shader = c->shaders[1];
+            vertex_type_index = 0;
+            BufferId buffer = c->buffers[vertex_type_index];
+            int filled = sizeof(VertexPC) * c->filled;
+            update_buffer(c->backend, buffer, c->vertices, 0, filled);
             break;
         }
         case VERTEX_TYPE_TEXTURE:
         {
-            glBindBuffer(GL_ARRAY_BUFFER, c->buffers[2]);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(VertexPT) * c->filled, c->vertices_textured, GL_DYNAMIC_DRAW);
-            glBindVertexArray(c->vertex_arrays[2]);
-            shader = c->shaders[2];
+            vertex_type_index = 1;
+            BufferId buffer = c->buffers[vertex_type_index];
+            int filled = sizeof(VertexPT) * c->filled;
+            update_buffer(c->backend, buffer, c->vertices_textured, 0, filled);
+            break;
+        }
+        case VERTEX_TYPE_LINE:
+        {
+            vertex_type_index = 2;
+            BufferId buffer = c->buffers[vertex_type_index];
+            int filled = sizeof(LineVertex) * c->filled;
+            update_buffer(c->backend, buffer, c->line_vertices, 0, filled);
             break;
         }
     }
 
-    glUseProgram(shader);
-    GLint location = glGetUniformLocation(shader, "model_view_projection");
-    glUniformMatrix4fv(location, 1, GL_TRUE, c->view_projection.e);
-
-    location = glGetUniformLocation(shader, "text_colour");
-    if(location != -1)
+    int blend_index;
+    switch(c->blend_mode)
     {
-        glUniform3fv(location, 1, &c->text_colour.e[0]);
+        case BLEND_MODE_NONE:
+        case BLEND_MODE_OPAQUE:
+        {
+            blend_index = 0;
+            break;
+        }
+        case BLEND_MODE_TRANSPARENT:
+        {
+            blend_index = 1;
+            break;
+        }
     }
 
-    location = glGetUniformLocation(shader, "projection_factor");
-    if(location != -1)
+    set_pipeline(c->backend, c->pipelines[blend_index][vertex_type_index]);
+
+    if(c->vertex_type == VERTEX_TYPE_TEXTURE)
     {
-        glUniform1f(location, c->projection.e[0]);
+        PerSpan per_span =
+        {
+            .tint = c->text_colour,
+        };
+        update_buffer(c->backend, c->uniform_buffers[1], &per_span, 0, sizeof(per_span));
+    }
+    else if(c->vertex_type == VERTEX_TYPE_LINE)
+    {
+        PerLine per_line =
+        {
+            .line_width = c->line_width,
+            .projection_factor = c->projection.e[0],
+        };
+        update_buffer(c->backend, c->uniform_buffers[0], &per_line, 0, sizeof(per_line));
     }
 
-    glDrawArrays(GL_TRIANGLES, 0, c->filled);
+    DrawAction draw_action =
+    {
+        .vertex_buffers[0] = c->buffers[vertex_type_index],
+        .indices_count = c->filled,
+    };
+    draw(c->backend, &draw_action);
 
     immediate_set_blend_mode(BLEND_MODE_NONE);
     immediate_set_text_colour(float3_white);
-    c->vertex_type = VERTEX_TYPE_NONE;
+    immediate_set_line_width(4.0f);
     c->filled = 0;
 }
 
 void immediate_add_line(Float3 start, Float3 end, Float4 colour)
 {
     Context* c = context;
-    ASSERT(c->vertex_type == VERTEX_TYPE_LINE || c->vertex_type == VERTEX_TYPE_NONE);
+    ASSERT(is_fresh(c) || c->vertex_type == VERTEX_TYPE_LINE);
     ASSERT(c->filled + 6 < CONTEXT_VERTICES_CAP);
     uint32_t colour_u32 = rgba_to_u32(colour);
     uint32_t texcoords[4] =
@@ -262,13 +365,13 @@ void immediate_add_line(Float3 start, Float3 end, Float4 colour)
     c->line_vertices[c->filled + 4] = (LineVertex){start, direction, colour_u32, texcoords[2], 1.0f};
     c->line_vertices[c->filled + 5] = (LineVertex){end, float3_negate(direction), colour_u32, texcoords[3], -1.0f};
     c->filled += 6;
-    c->vertex_type = VERTEX_TYPE_LINE;
+    set_vertex_type(VERTEX_TYPE_LINE);
 }
 
 void immediate_add_triangle(Triangle* triangle, Float4 colour)
 {
     Context* c = context;
-    ASSERT(c->vertex_type == VERTEX_TYPE_COLOUR || c->vertex_type == VERTEX_TYPE_NONE);
+    ASSERT(is_fresh(c) || c->vertex_type == VERTEX_TYPE_COLOUR);
     ASSERT(c->filled + 3 < CONTEXT_VERTICES_CAP);
     for(int i = 0; i < 3; ++i)
     {
@@ -276,7 +379,7 @@ void immediate_add_triangle(Triangle* triangle, Float4 colour)
         c->vertices[c->filled + i].colour = rgba_to_u32(colour);
     }
     c->filled += 3;
-    c->vertex_type = VERTEX_TYPE_COLOUR;
+    set_vertex_type(VERTEX_TYPE_COLOUR);
 }
 
 void immediate_add_rect(Rect rect, Float4 colour)
@@ -294,7 +397,7 @@ void immediate_add_wire_rect(Rect rect, Float4 colour)
 void immediate_add_quad(Quad* quad, Float4 colour)
 {
     Context* c = context;
-    ASSERT(c->vertex_type == VERTEX_TYPE_COLOUR || c->vertex_type == VERTEX_TYPE_NONE);
+    ASSERT(is_fresh(c) || c->vertex_type == VERTEX_TYPE_COLOUR);
     ASSERT(c->filled + 6 < CONTEXT_VERTICES_CAP);
     c->vertices[c->filled + 0].position = quad->vertices[0];
     c->vertices[c->filled + 1].position = quad->vertices[1];
@@ -307,13 +410,13 @@ void immediate_add_quad(Quad* quad, Float4 colour)
         c->vertices[c->filled + i].colour = rgba_to_u32(colour);
     }
     c->filled += 6;
-    c->vertex_type = VERTEX_TYPE_COLOUR;
+    set_vertex_type(VERTEX_TYPE_COLOUR);
 }
 
 void immediate_add_quad_textured(Quad* quad, Rect texture_rect)
 {
     Context* c = context;
-    ASSERT(c->vertex_type == VERTEX_TYPE_TEXTURE || c->vertex_type == VERTEX_TYPE_NONE);
+    ASSERT(is_fresh(c) || c->vertex_type == VERTEX_TYPE_TEXTURE);
     ASSERT(c->filled + 6 < CONTEXT_VERTICES_CAP);
     c->vertices_textured[c->filled + 0].position = quad->vertices[0];
     c->vertices_textured[c->filled + 1].position = quad->vertices[1];
@@ -335,7 +438,7 @@ void immediate_add_quad_textured(Quad* quad, Rect texture_rect)
     c->vertices_textured[c->filled + 4].texcoord = texcoord_to_u32(texcoords[2]);
     c->vertices_textured[c->filled + 5].texcoord = texcoord_to_u32(texcoords[3]);
     c->filled += 6;
-    c->vertex_type = VERTEX_TYPE_TEXTURE;
+    set_vertex_type(VERTEX_TYPE_TEXTURE);
 }
 
 void immediate_add_wire_quad(Quad* quad, Float4 colour)

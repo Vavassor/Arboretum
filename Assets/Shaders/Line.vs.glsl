@@ -6,11 +6,28 @@ layout(location = 2) in vec4 colour;
 layout(location = 3) in vec2 texcoord;
 layout(location = 4) in float side;
 
-uniform float line_width;
-uniform mat4x4 model_view_projection;
-uniform float projection_factor;
-uniform vec2 texture_dimensions;
-uniform vec2 viewport;
+layout(std140) uniform PerImage
+{
+    vec2 texture_dimensions;
+};
+
+layout(std140) uniform PerLine
+{
+    float line_width;
+    float projection_factor;
+};
+
+layout(std140) uniform PerObject
+{
+    mat4x4 model;
+    mat4x4 normal_matrix;
+};
+
+layout(std140) uniform PerPass
+{
+    mat4x4 view_projection;
+    vec2 viewport_dimensions;
+};
 
 out vec4 surface_colour;
 noperspective out vec2 surface_texcoord;
@@ -27,7 +44,9 @@ vec4 clip_to_image_plane(vec4 f, vec4 b)
 
 void main()
 {
-    float aspect = viewport.x / viewport.y;
+    float aspect = viewport_dimensions.x / viewport_dimensions.y;
+    
+    mat4x4 model_view_projection = view_projection * model;
     
     vec4 start = model_view_projection * vec4(position, 1.0);
     vec4 end = model_view_projection * vec4(position + direction, 1.0);
@@ -51,7 +70,7 @@ void main()
     vec2 lateral = vec2(-screen_direction.y, screen_direction.x);
     lateral.x /= aspect;
 
-    float pixel_width_ratio = 2.0 / (viewport.x * projection_factor);
+    float pixel_width_ratio = 2.0 / (viewport_dimensions.x * projection_factor);
     float pixel_width = start.w * pixel_width_ratio;
     float cotangent_fov_over_2 = projection_factor * aspect;
     lateral *= 0.5 * pixel_width * line_width * cotangent_fov_over_2;
@@ -62,7 +81,7 @@ void main()
     
     float texture_aspect = texture_dimensions.x / texture_dimensions.y;
     
-    float screen_distance = distance(viewport.y * a, viewport.y * b);
+    float screen_distance = distance(viewport_dimensions.y * a, viewport_dimensions.y * b);
     float texel_distance = screen_distance * texture_aspect / line_width;
     float texcoord_scale = 0.5 * texel_distance;
     

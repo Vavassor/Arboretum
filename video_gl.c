@@ -157,6 +157,7 @@ typedef struct Pipeline
     InputAssembly input_assembly;
     RasterizerState rasterizer;
     ShaderId shader;
+    GLuint vertex_array;
 } Pipeline;
 
 typedef struct Sampler
@@ -274,6 +275,24 @@ static ImageType default_image_type(ImageType type, ImageType default_type)
         return default_type;
     }
     return type;
+}
+
+static IndexType default_index_type(IndexType type, IndexType default_type)
+{
+    if(type == INDEX_TYPE_INVALID)
+    {
+        return default_type;
+    }
+    return type;
+}
+
+static PrimitiveTopology default_primitive_topology(PrimitiveTopology topology, PrimitiveTopology default_topology)
+{
+    if(topology == PRIMITIVE_TOPOLOGY_INVALID)
+    {
+        return default_topology;
+    }
+    return topology;
 }
 
 static StencilOp default_stencil_op(StencilOp op, StencilOp default_op)
@@ -568,10 +587,15 @@ static GLenum get_vertex_format_type(VertexFormat format)
 {
     switch(format)
     {
+        case VERTEX_FORMAT_FLOAT1:
         case VERTEX_FORMAT_FLOAT2:
         case VERTEX_FORMAT_FLOAT3:
         case VERTEX_FORMAT_FLOAT4:
             return GL_FLOAT;
+        case VERTEX_FORMAT_UBYTE4_NORM:
+            return GL_UNSIGNED_BYTE;
+        case VERTEX_FORMAT_USHORT2_NORM:
+            return GL_UNSIGNED_SHORT;
         default:
             return 0;
     }
@@ -582,10 +606,14 @@ static GLboolean get_vertex_format_normalised(VertexFormat format)
     switch(format)
     {
         default:
+        case VERTEX_FORMAT_FLOAT1:
         case VERTEX_FORMAT_FLOAT2:
         case VERTEX_FORMAT_FLOAT3:
         case VERTEX_FORMAT_FLOAT4:
             return GL_FALSE;
+        case VERTEX_FORMAT_UBYTE4_NORM:
+        case VERTEX_FORMAT_USHORT2_NORM:
+            return GL_TRUE;
     }
 }
 
@@ -1065,8 +1093,8 @@ static void load_depth_stencil_state(DepthStencilState* state, DepthStencilState
 
 static void load_input_assembly(InputAssembly* input_assembly, InputAssemblySpec* spec)
 {
-    input_assembly->primitive_topology = spec->primitive_topology;
-    input_assembly->index_type = spec->index_type;
+    input_assembly->primitive_topology = default_primitive_topology(spec->primitive_topology, PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    input_assembly->index_type = default_index_type(spec->index_type, INDEX_TYPE_UINT16);
 }
 
 static void load_rasterizer_state(RasterizerState* state, RasterizerStateSpec* spec)
@@ -1130,11 +1158,15 @@ static void load_pipeline(Pipeline* pipeline, PipelineSpec* spec)
     load_rasterizer_state(&pipeline->rasterizer, &spec->rasterizer);
     load_vertex_layout(pipeline, &spec->vertex_layout);
 
+    glGenVertexArrays(1, &pipeline->vertex_array);
+
     pipeline->resource.status = RESOURCE_STATUS_VALID;
 }
 
 static void unload_pipeline(Pipeline* pipeline)
 {
+    glDeleteVertexArrays(1, &pipeline->vertex_array);
+
     pipeline->resource.status = RESOURCE_STATUS_INVALID;
 }
 
@@ -1389,12 +1421,12 @@ Backend* create_backend(Heap* heap)
 {
     Backend* backend = HEAP_ALLOCATE(heap, Backend, 1);
 
-    create_id_pool(&backend->buffer_id_pool, heap, 3);
-    create_id_pool(&backend->image_id_pool, heap, 3);
+    create_id_pool(&backend->buffer_id_pool, heap, 32);
+    create_id_pool(&backend->image_id_pool, heap, 8);
     create_id_pool(&backend->pass_id_pool, heap, 1);
-    create_id_pool(&backend->pipeline_id_pool, heap, 1);
-    create_id_pool(&backend->sampler_id_pool, heap, 1);
-    create_id_pool(&backend->shader_id_pool, heap, 1);
+    create_id_pool(&backend->pipeline_id_pool, heap, 16);
+    create_id_pool(&backend->sampler_id_pool, heap, 4);
+    create_id_pool(&backend->shader_id_pool, heap, 8);
 
     backend->buffers = HEAP_ALLOCATE(heap, Buffer, backend->buffer_id_pool.cap);
     backend->images = HEAP_ALLOCATE(heap, Image, backend->image_id_pool.cap);
@@ -1686,6 +1718,8 @@ void draw(Backend* backend, DrawAction* draw_action)
 {
     Pipeline* pipeline = backend->current_pipeline;
 
+    glBindVertexArray(pipeline->vertex_array);
+
     for(int i = 0; i < VERTEX_ATTRIBUTE_CAP; i += 1)
     {
         VertexAttribute* attribute = &pipeline->attributes[i];
@@ -1695,14 +1729,12 @@ void draw(Backend* backend, DrawAction* draw_action)
         }
 
         Buffer* buffer = fetch_buffer(backend, draw_action->vertex_buffers[attribute->buffer_index]);
+        ASSERT(buffer);
 
         glBindBuffer(GL_ARRAY_BUFFER, buffer->id);
         glEnableVertexAttribArray(i);
         glVertexAttribPointer(i, attribute->size, attribute->type, attribute->normalised, attribute->stride, (const GLvoid*) (uintptr_t) attribute->offset);
     }
-
-    Buffer* index_buffer = fetch_buffer(backend, draw_action->index_buffer);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer->id);
 
     GLenum mode = translate_primitive_topology(pipeline->input_assembly.primitive_topology);
     if(pipeline->input_assembly.index_type == INDEX_TYPE_NONE)
@@ -1711,6 +1743,10 @@ void draw(Backend* backend, DrawAction* draw_action)
     }
     else
     {
+        Buffer* index_buffer = fetch_buffer(backend, draw_action->index_buffer);
+        ASSERT(index_buffer);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer->id);
+
         GLenum index_type = translate_index_type(pipeline->input_assembly.index_type);
         glDrawElements(mode, draw_action->indices_count, index_type, NULL);
     }
@@ -2009,11 +2045,20 @@ void set_scissor_rect(Backend* backend, ScissorRect* rect)
 {
     (void) backend;
 
-    int x = rect->bottom_left.x;
-    int y = rect->bottom_left.y;
-    int width = rect->dimensions.x;
-    int height = rect->dimensions.y;
-    glScissor(x, y, width, height);
+    if(rect)
+    {
+        glEnable(GL_SCISSOR_TEST);
+
+        int x = rect->bottom_left.x;
+        int y = rect->bottom_left.y;
+        int width = rect->dimensions.x;
+        int height = rect->dimensions.y;
+        glScissor(x, y, width, height);
+    }
+    else
+    {
+        glDisable(GL_SCISSOR_TEST);
+    }
 }
 
 void set_viewport(Backend* backend, Viewport* viewport)
@@ -2031,6 +2076,11 @@ void set_viewport(Backend* backend, Viewport* viewport)
 
 void update_buffer(Backend* backend, BufferId id, const void* memory, int base, int size)
 {
+    if(!size)
+    {
+        return;
+    }
     Buffer* buffer = fetch_buffer(backend, id);
+    ASSERT(buffer);
     copy_to_buffer(buffer, memory, base, size);
 }

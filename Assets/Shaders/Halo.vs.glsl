@@ -2,10 +2,19 @@
 
 layout(location = 0) in vec3 position;
 
-uniform mat4x4 model_view_projection;
+layout(std140) uniform PerPass
+{
+    mat4x4 view_projection;
+    vec2 viewport_dimensions;
+};
+
+layout(std140) uniform PerObject
+{
+    mat4x4 model;
+    mat4x4 normal_matrix;
+};
 
 void main()
 {
-    gl_Position = model_view_projection * vec4(position, 1.0);
+    gl_Position = view_projection * model * vec4(position, 1.0);
 }
-
