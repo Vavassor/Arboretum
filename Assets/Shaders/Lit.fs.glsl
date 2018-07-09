@@ -2,7 +2,10 @@
 
 layout(location = 0) out vec4 output_colour;
 
-uniform vec3 light_direction;
+layout(std140) uniform LightBlock
+{
+    vec3 light_direction;
+};
 
 in vec3 surface_normal;
 in vec3 surface_colour;

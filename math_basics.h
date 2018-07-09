@@ -9,4 +9,6 @@
 #include <math.h>
 #endif // defined(COMPILER_MSVC)
 
+#undef log // Collides with log.h! We're using logf() mostly, anyhow.
+
 #endif // MATH_BASICS_H_

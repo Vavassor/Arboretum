@@ -3,8 +3,8 @@
 
 #include "vector_math.h"
 #include "geometry.h"
-#include "gl_core_3_3.h"
 #include "memory.h"
+#include "video_internal.h"
 
 typedef enum BlendMode
 {
@@ -13,14 +13,19 @@ typedef enum BlendMode
     BLEND_MODE_TRANSPARENT,
 } BlendMode;
 
-void immediate_context_create(Heap* heap);
+typedef struct ImmediateContextSpec
+{
+    ShaderId shaders[3];
+    BufferId uniform_buffers[2];
+    Backend* backend;
+} ImmediateContextSpec;
+
+void immediate_context_create(ImmediateContextSpec* spec, Heap* heap, Log* log);
 void immediate_context_destroy(Heap* heap);
 
 void immediate_set_matrices(Matrix4 view, Matrix4 projection);
-void immediate_set_shader(GLuint program);
-void immediate_set_line_shader(GLuint program);
-void immediate_set_textured_shader(GLuint program);
 void immediate_set_blend_mode(BlendMode mode);
+void immediate_set_line_width(float line_width);
 void immediate_set_text_colour(Float3 text_colour);
 
 void immediate_set_clip_area(Rect rect, int viewport_width, int viewport_height);

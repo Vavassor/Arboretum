@@ -22,7 +22,6 @@
 #include "string_utilities.h"
 #include "ui.h"
 #include "vector_math.h"
-#include "video_object.h"
 
 typedef enum Mode
 {
@@ -173,8 +172,7 @@ bool editor_start_up(Platform* platform)
 
         jan_colour_all_faces(mesh, float3_cyan);
 
-        VideoObject* video_object = video_get_object(dodecahedron->video_object);
-        video_object_update_mesh(video_object, mesh, &heap);
+        video_update_mesh(dodecahedron->video_object, mesh, &heap);
 
         Float3 position = (Float3){{2.0f, 0.0f, 0.0f}};
         Quaternion orientation = quaternion_axis_angle(float3_unit_x, pi / 4.0f);
@@ -191,8 +189,7 @@ bool editor_start_up(Platform* platform)
 
         jan_make_a_face_with_holes(mesh, &scratch);
 
-        VideoObject* video_object = video_get_object(cheese->video_object);
-        video_object_update_mesh(video_object, mesh, &heap);
+        video_update_mesh(cheese->video_object, mesh, &heap);
 
         Float3 position = (Float3){{0.0f, -2.0f, 0.0f}};
         object_set_position(cheese, position);
@@ -213,8 +210,7 @@ bool editor_start_up(Platform* platform)
         Float3 position = (Float3){{-2.0f, 0.0f, 0.0f}};
         object_set_position(test_model, position);
 
-        VideoObject* video_object = video_get_object(test_model->video_object);
-        video_object_update_mesh(video_object, mesh, &heap);
+        video_update_mesh(test_model->video_object, mesh, &heap);
 
         add_object_to_history(&history, test_model, &heap);
     }
@@ -771,8 +767,7 @@ static void enter_edge_mode()
     Object* object = &lady.objects[selected_object_index];
     Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
 
-    VideoObject* video_object = video_get_object(selection_wireframe_id);
-    video_object_set_model(video_object, model);
+    video_set_model(selection_wireframe_id, model);
 }
 
 static void exit_edge_mode()
@@ -818,8 +813,7 @@ static void update_edge_mode()
         }
     }
 
-    VideoObject* video_object = video_get_object(selection_wireframe_id);
-    video_object_update_wireframe_selection(video_object, mesh, &selection, edge, &heap);
+    video_update_wireframe_selection(selection_wireframe_id, mesh, &selection, edge, &heap);
 }
 
 static void enter_face_mode()
@@ -831,11 +825,8 @@ static void enter_face_mode()
     Object* object = &lady.objects[selected_object_index];
     Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
 
-    VideoObject* video_object = video_get_object(selection_id);
-    video_object_set_model(video_object, model);
-
-    video_object = video_get_object(selection_wireframe_id);
-    video_object_set_model(video_object, model);
+    video_set_model(selection_id, model);
+    video_set_model(selection_wireframe_id, model);
 }
 
 static void exit_face_mode()
@@ -883,8 +874,7 @@ static void update_face_mode()
         Float3 move = float3_add(float3_multiply(move_velocity.x, right), float3_multiply(move_velocity.y, up));
         jan_move_faces(mesh, &selection, move);
 
-        VideoObject* video_object = video_get_object(object->video_object);
-        video_object_update_mesh(video_object, mesh, &heap);
+        video_update_mesh(object->video_object, mesh, &heap);
     }
 
     // Cast a ray from the mouse to the test model.
@@ -899,11 +889,8 @@ static void update_face_mode()
             jan_toggle_face_in_selection(&selection, face);
         }
 
-        VideoObject* video_object = video_get_object(selection_id);
-        video_object_update_selection(video_object, mesh, &selection, &heap);
-
-        video_object = video_get_object(selection_wireframe_id);
-        video_object_update_wireframe(video_object, mesh, &heap);
+        video_update_selection(selection_id, mesh, &selection, &heap);
+        video_update_wireframe(selection_wireframe_id, mesh, &heap);
     }
 }
 
@@ -914,8 +901,7 @@ static void enter_vertex_mode()
     Object* object = &lady.objects[selected_object_index];
     Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
 
-    VideoObject* video_object = video_get_object(selection_pointcloud_id);
-    video_object_set_model(video_object, model);
+    video_set_model(selection_pointcloud_id, model);
 }
 
 static void exit_vertex_mode()
@@ -958,8 +944,7 @@ static void update_vertex_mode()
         }
     }
 
-    VideoObject* video_object = video_get_object(selection_pointcloud_id);
-    video_object_update_pointcloud_selection(video_object, mesh, &selection, vertex, &heap);
+    video_update_pointcloud_selection(selection_pointcloud_id, mesh, &selection, vertex, &heap);
 }
 
 static void request_mode_change(Mode requested_mode)
@@ -1244,7 +1229,7 @@ void editor_update(Platform* platform)
         }
     }
 
-    VideoUpdateState update;
+    VideoUpdate update;
     update.viewport = viewport;
     update.camera = &camera;
     update.move_tool = &move_tool;

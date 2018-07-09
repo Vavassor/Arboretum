@@ -187,9 +187,12 @@ typedef enum StencilOp
 typedef enum VertexFormat
 {
     VERTEX_FORMAT_INVALID,
+    VERTEX_FORMAT_FLOAT1,
     VERTEX_FORMAT_FLOAT2,
     VERTEX_FORMAT_FLOAT3,
     VERTEX_FORMAT_FLOAT4,
+    VERTEX_FORMAT_UBYTE4_NORM,
+    VERTEX_FORMAT_USHORT2_NORM,
 } VertexFormat;
 
 // Id Types.....................................................................

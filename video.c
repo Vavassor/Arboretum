@@ -3,20 +3,19 @@
 #include "assert.h"
 #include "asset_paths.h"
 #include "array2.h"
-#include "bitmap.h"
 #include "bmfont.h"
 #include "bmp.h"
 #include "closest_point_of_approach.h"
 #include "colours.h"
 #include "filesystem.h"
 #include "float_utilities.h"
-#include "gl_core_3_3.h"
 #include "history.h"
 #include "immediate.h"
 #include "input.h"
 #include "int_utilities.h"
 #include "intersection.h"
 #include "jan.h"
+#include "log.h"
 #include "logging.h"
 #include "map.h"
 #include "math_basics.h"
@@ -26,6 +25,7 @@
 #include "sorting.h"
 #include "string_utilities.h"
 #include "string_build.h"
+#include "uniform_blocks.h"
 #include "vector_math.h"
 #include "vertex_layout.h"
 #include "video_object.h"
@@ -33,76 +33,95 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-static GLuint nearest_repeat;
-static GLuint linear_repeat;
-static GLuint linear_mipmap_repeat;
-
-static struct
+static PixelFormat get_pixel_format(int bytes_per_pixel)
 {
-    GLuint program;
-    GLint model_view_projection;
-} shader_vertex_colour;
+    switch(bytes_per_pixel)
+    {
+        case 1:  return PIXEL_FORMAT_R8;
+        case 2:  return PIXEL_FORMAT_RG8;
+        case 3:  return PIXEL_FORMAT_RGB8;
+        case 4:  return PIXEL_FORMAT_RGBA8;
+        default: return PIXEL_FORMAT_INVALID;
+    }
+}
 
-static struct
+static ImageId build_image(Backend* backend, Log* logger, const char* name, Stack* stack, bool with_mipmaps, Int2* dimensions)
 {
-    GLuint program;
-    GLint model_view_projection;
-    GLint texture;
-} shader_texture_only;
+    char* path = get_image_path_by_name(name, stack);
+    int width;
+    int height;
+    int bytes_per_pixel;
+    void* pixels = stbi_load(path, &width, &height, &bytes_per_pixel, STBI_default);
+    STACK_DEALLOCATE(stack, path);
 
-static struct
-{
-    GLuint program;
-    GLint model_view_projection;
-    GLint texture;
-    GLint text_colour;
-} shader_font;
+    ImageId id = {0};
 
-static struct
-{
-    GLuint program;
-    GLint light_direction;
-    GLint model_view_projection;
-    GLint normal_matrix;
-} shader_lit;
+    if(pixels)
+    {
+        int bitmap_size = bytes_per_pixel * width * height;
 
-static struct
-{
-    GLuint program;
-    GLint model_view_projection;
-    GLint texture;
-    GLint viewport_dimensions;
-    GLint texture_dimensions;
-    GLint pattern_scale;
-} shader_screen_pattern;
+        int mip_levels = 1;
+        if(with_mipmaps)
+        {
+            mip_levels = count_mip_levels(width, height);
+        }
 
-static struct
-{
-    GLuint program;
-    GLint model_view_projection;
-    GLint halo_colour;
-} shader_halo;
+        ImageSpec spec =
+        {
+            .content =
+            {
+                .subimages[0][0] =
+                {
+                    .content = pixels,
+                    .size = bitmap_size,
+                },
+            },
+            .height = height,
+            .mipmap_count = mip_levels,
+            .pixel_format = get_pixel_format(bytes_per_pixel),
+            .type = IMAGE_TYPE_2D,
+            .width = width,
+        };
+        id = create_image(backend, &spec, logger);
 
-static struct
-{
-    GLuint program;
-    GLint line_width;
-    GLint model_view_projection;
-    GLint projection_factor;
-    GLint texture;
-    GLint texture_dimensions;
-    GLint viewport_dimensions;
-} shader_line;
+        if(dimensions)
+        {
+            dimensions->x = width;
+            dimensions->y = height;
+        }
 
-static struct
-{
-    GLuint program;
-    GLint point_radius;
-    GLint model_view_projection;
-    GLint projection_factor;
-    GLint texture;
-    GLint viewport_dimensions;
-} shader_point;
+        stbi_image_free(pixels);
+    }
+
+    return id;
+}
+
+static SamplerId nearest_repeat;
+static SamplerId linear_repeat;
+static SamplerId linear_mipmap_repeat;
+
+static ShaderId shader_font;
+static ShaderId shader_halo;
+static ShaderId shader_line;
+static ShaderId shader_lit;
+static ShaderId shader_point;
+static ShaderId shader_screen_pattern;
+static ShaderId shader_texture_only;
+static ShaderId shader_vertex_colour;
+
+static Backend* backend;
+static Log logger;
+static BufferId uniform_buffers[5];
+static BufferId halo_block_buffer;
+static BufferId light_block_buffer;
+static BufferId per_point_buffer;
+static PerPass per_pass_block;
+
+static PipelineId pipeline_background;
+static PipelineId pipeline_unselected;
+static PipelineId pipeline_face_selection;
+static PipelineId pipeline_pointcloud;
+static PipelineId pipeline_wireframe;
 
 static VideoObject sky;
 static DenseMap objects;
@@ -112,222 +131,532 @@ static Matrix4 screen_projection;
 static Stack scratch;
 static Heap heap;
 
-static GLuint font_textures[1];
-static GLuint hatch_pattern;
-static GLuint line_pattern;
-static GLuint point_pattern;
+static ImageId font_textures[1];
+static ImageId hatch_pattern;
+static ImageId line_pattern;
+static ImageId point_pattern;
+
+static ShaderId build_shader(ShaderSpec* spec, const char* fragment_name, const char* vertex_name)
+{
+    char* fragment_path = get_shader_path_by_name(fragment_name, &scratch);
+    char* vertex_path = get_shader_path_by_name(vertex_name, &scratch);
+
+    ShaderId shader = {0};
+
+    void* contents;
+    uint64_t bytes;
+    bool loaded_fragment = load_whole_file(fragment_path, &contents, &bytes, &scratch);
+    char* fragment_source = (char*) contents;
+
+    bool loaded_vertex = load_whole_file(vertex_path, &contents, &bytes, &scratch);
+    char* vertex_source = (char*) contents;
+
+    if(loaded_fragment && loaded_vertex)
+    {
+        spec->fragment.source = fragment_source;
+        spec->vertex.source = vertex_source;
+        shader = create_shader(backend, spec, &heap, &logger);
+    }
+    else if(!loaded_fragment)
+    {
+        log_error(&logger, "Failed to compile %s.", fragment_name);
+    }
+    else if(!loaded_vertex)
+    {
+        log_error(&logger, "Failed to compile %s.", vertex_name);
+    }
+
+    STACK_DEALLOCATE(&scratch, vertex_source);
+    STACK_DEALLOCATE(&scratch, fragment_source);
+    STACK_DEALLOCATE(&scratch, vertex_path);
+    STACK_DEALLOCATE(&scratch, fragment_path);
+
+    return shader;
+}
 
 bool video_system_start_up()
 {
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
-
     stack_create(&scratch, (uint32_t) uptibytes(1));
     heap_create(&heap, (uint32_t) uptibytes(1));
-
-    // Setup samplers.
-    {
-        glGenSamplers(1, &nearest_repeat);
-        glSamplerParameteri(nearest_repeat, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glSamplerParameteri(nearest_repeat, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glSamplerParameteri(nearest_repeat, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glSamplerParameteri(nearest_repeat, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-        glGenSamplers(1, &linear_repeat);
-        glSamplerParameteri(linear_repeat, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glSamplerParameteri(linear_repeat, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glSamplerParameteri(linear_repeat, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glSamplerParameteri(linear_repeat, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-        glGenSamplers(1, &linear_mipmap_repeat);
-        glSamplerParameteri(linear_mipmap_repeat, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glSamplerParameteri(linear_mipmap_repeat, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glSamplerParameteri(linear_mipmap_repeat, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glSamplerParameteri(linear_mipmap_repeat, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    }
-
-    // Vertex Colour Shader
-    shader_vertex_colour.program = load_shader_program("Vertex Colour.vs", "Vertex Colour.fs", &scratch);
-    if(shader_vertex_colour.program == 0)
-    {
-        LOG_ERROR("The vertex colour shader failed to load.");
-        return false;
-    }
-    {
-        shader_vertex_colour.model_view_projection = glGetUniformLocation(shader_vertex_colour.program, "model_view_projection");
-    }
-
-    // Texture Only Shader
-    shader_texture_only.program = load_shader_program("Texture Only.vs", "Texture Only.fs", &scratch);
-    if(shader_texture_only.program == 0)
-    {
-        LOG_ERROR("The texture-only shader failed to load.");
-        return false;
-    }
-    {
-        GLuint program = shader_texture_only.program;
-        shader_texture_only.model_view_projection = glGetUniformLocation(program, "model_view_projection");
-        shader_texture_only.texture = glGetUniformLocation(program, "texture");
-
-        glUseProgram(shader_texture_only.program);
-        glUniform1i(shader_texture_only.texture, 0);
-    }
-
-    // Font Shader
-    shader_font.program = load_shader_program("Font.vs", "Font.fs", &scratch);
-    if(shader_font.program == 0)
-    {
-        LOG_ERROR("The font shader failed to load.");
-        return false;
-    }
-    {
-        GLuint program = shader_font.program;
-        shader_font.model_view_projection = glGetUniformLocation(program, "model_view_projection");
-        shader_font.texture = glGetUniformLocation(program, "texture");
-        shader_font.text_colour = glGetUniformLocation(program, "text_colour");
-
-        glUseProgram(shader_font.program);
-        glUniform1i(shader_font.texture, 0);
-        const Float3 text_colour = float3_white;
-        glUniform3fv(shader_font.text_colour, 1, &text_colour.e[0]);
-    }
-
-    // Lit Shader
-    shader_lit.program = load_shader_program("Lit.vs", "Lit.fs", &scratch);
-    if(shader_lit.program == 0)
-    {
-        LOG_ERROR("The lit shader failed to load.");
-        return false;
-    }
-    {
-        GLuint program = shader_lit.program;
-        shader_lit.model_view_projection = glGetUniformLocation(program, "model_view_projection");
-        shader_lit.normal_matrix = glGetUniformLocation(program, "normal_matrix");
-        shader_lit.light_direction = glGetUniformLocation(program, "light_direction");
-    }
-
-    // Halo Shader
-    shader_halo.program = load_shader_program("Halo.vs", "Halo.fs", &scratch);
-    if(shader_halo.program == 0)
-    {
-        LOG_ERROR("The halo shader failed to load.");
-        return false;
-    }
-    {
-        GLuint program = shader_halo.program;
-        shader_halo.model_view_projection = glGetUniformLocation(program, "model_view_projection");
-        shader_halo.halo_colour = glGetUniformLocation(program, "halo_colour");
-    }
-
-    // Screen Pattern Shader
-    shader_screen_pattern.program = load_shader_program("Screen Pattern.vs", "Screen Pattern.fs", &scratch);
-    if(shader_screen_pattern.program == 0)
-    {
-        LOG_ERROR("The screen pattern shader failed to load.");
-        return false;
-    }
-    {
-        GLuint program = shader_screen_pattern.program;
-        shader_screen_pattern.model_view_projection = glGetUniformLocation(program, "model_view_projection");
-        shader_screen_pattern.texture = glGetUniformLocation(program, "texture");
-        shader_screen_pattern.viewport_dimensions = glGetUniformLocation(program, "viewport_dimensions");
-        shader_screen_pattern.texture_dimensions = glGetUniformLocation(program, "texture_dimensions");
-        shader_screen_pattern.pattern_scale = glGetUniformLocation(program, "pattern_scale");
-
-        const Float2 pattern_scale = (Float2){{2.5f, 2.5f}};
-
-        glUseProgram(shader_screen_pattern.program);
-        glUniform1i(shader_screen_pattern.texture, 0);
-        glUniform2fv(shader_screen_pattern.pattern_scale, 1, &pattern_scale.e[0]);
-    }
-
-    // Line Shader
-    shader_line.program = load_shader_program("Line.vs", "Line.fs", &scratch);
-    if(shader_line.program == 0)
-    {
-        LOG_ERROR("The line shader failed to load.");
-        return false;
-    }
-    {
-        GLuint program = shader_line.program;
-        shader_line.line_width = glGetUniformLocation(program, "line_width");
-        shader_line.model_view_projection = glGetUniformLocation(program, "model_view_projection");
-        shader_line.projection_factor = glGetUniformLocation(program, "projection_factor");
-        shader_line.texture = glGetUniformLocation(program, "texture");
-        shader_line.texture_dimensions = glGetUniformLocation(program, "texture_dimensions");
-        shader_line.viewport_dimensions = glGetUniformLocation(program, "viewport");
-
-        glUseProgram(shader_line.program);
-        glUniform1f(shader_line.line_width, 4.0f);
-        glUniform1i(shader_line.texture, 0);
-    }
-
-    // Point Shader
-    shader_point.program = load_shader_program("Point.vs", "Point.fs", &scratch);
-    if(shader_point.program == 0)
-    {
-        LOG_ERROR("The point shader failed to load.");
-        return false;
-    }
-    {
-        GLuint program = shader_point.program;
-        shader_point.point_radius = glGetUniformLocation(program, "point_radius");
-        shader_point.model_view_projection = glGetUniformLocation(program, "model_view_projection");
-        shader_point.projection_factor = glGetUniformLocation(program, "projection_factor");
-        shader_point.texture = glGetUniformLocation(program, "texture");
-        shader_point.viewport_dimensions = glGetUniformLocation(program, "viewport");
-
-        glUseProgram(shader_point.program);
-        glUniform1f(shader_point.point_radius, 4.0f);
-        glUniform1i(shader_point.texture, 0);
-    }
-
     dense_map_create(&objects, &heap);
 
-    // Sky
-    video_object_create(&sky, VERTEX_LAYOUT_PNC);
-    video_object_generate_sky(&sky, &scratch);
+    backend = create_backend(&heap);
 
-    // Hatch pattern texture
+    SamplerSpec nearest_repeat_spec =
     {
-        char* path = get_image_path_by_name("polka_dot.png", &scratch);
-        Bitmap bitmap;
-        bitmap.pixels = stbi_load(path, &bitmap.width, &bitmap.height, &bitmap.bytes_per_pixel, STBI_default);
-        STACK_DEALLOCATE(&scratch, path);
-        hatch_pattern = upload_bitmap(&bitmap);
-        stbi_image_free(bitmap.pixels);
+        .address_mode_u = SAMPLER_ADDRESS_MODE_REPEAT,
+        .address_mode_v = SAMPLER_ADDRESS_MODE_REPEAT,
+        .address_mode_w = SAMPLER_ADDRESS_MODE_REPEAT,
+        .magnify_filter = SAMPLER_FILTER_POINT,
+        .minify_filter = SAMPLER_FILTER_POINT,
+    };
+    nearest_repeat = create_sampler(backend, &nearest_repeat_spec, &logger);
 
-        glUseProgram(shader_screen_pattern.program);
-        glUniform2f(shader_screen_pattern.texture_dimensions, (float) bitmap.width, (float) bitmap.height);
-    }
+    SamplerSpec linear_repeat_spec =
+    {
+        .address_mode_u = SAMPLER_ADDRESS_MODE_REPEAT,
+        .address_mode_v = SAMPLER_ADDRESS_MODE_REPEAT,
+        .address_mode_w = SAMPLER_ADDRESS_MODE_REPEAT,
+        .magnify_filter = SAMPLER_FILTER_LINEAR,
+        .minify_filter = SAMPLER_FILTER_LINEAR,
+    };
+    linear_repeat = create_sampler(backend, &linear_repeat_spec, &logger);
+
+    SamplerSpec linear_mipmap_repeat_spec =
+    {
+        .address_mode_u = SAMPLER_ADDRESS_MODE_REPEAT,
+        .address_mode_v = SAMPLER_ADDRESS_MODE_REPEAT,
+        .address_mode_w = SAMPLER_ADDRESS_MODE_REPEAT,
+        .magnify_filter = SAMPLER_FILTER_LINEAR,
+        .minify_filter = SAMPLER_FILTER_LINEAR,
+        .mipmap_filter = SAMPLER_FILTER_LINEAR,
+    };
+    linear_mipmap_repeat = create_sampler(backend, &linear_mipmap_repeat_spec, &logger);
+
+    UniformBlockSpec halo_block_spec =
+    {
+        .binding = 6,
+        .name = "HaloBlock",
+        .size = sizeof(HaloBlock),
+    };
+
+    UniformBlockSpec light_block_spec =
+    {
+        .binding = 5,
+        .name = "LightBlock",
+        .size = sizeof(LightBlock),
+    };
+
+    UniformBlockSpec per_image_block_spec =
+    {
+        .binding = 4,
+        .name = "PerImage",
+        .size = sizeof(PerImage),
+    };
+
+    UniformBlockSpec per_line_block_spec =
+    {
+        .binding = 1,
+        .name = "PerLine",
+        .size = sizeof(PerLine),
+    };
+
+    UniformBlockSpec per_object_block_spec =
+    {
+        .binding = 2,
+        .name = "PerObject",
+        .size = sizeof(PerObject),
+    };
+
+    UniformBlockSpec per_pass_block_spec =
+    {
+        .binding = 0,
+        .name = "PerPass",
+        .size = sizeof(PerPass),
+    };
+
+    UniformBlockSpec per_point_block_spec =
+    {
+        .binding = 7,
+        .name = "PerPoint",
+        .size = sizeof(PerPoint),
+    };
+
+    UniformBlockSpec per_span_block_spec =
+    {
+        .binding = 3,
+        .name = "PerSpan",
+        .size = sizeof(PerSpan),
+    };
+
+    ShaderSpec shader_font_spec =
+    {
+        .fragment =
+        {
+            .images[0] = {.name = "texture"},
+            .uniform_blocks = {per_span_block_spec},
+        },
+        .vertex =
+        {
+            .uniform_blocks = {per_pass_block_spec},
+        },
+    };
+    shader_font = build_shader(&shader_font_spec, "Font.fs", "Font.vs");
+
+    ShaderSpec halo_spec =
+    {
+        .fragment =
+        {
+            .uniform_blocks[0] = halo_block_spec,
+        },
+        .vertex =
+        {
+            .uniform_blocks =
+            {
+                per_pass_block_spec,
+                per_object_block_spec,
+            },
+        },
+    };
+    shader_halo = build_shader(&halo_spec, "Halo.fs", "Halo.vs");
+
+    ShaderSpec shader_line_spec =
+    {
+        .fragment =
+        {
+            .images[0] = {.name = "texture"},
+        },
+        .vertex =
+        {
+            .uniform_blocks =
+            {
+                per_pass_block_spec,
+                per_line_block_spec,
+                per_image_block_spec,
+                per_object_block_spec,
+            },
+        },
+    };
+    shader_line = build_shader(&shader_line_spec, "Line.fs", "Line.vs");
+
+    ShaderSpec lit_spec =
+    {
+        .fragment =
+        {
+            .uniform_blocks[0] = light_block_spec,
+        },
+        .vertex =
+        {
+            .uniform_blocks =
+            {
+                per_pass_block_spec,
+                per_object_block_spec,
+            },
+        },
+    };
+    shader_lit = build_shader(&lit_spec, "Lit.fs", "Lit.vs");
+
+    ShaderSpec shader_point_spec =
+    {
+        .fragment =
+        {
+            .images[0] = {.name = "texture"},
+        },
+        .vertex =
+        {
+            .uniform_blocks =
+            {
+                per_object_block_spec,
+                per_pass_block_spec,
+                per_point_block_spec,
+            },
+        },
+    };
+    shader_point = build_shader(&shader_point_spec, "Point.fs", "Point.vs");
+
+    ShaderSpec shader_screen_pattern_spec =
+    {
+        .fragment =
+        {
+            .images =
+            {
+                [0] = {.name = "texture"},
+            },
+        },
+        .vertex =
+        {
+            .uniform_blocks =
+            {
+                per_pass_block_spec,
+                per_image_block_spec,
+            },
+        },
+    };
+    shader_screen_pattern = build_shader(&shader_screen_pattern_spec, "Screen Pattern.fs", "Screen Pattern.vs");
+
+    ShaderSpec texture_only_spec =
+    {
+        .fragment =
+        {
+            .images[0] =
+            {
+                .name = "texture",
+            },
+        },
+        .vertex =
+        {
+            .uniform_blocks[0] = per_pass_block_spec,
+        },
+    };
+    shader_texture_only = build_shader(&texture_only_spec, "Texture Only.fs", "Texture Only.vs");
+
+    ShaderSpec shader_vertex_colour_spec =
+    {
+        .vertex =
+        {
+            .uniform_blocks =
+            {
+                per_pass_block_spec,
+                per_object_block_spec,
+            },
+        },
+    };
+    shader_vertex_colour = build_shader(&shader_vertex_colour_spec, "Vertex Colour.fs", "Vertex Colour.vs");
+
+    BufferSpec per_image_spec =
+    {
+        .binding = 4,
+        .size = sizeof(PerImage),
+        .format = BUFFER_FORMAT_UNIFORM,
+        .usage = BUFFER_USAGE_DYNAMIC,
+    };
+    uniform_buffers[0] = create_buffer(backend, &per_image_spec, &logger);
+
+    BufferSpec per_line_spec =
+    {
+        .binding = 1,
+        .size = sizeof(PerLine),
+        .format = BUFFER_FORMAT_UNIFORM,
+        .usage = BUFFER_USAGE_DYNAMIC,
+    };
+    uniform_buffers[1] = create_buffer(backend, &per_line_spec, &logger);
+
+    BufferSpec per_object_spec =
+    {
+        .binding = 2,
+        .size = sizeof(PerObject),
+        .format = BUFFER_FORMAT_UNIFORM,
+        .usage = BUFFER_USAGE_DYNAMIC,
+    };
+    uniform_buffers[2] = create_buffer(backend, &per_object_spec, &logger);
+
+    BufferSpec per_pass_spec =
+    {
+        .binding = 0,
+        .size = sizeof(PerPass),
+        .format = BUFFER_FORMAT_UNIFORM,
+        .usage = BUFFER_USAGE_DYNAMIC,
+    };
+    uniform_buffers[3] = create_buffer(backend, &per_pass_spec, &logger);
+
+    BufferSpec per_span_spec =
+    {
+        .binding = 3,
+        .size = sizeof(PerSpan),
+        .format = BUFFER_FORMAT_UNIFORM,
+        .usage = BUFFER_USAGE_DYNAMIC,
+    };
+    uniform_buffers[4] = create_buffer(backend, &per_span_spec, &logger);
+
+    BufferSpec halo_block_buffer_spec =
+    {
+        .binding = 6,
+        .size = sizeof(HaloBlock),
+        .format = BUFFER_FORMAT_UNIFORM,
+        .usage = BUFFER_USAGE_DYNAMIC,
+    };
+    halo_block_buffer = create_buffer(backend, &halo_block_buffer_spec, &logger);
+
+    BufferSpec per_point_spec =
+    {
+        .binding = 7,
+        .size = sizeof(PerPoint),
+        .format = BUFFER_FORMAT_UNIFORM,
+        .usage = BUFFER_USAGE_DYNAMIC,
+    };
+    per_point_buffer = create_buffer(backend, &per_point_spec, &logger);
+
+    BufferSpec light_block_buffer_spec =
+    {
+        .binding = 5,
+        .size = sizeof(LightBlock),
+        .format = BUFFER_FORMAT_UNIFORM,
+        .usage = BUFFER_USAGE_DYNAMIC,
+    };
+    light_block_buffer = create_buffer(backend, &light_block_buffer_spec, &logger);
+
+    // Sky
+    video_object_create(&sky, VERTEX_LAYOUT_PC);
+    video_object_generate_sky(&sky, backend, &logger, &scratch);
+
+    hatch_pattern = build_image(backend, &logger, "polka_dot.png", &scratch, false, NULL);
+    point_pattern = build_image(backend, &logger, "Point.png", &scratch, true, NULL);
 
     // Line pattern texture
     {
-        char* path = get_image_path_by_name("Line Feathering.png", &scratch);
-        Bitmap bitmap;
-        bitmap.pixels = stbi_load(path, &bitmap.width, &bitmap.height, &bitmap.bytes_per_pixel, STBI_default);
-        STACK_DEALLOCATE(&scratch, path);
-        line_pattern = upload_bitmap_with_mipmaps(&bitmap, &heap);
-        stbi_image_free(bitmap.pixels);
+        Int2 dimensions;
+        line_pattern = build_image(backend, &logger, "Line Feathering.png", &scratch, true, &dimensions);
 
-        glUseProgram(shader_line.program);
-        glUniform2f(shader_line.texture_dimensions, (float) bitmap.width, (float) bitmap.height);
+        PerImage per_image =
+        {
+            .texture_dimensions = {{(float) dimensions.x, (float) dimensions.y}},
+        };
+        update_buffer(backend, uniform_buffers[0], &per_image, 0, sizeof(PerImage));
     }
 
-    // Point pattern texture
+#if 0
+    StencilOpStateSpec selected_stencil_spec =
     {
-        char* path = get_image_path_by_name("Point.png", &scratch);
-        Bitmap bitmap;
-        bitmap.pixels = stbi_load(path, &bitmap.width, &bitmap.height, &bitmap.bytes_per_pixel, STBI_default);
-        STACK_DEALLOCATE(&scratch, path);
-        point_pattern = upload_bitmap_with_mipmaps(&bitmap, &heap);
-        stbi_image_free(bitmap.pixels);
-    }
+        .compare_mask = 0xff,
+        .compare_op = COMPARE_OP_ALWAYS,
+        .depth_fail_op = STENCIL_OP_KEEP,
+        .fail_op = STENCIL_OP_KEEP,
+        .pass_op = STENCIL_OP_REPLACE,
+        .reference = 1,
+        .write_mask = 0xff,
+    };
 
-    immediate_context_create(&heap);
-    immediate_set_shader(shader_vertex_colour.program);
-    immediate_set_line_shader(shader_line.program);
-    immediate_set_textured_shader(shader_font.program);
+    StencilOpStateSpec halo_stencil_spec =
+    {
+        .compare_mask = 0xff,
+        .compare_op = COMPARE_OP_NOT_EQUAL,
+        .depth_fail_op = STENCIL_OP_KEEP,
+        .fail_op = STENCIL_OP_KEEP,
+        .pass_op = STENCIL_OP_REPLACE,
+        .reference = 1,
+        .write_mask = 0x00,
+    };
+
+    DepthStencilStateSpec selected_depth_stencil_spec =
+    {
+        .depth_compare_enabled = true,
+        .depth_write_enabled = true,
+        .stencil_enabled = true,
+        .back_stencil = selected_stencil_spec,
+        .front_stencil = selected_stencil_spec,
+    };
+#endif
+
+    BlendStateSpec alpha_blend_spec =
+    {
+        .enabled = true,
+        .alpha_op = BLEND_OP_ADD,
+        .alpha_source_factor = BLEND_FACTOR_SRC_ALPHA,
+        .alpha_destination_factor = BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        .rgb_op = BLEND_OP_ADD,
+        .rgb_source_factor = BLEND_FACTOR_SRC_ALPHA,
+        .rgb_destination_factor = BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+    };
+
+    DepthStencilStateSpec transparent_depth_stencil_spec =
+    {
+        .depth_compare_enabled = true,
+    };
+
+    VertexLayoutSpec vertex_layout_line_spec =
+    {
+        .attributes =
+        {
+            [0] = {.format = VERTEX_FORMAT_FLOAT3},
+            [1] = {.format = VERTEX_FORMAT_FLOAT3},
+            [2] = {.format = VERTEX_FORMAT_UBYTE4_NORM},
+            [3] = {.format = VERTEX_FORMAT_USHORT2_NORM},
+            [4] = {.format = VERTEX_FORMAT_FLOAT1},
+        },
+    };
+
+    VertexLayoutSpec vertex_layout_point_spec =
+    {
+        .attributes =
+        {
+            [0] = {.format = VERTEX_FORMAT_FLOAT3},
+            [1] = {.format = VERTEX_FORMAT_FLOAT2},
+            [2] = {.format = VERTEX_FORMAT_UBYTE4_NORM},
+            [3] = {.format = VERTEX_FORMAT_USHORT2_NORM},
+        },
+    };
+
+    VertexLayoutSpec vertex_layout_spec_lit =
+    {
+        .attributes =
+        {
+            [0] = {.format = VERTEX_FORMAT_FLOAT3},
+            [1] = {.format = VERTEX_FORMAT_FLOAT3},
+            [2] = {.format = VERTEX_FORMAT_UBYTE4_NORM},
+        },
+    };
+
+    VertexLayoutSpec vertex_layout_spec_vertex_colour =
+    {
+        .attributes =
+        {
+            [0] = {.format = VERTEX_FORMAT_FLOAT3},
+            [1] = {.format = VERTEX_FORMAT_UBYTE4_NORM},
+        },
+    };
+
+    PipelineSpec pipeline_background_spec =
+    {
+        .depth_stencil =
+        {
+            .depth_compare_enabled = true,
+            .depth_compare_op = COMPARE_OP_EQUAL,
+        },
+        .shader = shader_vertex_colour,
+        .vertex_layout = vertex_layout_spec_vertex_colour,
+    };
+    pipeline_background = create_pipeline(backend, &pipeline_background_spec, &logger);
+
+    PipelineSpec pipeline_unselected_spec =
+    {
+        .depth_stencil =
+        {
+            .depth_compare_enabled = true,
+            .depth_write_enabled = true,
+        },
+        .shader = shader_lit,
+        .vertex_layout = vertex_layout_spec_lit,
+    };
+    pipeline_unselected = create_pipeline(backend, &pipeline_unselected_spec, &logger);
+
+    PipelineSpec pipeline_face_selection_spec =
+    {
+        .blend = alpha_blend_spec,
+        .depth_stencil =
+        {
+            .depth_compare_enabled = true,
+            .depth_compare_op = COMPARE_OP_LESS_OR_EQUAL,
+            .depth_write_enabled = false,
+        },
+        .shader = shader_halo,
+        .vertex_layout = vertex_layout_spec_lit,
+    };
+    pipeline_face_selection = create_pipeline(backend, &pipeline_face_selection_spec, &logger);
+
+    PipelineSpec pipeline_pointcloud_spec =
+    {
+        .blend = alpha_blend_spec,
+        .depth_stencil = transparent_depth_stencil_spec,
+        .shader = shader_point,
+        .vertex_layout = vertex_layout_point_spec,
+    };
+    pipeline_pointcloud = create_pipeline(backend, &pipeline_pointcloud_spec, &logger);
+
+    PipelineSpec pipeline_wireframe_spec =
+    {
+        .blend = alpha_blend_spec,
+        .depth_stencil = transparent_depth_stencil_spec,
+        .shader = shader_line,
+        .vertex_layout = vertex_layout_line_spec,
+    };
+    pipeline_wireframe = create_pipeline(backend, &pipeline_wireframe_spec, &logger);
+
+    ImmediateContextSpec immediate_spec =
+    {
+        .backend = backend,
+        .shaders =
+        {
+            shader_vertex_colour,
+            shader_font,
+            shader_line,
+        },
+        .uniform_buffers =
+        {
+            uniform_buffers[1],
+            uniform_buffers[4],
+        },
+    };
+    immediate_context_create(&immediate_spec, &heap, &logger);
 
     return true;
 }
@@ -336,36 +665,70 @@ void video_system_shut_down(bool functions_loaded)
 {
     if(functions_loaded)
     {
-        glDeleteSamplers(1, &nearest_repeat);
-        glDeleteSamplers(1, &linear_repeat);
-        glDeleteSamplers(1, &linear_mipmap_repeat);
+        destroy_sampler(backend, nearest_repeat);
+        destroy_sampler(backend, linear_repeat);
+        destroy_sampler(backend, linear_mipmap_repeat);
 
-        glDeleteProgram(shader_vertex_colour.program);
-        glDeleteProgram(shader_texture_only.program);
-        glDeleteProgram(shader_font.program);
-        glDeleteProgram(shader_lit.program);
-        glDeleteProgram(shader_halo.program);
-        glDeleteProgram(shader_screen_pattern.program);
-        glDeleteProgram(shader_line.program);
-        glDeleteProgram(shader_point.program);
+        destroy_shader(backend, shader_font);
+        destroy_shader(backend, shader_halo);
+        destroy_shader(backend, shader_line);
+        destroy_shader(backend, shader_lit);
+        destroy_shader(backend, shader_point);
+        destroy_shader(backend, shader_screen_pattern);
+        destroy_shader(backend, shader_texture_only);
+        destroy_shader(backend, shader_vertex_colour);
+
+        for(int i = 0; i < 5; i += 1)
+        {
+            destroy_buffer(backend, uniform_buffers[i]);
+        }
+        destroy_buffer(backend, halo_block_buffer);
+        destroy_buffer(backend, light_block_buffer);
+        destroy_buffer(backend, per_point_buffer);
+
+        destroy_image(backend, hatch_pattern);
+        destroy_image(backend, line_pattern);
+        destroy_image(backend, point_pattern);
 
         for(int i = 0; i < 1; i += 1)
         {
-            glDeleteTextures(1, &font_textures[i]);
+            destroy_image(backend, font_textures[i]);
         }
-        glDeleteTextures(1, &hatch_pattern);
-        glDeleteTextures(1, &line_pattern);
-        glDeleteTextures(1, &point_pattern);
 
-        video_object_destroy(&sky);
+        video_object_destroy(&sky, backend);
+
+        destroy_pipeline(backend, pipeline_background);
+        destroy_pipeline(backend, pipeline_unselected);
+        destroy_pipeline(backend, pipeline_face_selection);
+        destroy_pipeline(backend, pipeline_pointcloud);
+        destroy_pipeline(backend, pipeline_wireframe);
 
         immediate_context_destroy(&heap);
+
+        destroy_backend(backend, &heap);
     }
 
     dense_map_destroy(&objects, &heap);
 
     stack_destroy(&scratch);
     heap_destroy(&heap);
+}
+
+static void set_model_matrix(Matrix4 model)
+{
+    PerObject per_object =
+    {
+        .model = matrix4_transpose(model),
+    };
+    update_buffer(backend, uniform_buffers[2], &per_object, 0, sizeof(per_object));
+}
+
+static void set_view_projection(Matrix4 view, Matrix4 projection)
+{
+    per_pass_block.view_projection = matrix4_transpose(matrix4_multiply(projection, view));
+    update_buffer(backend, uniform_buffers[3], &per_pass_block, 0, sizeof(per_pass_block));
+
+    immediate_set_matrices(view, projection);
 }
 
 static void draw_move_tool(MoveTool* tool, bool silhouetted)
@@ -622,6 +985,8 @@ static void draw_scale_tool(bool silhouetted)
     immediate_draw();
 }
 
+#if 0
+
 static void draw_object_with_halo(ObjectLady* lady, int index, Float4 colour)
 {
     ASSERT(index != invalid_index);
@@ -665,73 +1030,100 @@ static void draw_object_with_halo(ObjectLady* lady, int index, Float4 colour)
     glDisable(GL_STENCIL_TEST);
 }
 
+#endif
+
+static void apply_object_block(VideoObject* object)
+{
+    PerObject per_object =
+    {
+        .model = matrix4_transpose(object->model),
+        .normal_matrix = matrix4_transpose(object->normal),
+    };
+    update_buffer(backend, uniform_buffers[2], &per_object, 0, sizeof(per_object));
+}
+
+static void draw_object(VideoObject* object)
+{
+    DrawAction draw_action =
+    {
+        .index_buffer = object->buffers[1],
+        .indices_count = object->indices_count,
+        .vertex_buffers[0] = object->buffers[0],
+    };
+    draw(backend, &draw_action);
+}
+
 static void draw_selection_object(VideoObject* object, VideoObject* pointcloud, VideoObject* wireframe, Matrix4 projection)
 {
     const Float4 colour = (Float4){{1.0f, 0.5f, 0.0f, 0.8f}};
 
     // Draw selected faces.
-    glUseProgram(shader_halo.program);
-
-    glUniform4fv(shader_halo.halo_colour, 1, &colour.e[0]);
-
-    glDepthFunc(GL_EQUAL);
-    glDepthMask(GL_FALSE);
-
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    if(object)
+    if(object && object->indices_count)
     {
-        glUniformMatrix4fv(shader_halo.model_view_projection, 1, GL_TRUE, object->model_view_projection.e);
-        glBindVertexArray(object->vertex_array);
-        glDrawElements(GL_TRIANGLES, object->indices_count, GL_UNSIGNED_SHORT, NULL);
+        set_pipeline(backend, pipeline_face_selection);
+
+        HaloBlock halo_block =
+        {
+            .halo_colour = colour,
+        };
+        update_buffer(backend, halo_block_buffer, &halo_block, 0, sizeof(halo_block));
+
+        apply_object_block(object);
+        draw_object(object);
     }
 
-    // Draw the wireframe.
-    glUseProgram(shader_line.program);
-
-    glDepthFunc(GL_LEQUAL);
-
-    glEnable(GL_POLYGON_OFFSET_FILL);
-    glPolygonOffset(-1.0f, -1.0f);
-
-    glActiveTexture(GL_TEXTURE0 + 0);
-    glBindTexture(GL_TEXTURE_2D, line_pattern);
-    glBindSampler(0, linear_mipmap_repeat);
-
-    if(wireframe)
+    if(wireframe && wireframe->indices_count)
     {
-        glUniformMatrix4fv(shader_line.model_view_projection, 1, GL_TRUE, wireframe->model_view_projection.e);
-        glUniform1f(shader_line.projection_factor, projection.e[0]);
-        glBindVertexArray(wireframe->vertex_array);
-        glDrawElements(GL_TRIANGLES, wireframe->indices_count, GL_UNSIGNED_SHORT, NULL);
+        set_pipeline(backend, pipeline_wireframe);
+
+        ImageSet image_set =
+        {
+            .stages[1] =
+            {
+                .images[0] = line_pattern,
+                .samplers[0] = linear_mipmap_repeat,
+            },
+        };
+        set_images(backend, &image_set);
+
+        PerLine line_block =
+        {
+            .line_width = 4.0f,
+            .projection_factor = projection.e[0],
+        };
+        update_buffer(backend, per_point_buffer, &line_block, 0, sizeof(line_block));
+
+        apply_object_block(wireframe);
+        draw_object(wireframe);
     }
 
-    // Draw the pointcloud.
-    glUseProgram(shader_point.program);
-
-    glDisable(GL_POLYGON_OFFSET_FILL);
-
-    glActiveTexture(GL_TEXTURE0 + 0);
-    glBindTexture(GL_TEXTURE_2D, point_pattern);
-    glBindSampler(0, linear_mipmap_repeat);
-
-    if(pointcloud)
+    if(pointcloud && pointcloud->indices_count)
     {
-        glUniformMatrix4fv(shader_point.model_view_projection, 1, GL_TRUE, pointcloud->model_view_projection.e);
-        glUniform1f(shader_point.projection_factor, projection.e[0]);
-        glBindVertexArray(pointcloud->vertex_array);
-        glDrawElements(GL_TRIANGLES, pointcloud->indices_count, GL_UNSIGNED_SHORT, NULL);
-    }
+        set_pipeline(backend, pipeline_pointcloud);
 
-    // Reset to defaults.
-    glDisable(GL_POLYGON_OFFSET_FILL);
-    glDisable(GL_BLEND);
-    glDepthFunc(GL_LESS);
-    glDepthMask(GL_TRUE);
+        ImageSet image_set =
+        {
+            .stages[1] =
+            {
+                .images[0] = point_pattern,
+                .samplers[0] = linear_mipmap_repeat,
+            },
+        };
+        set_images(backend, &image_set);
+
+        PerLine point_block =
+        {
+            .line_width = 3.0f,
+            .projection_factor = projection.e[0],
+        };
+        update_buffer(backend, per_point_buffer, &point_block, 0, sizeof(point_block));
+
+        apply_object_block(pointcloud);
+        draw_object(pointcloud);
+    }
 }
 
-void video_system_update(VideoUpdateState* update, Platform* platform)
+void video_system_update(VideoUpdate* update, Platform* platform)
 {
     Camera* camera = update->camera;
     Int2 viewport = update->viewport;
@@ -748,15 +1140,19 @@ void video_system_update(VideoUpdateState* update, Platform* platform)
     DenseMapId selection_pointcloud_id = update->selection_pointcloud_id;
     DenseMapId selection_wireframe_id = update->selection_wireframe_id;
 
+    per_pass_block.viewport_dimensions = (Float2){{(float) viewport.x, (float) viewport.y}};
+
     Matrix4 projection;
+    Matrix4 sky_view;
+    Matrix4 view;
 
     // Update matrices.
     {
         projection = matrix4_perspective_projection(camera->field_of_view, (float) viewport.x, (float) viewport.y, camera->near_plane, camera->far_plane);
 
         Float3 direction = float3_normalise(float3_subtract(camera->target, camera->position));
-        Matrix4 view = matrix4_look_at(float3_zero, direction, float3_unit_z);
-        video_object_set_matrices(&sky, view, sky_projection);
+        sky_view = matrix4_look_at(float3_zero, direction, float3_unit_z);
+        video_object_set_matrices(&sky, sky_view, sky_projection);
 
         view = matrix4_look_at(camera->position, camera->target, float3_unit_z);
 
@@ -765,35 +1161,47 @@ void video_system_update(VideoUpdateState* update, Platform* platform)
             video_object_set_matrices(it, view, projection);
         }
 
-        immediate_set_matrices(view, projection);
+        set_view_projection(view, projection);
 
         // Update light parameters.
 
         Float3 light_direction = (Float3){{0.7f, 0.4f, -1.0f}};
         light_direction = float3_normalise(float3_negate(matrix4_transform_vector(view, light_direction)));
 
-        glUseProgram(shader_lit.program);
-        glUniform3fv(shader_lit.light_direction, 1, &light_direction.e[0]);
+        LightBlock light_block = {light_direction};
+        update_buffer(backend, light_block_buffer, &light_block, 0, sizeof(light_block));
     }
 
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    set_pipeline(backend, pipeline_unselected);
 
-    glUseProgram(shader_lit.program);
+    ClearState clear_state =
+    {
+        .depth = 1.0f,
+        .flags =
+        {
+            .colour = true,
+            .depth = true,
+            .stencil = true,
+        },
+        .stencil = 0xffffffff,
+    };
+    clear_target(backend, &clear_state);
 
     // Draw all unselected models.
     for(int i = 0; i < array_count(lady->objects); i += 1)
     {
+#if 0
         if(i == hovered_object_index || i == selected_object_index)
         {
             continue;
         }
-        VideoObject object = *video_get_object(lady->objects[i].video_object);
-        glUniformMatrix4fv(shader_lit.model_view_projection, 1, GL_TRUE, object.model_view_projection.e);
-        glUniformMatrix4fv(shader_lit.normal_matrix, 1, GL_TRUE, object.normal.e);
-        glBindVertexArray(object.vertex_array);
-        glDrawElements(GL_TRIANGLES, object.indices_count, GL_UNSIGNED_SHORT, NULL);
+#endif
+        VideoObject* object = dense_map_look_up(&objects, lady->objects[i].video_object);
+        apply_object_block(object);
+        draw_object(object);
     }
 
+#if 0
     // Draw the selected and hovered models.
     if(is_valid_index(selected_object_index))
     {
@@ -803,22 +1211,17 @@ void video_system_update(VideoUpdateState* update, Platform* platform)
     {
         draw_object_with_halo(lady, hovered_object_index, float4_yellow);
     }
+#endif
 
-    glUseProgram(shader_lit.program);
-
-    // rotate tool
-    {
-        Matrix4 view = matrix4_look_at(camera->position, camera->target, float3_unit_z);
-        immediate_set_matrices(view, projection);
-        draw_rotate_tool(false);
-    }
+    set_model_matrix(matrix4_identity);
+    draw_rotate_tool(false);
 
     // move tool
     if(is_valid_index(selected_object_index))
     {
         Matrix4 model = matrix4_compose_transform(move_tool->position, move_tool->orientation, float3_set_all(move_tool->scale));
-        Matrix4 view = matrix4_look_at(camera->position, camera->target, float3_unit_z);
 
+#if 0
         // silhouette
         glDisable(GL_DEPTH_TEST);
         immediate_set_shader(shader_screen_pattern.program);
@@ -831,28 +1234,40 @@ void video_system_update(VideoUpdateState* update, Platform* platform)
 
         immediate_set_matrices(view, projection);
         draw_move_tool_vectors(move_tool);
-
+#endif
         // draw solid parts on top of silhouette
-        glEnable(GL_DEPTH_TEST);
-        immediate_set_shader(shader_vertex_colour.program);
-
-        immediate_set_matrices(matrix4_multiply(view, model), projection);
+        set_model_matrix(model);
         draw_move_tool(move_tool, false);
 
-        immediate_set_matrices(view, projection);
+        set_model_matrix(matrix4_identity);
         draw_move_tool_vectors(move_tool);
     }
 
     // Draw the sky behind everything else.
     {
-        glDepthFunc(GL_EQUAL);
-        glDepthRange(1.0, 1.0);
-        glUseProgram(shader_vertex_colour.program);
-        glUniformMatrix4fv(shader_vertex_colour.model_view_projection, 1, GL_TRUE, sky.model_view_projection.e);
-        glBindVertexArray(sky.vertex_array);
-        glDrawElements(GL_TRIANGLES, sky.indices_count, GL_UNSIGNED_SHORT, NULL);
-        glDepthFunc(GL_LESS);
-        glDepthRange(0.0, 1.0);
+        Viewport viewport_state =
+        {
+            .bottom_left = {0, 0},
+            .dimensions = viewport,
+            .far_depth = 1.0f,
+            .near_depth = 1.0f,
+        };
+        set_viewport(backend, &viewport_state);
+        set_view_projection(sky_view, sky_projection);
+
+        set_pipeline(backend, pipeline_background);
+        apply_object_block(&sky);
+        draw_object(&sky);
+
+        Viewport reset_viewport_state =
+        {
+            .bottom_left = {0, 0},
+            .dimensions = viewport,
+            .far_depth = 1.0f,
+            .near_depth = 0.0f,
+        };
+        set_viewport(backend, &reset_viewport_state);
+        set_view_projection(view, projection);
     }
 
     // Draw the selection itself.
@@ -861,19 +1276,19 @@ void video_system_update(VideoUpdateState* update, Platform* platform)
         VideoObject* object = NULL;
         if(selection_id)
         {
-            object = video_get_object(selection_id);
+            object = dense_map_look_up(&objects, selection_id);
         }
 
         VideoObject* pointcloud = NULL;
         if(selection_pointcloud_id)
         {
-            pointcloud = video_get_object(selection_pointcloud_id);
+            pointcloud = dense_map_look_up(&objects, selection_pointcloud_id);
         }
 
         VideoObject* wireframe = NULL;
         if(selection_wireframe_id)
         {
-            wireframe = video_get_object(selection_wireframe_id);
+            wireframe = dense_map_look_up(&objects, selection_wireframe_id);
         }
 
         draw_selection_object(object, pointcloud, wireframe, projection);
@@ -881,9 +1296,15 @@ void video_system_update(VideoUpdateState* update, Platform* platform)
 
     // Draw rotatory boys
     {
-        glActiveTexture(GL_TEXTURE0 + 0);
-        glBindTexture(GL_TEXTURE_2D, line_pattern);
-        glBindSampler(0, linear_mipmap_repeat);
+        ImageSet image_set =
+        {
+            .stages[1] =
+            {
+                .images[0] = line_pattern,
+                .samplers[0] = linear_mipmap_repeat,
+            },
+        };
+        set_images(backend, &image_set);
 
         const Float4 x_axis_colour = (Float4){{1.0f, 0.0314f, 0.0314f, 1.0f}};
         const Float4 y_axis_colour = (Float4){{0.3569f, 1.0f, 0.0f, 1.0f}};
@@ -892,16 +1313,12 @@ void video_system_update(VideoUpdateState* update, Platform* platform)
         Float3 center = rotate_tool->position;
         float radius = rotate_tool->radius;
 
-        glUseProgram(shader_line.program);
-        glUniform1f(shader_line.line_width, 8.0f);
-
+        immediate_set_line_width(8.0f);
         immediate_add_wire_arc(center, float3_unit_x, pi, rotate_tool->angles[0], radius, x_axis_colour);
         immediate_add_wire_arc(center, float3_unit_y, pi, rotate_tool->angles[1], radius, y_axis_colour);
         immediate_add_wire_arc(center, float3_unit_z, pi, rotate_tool->angles[2], radius, z_axis_colour);
         immediate_set_blend_mode(BLEND_MODE_TRANSPARENT);
         immediate_draw();
-
-        glUniform1f(shader_line.line_width, 4.0f);
     }
 
     // Draw the little axes in the corner.
@@ -922,8 +1339,22 @@ void video_system_update(VideoUpdateState* update, Platform* platform)
 
         int corner_x = viewport.x - scale - padding;
         int corner_y = padding;
-        glViewport(corner_x, corner_y, scale, scale);
-        glClear(GL_DEPTH_BUFFER_BIT);
+
+        Viewport viewport_state =
+        {
+            .bottom_left = {corner_x, corner_y},
+            .dimensions = {scale, scale},
+            .far_depth = 1.0f,
+            .near_depth = 0.0f,
+        };
+        set_viewport(backend, &viewport_state);
+
+        ClearState clear_state =
+        {
+            .depth = 1.0f,
+            .flags = {.depth = true},
+        };
+        clear_target(backend, &clear_state);
 
         const float across = 3.0f * sqrtf(3.0f);
         const float extent = across / 2.0f;
@@ -931,7 +1362,7 @@ void video_system_update(VideoUpdateState* update, Platform* platform)
         Float3 direction = float3_normalise(float3_subtract(camera->target, camera->position));
         Matrix4 view = matrix4_look_at(float3_zero, direction, float3_unit_z);
         Matrix4 axis_projection = matrix4_orthographic_projection(across, across, -extent, extent);
-        immediate_set_matrices(view, axis_projection);
+        set_view_projection(view, axis_projection);
 
         Float3 double_x = float3_multiply(2.0f, x_axis);
         Float3 double_y = float3_multiply(2.0f, y_axis);
@@ -947,19 +1378,30 @@ void video_system_update(VideoUpdateState* update, Platform* platform)
     }
 
     // Draw the screen-space UI.
-    glViewport(0, 0, viewport.x, viewport.y);
-    glDisable(GL_DEPTH_TEST);
-    glDepthMask(GL_FALSE);
+    Viewport viewport_state =
+    {
+        .bottom_left = {0, 0},
+        .dimensions = viewport,
+        .far_depth = 1.0f,
+        .near_depth = 0.0f,
+    };
+    set_viewport(backend, &viewport_state);
 
     Matrix4 screen_view = matrix4_identity;
-    immediate_set_matrices(screen_view, screen_projection);
+    set_view_projection(screen_view, screen_projection);
 
     // Draw the open file dialog.
     if(dialog_enabled)
     {
-        glActiveTexture(GL_TEXTURE0 + 0);
-        glBindTexture(GL_TEXTURE_2D, font_textures[0]);
-        glBindSampler(0, nearest_repeat);
+        ImageSet image_set =
+        {
+            .stages[1] =
+            {
+                .images[0] = font_textures[0],
+                .samplers[0] = nearest_repeat,
+            },
+        };
+        set_images(backend, &image_set);
 
         Rect space;
         space.bottom_left = (Float2){{0.0f, -250.0f}};
@@ -972,9 +1414,15 @@ void video_system_update(VideoUpdateState* update, Platform* platform)
 
     // Draw the main menu.
     {
-        glActiveTexture(GL_TEXTURE0 + 0);
-        glBindTexture(GL_TEXTURE_2D, font_textures[0]);
-        glBindSampler(0, nearest_repeat);
+        ImageSet image_set =
+        {
+            .stages[1] =
+            {
+                .images[0] = font_textures[0],
+                .samplers[0] = nearest_repeat,
+            },
+        };
+        set_images(backend, &image_set);
 
         Rect space;
         space.bottom_left = (Float2){{-viewport.x / 2.0f, viewport.y / 2.0f}};
@@ -986,10 +1434,6 @@ void video_system_update(VideoUpdateState* update, Platform* platform)
 
         ui_draw_focus_indicator(main_menu, ui_context);
     }
-
-    glDepthMask(GL_TRUE);
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
 }
 
 void video_resize_viewport(Int2 dimensions, double dots_per_millimeter, float fov)
@@ -998,16 +1442,6 @@ void video_resize_viewport(Int2 dimensions, double dots_per_millimeter, float fo
     float height = (float) dimensions.y;
     sky_projection = matrix4_perspective_projection(fov, width, height, 0.001f, 1.0f);
     screen_projection = matrix4_orthographic_projection(width, height, -1.0f, 1.0f);
-
-    // Update any shaders that use the viewport dimensions.
-    glUseProgram(shader_screen_pattern.program);
-    glUniform2f(shader_screen_pattern.viewport_dimensions, width, height);
-
-    glUseProgram(shader_line.program);
-    glUniform2f(shader_line.viewport_dimensions, width, height);
-
-    glUseProgram(shader_point.program);
-    glUniform2f(shader_point.viewport_dimensions, width, height);
 }
 
 DenseMapId video_add_object(VertexLayout vertex_layout)
@@ -1021,13 +1455,8 @@ DenseMapId video_add_object(VertexLayout vertex_layout)
 void video_remove_object(DenseMapId id)
 {
     VideoObject* object = dense_map_look_up(&objects, id);
-    video_object_destroy(object);
+    video_object_destroy(object, backend);
     dense_map_remove(&objects, id, &heap);
-}
-
-VideoObject* video_get_object(DenseMapId id)
-{
-    return dense_map_look_up(&objects, id);
 }
 
 void video_set_up_font(BmfFont* font)
@@ -1035,11 +1464,54 @@ void video_set_up_font(BmfFont* font)
     for(int i = 0; i < font->pages_count; i += 1)
     {
         char* filename = font->pages[i].bitmap_filename;
-        char* path = get_image_path_by_name(filename, &scratch);
-        Bitmap bitmap;
-        bitmap.pixels = stbi_load(path, &bitmap.width, &bitmap.height, &bitmap.bytes_per_pixel, STBI_default);
-        STACK_DEALLOCATE(&scratch, filename);
-        font_textures[i] = upload_bitmap(&bitmap);
-        stbi_image_free(bitmap.pixels);
+        font_textures[i] = build_image(backend, &logger, filename, &scratch, false, NULL);
+    }
+}
+
+void video_set_model(DenseMapId id, Matrix4 model)
+{
+    VideoObject* object = dense_map_look_up(&objects, id);
+    video_object_set_model(object, model);
+}
+
+void video_update_mesh(DenseMapId id, JanMesh* mesh, Heap* heap)
+{
+    VideoObject* object = dense_map_look_up(&objects, id);
+    video_object_update_mesh(object, mesh, backend, &logger, heap);
+}
+
+void video_update_wireframe(DenseMapId id, JanMesh* mesh, Heap* heap)
+{
+    VideoObject* object = dense_map_look_up(&objects, id);
+    video_object_update_wireframe(object, mesh, backend, &logger, heap);
+}
+
+void video_update_selection(DenseMapId id, JanMesh* mesh, JanSelection* selection, Heap* heap)
+{
+    VideoObject* object = dense_map_look_up(&objects, id);
+    video_object_update_selection(object, mesh, selection, backend, &logger, heap);
+}
+
+void video_update_pointcloud_selection(DenseMapId id, JanMesh* mesh, JanSelection* selection, JanVertex* hovered, Heap* heap)
+{
+    VideoObject* object = dense_map_look_up(&objects, id);
+    video_object_update_pointcloud_selection(object, mesh, selection, hovered, backend, &logger, heap);
+}
+
+void video_update_wireframe_selection(DenseMapId id, JanMesh* mesh, JanSelection* selection, JanEdge* hovered, Heap* heap)
+{
+    VideoObject* object = dense_map_look_up(&objects, id);
+    video_object_update_wireframe_selection(object, mesh, selection, hovered, backend, &logger, heap);
+}
+
+int get_vertex_layout_size(VertexLayout vertex_layout)
+{
+    switch(vertex_layout)
+    {
+        case VERTEX_LAYOUT_PC:    return sizeof(VertexPC);
+        case VERTEX_LAYOUT_PNC:   return sizeof(VertexPNC);
+        case VERTEX_LAYOUT_LINE:  return sizeof(LineVertex);
+        case VERTEX_LAYOUT_POINT: return sizeof(PointVertex);
+        default:                  return 0;
     }
 }

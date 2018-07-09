@@ -10,183 +10,135 @@ void video_object_create(VideoObject* object, VertexLayout vertex_layout)
 {
     object->model = matrix4_identity;
     object->vertex_layout = vertex_layout;
+}
 
-    glGenVertexArrays(1, &object->vertex_array);
-    glGenBuffers(2, object->buffers);
+void video_object_destroy(VideoObject* object, Backend* backend)
+{
+    destroy_buffer(backend, object->buffers[0]);
+    destroy_buffer(backend, object->buffers[1]);
+}
 
-    // Set up the vertex array.
-    glBindVertexArray(object->vertex_array);
-
-    switch(object->vertex_layout)
+static void ensure_buffer_room(VideoObject* object, int vertices_needed, int indices_needed, Backend* backend, Log* logger)
+{
+    if(vertices_needed > object->vertices_count)
     {
-        case VERTEX_LAYOUT_PNC:
-        {
-            const int vertex_size = sizeof(VertexPNC);
-            GLvoid* offset1 = ((GLvoid*) offsetof(VertexPNC, normal));
-            GLvoid* offset2 = ((GLvoid*) offsetof(VertexPNC, colour));
-            glBindBuffer(GL_ARRAY_BUFFER, object->buffers[0]);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertex_size, NULL);
-            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, vertex_size, offset1);
-            glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, vertex_size, offset2);
-            glEnableVertexAttribArray(0);
-            glEnableVertexAttribArray(1);
-            glEnableVertexAttribArray(2);
-            break;
-        }
-        case VERTEX_LAYOUT_POINT:
-        {
-            const int vertex_size = sizeof(PointVertex);
-            GLvoid* offset0 = ((GLvoid*) offsetof(PointVertex, position));
-            GLvoid* offset1 = ((GLvoid*) offsetof(PointVertex, direction));
-            GLvoid* offset2 = ((GLvoid*) offsetof(PointVertex, colour));
-            GLvoid* offset3 = ((GLvoid*) offsetof(PointVertex, texcoord));
-            glBindBuffer(GL_ARRAY_BUFFER, object->buffers[0]);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertex_size, offset0);
-            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, vertex_size, offset1);
-            glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, vertex_size, offset2);
-            glVertexAttribPointer(3, 2, GL_UNSIGNED_SHORT, GL_TRUE, vertex_size, offset3);
-            glEnableVertexAttribArray(0);
-            glEnableVertexAttribArray(1);
-            glEnableVertexAttribArray(2);
-            glEnableVertexAttribArray(3);
-            break;
-        }
-        case VERTEX_LAYOUT_LINE:
-        {
-            const int vertex_size = sizeof(LineVertex);
-            GLvoid* offset0 = ((GLvoid*) offsetof(LineVertex, position));
-            GLvoid* offset1 = ((GLvoid*) offsetof(LineVertex, direction));
-            GLvoid* offset2 = ((GLvoid*) offsetof(LineVertex, colour));
-            GLvoid* offset3 = ((GLvoid*) offsetof(LineVertex, texcoord));
-            GLvoid* offset4 = ((GLvoid*) offsetof(LineVertex, side));
-            glBindBuffer(GL_ARRAY_BUFFER, object->buffers[0]);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertex_size, offset0);
-            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, vertex_size, offset1);
-            glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, vertex_size, offset2);
-            glVertexAttribPointer(3, 2, GL_UNSIGNED_SHORT, GL_TRUE, vertex_size, offset3);
-            glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, vertex_size, offset4);
-            glEnableVertexAttribArray(0);
-            glEnableVertexAttribArray(1);
-            glEnableVertexAttribArray(2);
-            glEnableVertexAttribArray(3);
-            glEnableVertexAttribArray(4);
-            break;
-        }
+        destroy_buffer(backend, object->buffers[0]);
+        object->buffers[0] = (BufferId){0};
     }
 
-    glBindVertexArray(0);
+    if(!object->buffers[0].value && vertices_needed)
+    {
+        BufferSpec vertex_buffer_spec =
+        {
+            .format = BUFFER_FORMAT_VERTEX,
+            .usage = BUFFER_USAGE_DYNAMIC,
+            .size = get_vertex_layout_size(object->vertex_layout) * vertices_needed,
+        };
+        object->buffers[0] = create_buffer(backend, &vertex_buffer_spec, logger);
+    }
+
+    if(indices_needed > object->indices_count)
+    {
+        destroy_buffer(backend, object->buffers[1]);
+        object->buffers[1] = (BufferId){0};
+    }
+
+    if(!object->buffers[1].value && indices_needed)
+    {
+        BufferSpec index_buffer_spec =
+        {
+            .format = BUFFER_FORMAT_INDEX,
+            .usage = BUFFER_USAGE_DYNAMIC,
+            .size = sizeof(uint16_t) * indices_needed,
+        };
+        object->buffers[1] = create_buffer(backend, &index_buffer_spec, logger);
+    }
 }
 
-void video_object_destroy(VideoObject* object)
+static void object_set_surface(VideoObject* object, Backend* backend, Log* logger, VertexPNC* vertices, int vertices_count, uint16_t* indices, int indices_count)
 {
-    glDeleteVertexArrays(1, &object->vertex_array);
-    glDeleteBuffers(2, object->buffers);
-}
+    ensure_buffer_room(object, vertices_count, indices_count, backend, logger);
 
-static void object_set_surface(VideoObject* object, VertexPNC* vertices, int vertices_count, uint16_t* indices, int indices_count)
-{
-    glBindVertexArray(object->vertex_array);
+    int vertices_size = sizeof(VertexPNC) * vertices_count;
+    update_buffer(backend, object->buffers[0], vertices, 0, vertices_size);
 
-    const int vertex_size = sizeof(VertexPNC);
-    GLsizei vertices_size = vertex_size * vertices_count;
-    GLvoid* offset1 = ((GLvoid*) offsetof(VertexPNC, normal));
-    GLvoid* offset2 = ((GLvoid*) offsetof(VertexPNC, colour));
-    glBindBuffer(GL_ARRAY_BUFFER, object->buffers[0]);
-    glBufferData(GL_ARRAY_BUFFER, vertices_size, vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertex_size, NULL);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, vertex_size, offset1);
-    glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, vertex_size, offset2);
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-    glEnableVertexAttribArray(2);
+    int indices_size = sizeof(uint16_t) * indices_count;
+    update_buffer(backend, object->buffers[1], indices, 0, indices_size);
 
-    GLsizei indices_size = sizeof(uint16_t) * indices_count;
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, object->buffers[1]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_size, indices, GL_STATIC_DRAW);
+    object->vertices_count = vertices_count;
     object->indices_count = indices_count;
-
-    glBindVertexArray(0);
 }
 
-static void object_finish_update(VideoObject* object, Heap* heap, VertexPNC* vertices, uint16_t* indices)
+static void object_finish_update(VideoObject* object, Backend* backend, Log* logger, Heap* heap, VertexPNC* vertices, uint16_t* indices)
 {
-    glBindVertexArray(object->vertex_array);
+    ensure_buffer_room(object, array_count(vertices), array_count(indices), backend, logger);
 
-    const int vertex_size = sizeof(VertexPNC);
-    GLsizei vertices_size = vertex_size * array_count(vertices);
-    glBindBuffer(GL_ARRAY_BUFFER, object->buffers[0]);
-    glBufferData(GL_ARRAY_BUFFER, vertices_size, vertices, GL_DYNAMIC_DRAW);
+    int vertices_size = sizeof(VertexPNC) * array_count(vertices);
+    update_buffer(backend, object->buffers[0], vertices, 0, vertices_size);
 
-    GLsizei indices_size = sizeof(uint16_t) * array_count(indices);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, object->buffers[1]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_size, indices, GL_DYNAMIC_DRAW);
+    int indices_size = sizeof(uint16_t) * array_count(indices);
+    update_buffer(backend, object->buffers[1], indices, 0, indices_size);
+
+    object->vertices_count = array_count(vertices);
     object->indices_count = array_count(indices);
-
-    glBindVertexArray(0);
 
     ARRAY_DESTROY(vertices, heap);
     ARRAY_DESTROY(indices, heap);
 }
 
-static void object_update_points(VideoObject* object, Heap* heap, PointVertex* vertices, uint16_t* indices)
+static void object_update_points(VideoObject* object, Backend* backend, Log* logger, Heap* heap, PointVertex* vertices, uint16_t* indices)
 {
-    glBindVertexArray(object->vertex_array);
+    ensure_buffer_room(object, array_count(vertices), array_count(indices), backend, logger);
 
-    const int vertex_size = sizeof(PointVertex);
-    GLsizei vertices_size = vertex_size * array_count(vertices);
-    glBindBuffer(GL_ARRAY_BUFFER, object->buffers[0]);
-    glBufferData(GL_ARRAY_BUFFER, vertices_size, vertices, GL_DYNAMIC_DRAW);
+    int vertices_size = sizeof(PointVertex) * array_count(vertices);
+    update_buffer(backend, object->buffers[0], vertices, 0, vertices_size);
 
-    GLsizei indices_size = sizeof(uint16_t) * array_count(indices);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, object->buffers[1]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_size, indices, GL_DYNAMIC_DRAW);
+    int indices_size = sizeof(uint16_t) * array_count(indices);
+    update_buffer(backend, object->buffers[1], indices, 0, indices_size);
+
+    object->vertices_count = array_count(vertices);
     object->indices_count = array_count(indices);
-
-    glBindVertexArray(0);
 
     ARRAY_DESTROY(vertices, heap);
     ARRAY_DESTROY(indices, heap);
 }
 
-static void object_update_lines(VideoObject* object, Heap* heap, LineVertex* vertices, uint16_t* indices)
+static void object_update_lines(VideoObject* object, Backend* backend, Log* logger, Heap* heap, LineVertex* vertices, uint16_t* indices)
 {
-    glBindVertexArray(object->vertex_array);
+    ensure_buffer_room(object, array_count(vertices), array_count(indices), backend, logger);
 
-    const int vertex_size = sizeof(LineVertex);
-    GLsizei vertices_size = vertex_size * array_count(vertices);
-    glBindBuffer(GL_ARRAY_BUFFER, object->buffers[0]);
-    glBufferData(GL_ARRAY_BUFFER, vertices_size, vertices, GL_DYNAMIC_DRAW);
+    int vertices_size = sizeof(LineVertex) * array_count(vertices);
+    update_buffer(backend, object->buffers[0], vertices, 0, vertices_size);
 
-    GLsizei indices_size = sizeof(uint16_t) * array_count(indices);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, object->buffers[1]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_size, indices, GL_DYNAMIC_DRAW);
+    int indices_size = sizeof(uint16_t) * array_count(indices);
+    update_buffer(backend, object->buffers[1], indices, 0, indices_size);
+
+    object->vertices_count = array_count(vertices);
     object->indices_count = array_count(indices);
-
-    glBindVertexArray(0);
 
     ARRAY_DESTROY(vertices, heap);
     ARRAY_DESTROY(indices, heap);
 }
 
-void video_object_update_mesh(VideoObject* object, JanMesh* mesh, Heap* heap)
+void video_object_update_mesh(VideoObject* object, JanMesh* mesh, Backend* backend, Log* logger, Heap* heap)
 {
     VertexPNC* vertices;
     uint16_t* indices;
     jan_triangulate(mesh, heap, &vertices, &indices);
 
-    object_finish_update(object, heap, vertices, indices);
+    object_finish_update(object, backend, logger, heap, vertices, indices);
 }
 
-void video_object_update_selection(VideoObject* object, JanMesh* mesh, JanSelection* selection, Heap* heap)
+void video_object_update_selection(VideoObject* object, JanMesh* mesh, JanSelection* selection, Backend* backend, Log* logger, Heap* heap)
 {
     VertexPNC* vertices;
     uint16_t* indices;
     jan_triangulate_selection(mesh, selection, heap, &vertices, &indices);
 
-    object_finish_update(object, heap, vertices, indices);
+    object_finish_update(object, backend, logger, heap, vertices, indices);
 }
 
-void video_object_update_wireframe(VideoObject* object, JanMesh* mesh, Heap* heap)
+void video_object_update_wireframe(VideoObject* object, JanMesh* mesh, Backend* backend, Log* logger, Heap* heap)
 {
     const Float4 colour = (Float4){{1.0f, 0.5f, 0.0f, 0.8f}};
 
@@ -194,10 +146,10 @@ void video_object_update_wireframe(VideoObject* object, JanMesh* mesh, Heap* hea
     uint16_t* indices;
     jan_make_wireframe(mesh, heap, colour, &vertices, &indices);
 
-    object_update_lines(object, heap, vertices, indices);
+    object_update_lines(object, backend, logger, heap, vertices, indices);
 }
 
-void video_object_update_wireframe_selection(VideoObject* object, JanMesh* mesh, JanSelection* selection, JanEdge* hovered, Heap* heap)
+void video_object_update_wireframe_selection(VideoObject* object, JanMesh* mesh, JanSelection* selection, JanEdge* hovered, Backend* backend, Log* logger, Heap* heap)
 {
     const Float4 colour = (Float4){{1.0f, 1.0f, 1.0f, 1.0f}};
     const Float4 hover_colour = (Float4){{0.0f, 1.0f, 1.0f, 1.0f}};
@@ -207,10 +159,10 @@ void video_object_update_wireframe_selection(VideoObject* object, JanMesh* mesh,
     uint16_t* indices;
     jan_make_wireframe_selection(mesh, heap, colour, hovered, hover_colour, selection, select_colour, &vertices, &indices);
 
-    object_update_lines(object, heap, vertices, indices);
+    object_update_lines(object, backend, logger, heap, vertices, indices);
 }
 
-void video_object_update_pointcloud(VideoObject* object, JanMesh* mesh, Heap* heap)
+void video_object_update_pointcloud(VideoObject* object, JanMesh* mesh, Backend* backend, Log* logger, Heap* heap)
 {
     const Float4 colour = (Float4){{1.0f, 0.5f, 0.0f, 1.0f}};
 
@@ -218,10 +170,10 @@ void video_object_update_pointcloud(VideoObject* object, JanMesh* mesh, Heap* he
     uint16_t* indices;
     jan_make_pointcloud(mesh, heap, colour, &vertices, &indices);
 
-    object_update_points(object, heap, vertices, indices);
+    object_update_points(object, backend, logger, heap, vertices, indices);
 }
 
-void video_object_update_pointcloud_selection(VideoObject* object, JanMesh* mesh, JanSelection* selection, JanVertex* hovered, Heap* heap)
+void video_object_update_pointcloud_selection(VideoObject* object, JanMesh* mesh, JanSelection* selection, JanVertex* hovered, Backend* backend, Log* logger, Heap* heap)
 {
     const Float4 colour = (Float4){{1.0f, 1.0f, 1.0f, 1.0f}};
     const Float4 hover_colour = (Float4){{0.0f, 1.0f, 1.0f, 1.0f}};
@@ -231,7 +183,7 @@ void video_object_update_pointcloud_selection(VideoObject* object, JanMesh* mesh
     uint16_t* indices;
     jan_make_pointcloud_selection(mesh, colour, hovered, hover_colour, selection, select_colour, heap, &vertices, &indices);
 
-    object_update_points(object, heap, vertices, indices);
+    object_update_points(object, backend, logger, heap, vertices, indices);
 }
 
 void video_object_set_matrices(VideoObject* object, Matrix4 view, Matrix4 projection)
@@ -241,7 +193,7 @@ void video_object_set_matrices(VideoObject* object, Matrix4 view, Matrix4 projec
     object->normal = matrix4_transpose(matrix4_inverse_transform(model_view));
 }
 
-void video_object_generate_sky(VideoObject* object, Stack* stack)
+void video_object_generate_sky(VideoObject* object, Backend* backend, Log* logger, Stack* stack)
 {
     const float radius = 1.0f;
     const int meridians = 9;
@@ -249,7 +201,7 @@ void video_object_generate_sky(VideoObject* object, Stack* stack)
     int rings = parallels + 1;
 
     int vertices_count = meridians * parallels + 2;
-    VertexPNC* vertices = STACK_ALLOCATE(stack, VertexPNC, vertices_count);
+    VertexPC* vertices = STACK_ALLOCATE(stack, VertexPC, vertices_count);
     if(!vertices)
     {
         return;
@@ -258,7 +210,6 @@ void video_object_generate_sky(VideoObject* object, Stack* stack)
     const Float3 top_colour = (Float3){{1.0f, 1.0f, 0.2f}};
     const Float3 bottom_colour = (Float3){{0.1f, 0.7f, 0.6f}};
     vertices[0].position = float3_multiply(radius, float3_unit_z);
-    vertices[0].normal = float3_negate(float3_unit_z);
     vertices[0].colour = rgb_to_u32(top_colour);
     for(int i = 0; i < parallels; ++i)
     {
@@ -272,14 +223,12 @@ void video_object_generate_sky(VideoObject* object, Stack* stack)
             float y = radius * sinf(theta) * sinf(phi);
             float z = radius * cosf(theta);
             Float3 position = (Float3){{x, y, z}};
-            VertexPNC* vertex = &vertices[meridians * i + j + 1];
+            VertexPC* vertex = &vertices[meridians * i + j + 1];
             vertex->position = position;
-            vertex->normal = float3_negate(float3_normalise(position));
             vertex->colour = rgb_to_u32(ring_colour);
         }
     }
     vertices[vertices_count - 1].position = float3_multiply(-radius, float3_unit_z);
-    vertices[vertices_count - 1].normal = float3_unit_z;
     vertices[vertices_count - 1].colour = rgb_to_u32(bottom_colour);
 
     int indices_count = 6 * meridians * rings;
@@ -328,7 +277,16 @@ void video_object_generate_sky(VideoObject* object, Stack* stack)
         indices[o + 2] = in_base + (i + 1) % meridians;
     }
 
-    object_set_surface(object, vertices, vertices_count, indices, indices_count);
+    ensure_buffer_room(object, vertices_count, indices_count, backend, logger);
+
+    int vertices_size = sizeof(VertexPC) * vertices_count;
+    update_buffer(backend, object->buffers[0], vertices, 0, vertices_size);
+
+    int indices_size = sizeof(uint16_t) * indices_count;
+    update_buffer(backend, object->buffers[1], indices, 0, indices_size);
+
+    object->vertices_count = vertices_count;
+    object->indices_count = indices_count;
 
     STACK_DEALLOCATE(stack, vertices);
     STACK_DEALLOCATE(stack, indices);

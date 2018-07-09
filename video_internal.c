@@ -13,10 +13,18 @@ int get_vertex_format_component_count(VertexFormat format)
 {
     switch(format)
     {
-        case VERTEX_FORMAT_FLOAT2:  return 2;
-        case VERTEX_FORMAT_FLOAT3:  return 3;
-        case VERTEX_FORMAT_FLOAT4:  return 4;
-        default:                    return 0;
+        case VERTEX_FORMAT_FLOAT1:
+            return 1;
+        case VERTEX_FORMAT_FLOAT2:
+        case VERTEX_FORMAT_USHORT2_NORM:
+            return 2;
+        case VERTEX_FORMAT_FLOAT3:
+            return 3;
+        case VERTEX_FORMAT_FLOAT4:
+        case VERTEX_FORMAT_UBYTE4_NORM:
+            return 4;
+        default:
+            return 0;
     }
 }
 
@@ -24,10 +32,13 @@ int get_vertex_format_size(VertexFormat format)
 {
     switch(format)
     {
-        case VERTEX_FORMAT_FLOAT2:  return sizeof(float) * 2;
-        case VERTEX_FORMAT_FLOAT3:  return sizeof(float) * 3;
-        case VERTEX_FORMAT_FLOAT4:  return sizeof(float) * 4;
-        default:                    return 0;
+        case VERTEX_FORMAT_FLOAT1:       return sizeof(float);
+        case VERTEX_FORMAT_FLOAT2:       return sizeof(float) * 2;
+        case VERTEX_FORMAT_FLOAT3:       return sizeof(float) * 3;
+        case VERTEX_FORMAT_FLOAT4:       return sizeof(float) * 4;
+        case VERTEX_FORMAT_UBYTE4_NORM:  return sizeof(uint8_t) * 4;
+        case VERTEX_FORMAT_USHORT2_NORM: return sizeof(uint16_t) * 2;
+        default:                         return 0;
     }
 }
 
