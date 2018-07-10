@@ -3,7 +3,7 @@
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec2 texcoord;
 
-layout(std140) uniform PerPass
+layout(std140) uniform PerView
 {
     mat4x4 view_projection;
     vec2 viewport_dimensions;

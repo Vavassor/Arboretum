@@ -224,7 +224,7 @@ void add_object_to_history(History* history, Object* object, Heap* heap)
     history_add_base_state(history, state, heap);
 }
 
-void undo(History* history, ObjectLady* lady, Heap* heap, Platform* platform)
+void undo(History* history, ObjectLady* lady, VideoContext* context, Heap* heap, Platform* platform)
 {
     if(history_is_at_start(history) || history_is_empty(history))
     {
@@ -257,13 +257,13 @@ void undo(History* history, ObjectLady* lady, Heap* heap, Platform* platform)
         {
             ObjectId id = change->move.object_id;
             Object* object = object_lady_get_object_by_id(lady, id);
-            object_set_position(object, change->move.position);
+            object_set_position(object, change->move.position, context);
             break;
         }
     }
 }
 
-void redo(History* history, ObjectLady* lady, Heap* heap)
+void redo(History* history, ObjectLady* lady, VideoContext* context, Heap* heap)
 {
     if(history_is_at_end(history))
     {
@@ -292,7 +292,7 @@ void redo(History* history, ObjectLady* lady, Heap* heap)
         {
             ObjectId id = change->move.object_id;
             Object* object = object_lady_get_object_by_id(lady, id);
-            object_set_position(object, change->move.position);
+            object_set_position(object, change->move.position, context);
             break;
         }
     }

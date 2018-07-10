@@ -10,17 +10,17 @@ void object_lady_create(ObjectLady* lady, Heap* heap)
     lady->seed = 1;
 }
 
-void object_lady_destroy(ObjectLady* lady, Heap* heap)
+void object_lady_destroy(ObjectLady* lady, Heap* heap, VideoContext* context)
 {
     if(lady)
     {
         FOR_ALL(Object, lady->objects)
         {
-            object_destroy(it);
+            object_destroy(it, context);
         }
         FOR_ALL(Object, lady->storage)
         {
-            object_destroy(it);
+            object_destroy(it, context);
         }
         ARRAY_DESTROY(lady->objects, heap);
         ARRAY_DESTROY(lady->storage, heap);
@@ -34,11 +34,11 @@ static ObjectId generate_object_id(ObjectLady* lady)
     return id;
 }
 
-Object* object_lady_add_object(ObjectLady* lady, Heap* heap)
+Object* object_lady_add_object(ObjectLady* lady, Heap* heap, VideoContext* context)
 {
     Object object = {0};
     object.id = generate_object_id(lady);
-    object_create(&object);
+    object_create(&object, context);
 
     ARRAY_ADD(lady->objects, object, heap);
 
@@ -89,12 +89,12 @@ void object_lady_take_out_of_storage(ObjectLady* lady, ObjectId id, Heap* heap)
     }
 }
 
-void object_lady_remove_from_storage(ObjectLady* lady, ObjectId id)
+void object_lady_remove_from_storage(ObjectLady* lady, ObjectId id, VideoContext* context)
 {
     Object* object = get_object_in_storage_by_id(lady, id);
     if(object)
     {
-        object_destroy(object);
+        object_destroy(object, context);
         ARRAY_REMOVE(lady->storage, object);
     }
 }

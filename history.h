@@ -64,7 +64,7 @@ Change* history_find_past_change(History* history);
 void history_log(History* history);
 
 void add_object_to_history(History* history, struct Object* object, Heap* heap);
-void undo(History* history, struct ObjectLady* lady, Heap* heap, Platform* platform);
-void redo(History* history, struct ObjectLady* lady, Heap* heap);
+void undo(History* history, struct ObjectLady* lady, VideoContext* context, Heap* heap, Platform* platform);
+void redo(History* history, struct ObjectLady* lady, VideoContext* context, Heap* heap);
 
 #endif // HISTORY_H_

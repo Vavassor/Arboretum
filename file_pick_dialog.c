@@ -406,7 +406,7 @@ static void export_file(FilePickDialog* dialog, const char* name, ObjectLady* la
     }
 }
 
-static void import_file(FilePickDialog* dialog, const char* name, ObjectLady* lady, History* history, UiContext* context, Heap* heap, Stack* stack)
+static void import_file(FilePickDialog* dialog, const char* name, ObjectLady* lady, History* history, VideoContext* video_context, UiContext* ui_context, Heap* heap, Stack* stack)
 {
     char* path = append_to_path(dialog->path, name, heap);
     JanMesh mesh;
@@ -420,12 +420,12 @@ static void import_file(FilePickDialog* dialog, const char* name, ObjectLady* la
     }
     else
     {
-        Object* imported_model = object_lady_add_object(lady, heap);
+        Object* imported_model = object_lady_add_object(lady, heap, video_context);
         imported_model->mesh = mesh;
-        object_set_position(imported_model, (Float3){{-2.0f, 0.0f, 0.0f}});
+        object_set_position(imported_model, (Float3){{-2.0f, 0.0f, 0.0f}}, video_context);
 
         jan_colour_all_faces(&imported_model->mesh, float3_magenta);
-        video_update_mesh(imported_model->video_object, &imported_model->mesh, heap);
+        video_update_mesh(video_context, imported_model->video_object, &imported_model->mesh, heap);
 
         add_object_to_history(history, imported_model, heap);
 
@@ -434,11 +434,11 @@ static void import_file(FilePickDialog* dialog, const char* name, ObjectLady* la
         change.create_object.object_id = imported_model->id;
         history_add(history, change);
 
-        close_dialog(dialog, context, heap);
+        close_dialog(dialog, ui_context, heap);
     }
 }
 
-static void pick_file(FilePickDialog* dialog, ObjectLady* lady, int selected_object_index, History* history, UiContext* context, Heap* heap, Stack* stack)
+static void pick_file(FilePickDialog* dialog, ObjectLady* lady, int selected_object_index, History* history, VideoContext* video_context, UiContext* ui_context, Heap* heap, Stack* stack)
 {
     int selected = dialog->record_selected;
 
@@ -470,7 +470,7 @@ static void pick_file(FilePickDialog* dialog, ObjectLady* lady, int selected_obj
                 }
             }
 
-            export_file(dialog, filename, lady, selected_object_index, context, heap);
+            export_file(dialog, filename, lady, selected_object_index, ui_context, heap);
             STACK_DEALLOCATE(stack, filename);
 
             break;
@@ -479,13 +479,13 @@ static void pick_file(FilePickDialog* dialog, ObjectLady* lady, int selected_obj
         {
             ASSERT(is_valid_index(selected));
             DirectoryRecord record = dialog->directory.records[selected];
-            import_file(dialog, record.name, lady, history, context, heap, stack);
+            import_file(dialog, record.name, lady, history, video_context, ui_context, heap, stack);
             break;
         }
     }
 }
 
-void handle_input(FilePickDialog* dialog, UiEvent event, ObjectLady* lady, int selected_object_index, History* history, UiContext* context, Platform* platform, Heap* heap, Stack* stack)
+void handle_input(FilePickDialog* dialog, UiEvent event, ObjectLady* lady, int selected_object_index, History* history, VideoContext* video_context, UiContext* ui_context, Platform* platform, Heap* heap, Stack* stack)
 {
     switch(event.type)
     {
@@ -497,13 +497,13 @@ void handle_input(FilePickDialog* dialog, UiEvent event, ObjectLady* lady, int s
             {
                 if(id == dialog->path_buttons[i])
                 {
-                    open_parent_directory(dialog, i, context, platform, heap);
+                    open_parent_directory(dialog, i, ui_context, platform, heap);
                 }
             }
 
             if(id == dialog->pick_button)
             {
-                pick_file(dialog, lady, selected_object_index, history, context, heap, stack);
+                pick_file(dialog, lady, selected_object_index, history, video_context, ui_context, heap, stack);
             }
             break;
         }
@@ -512,7 +512,7 @@ void handle_input(FilePickDialog* dialog, UiEvent event, ObjectLady* lady, int s
             UiId scope = event.focus_change.current_scope;
             if(scope != dialog->panel->id)
             {
-                close_dialog(dialog, context, heap);
+                close_dialog(dialog, ui_context, heap);
             }
 
             if(dialog->type == DIALOG_TYPE_EXPORT)
@@ -537,7 +537,7 @@ void handle_input(FilePickDialog* dialog, UiEvent event, ObjectLady* lady, int s
         {
             int index = event.list_selection.index;
             bool expand = event.list_selection.expand;
-            touch_record(dialog, index, expand, context, platform, heap);
+            touch_record(dialog, index, expand, ui_context, platform, heap);
             break;
         }
         case UI_EVENT_TYPE_TEXT_CHANGE:

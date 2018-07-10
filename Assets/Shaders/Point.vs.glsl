@@ -11,16 +11,16 @@ layout(std140) uniform PerObject
     mat4x4 normal_matrix;
 };
 
-layout(std140) uniform PerPass
-{
-    mat4x4 view_projection;
-    vec2 viewport_dimensions;
-};
-
 layout(std140) uniform PerPoint
 {
     float point_radius;
     float projection_factor;
+};
+
+layout(std140) uniform PerView
+{
+    mat4x4 view_projection;
+    vec2 viewport_dimensions;
 };
 
 out vec4 surface_colour;

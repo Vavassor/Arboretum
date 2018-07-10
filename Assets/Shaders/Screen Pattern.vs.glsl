@@ -8,7 +8,7 @@ layout(std140) uniform PerImage
     vec2 texture_dimensions;
 };
 
-layout(std140) uniform PerPass
+layout(std140) uniform PerView
 {
     mat4x4 view_projection;
     vec2 viewport_dimensions;

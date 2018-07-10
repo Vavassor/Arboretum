@@ -39,21 +39,22 @@ typedef enum VertexLayout
 
 typedef struct VideoContext VideoContext;
 
-bool video_system_start_up();
-void video_system_shut_down(bool functions_loaded);
-void video_system_update(VideoUpdate* update, Platform* platform);
+VideoContext* video_create_context(Heap* heap);
+void video_destroy_context(VideoContext* context, Heap* heap, bool functions_loaded);
+void video_update_context(VideoContext* context, VideoUpdate* update, Platform* platform);
 void video_resize_viewport(Int2 dimensions, double dots_per_millimeter, float fov);
 
-DenseMapId video_add_object(VertexLayout vertex_layout);
-void video_remove_object(DenseMapId id);
-void video_set_up_font(BmfFont* font);
-int get_vertex_layout_size(VertexLayout vertex_layout);
+DenseMapId video_add_object(VideoContext* context, VertexLayout vertex_layout);
+void video_remove_object(VideoContext* context, DenseMapId id);
+void video_set_up_font(VideoContext* context, BmfFont* font);
 
-void video_set_model(DenseMapId id, Matrix4 model);
-void video_update_mesh(DenseMapId id, JanMesh* mesh, Heap* heap);
-void video_update_wireframe(DenseMapId id, JanMesh* mesh, Heap* heap);
-void video_update_selection(DenseMapId id, JanMesh* mesh, JanSelection* selection, Heap* heap);
-void video_update_pointcloud_selection(DenseMapId id, JanMesh* mesh, JanSelection* selection, JanVertex* hovered, Heap* heap);
-void video_update_wireframe_selection(DenseMapId id, JanMesh* mesh, JanSelection* selection, JanEdge* hovered, Heap* heap);
+void video_set_model(VideoContext* context, DenseMapId id, Matrix4 model);
+void video_update_mesh(VideoContext* context, DenseMapId id, JanMesh* mesh, Heap* heap);
+void video_update_wireframe(VideoContext* context, DenseMapId id, JanMesh* mesh, Heap* heap);
+void video_update_selection(VideoContext* context, DenseMapId id, JanMesh* mesh, JanSelection* selection, Heap* heap);
+void video_update_pointcloud_selection(VideoContext* context, DenseMapId id, JanMesh* mesh, JanSelection* selection, JanVertex* hovered, Heap* heap);
+void video_update_wireframe_selection(VideoContext* context, DenseMapId id, JanMesh* mesh, JanSelection* selection, JanEdge* hovered, Heap* heap);
+
+int get_vertex_layout_size(VertexLayout vertex_layout);
 
 #endif // VIDEO_H_

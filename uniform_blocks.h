@@ -30,12 +30,6 @@ typedef struct PerObject
     Matrix4 normal_matrix;
 } PerObject;
 
-typedef struct PerPass
-{
-    Matrix4 view_projection;
-    Float2 viewport_dimensions;
-} PerPass;
-
 typedef struct PerPoint
 {
     float point_radius;
@@ -47,5 +41,11 @@ typedef struct PerSpan
     Float3 tint;
     float padding;
 } PerSpan;
+
+typedef struct PerView
+{
+    Matrix4 view_projection;
+    Float2 viewport_dimensions;
+} PerView;
 
 #endif // UNIFORM_BLOCKS_H_

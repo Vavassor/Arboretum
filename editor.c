@@ -55,6 +55,7 @@ static MoveTool move_tool;
 static RotateTool rotate_tool;
 static History history;
 
+static VideoContext* video_context;
 static int hovered_object_index;
 static int selected_object_index;
 static JanSelection selection;
@@ -150,6 +151,8 @@ bool editor_start_up(Platform* platform)
     history_create(&history, &heap);
     object_lady_create(&lady, &heap);
 
+    video_context = video_create_context(&heap);
+
     // Camera
     {
         camera.position = (Float3){{-4.0f, -4.0f, 2.0f}};
@@ -161,7 +164,7 @@ bool editor_start_up(Platform* platform)
 
     // Dodecahedron
     {
-        Object* dodecahedron = object_lady_add_object(&lady, &heap);
+        Object* dodecahedron = object_lady_add_object(&lady, &heap, video_context);
         JanMesh* mesh = &dodecahedron->mesh;
 
         jan_make_a_weird_face(mesh, &scratch);
@@ -172,34 +175,34 @@ bool editor_start_up(Platform* platform)
 
         jan_colour_all_faces(mesh, float3_cyan);
 
-        video_update_mesh(dodecahedron->video_object, mesh, &heap);
+        video_update_mesh(video_context, dodecahedron->video_object, mesh, &heap);
 
         Float3 position = (Float3){{2.0f, 0.0f, 0.0f}};
         Quaternion orientation = quaternion_axis_angle(float3_unit_x, pi / 4.0f);
         dodecahedron->orientation = orientation;
-        object_set_position(dodecahedron, position);
+        object_set_position(dodecahedron, position, video_context);
 
         add_object_to_history(&history, dodecahedron, &heap);
     }
 
     // Cheese
     {
-        Object* cheese = object_lady_add_object(&lady, &heap);
+        Object* cheese = object_lady_add_object(&lady, &heap, video_context);
         JanMesh* mesh = &cheese->mesh;
 
         jan_make_a_face_with_holes(mesh, &scratch);
 
-        video_update_mesh(cheese->video_object, mesh, &heap);
+        video_update_mesh(video_context, cheese->video_object, mesh, &heap);
 
         Float3 position = (Float3){{0.0f, -2.0f, 0.0f}};
-        object_set_position(cheese, position);
+        object_set_position(cheese, position, video_context);
 
         add_object_to_history(&history, cheese, &heap);
     }
 
     // Test Model
     {
-        Object* test_model = object_lady_add_object(&lady, &heap);
+        Object* test_model = object_lady_add_object(&lady, &heap, video_context);
         JanMesh* mesh = &test_model->mesh;
 
         char* path = get_model_path_by_name("test.obj", &scratch);
@@ -208,9 +211,9 @@ bool editor_start_up(Platform* platform)
         jan_colour_all_faces(mesh, float3_yellow);
 
         Float3 position = (Float3){{-2.0f, 0.0f, 0.0f}};
-        object_set_position(test_model, position);
+        object_set_position(test_model, position, video_context);
 
-        video_update_mesh(test_model->video_object, mesh, &heap);
+        video_update_mesh(video_context, test_model->video_object, mesh, &heap);
 
         add_object_to_history(&history, test_model, &heap);
     }
@@ -222,7 +225,7 @@ bool editor_start_up(Platform* platform)
         char* path = get_font_path_by_name("droid_12.fnt", &scratch);
         bmf_load_font(&font, path, &heap, &scratch);
         STACK_DEALLOCATE(&scratch, path);
-        video_set_up_font(&font);
+        video_set_up_font(video_context, &font);
         ui_context.theme.font = &font;
     }
 
@@ -326,9 +329,9 @@ bool editor_start_up(Platform* platform)
     return true;
 }
 
-void editor_shut_down()
+void editor_shut_down(bool functions_loaded)
 {
-    object_lady_destroy(&lady, &heap);
+    object_lady_destroy(&lady, &heap, video_context);
 
     close_dialog(&dialog, &ui_context, &heap);
 
@@ -338,6 +341,8 @@ void editor_shut_down()
     ui_destroy_context(&ui_context, &heap);
 
     history_destroy(&history, &heap);
+
+    video_destroy_context(video_context, &heap, functions_loaded);
 
     stack_destroy(&scratch);
     heap_destroy(&heap);
@@ -501,7 +506,7 @@ static void move(Ray mouse_ray)
         }
     }
 
-    object_set_position(object, float3_add(point, move_tool.reference_offset));
+    object_set_position(object, float3_add(point, move_tool.reference_offset), video_context);
 }
 
 static void delete_object(Platform* platform)
@@ -747,11 +752,11 @@ static void update_object_mode(Platform* platform)
     {
         if(input_get_hotkey_tapped(INPUT_FUNCTION_UNDO))
         {
-            undo(&history, &lady, &heap, platform);
+            undo(&history, &lady, video_context, &heap, platform);
         }
         if(input_get_hotkey_tapped(INPUT_FUNCTION_REDO))
         {
-            redo(&history, &lady, &heap);
+            redo(&history, &lady, video_context, &heap);
         }
         if(is_valid_index(selected_object_index) && input_get_hotkey_tapped(INPUT_FUNCTION_DELETE))
         {
@@ -762,19 +767,19 @@ static void update_object_mode(Platform* platform)
 
 static void enter_edge_mode()
 {
-    selection_wireframe_id = video_add_object(VERTEX_LAYOUT_LINE);
+    selection_wireframe_id = video_add_object(video_context, VERTEX_LAYOUT_LINE);
 
     Object* object = &lady.objects[selected_object_index];
     Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
 
-    video_set_model(selection_wireframe_id, model);
+    video_set_model(video_context, selection_wireframe_id, model);
 }
 
 static void exit_edge_mode()
 {
     jan_destroy_selection(&selection);
 
-    video_remove_object(selection_wireframe_id);
+    video_remove_object(video_context, selection_wireframe_id);
     selection_wireframe_id = 0;
 }
 
@@ -813,28 +818,28 @@ static void update_edge_mode()
         }
     }
 
-    video_update_wireframe_selection(selection_wireframe_id, mesh, &selection, edge, &heap);
+    video_update_wireframe_selection(video_context, selection_wireframe_id, mesh, &selection, edge, &heap);
 }
 
 static void enter_face_mode()
 {
-    selection_id = video_add_object(VERTEX_LAYOUT_PNC);
-    selection_wireframe_id = video_add_object(VERTEX_LAYOUT_LINE);
+    selection_id = video_add_object(video_context, VERTEX_LAYOUT_PNC);
+    selection_wireframe_id = video_add_object(video_context, VERTEX_LAYOUT_LINE);
 
     // Set the selection's transform to match the selected mesh.
     Object* object = &lady.objects[selected_object_index];
     Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
 
-    video_set_model(selection_id, model);
-    video_set_model(selection_wireframe_id, model);
+    video_set_model(video_context, selection_id, model);
+    video_set_model(video_context, selection_wireframe_id, model);
 }
 
 static void exit_face_mode()
 {
     jan_destroy_selection(&selection);
 
-    video_remove_object(selection_id);
-    video_remove_object(selection_wireframe_id);
+    video_remove_object(video_context, selection_id);
+    video_remove_object(video_context, selection_wireframe_id);
     selection_id = 0;
     selection_wireframe_id = 0;
 }
@@ -874,7 +879,7 @@ static void update_face_mode()
         Float3 move = float3_add(float3_multiply(move_velocity.x, right), float3_multiply(move_velocity.y, up));
         jan_move_faces(mesh, &selection, move);
 
-        video_update_mesh(object->video_object, mesh, &heap);
+        video_update_mesh(video_context, object->video_object, mesh, &heap);
     }
 
     // Cast a ray from the mouse to the test model.
@@ -889,26 +894,26 @@ static void update_face_mode()
             jan_toggle_face_in_selection(&selection, face);
         }
 
-        video_update_selection(selection_id, mesh, &selection, &heap);
-        video_update_wireframe(selection_wireframe_id, mesh, &heap);
+        video_update_selection(video_context, selection_id, mesh, &selection, &heap);
+        video_update_wireframe(video_context, selection_wireframe_id, mesh, &heap);
     }
 }
 
 static void enter_vertex_mode()
 {
-    selection_pointcloud_id = video_add_object(VERTEX_LAYOUT_POINT);
+    selection_pointcloud_id = video_add_object(video_context, VERTEX_LAYOUT_POINT);
 
     Object* object = &lady.objects[selected_object_index];
     Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
 
-    video_set_model(selection_pointcloud_id, model);
+    video_set_model(video_context, selection_pointcloud_id, model);
 }
 
 static void exit_vertex_mode()
 {
     jan_destroy_selection(&selection);
 
-    video_remove_object(selection_pointcloud_id);
+    video_remove_object(video_context, selection_pointcloud_id);
     selection_pointcloud_id = 0;
 }
 
@@ -944,7 +949,7 @@ static void update_vertex_mode()
         }
     }
 
-    video_update_pointcloud_selection(selection_pointcloud_id, mesh, &selection, vertex, &heap);
+    video_update_pointcloud_selection(video_context, selection_pointcloud_id, mesh, &selection, vertex, &heap);
 }
 
 static void request_mode_change(Mode requested_mode)
@@ -1116,7 +1121,7 @@ void editor_update(Platform* platform)
         {
             if(dialog.enabled)
             {
-                handle_input(&dialog, event, &lady, selected_object_index, &history, &ui_context, platform, &heap, &scratch);
+                handle_input(&dialog, event, &lady, selected_object_index, &history, video_context, &ui_context, platform, &heap, &scratch);
             }
 
             switch(event.type)
@@ -1221,7 +1226,7 @@ void editor_update(Platform* platform)
                 case CHANGE_TYPE_DELETE_OBJECT:
                 {
                     ObjectId id = change.delete_object.object_id;
-                    object_lady_remove_from_storage(&lady, id);
+                    object_lady_remove_from_storage(&lady, id, video_context);
                     history_remove_base_state(&history, id);
                     break;
                 }
@@ -1245,7 +1250,7 @@ void editor_update(Platform* platform)
     update.selection_pointcloud_id = selection_pointcloud_id;
     update.selection_wireframe_id = selection_wireframe_id;
 
-    video_system_update(&update, platform);
+    video_update_context(video_context, &update, platform);
 }
 
 void editor_destroy_clipboard_copy(char* clipboard)

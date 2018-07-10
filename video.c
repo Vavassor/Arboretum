@@ -86,7 +86,7 @@ typedef struct Uniforms
     BufferId per_point;
 } Uniforms;
 
-typedef struct VideoContext
+struct VideoContext
 {
     Stack scratch;
     Heap heap;
@@ -99,7 +99,7 @@ typedef struct VideoContext
     Uniforms uniforms;
     VideoObject sky;
     Backend* backend;
-} VideoContext;
+};
 
 static PixelFormat get_pixel_format(int bytes_per_pixel)
 {
@@ -315,11 +315,11 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
         .size = sizeof(PerObject),
     };
 
-    UniformBlockSpec per_pass_block_spec =
+    UniformBlockSpec per_view_spec =
     {
         .binding = 0,
-        .name = "PerPass",
-        .size = sizeof(PerPass),
+        .name = "PerView",
+        .size = sizeof(PerView),
     };
 
     UniformBlockSpec per_point_block_spec =
@@ -345,7 +345,7 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
         },
         .vertex =
         {
-            .uniform_blocks = {per_pass_block_spec},
+            .uniform_blocks = {per_view_spec},
         },
     };
     shaders->font = build_shader(context, &shader_font_spec, "Font.fs", "Font.vs");
@@ -360,7 +360,7 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
         {
             .uniform_blocks =
             {
-                per_pass_block_spec,
+                per_view_spec,
                 per_object_block_spec,
             },
         },
@@ -377,7 +377,7 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
         {
             .uniform_blocks =
             {
-                per_pass_block_spec,
+                per_view_spec,
                 per_line_block_spec,
                 per_image_block_spec,
                 per_object_block_spec,
@@ -396,7 +396,7 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
         {
             .uniform_blocks =
             {
-                per_pass_block_spec,
+                per_view_spec,
                 per_object_block_spec,
             },
         },
@@ -414,7 +414,7 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
             .uniform_blocks =
             {
                 per_object_block_spec,
-                per_pass_block_spec,
+                per_view_spec,
                 per_point_block_spec,
             },
         },
@@ -434,7 +434,7 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
         {
             .uniform_blocks =
             {
-                per_pass_block_spec,
+                per_view_spec,
                 per_image_block_spec,
             },
         },
@@ -452,7 +452,7 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
         },
         .vertex =
         {
-            .uniform_blocks[0] = per_pass_block_spec,
+            .uniform_blocks[0] = per_view_spec,
         },
     };
     shaders->texture_only = build_shader(context, &texture_only_spec, "Texture Only.fs", "Texture Only.vs");
@@ -463,7 +463,7 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
         {
             .uniform_blocks =
             {
-                per_pass_block_spec,
+                per_view_spec,
                 per_object_block_spec,
             },
         },
@@ -682,14 +682,14 @@ static void create_uniforms(VideoContext* context, Uniforms* uniforms)
     };
     uniforms->buffers[2] = create_buffer(backend, &per_object_spec, logger);
 
-    BufferSpec per_pass_spec =
+    BufferSpec per_view_spec =
     {
         .binding = 0,
-        .size = sizeof(PerPass),
+        .size = sizeof(PerView),
         .format = BUFFER_FORMAT_UNIFORM,
         .usage = BUFFER_USAGE_DYNAMIC,
     };
-    uniforms->buffers[3] = create_buffer(backend, &per_pass_spec, logger);
+    uniforms->buffers[3] = create_buffer(backend, &per_view_spec, logger);
 
     BufferSpec per_span_spec =
     {
@@ -741,7 +741,7 @@ static void destroy_uniforms(VideoContext* context, Uniforms* uniforms)
     destroy_buffer(backend, uniforms->per_point);
 }
 
-void create_context(VideoContext* context)
+static void create_context(VideoContext* context)
 {
     stack_create(&context->scratch, (uint32_t) uptibytes(1));
     heap_create(&context->heap, (uint32_t) uptibytes(1));
@@ -845,12 +845,12 @@ static void set_view_projection(VideoContext* context, Matrix4 view, Matrix4 pro
     Backend* backend = context->backend;
     Uniforms* uniforms = &context->uniforms;
 
-    PerPass per_pass =
+    PerView per_view =
     {
         .view_projection = matrix4_transpose(matrix4_multiply(projection, view)),
         .viewport_dimensions = viewport_dimensions,
     };
-    update_buffer(backend, uniforms->buffers[3], &per_pass, 0, sizeof(per_pass));
+    update_buffer(backend, uniforms->buffers[3], &per_view, 0, sizeof(per_view));
 
     immediate_set_matrices(view, projection);
 }
@@ -1629,22 +1629,20 @@ static void draw_screen_phase(VideoContext* context, VideoUpdate* update, Matric
     draw_main_menu(context, ui_context, main_menu, viewport_dimensions);
 }
 
-static VideoContext static_context;
-static VideoContext* context;
-
-bool video_system_start_up()
+VideoContext* video_create_context(Heap* heap)
 {
-    context = &static_context;
+    VideoContext* context = HEAP_ALLOCATE(heap, VideoContext, 1);
     create_context(context);
-    return true;
+    return context;
 }
 
-void video_system_shut_down(bool functions_loaded)
+void video_destroy_context(VideoContext* context, Heap* heap, bool functions_loaded)
 {
     destroy_context(context, functions_loaded);
+    SAFE_HEAP_DEALLOCATE(heap, context);
 }
 
-void video_system_update(VideoUpdate* update, Platform* platform)
+void video_update_context(VideoContext* context, VideoUpdate* update, Platform* platform)
 {
     Matrices matrices = {0};
     update_matrices(update, &matrices);
@@ -1659,7 +1657,7 @@ void video_resize_viewport(Int2 dimensions, double dots_per_millimeter, float fo
     // Later, we'll need to resize pass targets, here.
 }
 
-DenseMapId video_add_object(VertexLayout vertex_layout)
+DenseMapId video_add_object(VideoContext* context, VertexLayout vertex_layout)
 {
     DenseMap* objects = &context->objects;
     DenseMapId id = dense_map_add(objects, &context->heap);
@@ -1668,7 +1666,7 @@ DenseMapId video_add_object(VertexLayout vertex_layout)
     return id;
 }
 
-void video_remove_object(DenseMapId id)
+void video_remove_object(VideoContext* context, DenseMapId id)
 {
     DenseMap* objects = &context->objects;
     VideoObject* object = dense_map_look_up(objects, id);
@@ -1676,7 +1674,7 @@ void video_remove_object(DenseMapId id)
     dense_map_remove(objects, id, &context->heap);
 }
 
-void video_set_up_font(BmfFont* font)
+void video_set_up_font(VideoContext* context, BmfFont* font)
 {
     Images* images = &context->images;
 
@@ -1687,37 +1685,37 @@ void video_set_up_font(BmfFont* font)
     }
 }
 
-void video_set_model(DenseMapId id, Matrix4 model)
+void video_set_model(VideoContext* context, DenseMapId id, Matrix4 model)
 {
     VideoObject* object = dense_map_look_up(&context->objects, id);
     video_object_set_model(object, model);
 }
 
-void video_update_mesh(DenseMapId id, JanMesh* mesh, Heap* heap)
+void video_update_mesh(VideoContext* context, DenseMapId id, JanMesh* mesh, Heap* heap)
 {
     VideoObject* object = dense_map_look_up(&context->objects, id);
     video_object_update_mesh(object, mesh, context->backend, &context->logger, heap);
 }
 
-void video_update_wireframe(DenseMapId id, JanMesh* mesh, Heap* heap)
+void video_update_wireframe(VideoContext* context, DenseMapId id, JanMesh* mesh, Heap* heap)
 {
     VideoObject* object = dense_map_look_up(&context->objects, id);
     video_object_update_wireframe(object, mesh, context->backend, &context->logger, heap);
 }
 
-void video_update_selection(DenseMapId id, JanMesh* mesh, JanSelection* selection, Heap* heap)
+void video_update_selection(VideoContext* context, DenseMapId id, JanMesh* mesh, JanSelection* selection, Heap* heap)
 {
     VideoObject* object = dense_map_look_up(&context->objects, id);
     video_object_update_selection(object, mesh, selection, context->backend, &context->logger, heap);
 }
 
-void video_update_pointcloud_selection(DenseMapId id, JanMesh* mesh, JanSelection* selection, JanVertex* hovered, Heap* heap)
+void video_update_pointcloud_selection(VideoContext* context, DenseMapId id, JanMesh* mesh, JanSelection* selection, JanVertex* hovered, Heap* heap)
 {
     VideoObject* object = dense_map_look_up(&context->objects, id);
     video_object_update_pointcloud_selection(object, mesh, selection, hovered, context->backend, &context->logger, heap);
 }
 
-void video_update_wireframe_selection(DenseMapId id, JanMesh* mesh, JanSelection* selection, JanEdge* hovered, Heap* heap)
+void video_update_wireframe_selection(VideoContext* context, DenseMapId id, JanMesh* mesh, JanSelection* selection, JanEdge* hovered, Heap* heap)
 {
     VideoObject* object = dense_map_look_up(&context->objects, id);
     video_object_update_wireframe_selection(object, mesh, selection, hovered, context->backend, &context->logger, heap);

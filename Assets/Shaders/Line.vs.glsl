@@ -23,7 +23,7 @@ layout(std140) uniform PerObject
     mat4x4 normal_matrix;
 };
 
-layout(std140) uniform PerPass
+layout(std140) uniform PerView
 {
     mat4x4 view_projection;
     vec2 viewport_dimensions;

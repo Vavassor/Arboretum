@@ -19,8 +19,8 @@ typedef struct Object
     ObjectId id;
 } Object;
 
-void object_create(Object* object);
-void object_destroy(Object* object);
-void object_set_position(Object* object, Float3 position);
+void object_create(Object* object, VideoContext* context);
+void object_destroy(Object* object, VideoContext* context);
+void object_set_position(Object* object, Float3 position, VideoContext* context);
 
 #endif // OBJECT_H_

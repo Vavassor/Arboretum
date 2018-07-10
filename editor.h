@@ -6,7 +6,7 @@
 #include "platform.h"
 
 bool editor_start_up(Platform* platform);
-void editor_shut_down();
+void editor_shut_down(bool functions_loaded);
 void editor_update(Platform* platform);
 void editor_destroy_clipboard_copy(char* clipboard);
 void editor_paste_from_clipboard(Platform* platform, char* clipboard);

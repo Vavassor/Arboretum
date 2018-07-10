@@ -772,14 +772,7 @@ bool main_start_up()
 
     input_system_start_up();
 
-    bool started = video_system_start_up();
-    if(!started)
-    {
-        LOG_ERROR("Video system failed startup.");
-        return false;
-    }
-
-    started = editor_start_up(&platform.base);
+    bool started = editor_start_up(&platform.base);
     if(!started)
     {
         LOG_ERROR("Editor failed startup.");
@@ -796,8 +789,7 @@ bool main_start_up()
 
 void main_shut_down()
 {
-    editor_shut_down();
-    video_system_shut_down(functions_loaded);
+    editor_shut_down(functions_loaded);
     destroy_stack(&platform.base);
 
     if(platform.visual_info)

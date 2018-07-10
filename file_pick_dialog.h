@@ -39,6 +39,6 @@ typedef struct FilePickDialog
 
 void open_dialog(FilePickDialog* dialog, UiContext* context, Platform* platform, Heap* heap);
 void close_dialog(FilePickDialog* dialog, UiContext* context, Heap* heap);
-void handle_input(FilePickDialog* dialog, UiEvent event, ObjectLady* lady, int selected_object_index, History* history, UiContext* context, Platform* platform, Heap* heap, Stack* stack);
+void handle_input(FilePickDialog* dialog, UiEvent event, ObjectLady* lady, int selected_object_index, History* history, VideoContext* video_context, UiContext* context, Platform* platform, Heap* heap, Stack* stack);
 
 #endif // FILE_PICK_DIALOG_H_
