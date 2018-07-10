@@ -33,6 +33,23 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+typedef struct Images
+{
+    ImageId font_textures[1];
+    ImageId hatch_pattern;
+    ImageId line_pattern;
+    ImageId point_pattern;
+} Images;
+
+typedef struct Matrices
+{
+    Matrix4 view;
+    Matrix4 projection;
+    Matrix4 sky_view;
+    Matrix4 sky_projection;
+    Matrix4 screen_projection;
+} Matrices;
+
 typedef struct Samplers
 {
     SamplerId nearest_repeat;
@@ -74,10 +91,13 @@ typedef struct VideoContext
     Stack scratch;
     Heap heap;
     Log logger;
+    DenseMap objects;
+    Images images;
+    Pipelines pipelines;
     Samplers samplers;
     Shaders shaders;
-    Pipelines pipelines;
     Uniforms uniforms;
+    VideoObject sky;
     Backend* backend;
 } VideoContext;
 
@@ -180,6 +200,38 @@ static ShaderId build_shader(VideoContext* context, ShaderSpec* spec, const char
     STACK_DEALLOCATE(&context->scratch, fragment_path);
 
     return shader;
+}
+
+static void create_images(VideoContext* context, Images* images)
+{
+    Backend* backend = context->backend;
+    Uniforms* uniforms = &context->uniforms;
+
+    images->hatch_pattern = build_image(context, "polka_dot.png", false, NULL);
+    images->point_pattern = build_image(context, "Point.png", true, NULL);
+
+    Int2 dimensions;
+    images->line_pattern = build_image(context, "Line Feathering.png", true, &dimensions);
+
+    PerImage per_image =
+    {
+        .texture_dimensions = {{(float) dimensions.x, (float) dimensions.y}},
+    };
+    update_buffer(backend, uniforms->buffers[0], &per_image, 0, sizeof(PerImage));
+}
+
+static void destroy_images(VideoContext* context, Images* images)
+{
+    Backend* backend = context->backend;
+
+    destroy_image(backend, images->hatch_pattern);
+    destroy_image(backend, images->line_pattern);
+    destroy_image(backend, images->point_pattern);
+
+    for(int i = 0; i < 1; i += 1)
+    {
+        destroy_image(backend, images->font_textures[i]);
+    }
 }
 
 static void create_samplers(VideoContext* context, Samplers* samplers)
@@ -552,6 +604,39 @@ static void create_pipelines(VideoContext* context, Pipelines* pipelines)
         .vertex_layout = vertex_layout_line_spec,
     };
     pipelines->wireframe = create_pipeline(backend, &pipeline_wireframe_spec, logger);
+
+#if 0
+    StencilOpStateSpec selected_stencil_spec =
+    {
+        .compare_mask = 0xff,
+        .compare_op = COMPARE_OP_ALWAYS,
+        .depth_fail_op = STENCIL_OP_KEEP,
+        .fail_op = STENCIL_OP_KEEP,
+        .pass_op = STENCIL_OP_REPLACE,
+        .reference = 1,
+        .write_mask = 0xff,
+    };
+
+    StencilOpStateSpec halo_stencil_spec =
+    {
+        .compare_mask = 0xff,
+        .compare_op = COMPARE_OP_NOT_EQUAL,
+        .depth_fail_op = STENCIL_OP_KEEP,
+        .fail_op = STENCIL_OP_KEEP,
+        .pass_op = STENCIL_OP_REPLACE,
+        .reference = 1,
+        .write_mask = 0x00,
+    };
+
+    DepthStencilStateSpec selected_depth_stencil_spec =
+    {
+        .depth_compare_enabled = true,
+        .depth_write_enabled = true,
+        .stencil_enabled = true,
+        .back_stencil = selected_stencil_spec,
+        .front_stencil = selected_stencil_spec,
+    };
+#endif
 }
 
 static void destroy_pipelines(VideoContext* context, Pipelines* pipelines)
@@ -656,29 +741,11 @@ static void destroy_uniforms(VideoContext* context, Uniforms* uniforms)
     destroy_buffer(backend, uniforms->per_point);
 }
 
-static VideoContext static_context;
-static VideoContext* context;
-
-static PerPass per_pass_block;
-
-static VideoObject sky;
-static DenseMap objects;
-
-static Matrix4 sky_projection;
-static Matrix4 screen_projection;
-
-static ImageId font_textures[1];
-static ImageId hatch_pattern;
-static ImageId line_pattern;
-static ImageId point_pattern;
-
-bool video_system_start_up()
+void create_context(VideoContext* context)
 {
-    context = &static_context;
-
     stack_create(&context->scratch, (uint32_t) uptibytes(1));
     heap_create(&context->heap, (uint32_t) uptibytes(1));
-    dense_map_create(&objects, &context->heap);
+    dense_map_create(&context->objects, &context->heap);
 
     context->backend = create_backend(&context->heap);
 
@@ -686,63 +753,15 @@ bool video_system_start_up()
     create_shaders(context, &context->shaders);
     create_pipelines(context, &context->pipelines);
     create_uniforms(context, &context->uniforms);
+    create_images(context, &context->images);
 
     Backend* backend = context->backend;
     Log* logger = &context->logger;
     Shaders* shaders = &context->shaders;
     Uniforms* uniforms = &context->uniforms;
 
-    // Sky
-    video_object_create(&sky, VERTEX_LAYOUT_PC);
-    video_object_generate_sky(&sky, backend, logger, &context->scratch);
-
-    hatch_pattern = build_image(context, "polka_dot.png", false, NULL);
-    point_pattern = build_image(context, "Point.png", true, NULL);
-
-    // Line pattern texture
-    {
-        Int2 dimensions;
-        line_pattern = build_image(context, "Line Feathering.png", true, &dimensions);
-
-        PerImage per_image =
-        {
-            .texture_dimensions = {{(float) dimensions.x, (float) dimensions.y}},
-        };
-        update_buffer(backend, uniforms->buffers[0], &per_image, 0, sizeof(PerImage));
-    }
-
-#if 0
-    StencilOpStateSpec selected_stencil_spec =
-    {
-        .compare_mask = 0xff,
-        .compare_op = COMPARE_OP_ALWAYS,
-        .depth_fail_op = STENCIL_OP_KEEP,
-        .fail_op = STENCIL_OP_KEEP,
-        .pass_op = STENCIL_OP_REPLACE,
-        .reference = 1,
-        .write_mask = 0xff,
-    };
-
-    StencilOpStateSpec halo_stencil_spec =
-    {
-        .compare_mask = 0xff,
-        .compare_op = COMPARE_OP_NOT_EQUAL,
-        .depth_fail_op = STENCIL_OP_KEEP,
-        .fail_op = STENCIL_OP_KEEP,
-        .pass_op = STENCIL_OP_REPLACE,
-        .reference = 1,
-        .write_mask = 0x00,
-    };
-
-    DepthStencilStateSpec selected_depth_stencil_spec =
-    {
-        .depth_compare_enabled = true,
-        .depth_write_enabled = true,
-        .stencil_enabled = true,
-        .back_stencil = selected_stencil_spec,
-        .front_stencil = selected_stencil_spec,
-    };
-#endif
+    video_object_create(&context->sky, VERTEX_LAYOUT_PC);
+    video_object_generate_sky(&context->sky, backend, logger, &context->scratch);
 
     ImmediateContextSpec immediate_spec =
     {
@@ -760,44 +779,56 @@ bool video_system_start_up()
         },
     };
     immediate_context_create(&immediate_spec, &context->heap, logger);
-
-    return true;
 }
 
-void video_system_shut_down(bool functions_loaded)
+static void destroy_context(VideoContext* context, bool functions_loaded)
 {
     if(functions_loaded)
     {
+        destroy_images(context, &context->images);
         destroy_samplers(context, &context->samplers);
         destroy_shaders(context, &context->shaders);
         destroy_pipelines(context, &context->pipelines);
         destroy_uniforms(context, &context->uniforms);
 
-        Backend* backend = context->backend;
-
-        destroy_image(backend, hatch_pattern);
-        destroy_image(backend, line_pattern);
-        destroy_image(backend, point_pattern);
-
-        for(int i = 0; i < 1; i += 1)
-        {
-            destroy_image(backend, font_textures[i]);
-        }
-
-        video_object_destroy(&sky, backend);
+        video_object_destroy(&context->sky, context->backend);
 
         immediate_context_destroy(&context->heap);
 
-        destroy_backend(backend, &context->heap);
+        destroy_backend(context->backend, &context->heap);
     }
 
-    dense_map_destroy(&objects, &context->heap);
+    dense_map_destroy(&context->objects, &context->heap);
 
     stack_destroy(&context->scratch);
     heap_destroy(&context->heap);
 }
 
-static void set_model_matrix(Matrix4 model)
+static void apply_object_block(VideoContext* context, VideoObject* object)
+{
+    Backend* backend = context->backend;
+    Uniforms* uniforms = &context->uniforms;
+
+    PerObject per_object =
+    {
+        .model = matrix4_transpose(object->model),
+        .normal_matrix = matrix4_transpose(object->normal),
+    };
+    update_buffer(backend, uniforms->buffers[2], &per_object, 0, sizeof(per_object));
+}
+
+static void draw_object(VideoContext* context, VideoObject* object)
+{
+    DrawAction draw_action =
+    {
+        .index_buffer = object->buffers[1],
+        .indices_count = object->indices_count,
+        .vertex_buffers[0] = object->buffers[0],
+    };
+    draw(context->backend, &draw_action);
+}
+
+static void set_model_matrix(VideoContext* context, Matrix4 model)
 {
     Backend* backend = context->backend;
     Uniforms* uniforms = &context->uniforms;
@@ -809,13 +840,17 @@ static void set_model_matrix(Matrix4 model)
     update_buffer(backend, uniforms->buffers[2], &per_object, 0, sizeof(per_object));
 }
 
-static void set_view_projection(Matrix4 view, Matrix4 projection)
+static void set_view_projection(VideoContext* context, Matrix4 view, Matrix4 projection, Float2 viewport_dimensions)
 {
     Backend* backend = context->backend;
     Uniforms* uniforms = &context->uniforms;
 
-    per_pass_block.view_projection = matrix4_transpose(matrix4_multiply(projection, view));
-    update_buffer(backend, uniforms->buffers[3], &per_pass_block, 0, sizeof(per_pass_block));
+    PerPass per_pass =
+    {
+        .view_projection = matrix4_transpose(matrix4_multiply(projection, view)),
+        .viewport_dimensions = viewport_dimensions,
+    };
+    update_buffer(backend, uniforms->buffers[3], &per_pass, 0, sizeof(per_pass));
 
     immediate_set_matrices(view, projection);
 }
@@ -1005,6 +1040,32 @@ static void draw_move_tool_vectors(MoveTool* tool)
     immediate_draw();
 }
 
+static void draw_move_tool_and_vectors(VideoContext* context, MoveTool* move_tool)
+{
+    Matrix4 model = matrix4_compose_transform(move_tool->position, move_tool->orientation, float3_set_all(move_tool->scale));
+
+#if 0
+    // silhouette
+    glDisable(GL_DEPTH_TEST);
+    immediate_set_shader(shader_screen_pattern.program);
+    glActiveTexture(GL_TEXTURE0 + 0);
+    glBindTexture(GL_TEXTURE_2D, hatch_pattern);
+    glBindSampler(0, linear_repeat);
+
+    immediate_set_matrices(matrix4_multiply(view, model), projection);
+    draw_move_tool(move_tool, true);
+
+    immediate_set_matrices(view, projection);
+    draw_move_tool_vectors(move_tool);
+#endif
+    // draw solid parts on top of silhouette
+    set_model_matrix(context, model);
+    draw_move_tool(move_tool, false);
+
+    set_model_matrix(context, matrix4_identity);
+    draw_move_tool_vectors(move_tool);
+}
+
 static void draw_rotate_tool(bool silhouetted)
 {
     const float radius = 2.0f;
@@ -1025,6 +1086,37 @@ static void draw_rotate_tool(bool silhouetted)
     immediate_add_arc(center, float3_unit_z, pi_over_2, pi_over_2, radius, width, z_axis_colour);
     immediate_add_arc(center, float3_negate(float3_unit_z), pi_over_2, 0.0f, radius, width, z_axis_colour);
 
+    immediate_draw();
+}
+
+static void draw_rotate_tool_2(VideoContext* context, RotateTool* rotate_tool)
+{
+    Backend* backend = context->backend;
+    Images* images = &context->images;
+    Samplers* samplers = &context->samplers;
+
+    ImageSet image_set =
+    {
+        .stages[1] =
+        {
+            .images[0] = images->line_pattern,
+            .samplers[0] = samplers->linear_mipmap_repeat,
+        },
+    };
+    set_images(backend, &image_set);
+
+    const Float4 x_axis_colour = (Float4){{1.0f, 0.0314f, 0.0314f, 1.0f}};
+    const Float4 y_axis_colour = (Float4){{0.3569f, 1.0f, 0.0f, 1.0f}};
+    const Float4 z_axis_colour = (Float4){{0.0863f, 0.0314f, 1.0f, 1.0f}};
+
+    Float3 center = rotate_tool->position;
+    float radius = rotate_tool->radius;
+
+    immediate_set_line_width(8.0f);
+    immediate_add_wire_arc(center, float3_unit_x, pi, rotate_tool->angles[0], radius, x_axis_colour);
+    immediate_add_wire_arc(center, float3_unit_y, pi, rotate_tool->angles[1], radius, y_axis_colour);
+    immediate_add_wire_arc(center, float3_unit_z, pi, rotate_tool->angles[2], radius, z_axis_colour);
+    immediate_set_blend_mode(BLEND_MODE_TRANSPARENT);
     immediate_draw();
 }
 
@@ -1121,158 +1213,319 @@ static void draw_object_with_halo(ObjectLady* lady, int index, Float4 colour)
 
 #endif
 
-static void apply_object_block(VideoObject* object)
+static void draw_face_selection(VideoContext* context, VideoObject* object)
 {
-    Backend* backend = context->backend;
-    Uniforms* uniforms = &context->uniforms;
-
-    PerObject per_object =
+    if(!object || !object->indices_count)
     {
-        .model = matrix4_transpose(object->model),
-        .normal_matrix = matrix4_transpose(object->normal),
-    };
-    update_buffer(backend, uniforms->buffers[2], &per_object, 0, sizeof(per_object));
-}
-
-static void draw_object(VideoObject* object)
-{
-    DrawAction draw_action =
-    {
-        .index_buffer = object->buffers[1],
-        .indices_count = object->indices_count,
-        .vertex_buffers[0] = object->buffers[0],
-    };
-    draw(context->backend, &draw_action);
-}
-
-static void draw_selection_object(VideoObject* object, VideoObject* pointcloud, VideoObject* wireframe, Matrix4 projection)
-{
-    const Float4 colour = (Float4){{1.0f, 0.5f, 0.0f, 0.8f}};
+        return;
+    }
 
     Backend* backend = context->backend;
-    Samplers* samplers = &context->samplers;
     Pipelines* pipelines = &context->pipelines;
     Uniforms* uniforms = &context->uniforms;
 
-    // Draw selected faces.
-    if(object && object->indices_count)
+    set_pipeline(backend, pipelines->face_selection);
+
+    HaloBlock halo_block =
     {
-        set_pipeline(backend, pipelines->face_selection);
+        .halo_colour = (Float4){{1.0f, 0.5f, 0.0f, 0.8f}},
+    };
+    update_buffer(backend, uniforms->halo_block, &halo_block, 0, sizeof(halo_block));
 
-        HaloBlock halo_block =
-        {
-            .halo_colour = colour,
-        };
-        update_buffer(backend, uniforms->halo_block, &halo_block, 0, sizeof(halo_block));
-
-        apply_object_block(object);
-        draw_object(object);
-    }
-
-    if(wireframe && wireframe->indices_count)
-    {
-        set_pipeline(backend, pipelines->wireframe);
-
-        ImageSet image_set =
-        {
-            .stages[1] =
-            {
-                .images[0] = line_pattern,
-                .samplers[0] = samplers->linear_mipmap_repeat,
-            },
-        };
-        set_images(backend, &image_set);
-
-        PerLine line_block =
-        {
-            .line_width = 4.0f,
-            .projection_factor = projection.e[0],
-        };
-        update_buffer(backend, uniforms->per_point, &line_block, 0, sizeof(line_block));
-
-        apply_object_block(wireframe);
-        draw_object(wireframe);
-    }
-
-    if(pointcloud && pointcloud->indices_count)
-    {
-        set_pipeline(backend, pipelines->pointcloud);
-
-        ImageSet image_set =
-        {
-            .stages[1] =
-            {
-                .images[0] = point_pattern,
-                .samplers[0] = samplers->linear_mipmap_repeat,
-            },
-        };
-        set_images(backend, &image_set);
-
-        PerLine point_block =
-        {
-            .line_width = 3.0f,
-            .projection_factor = projection.e[0],
-        };
-        update_buffer(backend, uniforms->per_point, &point_block, 0, sizeof(point_block));
-
-        apply_object_block(pointcloud);
-        draw_object(pointcloud);
-    }
+    apply_object_block(context, object);
+    draw_object(context, object);
 }
 
-void video_system_update(VideoUpdate* update, Platform* platform)
+static void draw_pointcloud(VideoContext* context, VideoObject* object, Matrix4 projection)
+{
+    if(!object || !object->indices_count)
+    {
+        return;
+    }
+
+    Backend* backend = context->backend;
+    Images* images = &context->images;
+    Pipelines* pipelines = &context->pipelines;
+    Samplers* samplers = &context->samplers;
+    Uniforms* uniforms = &context->uniforms;
+
+    set_pipeline(backend, pipelines->pointcloud);
+
+    ImageSet image_set =
+    {
+        .stages[1] =
+        {
+            .images[0] = images->point_pattern,
+            .samplers[0] = samplers->linear_mipmap_repeat,
+        },
+    };
+    set_images(backend, &image_set);
+
+    PerLine point_block =
+    {
+        .line_width = 3.0f,
+        .projection_factor = projection.e[0],
+    };
+    update_buffer(backend, uniforms->per_point, &point_block, 0, sizeof(point_block));
+
+    apply_object_block(context, object);
+    draw_object(context, object);
+}
+
+static void draw_wireframe(VideoContext* context, VideoObject* object, Matrix4 projection)
+{
+    if(!object || !object->indices_count)
+    {
+        return;
+    }
+
+    Backend* backend = context->backend;
+    Images* images = &context->images;
+    Pipelines* pipelines = &context->pipelines;
+    Samplers* samplers = &context->samplers;
+    Uniforms* uniforms = &context->uniforms;
+
+    set_pipeline(backend, pipelines->wireframe);
+
+    ImageSet image_set =
+    {
+        .stages[1] =
+        {
+            .images[0] = images->line_pattern,
+            .samplers[0] = samplers->linear_mipmap_repeat,
+        },
+    };
+    set_images(backend, &image_set);
+
+    PerLine line_block =
+    {
+        .line_width = 4.0f,
+        .projection_factor = projection.e[0],
+    };
+    update_buffer(backend, uniforms->per_point, &line_block, 0, sizeof(line_block));
+
+    apply_object_block(context, object);
+    draw_object(context, object);
+}
+
+static void draw_selection(VideoContext* context, DenseMapId faces_id, DenseMapId pointcloud_id, DenseMapId wireframe_id, Matrix4 projection)
+{
+    VideoObject* faces = NULL;
+    if(faces_id)
+    {
+        faces = dense_map_look_up(&context->objects, faces_id);
+    }
+
+    VideoObject* pointcloud = NULL;
+    if(pointcloud_id)
+    {
+        pointcloud = dense_map_look_up(&context->objects, pointcloud_id);
+    }
+
+    VideoObject* wireframe = NULL;
+    if(wireframe_id)
+    {
+        wireframe = dense_map_look_up(&context->objects, wireframe_id);
+    }
+
+    draw_face_selection(context, faces);
+    draw_pointcloud(context, pointcloud, projection);
+    draw_wireframe(context, wireframe, projection);
+}
+
+static Float2 int2_to_float2(Int2 i)
+{
+    return (Float2){{(float) i.x, (float) i.y}};
+}
+
+static void set_regular_view(VideoContext* context, Int2 viewport, Matrix4 view, Matrix4 projection)
+{
+    Viewport viewport_state =
+    {
+        .bottom_left = {0, 0},
+        .dimensions = viewport,
+        .far_depth = 1.0f,
+        .near_depth = 0.0f,
+    };
+    set_viewport(context->backend, &viewport_state);
+    set_view_projection(context, view, projection, int2_to_float2(viewport));
+}
+
+static void draw_sky(VideoContext* context, Int2 viewport, Matrix4 view, Matrix4 projection)
+{
+    Backend* backend = context->backend;
+    Pipelines* pipelines = &context->pipelines;
+
+    Float2 viewport_dimensions = int2_to_float2(viewport);
+
+    Viewport viewport_state =
+    {
+        .bottom_left = {0, 0},
+        .dimensions = viewport,
+        .far_depth = 1.0f,
+        .near_depth = 1.0f,
+    };
+    set_viewport(backend, &viewport_state);
+    set_view_projection(context, view, projection, viewport_dimensions);
+
+    set_pipeline(backend, pipelines->background);
+    apply_object_block(context, &context->sky);
+    draw_object(context, &context->sky);
+}
+
+static void draw_compass(VideoContext* context, Camera* camera, Int2 viewport)
+{
+    Backend* backend = context->backend;
+
+    const int scale = 40;
+    const int padding = 10;
+
+    const Float3 x_axis = (Float3){{sqrtf(3.0f) / 2.0f, 0.0f, 0.0f}};
+    const Float3 y_axis = (Float3){{0.0f, sqrtf(3.0f) / 2.0f, 0.0f}};
+    const Float3 z_axis = (Float3){{0.0f, 0.0f, sqrtf(3.0f) / 2.0f}};
+
+    const Float4 x_axis_colour = (Float4){{1.0f, 0.0314f, 0.0314f, 1.0f}};
+    const Float4 y_axis_colour = (Float4){{0.3569f, 1.0f, 0.0f, 1.0f}};
+    const Float4 z_axis_colour = (Float4){{0.0863f, 0.0314f, 1.0f, 1.0f}};
+    const Float4 x_axis_shadow_colour = (Float4){{0.7f, 0.0314f, 0.0314f, 1.0f}};
+    const Float4 y_axis_shadow_colour = (Float4){{0.3569f, 0.7f, 0.0f, 1.0f}};
+    const Float4 z_axis_shadow_colour = (Float4){{0.0863f, 0.0314f, 0.7f, 1.0f}};
+
+    int corner_x = viewport.x - scale - padding;
+    int corner_y = padding;
+
+    Viewport viewport_state =
+    {
+        .bottom_left = {corner_x, corner_y},
+        .dimensions = {scale, scale},
+        .far_depth = 1.0f,
+        .near_depth = 0.0f,
+    };
+    set_viewport(backend, &viewport_state);
+
+    ClearState clear_state =
+    {
+        .depth = 1.0f,
+        .flags = {.depth = true},
+    };
+    clear_target(backend, &clear_state);
+
+    const float across = 3.0f * sqrtf(3.0f);
+    const float extent = across / 2.0f;
+
+    Float3 direction = float3_normalise(float3_subtract(camera->target, camera->position));
+    Matrix4 view = matrix4_look_at(float3_zero, direction, float3_unit_z);
+    Matrix4 axis_projection = matrix4_orthographic_projection(across, across, -extent, extent);
+    set_view_projection(context, view, axis_projection, int2_to_float2(viewport));
+
+    Float3 double_x = float3_multiply(2.0f, x_axis);
+    Float3 double_y = float3_multiply(2.0f, y_axis);
+    Float3 double_z = float3_multiply(2.0f, z_axis);
+
+    immediate_add_cone(double_x, x_axis, 0.5f, x_axis_colour, x_axis_shadow_colour);
+    immediate_add_cylinder(float3_zero, double_x, 0.125f, x_axis_colour);
+    immediate_add_cone(double_y, y_axis, 0.5f, y_axis_colour, y_axis_shadow_colour);
+    immediate_add_cylinder(float3_zero, double_y, 0.125f, y_axis_colour);
+    immediate_add_cone(double_z, z_axis, 0.5f, z_axis_colour, z_axis_shadow_colour);
+    immediate_add_cylinder(float3_zero, double_z, 0.125f, z_axis_colour);
+    immediate_draw();
+}
+
+static void draw_file_dialog(VideoContext* context, UiItem* dialog_panel, UiContext* ui_context)
+{
+    Backend* backend = context->backend;
+    Images* images = &context->images;
+    Samplers* samplers = &context->samplers;
+
+    ImageSet image_set =
+    {
+        .stages[1] =
+        {
+            .images[0] = images->font_textures[0],
+            .samplers[0] = samplers->nearest_repeat,
+        },
+    };
+    set_images(backend, &image_set);
+
+    Rect space;
+    space.bottom_left = (Float2){{0.0f, -250.0f}};
+    space.dimensions = (Float2){{300.0f, 500.0f}};
+    ui_lay_out(dialog_panel, space, ui_context);
+    ui_draw(dialog_panel, ui_context);
+
+    ui_draw_focus_indicator(dialog_panel, ui_context);
+}
+
+static void draw_main_menu(VideoContext* context, UiContext* ui_context, UiItem* main_menu, Float2 viewport)
+{
+    Backend* backend = context->backend;
+    Images* images = &context->images;
+    Samplers* samplers = &context->samplers;
+
+    ImageSet image_set =
+    {
+        .stages[1] =
+        {
+            .images[0] = images->font_textures[0],
+            .samplers[0] = samplers->nearest_repeat,
+        },
+    };
+    set_images(backend, &image_set);
+
+    Rect space;
+    space.bottom_left = float2_divide(viewport, 2.0f);
+    space.dimensions.x = viewport.x;
+    space.dimensions.y = 60.0f;
+    space.bottom_left.y -= space.dimensions.y;
+    ui_lay_out(main_menu, space, ui_context);
+    ui_draw(main_menu, ui_context);
+
+    ui_draw_focus_indicator(main_menu, ui_context);
+}
+
+static void update_matrices(VideoUpdate* update, Matrices* matrices)
 {
     Camera* camera = update->camera;
     Int2 viewport = update->viewport;
-    MoveTool* move_tool = update->move_tool;
-    RotateTool* rotate_tool = update->rotate_tool;
-    UiContext* ui_context = update->ui_context;
-    UiItem* main_menu = update->main_menu;
-    UiItem* dialog_panel = update->dialog_panel;
-    bool dialog_enabled = update->dialog_enabled;
+
+    matrices->view = matrix4_look_at(camera->position, camera->target, float3_unit_z);
+
+    float fov = camera->field_of_view;
+    float width = (float) viewport.x;
+    float height = (float) viewport.y;
+    matrices->projection = matrix4_perspective_projection(fov, width, height, camera->near_plane, camera->far_plane);
+
+    Float3 direction = float3_normalise(float3_subtract(camera->target, camera->position));
+    matrices->sky_view = matrix4_look_at(float3_zero, direction, float3_unit_z);
+
+    matrices->sky_projection = matrix4_perspective_projection(fov, width, height, 0.001f, 1.0f);
+
+    matrices->screen_projection = matrix4_orthographic_projection(width, height, -1.0f, 1.0f);
+}
+
+static void draw_opaque_phase(VideoContext* context, VideoUpdate* update, Matrices* matrices)
+{
     ObjectLady* lady = update->lady;
-    int hovered_object_index = update->hovered_object_index;
+    MoveTool* move_tool = update->move_tool;
     int selected_object_index = update->selected_object_index;
-    DenseMapId selection_id = update->selection_id;
-    DenseMapId selection_pointcloud_id = update->selection_pointcloud_id;
-    DenseMapId selection_wireframe_id = update->selection_wireframe_id;
+    Int2 viewport = update->viewport;
 
     Backend* backend = context->backend;
-    Samplers* samplers = &context->samplers;
     Pipelines* pipelines = &context->pipelines;
     Uniforms* uniforms = &context->uniforms;
 
-    per_pass_block.viewport_dimensions = (Float2){{(float) viewport.x, (float) viewport.y}};
-
-    Matrix4 projection;
-    Matrix4 sky_view;
-    Matrix4 view;
-
-    // Update matrices.
+    FOR_ALL(VideoObject, context->objects.array)
     {
-        projection = matrix4_perspective_projection(camera->field_of_view, (float) viewport.x, (float) viewport.y, camera->near_plane, camera->far_plane);
-
-        Float3 direction = float3_normalise(float3_subtract(camera->target, camera->position));
-        sky_view = matrix4_look_at(float3_zero, direction, float3_unit_z);
-        video_object_set_matrices(&sky, sky_view, sky_projection);
-
-        view = matrix4_look_at(camera->position, camera->target, float3_unit_z);
-
-        FOR_ALL(VideoObject, objects.array)
-        {
-            video_object_set_matrices(it, view, projection);
-        }
-
-        set_view_projection(view, projection);
-
-        // Update light parameters.
-
-        Float3 light_direction = (Float3){{0.7f, 0.4f, -1.0f}};
-        light_direction = float3_normalise(float3_negate(matrix4_transform_vector(view, light_direction)));
-
-        LightBlock light_block = {light_direction};
-        update_buffer(backend, uniforms->light_block, &light_block, 0, sizeof(light_block));
+        video_object_set_matrices(it, matrices->view, matrices->projection);
     }
+
+    Float3 light_direction = (Float3){{0.7f, 0.4f, -1.0f}};
+    light_direction = float3_normalise(float3_negate(matrix4_transform_vector(matrices->view, light_direction)));
+
+    LightBlock light_block = {light_direction};
+    update_buffer(backend, uniforms->light_block, &light_block, 0, sizeof(light_block));
+
+    set_regular_view(context, viewport, matrices->view, matrices->projection);
 
     set_pipeline(backend, pipelines->unselected);
 
@@ -1298,9 +1551,9 @@ void video_system_update(VideoUpdate* update, Platform* platform)
             continue;
         }
 #endif
-        VideoObject* object = dense_map_look_up(&objects, lady->objects[i].video_object);
-        apply_object_block(object);
-        draw_object(object);
+        VideoObject* object = dense_map_look_up(&context->objects, lady->objects[i].video_object);
+        apply_object_block(context, object);
+        draw_object(context, object);
     }
 
 #if 0
@@ -1315,171 +1568,45 @@ void video_system_update(VideoUpdate* update, Platform* platform)
     }
 #endif
 
-    set_model_matrix(matrix4_identity);
+    set_model_matrix(context, matrix4_identity);
     draw_rotate_tool(false);
 
-    // move tool
     if(is_valid_index(selected_object_index))
     {
-        Matrix4 model = matrix4_compose_transform(move_tool->position, move_tool->orientation, float3_set_all(move_tool->scale));
-
-#if 0
-        // silhouette
-        glDisable(GL_DEPTH_TEST);
-        immediate_set_shader(shader_screen_pattern.program);
-        glActiveTexture(GL_TEXTURE0 + 0);
-        glBindTexture(GL_TEXTURE_2D, hatch_pattern);
-        glBindSampler(0, linear_repeat);
-
-        immediate_set_matrices(matrix4_multiply(view, model), projection);
-        draw_move_tool(move_tool, true);
-
-        immediate_set_matrices(view, projection);
-        draw_move_tool_vectors(move_tool);
-#endif
-        // draw solid parts on top of silhouette
-        set_model_matrix(model);
-        draw_move_tool(move_tool, false);
-
-        set_model_matrix(matrix4_identity);
-        draw_move_tool_vectors(move_tool);
+        draw_move_tool_and_vectors(context, move_tool);
     }
 
-    // Draw the sky behind everything else.
-    {
-        Viewport viewport_state =
-        {
-            .bottom_left = {0, 0},
-            .dimensions = viewport,
-            .far_depth = 1.0f,
-            .near_depth = 1.0f,
-        };
-        set_viewport(backend, &viewport_state);
-        set_view_projection(sky_view, sky_projection);
+    video_object_set_matrices(&context->sky, matrices->sky_view, matrices->sky_projection);
+    draw_sky(context, viewport, matrices->sky_view, matrices->sky_projection);
 
-        set_pipeline(backend, pipelines->background);
-        apply_object_block(&sky);
-        draw_object(&sky);
+    set_regular_view(context, viewport, matrices->view, matrices->projection);
+}
 
-        Viewport reset_viewport_state =
-        {
-            .bottom_left = {0, 0},
-            .dimensions = viewport,
-            .far_depth = 1.0f,
-            .near_depth = 0.0f,
-        };
-        set_viewport(backend, &reset_viewport_state);
-        set_view_projection(view, projection);
-    }
+static void draw_transparent_phase(VideoContext* context, VideoUpdate* update, Matrices* matrices)
+{
+    RotateTool* rotate_tool = update->rotate_tool;
+    DenseMapId selection_id = update->selection_id;
+    DenseMapId selection_pointcloud_id = update->selection_pointcloud_id;
+    DenseMapId selection_wireframe_id = update->selection_wireframe_id;
 
-    // Draw the selection itself.
-    if(selection_id || selection_pointcloud_id || selection_wireframe_id)
-    {
-        VideoObject* object = NULL;
-        if(selection_id)
-        {
-            object = dense_map_look_up(&objects, selection_id);
-        }
+    draw_selection(context, selection_id, selection_pointcloud_id, selection_wireframe_id, matrices->projection);
 
-        VideoObject* pointcloud = NULL;
-        if(selection_pointcloud_id)
-        {
-            pointcloud = dense_map_look_up(&objects, selection_pointcloud_id);
-        }
+    draw_rotate_tool_2(context, rotate_tool);
+}
 
-        VideoObject* wireframe = NULL;
-        if(selection_wireframe_id)
-        {
-            wireframe = dense_map_look_up(&objects, selection_wireframe_id);
-        }
+static void draw_screen_phase(VideoContext* context, VideoUpdate* update, Matrices* matrices)
+{
+    Camera* camera = update->camera;
+    bool dialog_enabled = update->dialog_enabled;
+    UiItem* dialog_panel = update->dialog_panel;
+    UiItem* main_menu = update->main_menu;
+    UiContext* ui_context = update->ui_context;
+    Int2 viewport = update->viewport;
 
-        draw_selection_object(object, pointcloud, wireframe, projection);
-    }
+    Backend* backend = context->backend;
 
-    // Draw rotatory boys
-    {
-        ImageSet image_set =
-        {
-            .stages[1] =
-            {
-                .images[0] = line_pattern,
-                .samplers[0] = samplers->linear_mipmap_repeat,
-            },
-        };
-        set_images(backend, &image_set);
+    draw_compass(context, camera, viewport);
 
-        const Float4 x_axis_colour = (Float4){{1.0f, 0.0314f, 0.0314f, 1.0f}};
-        const Float4 y_axis_colour = (Float4){{0.3569f, 1.0f, 0.0f, 1.0f}};
-        const Float4 z_axis_colour = (Float4){{0.0863f, 0.0314f, 1.0f, 1.0f}};
-
-        Float3 center = rotate_tool->position;
-        float radius = rotate_tool->radius;
-
-        immediate_set_line_width(8.0f);
-        immediate_add_wire_arc(center, float3_unit_x, pi, rotate_tool->angles[0], radius, x_axis_colour);
-        immediate_add_wire_arc(center, float3_unit_y, pi, rotate_tool->angles[1], radius, y_axis_colour);
-        immediate_add_wire_arc(center, float3_unit_z, pi, rotate_tool->angles[2], radius, z_axis_colour);
-        immediate_set_blend_mode(BLEND_MODE_TRANSPARENT);
-        immediate_draw();
-    }
-
-    // Draw the little axes in the corner.
-    {
-        const int scale = 40;
-        const int padding = 10;
-
-        const Float3 x_axis = (Float3){{sqrtf(3.0f) / 2.0f, 0.0f, 0.0f}};
-        const Float3 y_axis = (Float3){{0.0f, sqrtf(3.0f) / 2.0f, 0.0f}};
-        const Float3 z_axis = (Float3){{0.0f, 0.0f, sqrtf(3.0f) / 2.0f}};
-
-        const Float4 x_axis_colour = (Float4){{1.0f, 0.0314f, 0.0314f, 1.0f}};
-        const Float4 y_axis_colour = (Float4){{0.3569f, 1.0f, 0.0f, 1.0f}};
-        const Float4 z_axis_colour = (Float4){{0.0863f, 0.0314f, 1.0f, 1.0f}};
-        const Float4 x_axis_shadow_colour = (Float4){{0.7f, 0.0314f, 0.0314f, 1.0f}};
-        const Float4 y_axis_shadow_colour = (Float4){{0.3569f, 0.7f, 0.0f, 1.0f}};
-        const Float4 z_axis_shadow_colour = (Float4){{0.0863f, 0.0314f, 0.7f, 1.0f}};
-
-        int corner_x = viewport.x - scale - padding;
-        int corner_y = padding;
-
-        Viewport viewport_state =
-        {
-            .bottom_left = {corner_x, corner_y},
-            .dimensions = {scale, scale},
-            .far_depth = 1.0f,
-            .near_depth = 0.0f,
-        };
-        set_viewport(backend, &viewport_state);
-
-        ClearState clear_state =
-        {
-            .depth = 1.0f,
-            .flags = {.depth = true},
-        };
-        clear_target(backend, &clear_state);
-
-        const float across = 3.0f * sqrtf(3.0f);
-        const float extent = across / 2.0f;
-
-        Float3 direction = float3_normalise(float3_subtract(camera->target, camera->position));
-        Matrix4 view = matrix4_look_at(float3_zero, direction, float3_unit_z);
-        Matrix4 axis_projection = matrix4_orthographic_projection(across, across, -extent, extent);
-        set_view_projection(view, axis_projection);
-
-        Float3 double_x = float3_multiply(2.0f, x_axis);
-        Float3 double_y = float3_multiply(2.0f, y_axis);
-        Float3 double_z = float3_multiply(2.0f, z_axis);
-
-        immediate_add_cone(double_x, x_axis, 0.5f, x_axis_colour, x_axis_shadow_colour);
-        immediate_add_cylinder(float3_zero, double_x, 0.125f, x_axis_colour);
-        immediate_add_cone(double_y, y_axis, 0.5f, y_axis_colour, y_axis_shadow_colour);
-        immediate_add_cylinder(float3_zero, double_y, 0.125f, y_axis_colour);
-        immediate_add_cone(double_z, z_axis, 0.5f, z_axis_colour, z_axis_shadow_colour);
-        immediate_add_cylinder(float3_zero, double_z, 0.125f, z_axis_colour);
-        immediate_draw();
-    }
-
-    // Draw the screen-space UI.
     Viewport viewport_state =
     {
         .bottom_left = {0, 0},
@@ -1489,120 +1616,110 @@ void video_system_update(VideoUpdate* update, Platform* platform)
     };
     set_viewport(backend, &viewport_state);
 
-    Matrix4 screen_view = matrix4_identity;
-    set_view_projection(screen_view, screen_projection);
+    Float2 viewport_dimensions = int2_to_float2(viewport);
+    Matrix4 view = matrix4_identity;
+    Matrix4 projection = matrices->screen_projection;
+    set_view_projection(context, view, projection, viewport_dimensions);
 
-    // Draw the open file dialog.
     if(dialog_enabled)
     {
-        ImageSet image_set =
-        {
-            .stages[1] =
-            {
-                .images[0] = font_textures[0],
-                .samplers[0] = samplers->nearest_repeat,
-            },
-        };
-        set_images(backend, &image_set);
-
-        Rect space;
-        space.bottom_left = (Float2){{0.0f, -250.0f}};
-        space.dimensions = (Float2){{300.0f, 500.0f}};
-        ui_lay_out(dialog_panel, space, ui_context);
-        ui_draw(dialog_panel, ui_context);
-
-        ui_draw_focus_indicator(dialog_panel, ui_context);
+        draw_file_dialog(context, dialog_panel, ui_context);
     }
 
-    // Draw the main menu.
-    {
-        ImageSet image_set =
-        {
-            .stages[1] =
-            {
-                .images[0] = font_textures[0],
-                .samplers[0] = samplers->nearest_repeat,
-            },
-        };
-        set_images(backend, &image_set);
+    draw_main_menu(context, ui_context, main_menu, viewport_dimensions);
+}
 
-        Rect space;
-        space.bottom_left = (Float2){{-viewport.x / 2.0f, viewport.y / 2.0f}};
-        space.dimensions.x = (float) viewport.x;
-        space.dimensions.y = 60.0f;
-        space.bottom_left.y -= space.dimensions.y;
-        ui_lay_out(main_menu, space, ui_context);
-        ui_draw(main_menu, ui_context);
+static VideoContext static_context;
+static VideoContext* context;
 
-        ui_draw_focus_indicator(main_menu, ui_context);
-    }
+bool video_system_start_up()
+{
+    context = &static_context;
+    create_context(context);
+    return true;
+}
+
+void video_system_shut_down(bool functions_loaded)
+{
+    destroy_context(context, functions_loaded);
+}
+
+void video_system_update(VideoUpdate* update, Platform* platform)
+{
+    Matrices matrices = {0};
+    update_matrices(update, &matrices);
+
+    draw_opaque_phase(context, update, &matrices);
+    draw_transparent_phase(context, update, &matrices);
+    draw_screen_phase(context, update, &matrices);
 }
 
 void video_resize_viewport(Int2 dimensions, double dots_per_millimeter, float fov)
 {
-    float width = (float) dimensions.x;
-    float height = (float) dimensions.y;
-    sky_projection = matrix4_perspective_projection(fov, width, height, 0.001f, 1.0f);
-    screen_projection = matrix4_orthographic_projection(width, height, -1.0f, 1.0f);
+    // Later, we'll need to resize pass targets, here.
 }
 
 DenseMapId video_add_object(VertexLayout vertex_layout)
 {
-    DenseMapId id = dense_map_add(&objects, &context->heap);
-    VideoObject* object = dense_map_look_up(&objects, id);
+    DenseMap* objects = &context->objects;
+    DenseMapId id = dense_map_add(objects, &context->heap);
+    VideoObject* object = dense_map_look_up(objects, id);
     video_object_create(object, vertex_layout);
     return id;
 }
 
 void video_remove_object(DenseMapId id)
 {
-    VideoObject* object = dense_map_look_up(&objects, id);
+    DenseMap* objects = &context->objects;
+    VideoObject* object = dense_map_look_up(objects, id);
     video_object_destroy(object, context->backend);
-    dense_map_remove(&objects, id, &context->heap);
+    dense_map_remove(objects, id, &context->heap);
 }
 
 void video_set_up_font(BmfFont* font)
 {
+    Images* images = &context->images;
+
     for(int i = 0; i < font->pages_count; i += 1)
     {
         char* filename = font->pages[i].bitmap_filename;
-        font_textures[i] = build_image(context, filename, false, NULL);
+        images->font_textures[i] = build_image(context, filename, false, NULL);
     }
 }
 
 void video_set_model(DenseMapId id, Matrix4 model)
 {
-    VideoObject* object = dense_map_look_up(&objects, id);
+    VideoObject* object = dense_map_look_up(&context->objects, id);
     video_object_set_model(object, model);
 }
 
 void video_update_mesh(DenseMapId id, JanMesh* mesh, Heap* heap)
 {
-    VideoObject* object = dense_map_look_up(&objects, id);
+    VideoObject* object = dense_map_look_up(&context->objects, id);
     video_object_update_mesh(object, mesh, context->backend, &context->logger, heap);
 }
 
 void video_update_wireframe(DenseMapId id, JanMesh* mesh, Heap* heap)
 {
-    VideoObject* object = dense_map_look_up(&objects, id);
+    VideoObject* object = dense_map_look_up(&context->objects, id);
     video_object_update_wireframe(object, mesh, context->backend, &context->logger, heap);
 }
 
 void video_update_selection(DenseMapId id, JanMesh* mesh, JanSelection* selection, Heap* heap)
 {
-    VideoObject* object = dense_map_look_up(&objects, id);
+    VideoObject* object = dense_map_look_up(&context->objects, id);
     video_object_update_selection(object, mesh, selection, context->backend, &context->logger, heap);
 }
 
 void video_update_pointcloud_selection(DenseMapId id, JanMesh* mesh, JanSelection* selection, JanVertex* hovered, Heap* heap)
 {
-    VideoObject* object = dense_map_look_up(&objects, id);
+    VideoObject* object = dense_map_look_up(&context->objects, id);
     video_object_update_pointcloud_selection(object, mesh, selection, hovered, context->backend, &context->logger, heap);
 }
 
 void video_update_wireframe_selection(DenseMapId id, JanMesh* mesh, JanSelection* selection, JanEdge* hovered, Heap* heap)
 {
-    VideoObject* object = dense_map_look_up(&objects, id);
+    VideoObject* object = dense_map_look_up(&context->objects, id);
     video_object_update_wireframe_selection(object, mesh, selection, hovered, context->backend, &context->logger, heap);
 }
 
