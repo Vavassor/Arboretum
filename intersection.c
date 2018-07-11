@@ -84,17 +84,26 @@ static bool solve_quadratic_equation(float a, float b, float c, float* RESTRICT 
     else
     {
         float s = sqrtf(discriminant);
-        float u0 = (-b + s) / (2.0f * a);
-        float u1 = (-b - s) / (2.0f * a);
-        if(u0 > u1)
+        float u[2];
+        if(b >= 0.0f)
         {
-            *t0 = u1;
-            *t1 = u0;
+            u[0] = (-b - s) / (2.0f * a);
+            u[1] = (2.0f * c) / (-b - s);
         }
         else
         {
-            *t0 = u0;
-            *t1 = u1;
+            u[0] = (2.0f * c) / (-b + s);
+            u[1] = (-b + s) / (2.0f * a);
+        }
+        if(u[0] > u[1])
+        {
+            *t0 = u[1];
+            *t1 = u[0];
+        }
+        else
+        {
+            *t0 = u[0];
+            *t1 = u[1];
         }
         return true;
     }
