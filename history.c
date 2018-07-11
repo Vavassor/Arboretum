@@ -2,7 +2,6 @@
 
 #include "array2.h"
 #include "assert.h"
-#include "editor.h"
 #include "int_utilities.h"
 #include "logging.h"
 #include "memory.h"
@@ -224,7 +223,7 @@ void add_object_to_history(History* history, Object* object, Heap* heap)
     history_add_base_state(history, state, heap);
 }
 
-void undo(History* history, ObjectLady* lady, VideoContext* context, Heap* heap, Platform* platform)
+void undo(History* history, ObjectLady* lady, VideoContext* context, Heap* heap, Editor* editor, Platform* platform)
 {
     if(history_is_at_start(history) || history_is_empty(history))
     {
@@ -244,7 +243,7 @@ void undo(History* history, ObjectLady* lady, VideoContext* context, Heap* heap,
         case CHANGE_TYPE_CREATE_OBJECT:
         {
             ObjectId id = change->create_object.object_id;
-            clear_object_from_hover_and_selection(id, platform);
+            clear_object_from_hover_and_selection(editor, id, platform);
             object_lady_store_object(lady, id, heap);
             break;
         }

@@ -1473,7 +1473,7 @@ static void draw_main_menu(VideoContext* context, UiContext* ui_context, UiItem*
     set_images(backend, &image_set);
 
     Rect space;
-    space.bottom_left = float2_divide(viewport, 2.0f);
+    space.bottom_left = (Float2){{-viewport.x / 2.0f, viewport.y / 2.0f}};
     space.dimensions.x = viewport.x;
     space.dimensions.y = 60.0f;
     space.bottom_left.y -= space.dimensions.y;
