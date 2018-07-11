@@ -22,7 +22,6 @@
 #include "math_basics.h"
 #include "obj.h"
 #include "object_lady.h"
-#include "shader.h"
 #include "sorting.h"
 #include "string_utilities.h"
 #include "string_build.h"
