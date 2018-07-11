@@ -7,6 +7,7 @@
 #include "bmp.h"
 #include "closest_point_of_approach.h"
 #include "colours.h"
+#include "debug_draw.h"
 #include "filesystem.h"
 #include "float_utilities.h"
 #include "history.h"
@@ -1555,6 +1556,13 @@ static void draw_opaque_phase(VideoContext* context, VideoUpdate* update, Matric
         apply_object_block(context, object);
         draw_object(context, object);
     }
+
+    for(int i = 0; i < debug_draw.spheres_count; i += 1)
+    {
+        Sphere sphere = debug_draw.spheres[i];
+        immediate_add_sphere(sphere.center, sphere.radius, float4_white);
+    }
+    immediate_draw();
 
 #if 0
     // Draw the selected and hovered models.

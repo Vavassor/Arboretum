@@ -1,5 +1,20 @@
 #include "camera.h"
 
+Matrix4 camera_get_view(Camera* camera)
+{
+    return matrix4_look_at(camera->position, camera->target, float3_unit_z);
+}
+
+Matrix4 camera_get_projection(Camera* camera, Int2 viewport)
+{
+    float fov = camera->field_of_view;
+    float width = (float) viewport.x;
+    float height = (float) viewport.y;
+    float near = camera->near_plane;
+    float far = camera->far_plane;
+    return matrix4_perspective_projection(fov, width, height, near, far);
+}
+
 Float2 viewport_point_to_ndc(Float2 point, Int2 viewport)
 {
     float extent_x = viewport.x / 2.0f;

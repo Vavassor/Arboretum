@@ -14,6 +14,8 @@ typedef struct Camera
     float far_plane;
 } Camera;
 
+Matrix4 camera_get_view(Camera* camera);
+Matrix4 camera_get_projection(Camera* camera, Int2 viewport);
 Float2 viewport_point_to_ndc(Float2 point, Int2 viewport);
 Ray ray_from_viewport_point(Float2 point, Int2 viewport, Matrix4 view, Matrix4 projection, bool orthographic);
 
