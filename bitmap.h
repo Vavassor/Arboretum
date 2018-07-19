@@ -1,7 +1,6 @@
 #ifndef BITMAP_H_
 #define BITMAP_H_
 
-#include "gl_core_3_3.h"
 #include "memory.h"
 
 #include <stdint.h>
@@ -34,9 +33,9 @@ typedef struct Bitmap
     int bytes_per_pixel;
 } Bitmap;
 
-GLuint upload_bitmap(Bitmap* bitmap);
-GLuint upload_bitmap_with_mipmaps(Bitmap* bitmap, Heap* heap);
-int get_mipmap_level_count(int width, int height);
 Bitmap generate_mipmap(Bitmap* bitmap, Heap* heap);
+Bitmap* generate_mipmap_array(Bitmap* bitmap, Heap* heap);
+void bitmap_destroy_array(Bitmap* bitmaps, Heap* heap);
+int bitmap_get_size(Bitmap* bitmap);
 
 #endif // BITMAP_H_

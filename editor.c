@@ -6,7 +6,6 @@
 #include "camera.h"
 #include "closest_point_of_approach.h"
 #include "colours.h"
-#include "debug_draw.h"
 #include "dense_map.h"
 #include "file_pick_dialog.h"
 #include "float_utilities.h"
@@ -366,9 +365,7 @@ static void update_object_hover_and_selection(Editor* editor, Platform* platform
         JanMesh* mesh = &object->mesh;
 
         Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
-        Matrix4 view = camera_get_view(camera);
-        Matrix4 projection = camera_get_projection(camera, viewport);
-        Ray ray = ray_from_viewport_point(mouse->position, viewport, view, projection, false);
+        Ray ray = camera_get_ray(camera, mouse->position, viewport);
         ray = transform_ray(ray, matrix4_inverse_transform(model));
         float distance;
         JanFace* face = jan_first_face_hit_by_ray(mesh, ray, &distance, &editor->scratch);
@@ -414,10 +411,12 @@ static void detect_move_tool_arrow_hover(MoveTool* move_tool, float* closest, Ra
         Float3 head_axis = float3_zero;
         head_axis.e[i] = move_tool->head_height;
 
-        Cylinder cylinder;
-        cylinder.start = matrix4_transform_point(model, float3_zero);
-        cylinder.end = matrix4_transform_point(model, shaft_axis);
-        cylinder.radius = move_tool->scale * move_tool->shaft_radius;
+        Cylinder cylinder =
+        {
+            .start = matrix4_transform_point(model, float3_zero),
+            .end = matrix4_transform_point(model, shaft_axis),
+            .radius = move_tool->scale * move_tool->shaft_radius,
+        };
 
         Float3 intersection;
         bool intersected = intersect_ray_cylinder(ray, cylinder, &intersection);
@@ -426,13 +425,14 @@ static void detect_move_tool_arrow_hover(MoveTool* move_tool, float* closest, Ra
         {
             *closest = distance;
             hovered_axis = i;
-            debug_draw_add_sphere((Sphere){intersection, 0.5f});
         }
 
-        Cone cone;
-        cone.base_center = matrix4_transform_point(model, shaft_axis);
-        cone.axis = float3_multiply(move_tool->scale, head_axis);
-        cone.radius = move_tool->scale * move_tool->head_radius;
+        Cone cone =
+        {
+            .base_center = matrix4_transform_point(model, shaft_axis),
+            .axis = float3_multiply(move_tool->scale, head_axis),
+            .radius = move_tool->scale * move_tool->head_radius,
+        };
 
         intersected = intersect_ray_cone(ray, cone, &intersection);
         distance = float3_squared_distance(ray.origin, intersection);
@@ -440,7 +440,6 @@ static void detect_move_tool_arrow_hover(MoveTool* move_tool, float* closest, Ra
         {
             *closest = distance;
             hovered_axis = i;
-            debug_draw_add_sphere((Sphere){intersection, 0.5f});
         }
     }
     move_tool->hovered_axis = hovered_axis;
@@ -457,10 +456,12 @@ static void detect_move_tool_plane_hover(MoveTool* move_tool, float* closest, Ra
         Float3 extents = float3_set_all(move_tool->scale * move_tool->plane_extent);
         extents.e[i] = move_tool->scale * move_tool->plane_thickness;
 
-        Box box;
-        box.center = matrix4_transform_point(model, center);
-        box.extents = extents;
-        box.orientation = move_tool->orientation;
+        Box box =
+        {
+            .center = matrix4_transform_point(model, center),
+            .extents = extents,
+            .orientation = move_tool->orientation,
+        };
 
         Float3 intersection;
         bool intersected = intersect_ray_box(ray, box, &intersection);
@@ -471,7 +472,6 @@ static void detect_move_tool_plane_hover(MoveTool* move_tool, float* closest, Ra
             {
                 *closest = distance;
                 hovered_plane = i;
-                debug_draw_add_sphere((Sphere){intersection, 0.5f});
             }
         }
     }
@@ -591,9 +591,7 @@ static void update_object_mode(Editor* editor, Platform* platform)
     {
         Float3 scale = float3_set_all(move_tool->scale);
         Matrix4 model = matrix4_compose_transform(move_tool->position, move_tool->orientation, scale);
-        Matrix4 view = camera_get_view(camera);
-        Matrix4 projection = camera_get_projection(camera, viewport);
-        Ray ray = ray_from_viewport_point(mouse->position, viewport, view, projection, false);
+        Ray ray = camera_get_ray(camera, mouse->position, viewport);
 
         float closest = infinity;
         detect_move_tool_arrow_hover(move_tool, &closest, ray, model);
@@ -749,9 +747,7 @@ static void select_face(Editor* editor, Object* object)
     JanMesh* mesh = &object->mesh;
 
     Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
-    Matrix4 view = camera_get_view(camera);
-    Matrix4 projection = camera_get_projection(camera, viewport);
-    Ray ray = ray_from_viewport_point(mouse->position, viewport, view, projection, false);
+    Ray ray = camera_get_ray(camera, mouse->position, viewport);
     ray = transform_ray(ray, matrix4_inverse_transform(model));
 
     JanFace* face = jan_first_face_hit_by_ray(mesh, ray, NULL, &editor->scratch);
@@ -809,7 +805,7 @@ static void exit_vertex_mode(Editor* editor)
 
 static void update_vertex_mode(Editor* editor)
 {
-    ASSERT(editor->selected_object_index != invalid_index);
+    ASSERT(is_valid_index(editor->selected_object_index));
     ASSERT(editor->selected_object_index >= 0 && editor->selected_object_index < array_count(editor->lady.objects));
 
     const float touch_radius = 30.0f;
@@ -1379,22 +1375,23 @@ void editor_update(Platform* platform)
 
     clean_up_history(editor);
 
-    VideoUpdate update;
-    update.viewport = editor->viewport;
-    update.camera = &editor->camera;
-    update.move_tool = &editor->move_tool;
-    update.rotate_tool = &editor->rotate_tool;
-    update.ui_context = &editor->ui_context;
-    update.main_menu = editor->main_menu;
-    update.dialog_panel = dialog->panel;
-    update.dialog_enabled = dialog->enabled;
-    update.lady = &editor->lady;
-    update.hovered_object_index = editor->hovered_object_index;
-    update.selected_object_index = editor->selected_object_index;
-    update.selection_id = editor->selection_id;
-    update.selection_pointcloud_id = editor->selection_pointcloud_id;
-    update.selection_wireframe_id = editor->selection_wireframe_id;
-
+    VideoUpdate update =
+    {
+        .viewport = editor->viewport,
+        .camera = &editor->camera,
+        .move_tool = &editor->move_tool,
+        .rotate_tool = &editor->rotate_tool,
+        .ui_context = &editor->ui_context,
+        .main_menu = editor->main_menu,
+        .dialog_panel = dialog->panel,
+        .dialog_enabled = dialog->enabled,
+        .lady = &editor->lady,
+        .hovered_object_index = editor->hovered_object_index,
+        .selected_object_index = editor->selected_object_index,
+        .selection_id = editor->selection_id,
+        .selection_pointcloud_id = editor->selection_pointcloud_id,
+        .selection_wireframe_id = editor->selection_wireframe_id,
+    };
     video_update_context(editor->video_context, &update, platform);
 }
 

@@ -1,51 +1,14 @@
 #include "bitmap.h"
 
+#include "array2.h"
 #include "float_utilities.h"
 #include "int_utilities.h"
 #include "math_basics.h"
 #include "memory.h"
 
-static void upload_pixels(Bitmap* bitmap, GLint level)
+int get_mip_level_count(int width, int height)
 {
-    switch(bitmap->bytes_per_pixel)
-    {
-        case 1:
-        {
-            glTexImage2D(GL_TEXTURE_2D, level, GL_R8, bitmap->width, bitmap->height, 0, GL_RED, GL_UNSIGNED_BYTE, bitmap->pixels);
-            break;
-        }
-        case 2:
-        {
-            glTexImage2D(GL_TEXTURE_2D, level, GL_RG8, bitmap->width, bitmap->height, 0, GL_RG, GL_UNSIGNED_BYTE, bitmap->pixels);
-            break;
-        }
-        case 3:
-        {
-            glTexImage2D(GL_TEXTURE_2D, level, GL_RGB8, bitmap->width, bitmap->height, 0, GL_RGB, GL_UNSIGNED_BYTE, bitmap->pixels);
-            break;
-        }
-        case 4:
-        {
-            glTexImage2D(GL_TEXTURE_2D, level, GL_RGBA8, bitmap->width, bitmap->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, bitmap->pixels);
-            break;
-        }
-    }
-}
-
-GLuint upload_bitmap(Bitmap* bitmap)
-{
-    GLuint texture;
-
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    upload_pixels(bitmap, 0);
-
-    return texture;
-}
-
-int get_mipmap_level_count(int width, int height)
-{
-    return floor(log2(MAX(width, height))) + 1;
+    return floor(log2(imax(width, height))) + 1;
 }
 
 static Pixel8 lerp8(Pixel8 p0, Pixel8 p1, float t)
@@ -88,22 +51,22 @@ static void scale_pixel8s(Bitmap* source, Pixel8* pixels, int width, int height)
     int source_width = source->width;
     int source_height = source->height;
 
-    float width_divisor = MAX(width - 1, 1);
-    float height_divisor = MAX(height - 1, 1);
+    float width_divisor = imax(width - 1, 1);
+    float height_divisor = imax(height - 1, 1);
 
     for(int i = 0; i < height; i += 1)
     {
         float y = i * (source_height - 1) / height_divisor;
         int y_int = y;
         float y_fraction = y - y_int;
-        int m = MIN(y_int + 1, source_height - 1);
+        int m = imin(y_int + 1, source_height - 1);
 
         for(int j = 0; j < width; j += 1)
         {
             float x = j * (source_width - 1) / width_divisor;
             int x_int = x;
             float x_fraction = x - x_int;
-            int k = MIN(x_int + 1, source_width - 1);
+            int k = imin(x_int + 1, source_width - 1);
 
             Pixel8 p0 = from[(source_width * y_int) + x_int];
             Pixel8 p1 = from[(source_width * y_int) + k];
@@ -125,22 +88,22 @@ static void scale_pixel16s(Bitmap* source, Pixel16* pixels, int width, int heigh
     int source_width = source->width;
     int source_height = source->height;
 
-    float width_divisor = MAX(width - 1, 1);
-    float height_divisor = MAX(height - 1, 1);
+    float width_divisor = imax(width - 1, 1);
+    float height_divisor = imax(height - 1, 1);
 
     for(int i = 0; i < height; i += 1)
     {
         float y = i * (source_height - 1) / height_divisor;
         int y_int = y;
         float y_fraction = y - y_int;
-        int m = MIN(y_int + 1, source_height - 1);
+        int m = imin(y_int + 1, source_height - 1);
 
         for(int j = 0; j < width; j += 1)
         {
             float x = j * (source_width - 1) / width_divisor;
             int x_int = x;
             float x_fraction = x - x_int;
-            int k = MIN(x_int + 1, source_width - 1);
+            int k = imin(x_int + 1, source_width - 1);
 
             Pixel16 p0 = from[(source_width * y_int) + x_int];
             Pixel16 p1 = from[(source_width * y_int) + k];
@@ -162,22 +125,22 @@ static void scale_pixel24s(Bitmap* source, Pixel24* pixels, int width, int heigh
     int source_width = source->width;
     int source_height = source->height;
 
-    float width_divisor = MAX(width - 1, 1);
-    float height_divisor = MAX(height - 1, 1);
+    float width_divisor = imax(width - 1, 1);
+    float height_divisor = imax(height - 1, 1);
 
     for(int i = 0; i < height; i += 1)
     {
         float y = i * (source_height - 1) / height_divisor;
         int y_int = y;
         float y_fraction = y - y_int;
-        int m = MIN(y_int + 1, source_height - 1);
+        int m = imin(y_int + 1, source_height - 1);
 
         for(int j = 0; j < width; j += 1)
         {
             float x = j * (source_width - 1) / width_divisor;
             int x_int = x;
             float x_fraction = x - x_int;
-            int k = MIN(x_int + 1, source_width - 1);
+            int k = imin(x_int + 1, source_width - 1);
 
             Pixel24 p0 = from[(source_width * y_int) + x_int];
             Pixel24 p1 = from[(source_width * y_int) + k];
@@ -199,22 +162,22 @@ static void scale_pixel32s(Bitmap* source, Pixel32* pixels, int width, int heigh
     int source_width = source->width;
     int source_height = source->height;
 
-    float width_divisor = MAX(width - 1, 1);
-    float height_divisor = MAX(height - 1, 1);
+    float width_divisor = imax(width - 1, 1);
+    float height_divisor = imax(height - 1, 1);
 
     for(int i = 0; i < height; i += 1)
     {
         float y = i * (source_height - 1) / height_divisor;
         int y_int = y;
         float y_fraction = y - y_int;
-        int m = MIN(y_int + 1, source_height - 1);
+        int m = imin(y_int + 1, source_height - 1);
 
         for(int j = 0; j < width; j += 1)
         {
             float x = j * (source_width - 1) / width_divisor;
             int x_int = x;
             float x_fraction = x - x_int;
-            int k = MIN(x_int + 1, source_width - 1);
+            int k = imin(x_int + 1, source_width - 1);
 
             Pixel32 p0 = from[(source_width * y_int) + x_int];
             Pixel32 p1 = from[(source_width * y_int) + k];
@@ -232,8 +195,8 @@ static void scale_pixel32s(Bitmap* source, Pixel32* pixels, int width, int heigh
 
 Bitmap generate_mipmap(Bitmap* bitmap, Heap* heap)
 {
-    int width = MAX(bitmap->width / 2, 1);
-    int height = MAX(bitmap->height / 2, 1);
+    int width = imax(bitmap->width / 2, 1);
+    int height = imax(bitmap->height / 2, 1);
 
     Bitmap result;
     result.width = width;
@@ -275,31 +238,33 @@ Bitmap generate_mipmap(Bitmap* bitmap, Heap* heap)
     return result;
 }
 
-GLuint upload_bitmap_with_mipmaps(Bitmap* bitmap, Heap* heap)
+Bitmap* generate_mipmap_array(Bitmap* bitmap, Heap* heap)
 {
-    GLuint texture;
+    int levels = get_mip_level_count(bitmap->width, bitmap->height);
 
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
+    Bitmap* bitmaps = NULL;
 
-    int levels = get_mipmap_level_count(bitmap->width, bitmap->height);
-
-    upload_pixels(bitmap, 0);
     Bitmap prior = *bitmap;
     for(int i = 1; i < levels; i += 1)
     {
         Bitmap mipmap = generate_mipmap(&prior, heap);
-        if(i > 1)
-        {
-            HEAP_DEALLOCATE(heap, prior.pixels);
-        }
-        upload_pixels(&mipmap, i);
+        ARRAY_ADD(bitmaps, mipmap, heap);
         prior = mipmap;
     }
-    if(levels > 1)
-    {
-        HEAP_DEALLOCATE(heap, prior.pixels);
-    }
 
-    return texture;
+    return bitmaps;
+}
+
+void bitmap_destroy_array(Bitmap* bitmaps, Heap* heap)
+{
+    FOR_ALL(Bitmap, bitmaps)
+    {
+        HEAP_DEALLOCATE(heap, it->pixels);
+    }
+    ARRAY_DESTROY(bitmaps, heap);
+}
+
+int bitmap_get_size(Bitmap* bitmap)
+{
+    return bitmap->width * bitmap->height * bitmap->bytes_per_pixel;
 }

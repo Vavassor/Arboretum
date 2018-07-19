@@ -3,6 +3,7 @@
 #include "assert.h"
 #include "asset_paths.h"
 #include "array2.h"
+#include "bitmap.h"
 #include "bmfont.h"
 #include "bmp.h"
 #include "closest_point_of_approach.h"
@@ -116,49 +117,58 @@ static PixelFormat get_pixel_format(int bytes_per_pixel)
 static ImageId build_image(VideoContext* context, const char* name, bool with_mipmaps, Int2* dimensions)
 {
     char* path = get_image_path_by_name(name, &context->scratch);
-    int width;
-    int height;
-    int bytes_per_pixel;
-    void* pixels = stbi_load(path, &width, &height, &bytes_per_pixel, STBI_default);
+    Bitmap bitmap;
+    bitmap.pixels = stbi_load(path, &bitmap.width, &bitmap.height, &bitmap.bytes_per_pixel, STBI_default);
     STACK_DEALLOCATE(&context->scratch, path);
 
     ImageId id = {0};
 
-    if(pixels)
+    if(bitmap.pixels)
     {
-        int bitmap_size = bytes_per_pixel * width * height;
+        ImageContent content;
+        Subimage* subimage = &content.subimages[0][0];
+        subimage->content = bitmap.pixels;
+        subimage->size = bitmap_get_size(&bitmap);
 
+        Bitmap* mipmaps = NULL;
         int mip_levels = 1;
         if(with_mipmaps)
         {
-            mip_levels = count_mip_levels(width, height);
+            mip_levels = count_mip_levels(bitmap.width, bitmap.height);
+
+            mipmaps = generate_mipmap_array(&bitmap, &context->heap);
+            for(int i = 0; i < array_count(mipmaps); i += 1)
+            {
+                Bitmap* mipmap = &mipmaps[i];
+                subimage = &content.subimages[0][i + 1];
+                subimage->content = mipmap->pixels;
+                subimage->size = bitmap_get_size(mipmap);
+            }
         }
 
         ImageSpec spec =
         {
-            .content =
-            {
-                .subimages[0][0] =
-                {
-                    .content = pixels,
-                    .size = bitmap_size,
-                },
-            },
-            .height = height,
+            .content = content,
+            .height = bitmap.height,
             .mipmap_count = mip_levels,
-            .pixel_format = get_pixel_format(bytes_per_pixel),
+            .pixel_format = get_pixel_format(bitmap.bytes_per_pixel),
             .type = IMAGE_TYPE_2D,
-            .width = width,
+            .width = bitmap.width,
         };
         id = create_image(context->backend, &spec, &context->logger);
 
         if(dimensions)
         {
-            dimensions->x = width;
-            dimensions->y = height;
+            dimensions->x = bitmap.width;
+            dimensions->y = bitmap.height;
         }
 
-        stbi_image_free(pixels);
+        stbi_image_free(bitmap.pixels);
+
+        if(mipmaps)
+        {
+            bitmap_destroy_array(mipmaps, &context->heap);
+        }
     }
 
     return id;
@@ -1556,6 +1566,7 @@ static void draw_opaque_phase(VideoContext* context, VideoUpdate* update, Matric
         draw_object(context, object);
     }
 
+    set_model_matrix(context, matrix4_identity);
     for(int i = 0; i < debug_draw.spheres_count; i += 1)
     {
         Sphere sphere = debug_draw.spheres[i];

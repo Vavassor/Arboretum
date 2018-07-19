@@ -322,7 +322,9 @@ bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Float3* intersection)
         }
         else
         {
-            *intersection = float3_madd(t2, ray.direction, ray.origin);
+            Float3 point = float3_madd(t2, direction, origin);
+            Matrix4 inverse = matrix4_multiply(matrix4_inverse_view(view), matrix4_dilation(dilation));
+            *intersection = matrix4_transform_point(inverse, point);
             return true;
         }
     }
@@ -334,7 +336,9 @@ bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Float3* intersection)
         }
         else
         {
-            *intersection = float3_madd(t0, ray.direction, ray.origin);
+            Float3 point = float3_madd(t0, direction, origin);
+            Matrix4 inverse = matrix4_multiply(matrix4_inverse_view(view), matrix4_dilation(dilation));
+            *intersection = matrix4_transform_point(inverse, point);
             return true;
         }
     }
@@ -352,7 +356,9 @@ bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Float3* intersection)
         }
         else
         {
-            *intersection = float3_madd(t2, ray.direction, ray.origin);
+            Float3 point = float3_madd(t2, direction, origin);
+            Matrix4 inverse = matrix4_multiply(matrix4_inverse_view(view), matrix4_dilation(dilation));
+            *intersection = matrix4_transform_point(inverse, point);
             return true;
         }
     }
@@ -405,7 +411,9 @@ bool intersect_ray_cone(Ray ray, Cone cone, Float3* intersection)
         }
         else
         {
-            *intersection = float3_madd(t0, ray.direction, ray.origin);
+            Float3 point = float3_madd(t0, direction, origin);
+            Matrix4 inverse = matrix4_multiply(matrix4_inverse_view(view), matrix4_dilation(dilation));
+            *intersection = matrix4_transform_point(inverse, point);
             return true;
         }
     }
@@ -423,7 +431,9 @@ bool intersect_ray_cone(Ray ray, Cone cone, Float3* intersection)
         }
         else
         {
-            *intersection = float3_madd(t2, ray.direction, ray.origin);
+            Float3 point = float3_madd(t2, direction, origin);
+            Matrix4 inverse = matrix4_multiply(matrix4_inverse_view(view), matrix4_dilation(dilation));
+            *intersection = matrix4_transform_point(inverse, point);
             return true;
         }
     }

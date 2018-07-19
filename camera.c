@@ -15,6 +15,14 @@ Matrix4 camera_get_projection(Camera* camera, Int2 viewport)
     return matrix4_perspective_projection(fov, width, height, near, far);
 }
 
+Ray camera_get_ray(Camera* camera, Float2 point, Int2 viewport)
+{
+    Matrix4 view = camera_get_view(camera);
+    Matrix4 projection = camera_get_projection(camera, viewport);
+    Ray ray = ray_from_viewport_point(point, viewport, view, projection, false);
+    return ray;
+}
+
 Float2 viewport_point_to_ndc(Float2 point, Int2 viewport)
 {
     float extent_x = viewport.x / 2.0f;

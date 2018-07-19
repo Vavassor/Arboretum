@@ -874,11 +874,6 @@ static void load_image(Image* image, ImageSpec* spec, Backend* backend)
         }
     }
 
-    if(image->mipmap_count > 1)
-    {
-        glGenerateMipmap(GL_TEXTURE_2D);
-    }
-
     image->resource.status = RESOURCE_STATUS_VALID;
 }
 

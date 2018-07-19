@@ -3,8 +3,6 @@
 
 #include <stdbool.h>
 
-// A pair of integers. This name could be confused with sized integer types like
-// s8 where the 8 signifies 8 bits, not 8 integers.
 typedef struct Int2
 {
     int x, y;
