@@ -6,12 +6,15 @@
 #include "camera.h"
 #include "closest_point_of_approach.h"
 #include "colours.h"
+#include "debug_draw.h"
 #include "dense_map.h"
 #include "file_pick_dialog.h"
 #include "float_utilities.h"
 #include "history.h"
 #include "input.h"
 #include "int_utilities.h"
+#include "jan_validate.h"
+#include "log.h"
 #include "logging.h"
 #include "math_basics.h"
 #include "tools.h"
@@ -56,6 +59,7 @@ struct Editor
 {
     Heap heap;
     Stack scratch;
+    Log logger;
 
     ObjectLady lady;
     JanSelection selection;
@@ -734,6 +738,8 @@ static void translate_faces(Editor* editor, Object* object)
     Float2 move_velocity = float2_pointwise_multiply(move_speed, mouse->velocity);
     Float3 move = float3_add(float3_multiply(move_velocity.x, right), float3_multiply(move_velocity.y, up));
     jan_move_faces(mesh, &editor->selection, move);
+
+    ASSERT(jan_validate_mesh(mesh, &editor->logger));
 
     video_update_mesh(video_context, object->video_object, mesh, &editor->heap);
 }

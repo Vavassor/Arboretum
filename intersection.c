@@ -5,6 +5,7 @@
 #include "complex_math.h"
 #include "float_utilities.h"
 #include "jan.h"
+#include "jan_internal.h"
 #include "math_basics.h"
 #include "memory.h"
 #include "restrict.h"
