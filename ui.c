@@ -1450,6 +1450,48 @@ static void place_list_items(UiItem* item, UiContext* context)
     }
 }
 
+static void draw_item_hover_highlight(UiList* list, Float4 hover_colour)
+{
+    if(is_valid_index(list->hovered_item_index) && list->hovered_item_index != list->selected_item_index)
+    {
+        Rect rect = list->items_bounds[list->hovered_item_index];
+        rect.bottom_left.y += list->scroll_top;
+        immediate_draw_transparent_rect(rect, hover_colour);
+    }
+}
+
+static void draw_item_selection_highlight(UiList* list, Float4 selection_colour)
+{
+    if(is_valid_index(list->selected_item_index))
+    {
+        Rect rect = list->items_bounds[list->selected_item_index];
+        rect.bottom_left.y += list->scroll_top;
+        immediate_draw_transparent_rect(rect, selection_colour);
+    }
+}
+
+static void draw_items(UiItem* item, float line_height)
+{
+    ASSERT(item->type == UI_ITEM_TYPE_LIST);
+
+    UiList* list = &item->list;
+
+    float item_height = get_list_item_height(list, &list->items[0], line_height);
+    float scroll = list->scroll_top;
+    int start_index = (int) (scroll / item_height);
+    start_index = MAX(start_index, 0);
+    int end_index = (int) ceilf((scroll + item->bounds.dimensions.y) / item_height);
+    end_index = MIN(end_index, list->items_count);
+
+    for(int i = start_index; i < end_index; i += 1)
+    {
+        UiTextBlock* next = &list->items[i];
+        Rect bounds = list->items_bounds[i];
+        bounds.bottom_left.y += list->scroll_top;
+        draw_text_block(next, bounds);
+    }
+}
+
 static void draw_list(UiItem* item, UiContext* context)
 {
     ASSERT(item->type == UI_ITEM_TYPE_LIST);
@@ -1467,37 +1509,9 @@ static void draw_list(UiItem* item, UiContext* context)
 
     if(list->items_count > 0)
     {
-        // Draw the hover highlight for the items.
-        if(is_valid_index(list->hovered_item_index) && list->hovered_item_index != list->selected_item_index)
-        {
-            Rect rect = list->items_bounds[list->hovered_item_index];
-            rect.bottom_left.y += list->scroll_top;
-            immediate_draw_transparent_rect(rect, hover_colour);
-        }
-
-        // Draw the selection highlight for the records.
-        if(is_valid_index(list->selected_item_index))
-        {
-            Rect rect = list->items_bounds[list->selected_item_index];
-            rect.bottom_left.y += list->scroll_top;
-            immediate_draw_transparent_rect(rect, selection_colour);
-        }
-
-        // Draw each item's contents.
-        float item_height = get_list_item_height(list, &list->items[0], line_height);
-        float scroll = list->scroll_top;
-        int start_index = (int) (scroll / item_height);
-        start_index = MAX(start_index, 0);
-        int end_index = (int) ceilf((scroll + item->bounds.dimensions.y) / item_height);
-        end_index = MIN(end_index, list->items_count);
-
-        for(int i = start_index; i < end_index; i += 1)
-        {
-            UiTextBlock* next = &list->items[i];
-            Rect bounds = list->items_bounds[i];
-            bounds.bottom_left.y += list->scroll_top;
-            draw_text_block(next, bounds);
-        }
+        draw_item_hover_highlight(list, hover_colour);
+        draw_item_selection_highlight(list, selection_colour);
+        draw_items(list, line_height);
     }
 
     immediate_stop_clip_area();
@@ -1578,13 +1592,117 @@ static int find_index_at_position(UiTextBlock* text_block, Float2 dimensions, fl
     return index;
 }
 
-static void draw_text_input(UiItem* item, UiContext* context)
+static Float2 draw_cursor(UiItem* item, UiContext* context)
 {
     ASSERT(item->type == UI_ITEM_TYPE_TEXT_INPUT);
 
-    Float4 selection_colour = context->theme.colours.text_input_selection;
+    UiTextInput* text_input = &item->text_input;
+    UiTextBlock* text_block = &text_input->text_block;
+
     Float4 cursor_colour = context->theme.colours.text_input_cursor;
     float line_height = context->theme.font->line_height;
+
+    Float2 cursor = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
+    Float2 top_left = rect_top_left(item->bounds);
+    cursor = float2_add(cursor, top_left);
+
+    Rect rect;
+    rect.dimensions = (Float2){{1.7f, line_height}};
+    rect.bottom_left = cursor;
+
+    text_input->cursor_blink_frame = (text_input->cursor_blink_frame + 1) & 0x3f;
+    if((text_input->cursor_blink_frame / 32) & 1)
+    {
+        immediate_draw_opaque_rect(rect, cursor_colour);
+    }
+
+    return cursor;
+}
+
+static void draw_selection_highlight(UiItem* item, UiContext* context, Float2 cursor)
+{
+    ASSERT(item->type == UI_ITEM_TYPE_TEXT_INPUT);
+
+    UiTextInput* text_input = &item->text_input;
+    UiTextBlock* text_block = &text_input->text_block;
+
+    Float4 selection_colour = context->theme.colours.text_input_selection;
+    float line_height = context->theme.font->line_height;
+
+    Float2 start = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->selection_start);
+    Float2 top_left = rect_top_left(item->bounds);
+    start = float2_add(start, top_left);
+
+    Float2 first, second;
+    if(text_input->selection_start < text_input->cursor_position)
+    {
+        first = start;
+        second = cursor;
+    }
+    else
+    {
+        first = cursor;
+        second = start;
+    }
+
+    if(almost_equals(cursor.y, start.y))
+    {
+        // The selection endpoints are on the same line.
+        Rect rect;
+        rect.bottom_left = first;
+        rect.dimensions.x = second.x - first.x;
+        rect.dimensions.y = line_height;
+        immediate_draw_transparent_rect(rect, selection_colour);
+    }
+    else
+    {
+        // The selection endpoints are on different lines.
+        UiPadding padding = text_block->padding;
+        float left = item->bounds.bottom_left.x + padding.start;
+        float right = left + item->bounds.dimensions.x - padding.end;
+
+        Rect rect;
+        rect.bottom_left = first;
+        rect.dimensions.x = right - first.x;
+        rect.dimensions.y = line_height;
+        immediate_add_rect(rect, selection_colour);
+
+        int between_lines = (int) ((first.y - second.y) / line_height) - 1;
+        for(int i = 0; i < between_lines; i += 1)
+        {
+            rect.dimensions.x = right - left;
+            rect.bottom_left.x = left;
+            rect.bottom_left.y = first.y - (line_height * (i + 1));
+            immediate_add_rect(rect, selection_colour);
+        }
+
+        rect.dimensions.x = second.x - left;
+        rect.bottom_left.x = left;
+        rect.bottom_left.y = second.y;
+        immediate_add_rect(rect, selection_colour);
+
+        immediate_set_blend_mode(BLEND_MODE_TRANSPARENT);
+        immediate_draw();
+    }
+}
+
+static void draw_selection(UiItem* item, UiContext* context)
+{
+    ASSERT(item->type == UI_ITEM_TYPE_TEXT_INPUT);
+
+    UiTextInput* text_input = &item->text_input;
+
+    Float2 cursor = draw_cursor(item, context);
+
+    if(text_input->cursor_position != text_input->selection_start)
+    {
+        draw_selection_highlight(item, context, cursor);
+    }
+}
+
+static void draw_text_input(UiItem* item, UiContext* context)
+{
+    ASSERT(item->type == UI_ITEM_TYPE_TEXT_INPUT);
 
     UiTextInput* text_input = &item->text_input;
     UiTextBlock* text_block = &text_input->text_block;
@@ -1593,7 +1711,6 @@ static void draw_text_input(UiItem* item, UiContext* context)
 
     if(in_focus || text_block->glyphs_count > 0)
     {
-        // Show the text instead of the label.
         draw_text_block(text_block, item->bounds);
     }
     else
@@ -1603,79 +1720,9 @@ static void draw_text_input(UiItem* item, UiContext* context)
         draw_text_block(&text_input->label, item->bounds);
     }
 
-    // Draw the cursor.
     if(in_focus)
     {
-        Float2 cursor = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
-        Float2 top_left = rect_top_left(item->bounds);
-        cursor = float2_add(cursor, top_left);
-
-        Rect rect;
-        rect.dimensions = (Float2){{1.7f, line_height}};
-        rect.bottom_left = cursor;
-
-        text_input->cursor_blink_frame = (text_input->cursor_blink_frame + 1) & 0x3f;
-        if((text_input->cursor_blink_frame / 32) & 1)
-        {
-            immediate_draw_opaque_rect(rect, cursor_colour);
-        }
-
-        // Draw the selection highlight.
-        if(text_input->cursor_position != text_input->selection_start)
-        {
-            Float2 start = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->selection_start);
-            start = float2_add(start, top_left);
-
-            Float2 first, second;
-            if(text_input->selection_start < text_input->cursor_position)
-            {
-                first = start;
-                second = cursor;
-            }
-            else
-            {
-                first = cursor;
-                second = start;
-            }
-
-            if(almost_equals(cursor.y, start.y))
-            {
-                // The selection endpoints are on the same line.
-                rect.bottom_left = first;
-                rect.dimensions.x = second.x - first.x;
-                rect.dimensions.y = line_height;
-                immediate_draw_transparent_rect(rect, selection_colour);
-            }
-            else
-            {
-                // The selection endpoints are on different lines.
-                UiPadding padding = text_block->padding;
-                float left = item->bounds.bottom_left.x + padding.start;
-                float right = left + item->bounds.dimensions.x - padding.end;
-
-                rect.bottom_left = first;
-                rect.dimensions.x = right - first.x;
-                rect.dimensions.y = line_height;
-                immediate_add_rect(rect, selection_colour);
-
-                int between_lines = (int) ((first.y - second.y) / line_height) - 1;
-                for(int i = 0; i < between_lines; i += 1)
-                {
-                    rect.dimensions.x = right - left;
-                    rect.bottom_left.x = left;
-                    rect.bottom_left.y = first.y - (line_height * (i + 1));
-                    immediate_add_rect(rect, selection_colour);
-                }
-
-                rect.dimensions.x = second.x - left;
-                rect.bottom_left.x = left;
-                rect.bottom_left.y = second.y;
-                immediate_add_rect(rect, selection_colour);
-
-                immediate_set_blend_mode(BLEND_MODE_TRANSPARENT);
-                immediate_draw();
-            }
-        }
+        draw_selection(item, context);
     }
 }
 
@@ -1752,6 +1799,63 @@ void ui_draw_focus_indicator(UiItem* item, UiContext* context)
     }
 }
 
+static bool detect_button_hover(UiItem* item, Float2 pointer_position, Platform* platform)
+{
+    ASSERT(item->type == UI_ITEM_TYPE_BUTTON);
+
+    UiButton* button = &item->button;
+    bool hovered = point_in_rect(item->bounds, pointer_position);
+    button->hovered = hovered;
+    if(hovered)
+    {
+        if(button->enabled)
+        {
+            change_cursor(platform, CURSOR_TYPE_ARROW);
+        }
+        else
+        {
+            change_cursor(platform, CURSOR_TYPE_PROHIBITION_SIGN);
+        }
+    }
+    return hovered;
+}
+
+static bool detect_list_hover(UiItem* item, Float2 pointer_position, Platform* platform)
+{
+    ASSERT(item->type == UI_ITEM_TYPE_LIST);
+
+    bool detected = false;
+
+    UiList* list = &item->list;
+    list->hovered_item_index = invalid_index;
+    for(int i = 0; i < list->items_count; i += 1)
+    {
+        Rect bounds = list->items_bounds[i];
+        bounds.bottom_left.y += list->scroll_top;
+        clip_rects(bounds, item->bounds, &bounds);
+        bool hovered = point_in_rect(bounds, pointer_position);
+        if(hovered)
+        {
+            list->hovered_item_index = i;
+            change_cursor(platform, CURSOR_TYPE_ARROW);
+            detected = true;
+        }
+    }
+    return detected;
+}
+
+static bool detect_text_input_hover(UiItem* item, Float2 pointer_position, Platform* platform)
+{
+    ASSERT(item->type == UI_ITEM_TYPE_TEXT_INPUT);
+
+    bool hovered = point_in_rect(item->bounds, pointer_position);
+    if(hovered)
+    {
+        change_cursor(platform, CURSOR_TYPE_I_BEAM);
+    }
+    return hovered;
+}
+
 static bool detect_hover(UiItem* item, Float2 pointer_position, Platform* platform)
 {
     bool detected = false;
@@ -1760,21 +1864,7 @@ static bool detect_hover(UiItem* item, Float2 pointer_position, Platform* platfo
     {
         case UI_ITEM_TYPE_BUTTON:
         {
-            UiButton* button = &item->button;
-            bool hovered = point_in_rect(item->bounds, pointer_position);
-            button->hovered = hovered;
-            if(hovered)
-            {
-                if(button->enabled)
-                {
-                    change_cursor(platform, CURSOR_TYPE_ARROW);
-                }
-                else
-                {
-                    change_cursor(platform, CURSOR_TYPE_PROHIBITION_SIGN);
-                }
-            }
-            detected = hovered;
+            detected = detect_button_hover(item, pointer_position, platform);
             break;
         }
         case UI_ITEM_TYPE_CONTAINER:
@@ -1789,21 +1879,7 @@ static bool detect_hover(UiItem* item, Float2 pointer_position, Platform* platfo
         }
         case UI_ITEM_TYPE_LIST:
         {
-            UiList* list = &item->list;
-            list->hovered_item_index = invalid_index;
-            for(int i = 0; i < list->items_count; i += 1)
-            {
-                Rect bounds = list->items_bounds[i];
-                bounds.bottom_left.y += list->scroll_top;
-                clip_rects(bounds, item->bounds, &bounds);
-                bool hovered = point_in_rect(bounds, pointer_position);
-                if(hovered)
-                {
-                    list->hovered_item_index = i;
-                    change_cursor(platform, CURSOR_TYPE_ARROW);
-                    detected = true;
-                }
-            }
+            detected = detect_list_hover(item, pointer_position, platform);
             break;
         }
         case UI_ITEM_TYPE_TEXT_BLOCK:
@@ -1812,12 +1888,7 @@ static bool detect_hover(UiItem* item, Float2 pointer_position, Platform* platfo
         }
         case UI_ITEM_TYPE_TEXT_INPUT:
         {
-            bool hovered = point_in_rect(item->bounds, pointer_position);
-            if(hovered)
-            {
-                change_cursor(platform, CURSOR_TYPE_I_BEAM);
-            }
-            detected = hovered;
+            detected = detect_text_input_hover(item, pointer_position, platform);
             break;
         }
     }
@@ -2174,24 +2245,433 @@ static int find_end_of_line(UiTextBlock* text_block, int start_index)
     return end_of_text;
 }
 
+static void update_button_keyboard_input(UiItem* item, UiContext* context)
+{
+    ASSERT(item->type == UI_ITEM_TYPE_BUTTON);
+
+    UiButton* button = &item->button;
+
+    bool activated = input_get_key_tapped(INPUT_KEY_SPACE)
+            || input_get_key_tapped(INPUT_KEY_ENTER);
+
+    if(activated && button->enabled)
+    {
+        UiEvent event;
+        event.type = UI_EVENT_TYPE_BUTTON;
+        event.button.id = item->id;
+        enqueue(&context->queue, event);
+    }
+}
+
+static void update_list_scroll(UiItem* item, UiContext* context)
+{
+    ASSERT(item->type == UI_ITEM_TYPE_LIST);
+
+    UiList* list = &item->list;
+
+    if(is_valid_index(list->selected_item_index))
+    {
+        ASSERT(list->items_count > 0);
+
+        int index = list->selected_item_index;
+        float item_height = list->items_bounds[0].dimensions.y + list->item_spacing;
+        float item_top = (item_height * index) + list->item_spacing;
+
+        float page_height = item->bounds.dimensions.y;
+        float scroll_top = list->scroll_top;
+        float from_page_edge = 3.0f * item_height;
+
+        float window_top = scroll_top + from_page_edge;
+        float window_bottom = scroll_top + page_height - from_page_edge;
+
+        float above_window = item_top - window_top;
+        float below_window = item_top - window_bottom;
+
+        const float factor = 0.2f;
+        const float min_speed = 4.0f;
+
+        float line_height = context->theme.font->line_height;
+
+        if(above_window < 0.0f)
+        {
+            float velocity = (factor * above_window) - min_speed;
+            scroll_top += fmaxf(velocity, above_window);
+            set_scroll(item, scroll_top, line_height);
+        }
+        else if(below_window > 0.0f)
+        {
+            float velocity = (factor * below_window) + min_speed;
+            scroll_top += fminf(velocity, below_window);
+            set_scroll(item, scroll_top, line_height);
+        }
+    }
+}
+
+static void update_list_keyboard_input(UiItem* item, UiContext* context)
+{
+    UiList* list = &item->list;
+    int count = list->items_count;
+
+    bool selection_changed = false;
+    bool expand = false;
+
+    if(count > 0)
+    {
+        if(input_get_key_auto_repeated(INPUT_KEY_DOWN_ARROW))
+        {
+            list->selected_item_index = (list->selected_item_index + 1) % count;
+            selection_changed = true;
+        }
+
+        if(input_get_key_auto_repeated(INPUT_KEY_UP_ARROW))
+        {
+            list->selected_item_index = mod(list->selected_item_index - 1, count);
+            selection_changed = true;
+        }
+
+        if(input_get_key_tapped(INPUT_KEY_HOME))
+        {
+            list->selected_item_index = 0;
+            selection_changed = true;
+        }
+
+        if(input_get_key_tapped(INPUT_KEY_END))
+        {
+            list->selected_item_index = count - 1;
+            selection_changed = true;
+        }
+
+        float item_height = list->items_bounds[0].dimensions.y + list->item_spacing;
+        int items_per_page = (int) roundf(item->bounds.dimensions.y / item_height);
+
+        if(input_get_key_tapped(INPUT_KEY_PAGE_UP))
+        {
+            list->selected_item_index = MAX(list->selected_item_index - items_per_page, 0);
+            selection_changed = true;
+        }
+
+        if(input_get_key_tapped(INPUT_KEY_PAGE_DOWN))
+        {
+            list->selected_item_index = MIN(list->selected_item_index + items_per_page, count - 1);
+            selection_changed = true;
+        }
+    }
+
+    if((input_get_key_tapped(INPUT_KEY_SPACE) || input_get_key_tapped(INPUT_KEY_ENTER)) && is_valid_index(list->selected_item_index))
+    {
+        selection_changed = true;
+        expand = true;
+    }
+
+    if(selection_changed)
+    {
+        UiEvent event;
+        event.type = UI_EVENT_TYPE_LIST_SELECTION;
+        event.list_selection.index = list->selected_item_index;
+        event.list_selection.expand = expand;
+        enqueue(&context->queue, event);
+    }
+
+    update_list_scroll(item, context);
+}
+
+static void handle_left_cursor(UiTextInput* text_input, UiTextBlock* text_block, UiContext* context)
+{
+    if(input_get_key_auto_repeated(INPUT_KEY_LEFT_ARROW))
+    {
+        if(input_get_key_modified_by_control(INPUT_KEY_LEFT_ARROW))
+        {
+            text_input->cursor_position = find_prior_beginning_of_word(text_block->text, text_input->cursor_position, context->scratch);
+        }
+        else
+        {
+            text_input->cursor_position = find_prior_beginning_of_grapheme_cluster(text_block->text, text_input->cursor_position, context->scratch);
+        }
+
+        if(!input_get_key_modified_by_shift(INPUT_KEY_LEFT_ARROW))
+        {
+            text_input->selection_start = text_input->cursor_position;
+        }
+    }
+}
+
+static void handle_right_cursor(UiTextInput* text_input, UiTextBlock* text_block, UiContext* context)
+{
+    if(input_get_key_auto_repeated(INPUT_KEY_RIGHT_ARROW))
+    {
+        if(input_get_key_modified_by_control(INPUT_KEY_RIGHT_ARROW))
+        {
+            text_input->cursor_position = find_next_end_of_word(text_block->text, text_input->cursor_position, context->scratch);
+        }
+        else
+        {
+            text_input->cursor_position = find_next_end_of_grapheme_cluster(text_block->text, text_input->cursor_position, context->scratch);
+        }
+
+        if(!input_get_key_modified_by_shift(INPUT_KEY_RIGHT_ARROW))
+        {
+            text_input->selection_start = text_input->cursor_position;
+        }
+    }
+}
+
+static void handle_cursor_up(UiItem* item, float line_height)
+{
+    ASSERT(item->type == UI_ITEM_TYPE_TEXT_INPUT);
+
+    UiTextInput* text_input = &item->text_input;
+    UiTextBlock* text_block = &text_input->text_block;
+
+    if(input_get_key_auto_repeated(INPUT_KEY_UP_ARROW))
+    {
+        Float2 position = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
+        position.y += line_height;
+        int index = find_index_at_position(text_block, item->bounds.dimensions, line_height, position);
+
+        if(index != invalid_index)
+        {
+            text_input->cursor_position = index;
+
+            if(!input_get_key_modified_by_shift(INPUT_KEY_UP_ARROW))
+            {
+                text_input->selection_start = text_input->cursor_position;
+            }
+        }
+    }
+}
+
+static void handle_cursor_down(UiItem* item, float line_height)
+{
+    ASSERT(item->type == UI_ITEM_TYPE_TEXT_INPUT);
+
+    UiTextInput* text_input = &item->text_input;
+    UiTextBlock* text_block = &text_input->text_block;
+
+    if(input_get_key_auto_repeated(INPUT_KEY_DOWN_ARROW))
+    {
+        Float2 position = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
+        position.y -= line_height;
+        int index = find_index_at_position(text_block, item->bounds.dimensions, line_height, position);
+
+        if(index != invalid_index)
+        {
+            text_input->cursor_position = index;
+
+            if(!input_get_key_modified_by_shift(INPUT_KEY_DOWN_ARROW))
+            {
+                text_input->selection_start = text_input->cursor_position;
+            }
+        }
+    }
+}
+
+static void handle_cursor_to_start(UiItem* item)
+{
+    ASSERT(item->type == UI_ITEM_TYPE_TEXT_INPUT);
+
+    UiTextInput* text_input = &item->text_input;
+    UiTextBlock* text_block = &text_input->text_block;
+
+    if(input_get_key_tapped(INPUT_KEY_HOME))
+    {
+        if(input_get_key_modified_by_control(INPUT_KEY_HOME))
+        {
+            text_input->cursor_position = 0;
+        }
+        else
+        {
+            text_input->cursor_position = find_beginning_of_line(text_block, text_input->cursor_position);
+        }
+        if(!input_get_key_modified_by_shift(INPUT_KEY_HOME))
+        {
+            text_input->selection_start = text_input->cursor_position;
+        }
+    }
+}
+
+static void handle_cursor_to_end(UiItem* item)
+{
+    ASSERT(item->type == UI_ITEM_TYPE_TEXT_INPUT);
+
+    UiTextInput* text_input = &item->text_input;
+    UiTextBlock* text_block = &text_input->text_block;
+
+    if(input_get_key_tapped(INPUT_KEY_END))
+    {
+        if(input_get_key_modified_by_control(INPUT_KEY_END))
+        {
+            text_input->cursor_position = string_size(text_block->text);
+        }
+        else
+        {
+            text_input->cursor_position = find_end_of_line(text_block, text_input->cursor_position);
+        }
+        if(!input_get_key_modified_by_shift(INPUT_KEY_END))
+        {
+            text_input->selection_start = text_input->cursor_position;
+        }
+    }
+}
+
+static void handle_delete_after_cursor(UiItem* item, UiContext* context)
+{
+    ASSERT(item->type == UI_ITEM_TYPE_TEXT_INPUT);
+
+    UiTextInput* text_input = &item->text_input;
+    UiTextBlock* text_block = &text_input->text_block;
+
+    if(input_get_key_auto_repeated(INPUT_KEY_DELETE))
+    {
+        int start;
+        int end;
+        if(text_input->cursor_position == text_input->selection_start)
+        {
+            end = text_input->cursor_position;
+            int size = string_size(text_block->text);
+            int next = utf8_skip_to_next_codepoint(text_block->text, size, end + 1);
+            if(next == invalid_index)
+            {
+                start = size;
+            }
+            else
+            {
+                start = next;
+            }
+        }
+        else
+        {
+            start = text_input->selection_start;
+            end = text_input->cursor_position;
+        }
+        remove_substring(text_block->text, start, end);
+        update_removed_glyphs(text_block, item->bounds.dimensions, item->id, context);
+
+        // Set the cursor to the beginning of the selection.
+        int new_position = MIN(start, end);
+        text_input->cursor_position = new_position;
+        text_input->selection_start = new_position;
+    }
+}
+
+static void handle_delete_before_cursor(UiItem* item, UiContext* context)
+{
+    ASSERT(item->type == UI_ITEM_TYPE_TEXT_INPUT);
+
+    UiTextInput* text_input = &item->text_input;
+    UiTextBlock* text_block = &text_input->text_block;
+
+    if(input_get_key_auto_repeated(INPUT_KEY_BACKSPACE))
+    {
+        int start;
+        int end;
+        if(text_input->cursor_position == text_input->selection_start)
+        {
+            end = text_input->cursor_position;
+            int prior = utf8_skip_to_prior_codepoint(text_block->text, end - 1);
+            start = MAX(prior, 0);
+        }
+        else
+        {
+            start = text_input->selection_start;
+            end = text_input->cursor_position;
+        }
+        remove_substring(text_block->text, start, end);
+        update_removed_glyphs(text_block, item->bounds.dimensions, item->id, context);
+
+        // Retreat the cursor or set it to the beginning of the selection.
+        int new_position = MIN(start, end);
+        text_input->cursor_position = new_position;
+        text_input->selection_start = new_position;
+    }
+}
+
+static void handle_select_all(UiItem* item)
+{
+    ASSERT(item->type == UI_ITEM_TYPE_TEXT_INPUT);
+
+    UiTextInput* text_input = &item->text_input;
+    UiTextBlock* text_block = &text_input->text_block;
+
+    if(input_get_hotkey_tapped(INPUT_FUNCTION_SELECT_ALL))
+    {
+        text_input->cursor_position = 0;
+        text_input->selection_start = string_size(text_block->text);
+    }
+}
+
+static void handle_copy(UiItem* item, UiContext* context, Platform* platform)
+{
+    ASSERT(item->type == UI_ITEM_TYPE_TEXT_INPUT);
+
+    UiTextInput* text_input = &item->text_input;
+
+    if(input_get_hotkey_tapped(INPUT_FUNCTION_COPY))
+    {
+        copy_selected_text(text_input, platform, context->heap);
+    }
+}
+
+static void handle_cut(UiItem* item, UiContext* context, Platform* platform)
+{
+    ASSERT(item->type == UI_ITEM_TYPE_TEXT_INPUT);
+
+    UiTextInput* text_input = &item->text_input;
+
+    if(input_get_hotkey_tapped(INPUT_FUNCTION_CUT))
+    {
+        bool copied = copy_selected_text(text_input, platform, context->heap);
+        if(copied)
+        {
+            remove_selected_text(text_input, item->bounds.dimensions, item->id, context, platform);
+        }
+    }
+}
+
+static void handle_paste(Platform* platform)
+{
+    if(input_get_hotkey_tapped(INPUT_FUNCTION_PASTE))
+    {
+        request_paste_from_clipboard(platform);
+    }
+}
+
+static void update_text_input_keyboard_input(UiItem* item, UiContext* context, Platform* platform)
+{
+    UiTextInput* text_input = &item->text_input;
+    UiTextBlock* text_block = &text_input->text_block;
+    float line_height = context->theme.font->line_height;
+
+    char* text_to_add = input_get_composed_text();
+    ui_insert_text(item, text_to_add, context, platform);
+
+    int prior_cursor_position = text_input->cursor_position;
+
+    handle_left_cursor(text_input, text_block, context);
+    handle_right_cursor(text_input, text_block, context);
+    handle_cursor_up(item, line_height);
+    handle_cursor_down(item, line_height);
+    handle_cursor_to_start(item);
+    handle_cursor_to_end(item);
+    handle_delete_after_cursor(item, context);
+    handle_delete_before_cursor(item, context);
+    handle_select_all(item);
+    handle_copy(item, context, platform);
+    handle_cut(item, context, platform);
+    handle_paste(platform);
+
+    if(prior_cursor_position != text_input->cursor_position)
+    {
+        update_cursor_position(text_input, item->bounds, context, platform);
+    }
+}
+
 static void update_keyboard_input(UiItem* item, UiContext* context, Platform* platform)
 {
     switch(item->type)
     {
         case UI_ITEM_TYPE_BUTTON:
         {
-            UiButton* button = &item->button;
-
-            bool activated = input_get_key_tapped(INPUT_KEY_SPACE)
-                    || input_get_key_tapped(INPUT_KEY_ENTER);
-
-            if(activated && button->enabled)
-            {
-                UiEvent event;
-                event.type = UI_EVENT_TYPE_BUTTON;
-                event.button.id = item->id;
-                enqueue(&context->queue, event);
-            }
+            update_button_keyboard_input(item, context);
             break;
         }
         case UI_ITEM_TYPE_CONTAINER:
@@ -2205,105 +2685,7 @@ static void update_keyboard_input(UiItem* item, UiContext* context, Platform* pl
         }
         case UI_ITEM_TYPE_LIST:
         {
-            UiList* list = &item->list;
-            int count = list->items_count;
-
-            bool selection_changed = false;
-            bool expand = false;
-
-            if(count > 0)
-            {
-                if(input_get_key_auto_repeated(INPUT_KEY_DOWN_ARROW))
-                {
-                    list->selected_item_index = (list->selected_item_index + 1) % count;
-                    selection_changed = true;
-                }
-
-                if(input_get_key_auto_repeated(INPUT_KEY_UP_ARROW))
-                {
-                    list->selected_item_index = mod(list->selected_item_index - 1, count);
-                    selection_changed = true;
-                }
-
-                if(input_get_key_tapped(INPUT_KEY_HOME))
-                {
-                    list->selected_item_index = 0;
-                    selection_changed = true;
-                }
-
-                if(input_get_key_tapped(INPUT_KEY_END))
-                {
-                    list->selected_item_index = count - 1;
-                    selection_changed = true;
-                }
-
-                float item_height = list->items_bounds[0].dimensions.y + list->item_spacing;
-                int items_per_page = (int) roundf(item->bounds.dimensions.y / item_height);
-
-                if(input_get_key_tapped(INPUT_KEY_PAGE_UP))
-                {
-                    list->selected_item_index = MAX(list->selected_item_index - items_per_page, 0);
-                    selection_changed = true;
-                }
-
-                if(input_get_key_tapped(INPUT_KEY_PAGE_DOWN))
-                {
-                    list->selected_item_index = MIN(list->selected_item_index + items_per_page, count - 1);
-                    selection_changed = true;
-                }
-            }
-
-            if((input_get_key_tapped(INPUT_KEY_SPACE) || input_get_key_tapped(INPUT_KEY_ENTER)) && is_valid_index(list->selected_item_index))
-            {
-                selection_changed = true;
-                expand = true;
-            }
-
-            if(selection_changed)
-            {
-                UiEvent event;
-                event.type = UI_EVENT_TYPE_LIST_SELECTION;
-                event.list_selection.index = list->selected_item_index;
-                event.list_selection.expand = expand;
-                enqueue(&context->queue, event);
-            }
-
-            if(is_valid_index(list->selected_item_index))
-            {
-                ASSERT(list->items_count > 0);
-
-                int index = list->selected_item_index;
-                float item_height = list->items_bounds[0].dimensions.y + list->item_spacing;
-                float item_top = (item_height * index) + list->item_spacing;
-
-                float page_height = item->bounds.dimensions.y;
-                float scroll_top = list->scroll_top;
-                float from_page_edge = 3.0f * item_height;
-
-                float window_top = scroll_top + from_page_edge;
-                float window_bottom = scroll_top + page_height - from_page_edge;
-
-                float above_window = item_top - window_top;
-                float below_window = item_top - window_bottom;
-
-                const float factor = 0.2f;
-                const float min_speed = 4.0f;
-
-                float line_height = context->theme.font->line_height;
-
-                if(above_window < 0.0f)
-                {
-                    float velocity = (factor * above_window) - min_speed;
-                    scroll_top += fmaxf(velocity, above_window);
-                    set_scroll(item, scroll_top, line_height);
-                }
-                else if(below_window > 0.0f)
-                {
-                    float velocity = (factor * below_window) + min_speed;
-                    scroll_top += fminf(velocity, below_window);
-                    set_scroll(item, scroll_top, line_height);
-                }
-            }
+            update_list_keyboard_input(item, context);
             break;
         }
         case UI_ITEM_TYPE_TEXT_BLOCK:
@@ -2312,206 +2694,7 @@ static void update_keyboard_input(UiItem* item, UiContext* context, Platform* pl
         }
         case UI_ITEM_TYPE_TEXT_INPUT:
         {
-            UiTextInput* text_input = &item->text_input;
-            UiTextBlock* text_block = &text_input->text_block;
-            float line_height = context->theme.font->line_height;
-
-            // Type out any new text.
-            char* text_to_add = input_get_composed_text();
-            ui_insert_text(item, text_to_add, context, platform);
-
-            // Record the cursor position before any movement so that change can
-            // be detected at a single point after any possible cursor moves.
-            int prior_cursor_position = text_input->cursor_position;
-
-            if(input_get_key_auto_repeated(INPUT_KEY_LEFT_ARROW))
-            {
-                if(input_get_key_modified_by_control(INPUT_KEY_LEFT_ARROW))
-                {
-                    text_input->cursor_position = find_prior_beginning_of_word(text_block->text, text_input->cursor_position, context->scratch);
-                }
-                else
-                {
-                    text_input->cursor_position = find_prior_beginning_of_grapheme_cluster(text_block->text, text_input->cursor_position, context->scratch);
-                }
-
-                if(!input_get_key_modified_by_shift(INPUT_KEY_LEFT_ARROW))
-                {
-                    text_input->selection_start = text_input->cursor_position;
-                }
-            }
-
-            if(input_get_key_auto_repeated(INPUT_KEY_RIGHT_ARROW))
-            {
-                if(input_get_key_modified_by_control(INPUT_KEY_RIGHT_ARROW))
-                {
-                    text_input->cursor_position = find_next_end_of_word(text_block->text, text_input->cursor_position, context->scratch);
-                }
-                else
-                {
-                    text_input->cursor_position = find_next_end_of_grapheme_cluster(text_block->text, text_input->cursor_position, context->scratch);
-                }
-
-                if(!input_get_key_modified_by_shift(INPUT_KEY_RIGHT_ARROW))
-                {
-                    text_input->selection_start = text_input->cursor_position;
-                }
-            }
-
-            if(input_get_key_auto_repeated(INPUT_KEY_UP_ARROW))
-            {
-                Float2 position = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
-                position.y += line_height;
-                int index = find_index_at_position(text_block, item->bounds.dimensions, line_height, position);
-
-                if(index != invalid_index)
-                {
-                    text_input->cursor_position = index;
-
-                    if(!input_get_key_modified_by_shift(INPUT_KEY_UP_ARROW))
-                    {
-                        text_input->selection_start = text_input->cursor_position;
-                    }
-                }
-            }
-
-            if(input_get_key_auto_repeated(INPUT_KEY_DOWN_ARROW))
-            {
-                Float2 position = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
-                position.y -= line_height;
-                int index = find_index_at_position(text_block, item->bounds.dimensions, line_height, position);
-
-                if(index != invalid_index)
-                {
-                    text_input->cursor_position = index;
-
-                    if(!input_get_key_modified_by_shift(INPUT_KEY_DOWN_ARROW))
-                    {
-                        text_input->selection_start = text_input->cursor_position;
-                    }
-                }
-            }
-
-            if(input_get_key_tapped(INPUT_KEY_HOME))
-            {
-                if(input_get_key_modified_by_control(INPUT_KEY_HOME))
-                {
-                    text_input->cursor_position = 0;
-                }
-                else
-                {
-                    text_input->cursor_position = find_beginning_of_line(text_block, text_input->cursor_position);
-                }
-                if(!input_get_key_modified_by_shift(INPUT_KEY_HOME))
-                {
-                    text_input->selection_start = text_input->cursor_position;
-                }
-            }
-
-            if(input_get_key_tapped(INPUT_KEY_END))
-            {
-                if(input_get_key_modified_by_control(INPUT_KEY_END))
-                {
-                    text_input->cursor_position = string_size(text_block->text);
-                }
-                else
-                {
-                    text_input->cursor_position = find_end_of_line(text_block, text_input->cursor_position);
-                }
-                if(!input_get_key_modified_by_shift(INPUT_KEY_END))
-                {
-                    text_input->selection_start = text_input->cursor_position;
-                }
-            }
-
-            if(input_get_key_auto_repeated(INPUT_KEY_DELETE))
-            {
-                int start;
-                int end;
-                if(text_input->cursor_position == text_input->selection_start)
-                {
-                    end = text_input->cursor_position;
-                    int size = string_size(text_block->text);
-                    int next = utf8_skip_to_next_codepoint(text_block->text, size, end + 1);
-                    if(next == invalid_index)
-                    {
-                        start = size;
-                    }
-                    else
-                    {
-                        start = next;
-                    }
-                }
-                else
-                {
-                    start = text_input->selection_start;
-                    end = text_input->cursor_position;
-                }
-                remove_substring(text_block->text, start, end);
-                update_removed_glyphs(text_block, item->bounds.dimensions, item->id, context);
-
-                // Set the cursor to the beginning of the selection.
-                int new_position = MIN(start, end);
-                text_input->cursor_position = new_position;
-                text_input->selection_start = new_position;
-            }
-
-            if(input_get_key_auto_repeated(INPUT_KEY_BACKSPACE))
-            {
-                int start;
-                int end;
-                if(text_input->cursor_position == text_input->selection_start)
-                {
-                    end = text_input->cursor_position;
-                    int prior = utf8_skip_to_prior_codepoint(text_block->text, end - 1);
-                    start = MAX(prior, 0);
-                }
-                else
-                {
-                    start = text_input->selection_start;
-                    end = text_input->cursor_position;
-                }
-                remove_substring(text_block->text, start, end);
-                update_removed_glyphs(text_block, item->bounds.dimensions, item->id, context);
-
-                // Retreat the cursor or set it to the beginning of the selection.
-                int new_position = MIN(start, end);
-                text_input->cursor_position = new_position;
-                text_input->selection_start = new_position;
-            }
-
-            if(input_get_hotkey_tapped(INPUT_FUNCTION_SELECT_ALL))
-            {
-                text_input->cursor_position = 0;
-                text_input->selection_start = string_size(text_block->text);
-            }
-
-            if(input_get_hotkey_tapped(INPUT_FUNCTION_COPY))
-            {
-                copy_selected_text(text_input, platform, context->heap);
-            }
-
-            if(input_get_hotkey_tapped(INPUT_FUNCTION_CUT))
-            {
-                bool copied = copy_selected_text(text_input, platform, context->heap);
-                if(copied)
-                {
-                    remove_selected_text(text_input, item->bounds.dimensions, item->id, context, platform);
-                }
-            }
-
-            if(input_get_hotkey_tapped(INPUT_FUNCTION_PASTE))
-            {
-                request_paste_from_clipboard(platform);
-            }
-
-            // Update the input method with the current cursor position if it's
-            // been moved.
-            if(prior_cursor_position != text_input->cursor_position)
-            {
-                update_cursor_position(text_input, item->bounds, context, platform);
-            }
-
+            update_text_input_keyboard_input(item, context, platform);
             break;
         }
     }
@@ -2618,20 +2801,84 @@ static void update_non_item_specific_keyboard_input(UiContext* context)
     }
 }
 
+static void update_button_pointer_input(UiItem* item, UiContext* context)
+{
+    ASSERT(item->type == UI_ITEM_TYPE_BUTTON);
+
+    UiButton* button = &item->button;
+
+    if(button->hovered && input_get_mouse_clicked(MOUSE_BUTTON_LEFT) && button->enabled)
+    {
+        UiEvent event;
+        event.type = UI_EVENT_TYPE_BUTTON;
+        event.button.id = item->id;
+        enqueue(&context->queue, event);
+    }
+}
+
+static void update_list_pointer_input(UiItem* item, UiContext* context)
+{
+    ASSERT(item->type == UI_ITEM_TYPE_LIST);
+
+    UiList* list = &item->list;
+
+    float line_height = context->theme.font->line_height;
+
+    Int2 velocity = input_get_mouse_scroll_velocity();
+    const float speed = 0.17f;
+    scroll(item, speed * velocity.y, line_height);
+
+    if(is_valid_index(list->hovered_item_index) && input_get_mouse_clicked(MOUSE_BUTTON_LEFT))
+    {
+        list->selected_item_index = list->hovered_item_index;
+
+        UiEvent event;
+        event.type = UI_EVENT_TYPE_LIST_SELECTION;
+        event.list_selection.index = list->selected_item_index;
+        event.list_selection.expand = true;
+        enqueue(&context->queue, event);
+    }
+}
+
+static void update_text_input_pointer_input(UiItem* item, UiContext* context)
+{
+    ASSERT(item->type == UI_ITEM_TYPE_TEXT_INPUT);
+
+    UiTextInput* text_input = &item->text_input;
+    UiTextBlock* text_block = &text_input->text_block;
+    float line_height = context->theme.font->line_height;
+
+    bool clicked = input_get_mouse_clicked(MOUSE_BUTTON_LEFT);
+    bool dragged = !clicked && input_get_mouse_pressed(MOUSE_BUTTON_LEFT);
+    if(clicked || dragged)
+    {
+        Float2 mouse_position;
+        Int2 position = input_get_mouse_position();
+        mouse_position.x = position.x - context->viewport.x / 2.0f;
+        mouse_position.y = -(position.y - context->viewport.y / 2.0f);
+
+        Float2 top_left = rect_top_left(item->bounds);
+        mouse_position = float2_subtract(mouse_position, top_left);
+
+        int index = find_index_at_position(text_block, item->bounds.dimensions, line_height, mouse_position);
+        if(index != invalid_index)
+        {
+            text_input->cursor_position = index;
+            if(clicked)
+            {
+                text_input->selection_start = index;
+            }
+        }
+    }
+}
+
 static void update_pointer_input(UiItem* item, UiContext* context, Platform* platform)
 {
     switch(item->type)
     {
         case UI_ITEM_TYPE_BUTTON:
         {
-            UiButton* button = &item->button;
-            if(button->hovered && input_get_mouse_clicked(MOUSE_BUTTON_LEFT) && button->enabled)
-            {
-                UiEvent event;
-                event.type = UI_EVENT_TYPE_BUTTON;
-                event.button.id = item->id;
-                enqueue(&context->queue, event);
-            }
+            update_button_pointer_input(item, context);
             break;
         }
         case UI_ITEM_TYPE_CONTAINER:
@@ -2645,24 +2892,7 @@ static void update_pointer_input(UiItem* item, UiContext* context, Platform* pla
         }
         case UI_ITEM_TYPE_LIST:
         {
-            UiList* list = &item->list;
-
-            float line_height = context->theme.font->line_height;
-
-            Int2 velocity = input_get_mouse_scroll_velocity();
-            const float speed = 0.17f;
-            scroll(item, speed * velocity.y, line_height);
-
-            if(is_valid_index(list->hovered_item_index) && input_get_mouse_clicked(MOUSE_BUTTON_LEFT))
-            {
-                list->selected_item_index = list->hovered_item_index;
-
-                UiEvent event;
-                event.type = UI_EVENT_TYPE_LIST_SELECTION;
-                event.list_selection.index = list->selected_item_index;
-                event.list_selection.expand = true;
-                enqueue(&context->queue, event);
-            }
+            update_list_pointer_input(item, context);
             break;
         }
         case UI_ITEM_TYPE_TEXT_BLOCK:
@@ -2671,32 +2901,7 @@ static void update_pointer_input(UiItem* item, UiContext* context, Platform* pla
         }
         case UI_ITEM_TYPE_TEXT_INPUT:
         {
-            UiTextInput* text_input = &item->text_input;
-            UiTextBlock* text_block = &text_input->text_block;
-            float line_height = context->theme.font->line_height;
-
-            bool clicked = input_get_mouse_clicked(MOUSE_BUTTON_LEFT);
-            bool dragged = !clicked && input_get_mouse_pressed(MOUSE_BUTTON_LEFT);
-            if(clicked || dragged)
-            {
-                Float2 mouse_position;
-                Int2 position = input_get_mouse_position();
-                mouse_position.x = position.x - context->viewport.x / 2.0f;
-                mouse_position.y = -(position.y - context->viewport.y / 2.0f);
-
-                Float2 top_left = rect_top_left(item->bounds);
-                mouse_position = float2_subtract(mouse_position, top_left);
-
-                int index = find_index_at_position(text_block, item->bounds.dimensions, line_height, mouse_position);
-                if(index != invalid_index)
-                {
-                    text_input->cursor_position = index;
-                    if(clicked)
-                    {
-                        text_input->selection_start = index;
-                    }
-                }
-            }
+            update_text_input_pointer_input(item, context);
             break;
         }
     }
