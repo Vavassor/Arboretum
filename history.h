@@ -2,6 +2,7 @@
 #define HISTORY_H_
 
 #include "editor.h"
+#include "log.h"
 #include "memory.h"
 #include "object.h"
 #include "vector_math.h"
@@ -62,7 +63,7 @@ Change* history_get(History* history, int index);
 void history_set_index(History* history, int index);
 void history_step(History* history, int step);
 Change* history_find_past_change(History* history);
-void history_log(History* history);
+void history_log(History* history, Log* logger);
 
 void add_object_to_history(History* history, struct Object* object, Heap* heap);
 void undo(History* history, struct ObjectLady* lady, VideoContext* context, Heap* heap, Editor* editor, Platform* platform);

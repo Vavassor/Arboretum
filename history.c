@@ -3,7 +3,6 @@
 #include "array2.h"
 #include "assert.h"
 #include "int_utilities.h"
-#include "logging.h"
 #include "memory.h"
 #include "object_lady.h"
 
@@ -177,7 +176,7 @@ Change* history_find_past_change(History* history)
     return NULL;
 }
 
-void history_log(History* history)
+void history_log(History* history, Log* logger)
 {
     for(int i = history->tail; i != history->head; i = (i + 1) % history->changes_cap)
     {
@@ -196,22 +195,22 @@ void history_log(History* history)
             }
             case CHANGE_TYPE_CREATE_OBJECT:
             {
-                LOG_DEBUG("Create_Object object = %u%s", change.create_object.object_id, pointer);
+                log_debug(logger, "Create_Object object = %u%s", change.create_object.object_id, pointer);
                 break;
             }
             case CHANGE_TYPE_DELETE_OBJECT:
             {
-                LOG_DEBUG("Delete_Object object = %u%s", change.delete_object.object_id, pointer);
+                log_debug(logger, "Delete_Object object = %u%s", change.delete_object.object_id, pointer);
                 break;
             }
             case CHANGE_TYPE_MOVE:
             {
-                LOG_DEBUG("Move object = %u position = <%f, %f, %f>%s", change.move.object_id, change.move.position.x, change.move.position.y, change.move.position.z, pointer);
+                log_debug(logger, "Move object = %u position = <%f, %f, %f>%s", change.move.object_id, change.move.position.x, change.move.position.y, change.move.position.z, pointer);
                 break;
             }
         }
     }
-    LOG_DEBUG("");
+    log_debug(logger, "");
 }
 
 void add_object_to_history(History* history, Object* object, Heap* heap)

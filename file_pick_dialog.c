@@ -3,7 +3,6 @@
 #include "array2.h"
 #include "assert.h"
 #include "colours.h"
-#include "logging.h"
 #include "obj.h"
 #include "platform.h"
 #include "sorting.h"
@@ -69,7 +68,6 @@ static void list_directory(FilePickDialog* dialog, const char* directory, UiCont
     bool listed = list_files_in_directory(directory, &new_directory, heap);
     if(!listed)
     {
-        LOG_ERROR("Failed to open the directory %s.", directory);
         destroy_directory(&new_directory, heap);
         return;
     }
@@ -397,8 +395,8 @@ static void export_file(FilePickDialog* dialog, const char* name, ObjectLady* la
 
     if(!saved)
     {
-        // TODO: Report this to the user, not the log!
-        LOG_DEBUG("Failed to save the file %s as an .obj.", name);
+        // TODO: Report this to the user.
+        ASSERT(false);
     }
     else
     {
@@ -415,8 +413,8 @@ static void import_file(FilePickDialog* dialog, const char* name, ObjectLady* la
 
     if(!loaded)
     {
-        // TODO: Report this to the user, not the log!
-        LOG_DEBUG("Failed to load the file %s as an .obj.", name);
+        // TODO: Report this to the user!
+        ASSERT(false);
     }
     else
     {

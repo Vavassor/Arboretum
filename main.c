@@ -19,7 +19,7 @@
 #include "glx_extensions.h"
 #include "input.h"
 #include "int_utilities.h"
-#include "logging.h"
+#include "log.h"
 #include "platform.h"
 #include "string_utilities.h"
 #include "unicode_load_tables.h"
@@ -173,7 +173,7 @@ bool copy_to_clipboard(Platform* base, char* clipboard)
         Window owner = XGetSelectionOwner(platform->display, platform->clipboard_manager);
         if(owner == X11_NONE)
         {
-            LOG_ERROR("There's no clipboard manager.");
+            log_error(&base->logger, "There's no clipboard manager.");
             return true;
         }
 
@@ -409,7 +409,7 @@ static void destroy_input_method(XIM input_method, XPointer client_data, XPointe
     platform->input_method = NULL;
     platform->input_method_connected = false;
 
-    LOG_ERROR("Input method closed unexpectedly.");
+    log_error(&platform->base.logger, "Input method closed unexpectedly.");
 }
 
 static void instantiate_input_method(Display* display, XPointer client_data, XPointer call_data)
@@ -438,7 +438,7 @@ static void instantiate_input_method(Display* display, XPointer client_data, XPo
     platform->input_method = XOpenIM(display, NULL, NULL, NULL);
     if(!platform->input_method)
     {
-        LOG_ERROR("X Input Method failed to open.");
+        log_error(&platform->base.logger, "X Input Method failed to open.");
         return;
     }
 
@@ -450,7 +450,7 @@ static void instantiate_input_method(Display* display, XPointer client_data, XPo
     platform->font_set = XCreateFontSet(display, font_names, &missing_charsets, &num_missing_charsets, &default_string);
     if(!platform->font_set)
     {
-        LOG_ERROR("Failed to make a font set.");
+        log_error(&platform->base.logger, "Failed to make a font set.");
         return;
     }
 
@@ -470,7 +470,7 @@ static void instantiate_input_method(Display* display, XPointer client_data, XPo
     XFree(input_method_styles);
     if(!best_style)
     {
-        LOG_ERROR("None of the input styles were supported.");
+        log_error(&platform->base.logger, "None of the input styles were supported.");
         return;
     }
 
@@ -484,7 +484,7 @@ static void instantiate_input_method(Display* display, XPointer client_data, XPo
     XFree(list);
     if(!platform->input_context)
     {
-        LOG_ERROR("X Input Context failed to open.");
+        log_error(&platform->base.logger, "X Input Context failed to open.");
         return;
     }
 
@@ -561,7 +561,7 @@ bool main_start_up()
     char* locale = setlocale(LC_ALL, "");
     if(!locale)
     {
-        LOG_ERROR("Failed to set the locale.");
+        log_error(&platform.base.logger, "Failed to set the locale.");
         return false;
     }
 
@@ -569,7 +569,7 @@ bool main_start_up()
     platform.display = XOpenDisplay(NULL);
     if(!platform.display)
     {
-        LOG_ERROR("X Display failed to open.");
+        log_error(&platform.base.logger, "X Display failed to open.");
         return false;
     }
     platform.screen = DefaultScreen(platform.display);
@@ -578,13 +578,13 @@ bool main_start_up()
     Bool locale_supported = XSupportsLocale();
     if(!locale_supported)
     {
-        LOG_ERROR("X does not support locale %s.", locale);
+        log_error(&platform.base.logger, "X does not support locale %s.", locale);
         return false;
     }
     char* locale_modifiers = XSetLocaleModifiers("");
     if(!locale_modifiers)
     {
-        LOG_ERROR("Failed to set locale modifiers.");
+        log_error(&platform.base.logger, "Failed to set locale modifiers.");
         return false;
     }
 
@@ -598,7 +598,7 @@ bool main_start_up()
             text_locale = getenv("LANG");
             if(!text_locale)
             {
-                LOG_ERROR("Failed to determine the text locale.");
+                log_error(&platform.base.logger, "Failed to determine the text locale.");
                 return false;
             }
         }
@@ -609,7 +609,7 @@ bool main_start_up()
     bool loaded = load_localized_text(&platform.base);
     if(!loaded)
     {
-        LOG_ERROR("Failed to load the localized text.");
+        log_error(&platform.base.logger, "Failed to load the localized text.");
         return false;
     }
 
@@ -634,7 +634,7 @@ bool main_start_up()
     GLXFBConfig* framebuffer_configs = glXChooseFBConfig(platform.display, platform.screen, visual_attributes, &config_count);
 	if(!framebuffer_configs)
 	{
-		LOG_ERROR("Failed to retrieve a framebuffer configuration.");
+	    log_error(&platform.base.logger, "Failed to retrieve a framebuffer configuration.");
 		return false;
 	}
 
@@ -672,7 +672,7 @@ bool main_start_up()
     platform.visual_info = glXGetVisualFromFBConfig(platform.display, chosen_framebuffer_config);
     if(!platform.visual_info)
     {
-        LOG_ERROR("Wasn't able to choose an appropriate Visual type given the requested attributes. [The Visual type contains information on color mappings for the display hardware]");
+        log_error(&platform.base.logger, "Wasn't able to choose an appropriate Visual type given the requested attributes. [The Visual type contains information on color mappings for the display hardware]");
         return false;
     }
 
@@ -736,7 +736,7 @@ bool main_start_up()
 	glXCreateContextAttribsARB = (glXCreateContextAttribsARBProc) glXGetProcAddressARB((const GLubyte*) "glXCreateContextAttribsARB");
 	if(!glXCreateContextAttribsARB)
 	{
-		LOG_ERROR("Couldn't load glXCreateContextAttribsARB.");
+	    log_error(&platform.base.logger, "Couldn't load glXCreateContextAttribsARB.");
 		return false;
 	}
 
@@ -751,7 +751,7 @@ bool main_start_up()
     rendering_context = glXCreateContextAttribsARB(platform.display, chosen_framebuffer_config, NULL, True, context_attributes);
     if(!rendering_context)
     {
-        LOG_ERROR("Couldn't create a GLX rendering context.");
+        log_error(&platform.base.logger, "Couldn't create a GLX rendering context.");
         return false;
     }
 
@@ -760,14 +760,14 @@ bool main_start_up()
     Bool made_current = glXMakeCurrent(platform.display, platform.window, rendering_context);
     if(!made_current)
     {
-        LOG_ERROR("Failed to attach the GLX context to the platform.");
+        log_error(&platform.base.logger, "Failed to attach the GLX context to the platform.");
         return false;
     }
 
     functions_loaded = ogl_LoadFunctions();
     if(!functions_loaded)
     {
-        LOG_ERROR("OpenGL functions could not be loaded!");
+        log_error(&platform.base.logger, "OpenGL functions could not be loaded!");
         return false;
     }
 
@@ -776,7 +776,7 @@ bool main_start_up()
     bool started = editor_start_up(&platform.base);
     if(!started)
     {
-        LOG_ERROR("Editor failed startup.");
+        log_error(&platform.base.logger, "Editor failed startup.");
         return false;
     }
     double dpmm = get_dots_per_millimeter(&platform);
@@ -872,7 +872,7 @@ static void handle_selection_notify(XEvent* event)
         Atom incr = XInternAtom(platform.display, "INCR", False);
         if(type == incr)
         {
-            LOG_ERROR("Clipboard does not support incremental transfers (INCR).");
+            log_error(&platform.base.logger, "Clipboard does not support incremental transfers (INCR).");
         }
         else
         {
@@ -1431,7 +1431,7 @@ void request_paste_from_clipboard(Platform* base)
     BOOL has_utf16 = IsClipboardFormatAvailable(CF_UNICODETEXT);
     if(!has_utf16)
     {
-        LOG_ERROR("Paste format UTF-16 was not available.");
+        log_error(&base->logger, "Paste format UTF-16 was not available.");
         return;
     }
 
@@ -1466,7 +1466,7 @@ void request_paste_from_clipboard(Platform* base)
     }
     else
     {
-        LOG_ERROR("Paste failed.");
+        log_error(&base->logger, "Paste failed.");
     }
 }
 
@@ -1672,7 +1672,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
                 HIMC context = ImmGetContext(hwnd);
                 if(!context)
                 {
-                    LOG_ERROR("Failed to get the input method context.");
+                    log_error(&platform.base.logger, "Failed to get the input method context.");
                     break;
                 }
 
@@ -1865,7 +1865,7 @@ static bool main_start_up(HINSTANCE instance, int show_command)
     bool loaded = load_localized_text(&platform.base);
     if(!loaded)
     {
-        LOG_ERROR("Failed to load the localized text.");
+        log_error(&platform.base.logger, "Failed to load the localized text.");
         return false;
     }
     load_cursors(&platform);
@@ -1882,7 +1882,7 @@ static bool main_start_up(HINSTANCE instance, int show_command)
     ATOM registered_class = RegisterClassExW(&window_class);
     if(registered_class == 0)
     {
-        LOG_ERROR("Failed to register the window class.");
+        log_error(&platform.base.logger, "Failed to register the window class.");
         return false;
     }
 
@@ -1893,14 +1893,14 @@ static bool main_start_up(HINSTANCE instance, int show_command)
     STACK_DEALLOCATE(&platform.base.stack, title);
     if(!platform.window)
     {
-        LOG_ERROR("Failed to create the window.");
+        log_error(&platform.base.logger, "Failed to create the window.");
         return false;
     }
 
     platform.device_context = GetDC(platform.window);
     if(!platform.device_context)
     {
-        LOG_ERROR("Couldn't obtain the device context.");
+        log_error(&platform.base.logger, "Couldn't obtain the device context.");
         return false;
     }
 
@@ -1916,19 +1916,19 @@ static bool main_start_up(HINSTANCE instance, int show_command)
     int format_index = ChoosePixelFormat(platform.device_context, &descriptor);
     if(format_index == 0)
     {
-        LOG_ERROR("Failed to set up the pixel format.");
+        log_error(&platform.base.logger, "Failed to set up the pixel format.");
         return false;
     }
     if(SetPixelFormat(platform.device_context, format_index, &descriptor) == FALSE)
     {
-        LOG_ERROR("Failed to set up the pixel format.");
+        log_error(&platform.base.logger, "Failed to set up the pixel format.");
         return false;
     }
 
     rendering_context = wglCreateContext(platform.device_context);
     if(!rendering_context)
     {
-        LOG_ERROR("Couldn't create the rendering context.");
+        log_error(&platform.base.logger, "Couldn't create the rendering context.");
         return false;
     }
 
@@ -1937,14 +1937,14 @@ static bool main_start_up(HINSTANCE instance, int show_command)
     // Set it to be this thread's rendering context.
     if(wglMakeCurrent(platform.device_context, rendering_context) == FALSE)
     {
-        LOG_ERROR("Couldn't set this thread's rendering context (wglMakeCurrent failed).");
+        log_error(&platform.base.logger, "Couldn't set this thread's rendering context (wglMakeCurrent failed).");
         return false;
     }
 
     functions_loaded = ogl_LoadFunctions();
     if(!functions_loaded)
     {
-        LOG_ERROR("OpenGL functions could not be loaded!");
+        log_error(&platform.base.logger, "OpenGL functions could not be loaded!");
         return false;
     }
 
@@ -1953,14 +1953,14 @@ static bool main_start_up(HINSTANCE instance, int show_command)
     bool started = video_system_start_up();
     if(!started)
     {
-        LOG_ERROR("Video system failed startup.");
+        log_error(&platform.base.logger, "Video system failed startup.");
         return false;
     }
 
     started = editor_start_up(&platform.base);
     if(!started)
     {
-        LOG_ERROR("Editor failed startup.");
+        log_error(&platform.base.logger, "Editor failed startup.");
         return false;
     }
 

@@ -7,7 +7,6 @@
 #include "float_utilities.h"
 #include "input.h"
 #include "int_utilities.h"
-#include "logging.h"
 #include "math_basics.h"
 #include "memory.h"
 #include "platform.h"

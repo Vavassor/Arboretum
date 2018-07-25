@@ -18,7 +18,6 @@
 #include "intersection.h"
 #include "jan.h"
 #include "log.h"
-#include "logging.h"
 #include "map.h"
 #include "math_basics.h"
 #include "obj.h"

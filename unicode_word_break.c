@@ -1,7 +1,6 @@
 #include "unicode_word_break.h"
 
 #include "assert.h"
-#include "logging.h"
 #include "memory.h"
 #include "string_utilities.h"
 #include "unicode.h"

@@ -15,7 +15,6 @@
 #include "int_utilities.h"
 #include "jan_validate.h"
 #include "log.h"
-#include "logging.h"
 #include "math_basics.h"
 #include "tools.h"
 #include "obj.h"
@@ -24,6 +23,7 @@
 #include "string_build.h"
 #include "string_utilities.h"
 #include "ui.h"
+#include "unicode_load_tables.h"
 #include "vector_math.h"
 
 typedef enum Mode

@@ -1,6 +1,7 @@
 #ifndef PLATFORM_H_
 #define PLATFORM_H_
 
+#include "log.h"
 #include "memory.h"
 
 typedef enum CursorType
@@ -38,6 +39,7 @@ typedef struct Platform
     } nonlocalized_text;
 
     Stack stack;
+    Log logger;
 
     LocaleId locale_id;
 } Platform;

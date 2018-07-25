@@ -6,7 +6,6 @@
 #include "int_utilities.h"
 #include "invalid_index.h"
 #include "jan_internal.h"
-#include "logging.h"
 #include "map.h"
 #include "math_basics.h"
 #include "sorting.h"
