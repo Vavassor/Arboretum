@@ -22,6 +22,7 @@
 #include "logging.h"
 #include "platform.h"
 #include "string_utilities.h"
+#include "unicode_load_tables.h"
 #include "video.h"
 
 #include <limits.h>

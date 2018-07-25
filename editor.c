@@ -1190,6 +1190,8 @@ bool editor_start_up(Platform* platform)
     stack_create(stack, (uint32_t) uptibytes(1));
     heap_create(heap, (uint32_t) uptibytes(1));
 
+    unicode_load_tables(heap, stack);
+
     editor->video_context = video_create_context(heap);
 
     editor->hovered_object_index = invalid_index;
@@ -1329,6 +1331,8 @@ void editor_shut_down(bool functions_loaded)
     history_destroy(&editor->history, heap);
 
     video_destroy_context(editor->video_context, heap, functions_loaded);
+
+    unicode_unload_tables(heap);
 
     stack_destroy(&editor->scratch);
     heap_destroy(heap);

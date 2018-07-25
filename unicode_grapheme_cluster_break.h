@@ -6,7 +6,7 @@
 #include <uchar.h>
 
 // These values must match the generated table in
-// unicode_grapheme_cluster_break.cpp.
+// grapheme_cluster_break_stage2.bin.
 typedef enum GraphemeClusterBreak
 {
     GRAPHEME_CLUSTER_BREAK_OTHER = 0,
@@ -29,6 +29,8 @@ typedef enum GraphemeClusterBreak
     GRAPHEME_CLUSTER_BREAK_EMOJI_BASE_GAZ = 17, // Emoji Base Glue After Zero-Width Joiner
 } GraphemeClusterBreak;
 
+void set_grapheme_cluster_break_tables(uint8_t* stage1, uint8_t* stage2);
+void destroy_grapheme_cluster_break_tables(Heap* heap);
 GraphemeClusterBreak get_grapheme_cluster_break(char32_t c);
 int find_prior_beginning_of_grapheme_cluster(const char* text, int start_index, Stack* stack);
 int find_next_end_of_grapheme_cluster(const char* text, int start_index, Stack* stack);

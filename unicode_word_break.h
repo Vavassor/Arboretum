@@ -32,6 +32,8 @@ typedef enum WordBreak
     WORD_BREAK_EMOJI_BASE_GAZ = 21, // Emoji Base Glue After Zero-Width Joiner
 } WordBreak;
 
+void set_word_break_tables(uint8_t* stage1, uint8_t* stage2);
+void destroy_word_break_tables(Heap* heap);
 WordBreak get_word_break(char32_t c);
 int find_prior_beginning_of_word(const char* text, int start_index, Stack* stack);
 int find_next_end_of_word(const char* text, int start_index, Stack* stack);
