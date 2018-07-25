@@ -30,6 +30,7 @@
 #include "vector_math.h"
 #include "vertex_layout.h"
 #include "video_object.h"
+#include "video_ui.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"

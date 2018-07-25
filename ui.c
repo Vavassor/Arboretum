@@ -1,15 +1,15 @@
 #include "ui.h"
+#include "ui_internal.h"
 
 #include "array2.h"
 #include "assert.h"
 #include "colours.h"
 #include "float_utilities.h"
-#include "immediate.h"
 #include "input.h"
 #include "int_utilities.h"
 #include "logging.h"
-#include "memory.h"
 #include "math_basics.h"
+#include "memory.h"
 #include "platform.h"
 #include "string_build.h"
 #include "string_utilities.h"
@@ -147,35 +147,6 @@ static UiId generate_id(UiContext* context)
     return id;
 }
 
-static bool in_focus_scope(UiItem* outer, UiItem* item)
-{
-    if(outer->id == item->id)
-    {
-        return true;
-    }
-
-    UiContainer* container = &outer->container;
-
-    for(int i = 0; i < container->items_count; i += 1)
-    {
-        UiItem* inside = &container->items[i];
-        if(inside->id == item->id)
-        {
-            return true;
-        }
-        if(inside->type == UI_ITEM_TYPE_CONTAINER)
-        {
-            bool in_scope = in_focus_scope(inside, item);
-            if(in_scope)
-            {
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
 static UiId get_focus_scope(UiContext* context, UiItem* item)
 {
     if(!item)
@@ -186,7 +157,7 @@ static UiId get_focus_scope(UiContext* context, UiItem* item)
     FOR_ALL(UiItem*, context->toplevel_containers)
     {
         UiItem* toplevel = *it;
-        bool within = in_focus_scope(toplevel, item);
+        bool within = ui_in_focus_scope(toplevel, item);
         if(within)
         {
             return toplevel->id;
@@ -273,7 +244,7 @@ UiItem* ui_create_toplevel_container(UiContext* context, Heap* heap)
 void ui_destroy_toplevel_container(UiContext* context, UiItem* item, Heap* heap)
 {
     // If the container is currently focused, make sure it becomes unfocused.
-    if(context->focused_item && in_focus_scope(item, context->focused_item))
+    if(context->focused_item && ui_in_focus_scope(item, context->focused_item))
     {
         ui_focus_on_item(context, NULL);
     }
@@ -376,7 +347,7 @@ void ui_set_text(UiTextBlock* text_block, const char* text, Heap* heap)
     // @Incomplete: There isn't a one-to-one mapping between chars and glyphs.
     // UiGlyph count should be based on the mapping of the given text in a
     // particular font instead of the size in bytes.
-    int size = MAX(string_size(text), 1);
+    int size = imax(string_size(text), 1);
     text_block->glyphs = HEAP_REALLOCATE(heap, text_block->glyphs, UiGlyph, size);
     text_block->glyphs_cap = size;
     map_create(&text_block->glyph_map, size, heap);
@@ -401,13 +372,6 @@ static float padding_along_axis(UiPadding padding, int axis)
     return padding.e[axis] + padding.e[axis + 2];
 }
 
-static float get_list_item_height(UiList* list, UiTextBlock* text_block, float line_height)
-{
-    float spacing = list->item_spacing;
-    UiPadding padding = text_block->padding;
-    return padding.top + line_height + padding.bottom + spacing;
-}
-
 static float get_scroll_bottom(UiItem* item, float line_height)
 {
     float inner_height = item->bounds.dimensions.y;
@@ -416,7 +380,7 @@ static float get_scroll_bottom(UiItem* item, float line_height)
     if(list->items_count > 0)
     {
         float lines = (float) list->items_count;
-        content_height = lines * get_list_item_height(list, &list->items[0], line_height);
+        content_height = lines * ui_get_list_item_height(list, &list->items[0], line_height);
     }
     return fmaxf(content_height - inner_height, 0.0f);
 }
@@ -464,7 +428,7 @@ static Float2 measure_ideal_dimensions_text_block(UiTextBlock* text_block, UiCon
 
     Float2 texture_dimensions;
     texture_dimensions.x = (float) font->image_width;
-    texture_dimensions.y = (float)font->image_height;
+    texture_dimensions.y = (float) font->image_height;
 
     text_block->glyphs_count = 0;
     map_clear(&text_block->glyph_map);
@@ -1308,6 +1272,55 @@ static void place_items_along_cross_axis(UiItem* item, Rect space)
     }
 }
 
+static void place_glyphs(UiTextBlock* text_block, Float2 bounds, UiContext* context)
+{
+    measure_bound_dimensions_text_block(text_block, bounds, context);
+}
+
+static void place_list_items(UiItem* item, UiContext* context)
+{
+    UiList* list = &item->list;
+
+    if(list->items_count > 0)
+    {
+        float line_height = context->theme.font->line_height;
+
+        float item_height = ui_get_list_item_height(list, &list->items[0], line_height);
+        Float2 top_left = rect_top_left(item->bounds);
+
+        Rect place;
+        place.bottom_left.x = list->side_margin + top_left.x;
+        place.bottom_left.y = -item_height + top_left.y;
+        place.dimensions.x = item->bounds.dimensions.x - (2.0f * list->side_margin);
+        place.dimensions.y = item_height - list->item_spacing;
+
+        for(int i = 0; i < list->items_count; i += 1)
+        {
+            list->items_bounds[i] = place;
+            place.bottom_left.y -= place.dimensions.y + list->item_spacing;
+            place_glyphs(&list->items[i], list->items_bounds[i].dimensions, context);
+        }
+    }
+}
+
+static void place_scroll_area_items(UiItem* item, UiContext* context)
+{
+    UiContainer* container = &item->container;
+
+    for(int i = 0; i < container->items_count; i += 1)
+    {
+        UiItem* next = &container->items[i];
+        if(next->type == UI_ITEM_TYPE_LIST)
+        {
+            place_list_items(next, context);
+        }
+        else if(next->type == UI_ITEM_TYPE_CONTAINER && next->container.items_count > 0)
+        {
+            place_scroll_area_items(next, context);
+        }
+    }
+}
+
 void ui_lay_out(UiItem* item, Rect space, UiContext* context)
 {
     UiContainer* container = &item->container;
@@ -1347,206 +1360,8 @@ void ui_lay_out(UiItem* item, Rect space, UiContext* context)
     // Now that all the items have been sized, just place them where they need to be.
     place_items_along_main_axis(item, space);
     place_items_along_cross_axis(item, space);
-}
 
-static void draw_text_block(UiTextBlock* text_block, Rect bounds)
-{
-    Float2 top_left = rect_top_left(bounds);
-
-    for(int i = 0; i < text_block->glyphs_count; i += 1)
-    {
-        UiGlyph glyph = text_block->glyphs[i];
-        Rect rect = glyph.rect;
-        rect.bottom_left = float2_add(rect.bottom_left, top_left);
-        Quad quad = rect_to_quad(rect);
-        immediate_add_quad_textured(&quad, glyph.texture_rect);
-    }
-    immediate_set_blend_mode(BLEND_MODE_TRANSPARENT);
-    immediate_draw();
-}
-
-static void draw_button(UiItem* item, UiContext* context)
-{
-    ASSERT(item->type == UI_ITEM_TYPE_BUTTON);
-
-    UiButton* button = &item->button;
-
-    UiTheme* theme = &context->theme;
-
-    Float4 non_hovered_colour;
-    Float4 hovered_colour;
-    Float3 text_colour;
-    if(button->enabled)
-    {
-        non_hovered_colour = theme->colours.button_cap_enabled;
-        hovered_colour = theme->colours.button_cap_hovered_enabled;
-        text_colour = theme->colours.button_label_enabled;
-    }
-    else
-    {
-        non_hovered_colour = theme->colours.button_cap_disabled;
-        hovered_colour = theme->colours.button_cap_hovered_disabled;
-        text_colour = theme->colours.button_label_disabled;
-    }
-
-    Float4 colour;
-    if(button->hovered)
-    {
-        colour = hovered_colour;
-    }
-    else
-    {
-        colour = non_hovered_colour;
-    }
-    immediate_draw_opaque_rect(item->bounds, colour);
-
-    immediate_set_text_colour(text_colour);
-    draw_text_block(&item->button.text_block, item->bounds);
-}
-
-static void draw_container(UiItem* item, UiContext* context)
-{
-    ASSERT(item->type == UI_ITEM_TYPE_CONTAINER);
-
-    int style_index = (int) item->container.style_type;
-    UiStyle style = context->theme.styles[style_index];
-
-    immediate_draw_opaque_rect(item->bounds, style.background);
-
-    for(int i = 0; i < item->container.items_count; i += 1)
-    {
-        ui_draw(&item->container.items[i], context);
-    }
-}
-
-static void place_glyphs(UiTextBlock* text_block, Float2 bounds, UiContext* context)
-{
-    measure_bound_dimensions_text_block(text_block, bounds, context);
-}
-
-static void place_list_items(UiItem* item, UiContext* context)
-{
-    UiList* list = &item->list;
-
-    if(list->items_count > 0)
-    {
-        float line_height = context->theme.font->line_height;
-
-        float item_height = get_list_item_height(list, &list->items[0], line_height);
-        Float2 top_left = rect_top_left(item->bounds);
-
-        Rect place;
-        place.bottom_left.x = list->side_margin + top_left.x;
-        place.bottom_left.y = -item_height + top_left.y;
-        place.dimensions.x = item->bounds.dimensions.x - (2.0f * list->side_margin);
-        place.dimensions.y = item_height - list->item_spacing;
-
-        for(int i = 0; i < list->items_count; i += 1)
-        {
-            list->items_bounds[i] = place;
-            place.bottom_left.y -= place.dimensions.y + list->item_spacing;
-            place_glyphs(&list->items[i], list->items_bounds[i].dimensions, context);
-        }
-    }
-}
-
-static void draw_item_hover_highlight(UiList* list, Float4 hover_colour)
-{
-    if(is_valid_index(list->hovered_item_index) && list->hovered_item_index != list->selected_item_index)
-    {
-        Rect rect = list->items_bounds[list->hovered_item_index];
-        rect.bottom_left.y += list->scroll_top;
-        immediate_draw_transparent_rect(rect, hover_colour);
-    }
-}
-
-static void draw_item_selection_highlight(UiList* list, Float4 selection_colour)
-{
-    if(is_valid_index(list->selected_item_index))
-    {
-        Rect rect = list->items_bounds[list->selected_item_index];
-        rect.bottom_left.y += list->scroll_top;
-        immediate_draw_transparent_rect(rect, selection_colour);
-    }
-}
-
-static void draw_items(UiItem* item, float line_height)
-{
-    ASSERT(item->type == UI_ITEM_TYPE_LIST);
-
-    UiList* list = &item->list;
-
-    float item_height = get_list_item_height(list, &list->items[0], line_height);
-    float scroll = list->scroll_top;
-    int start_index = (int) (scroll / item_height);
-    start_index = MAX(start_index, 0);
-    int end_index = (int) ceilf((scroll + item->bounds.dimensions.y) / item_height);
-    end_index = MIN(end_index, list->items_count);
-
-    for(int i = start_index; i < end_index; i += 1)
-    {
-        UiTextBlock* next = &list->items[i];
-        Rect bounds = list->items_bounds[i];
-        bounds.bottom_left.y += list->scroll_top;
-        draw_text_block(next, bounds);
-    }
-}
-
-static void draw_list(UiItem* item, UiContext* context)
-{
-    ASSERT(item->type == UI_ITEM_TYPE_LIST);
-
-    place_list_items(item, context);
-
-    immediate_set_clip_area(item->bounds, (int) context->viewport.x, (int) context->viewport.y);
-
-    UiList* list = &item->list;
-
-    UiTheme* theme = &context->theme;
-    float line_height = theme->font->line_height;
-    Float4 hover_colour = theme->colours.list_item_background_hovered;
-    Float4 selection_colour = theme->colours.list_item_background_selected;
-
-    if(list->items_count > 0)
-    {
-        draw_item_hover_highlight(list, hover_colour);
-        draw_item_selection_highlight(list, selection_colour);
-        draw_items(list, line_height);
-    }
-
-    immediate_stop_clip_area();
-}
-
-static Float2 compute_cursor_position(UiTextBlock* text_block, Float2 dimensions, float line_height, int index)
-{
-    UiPadding padding = text_block->padding;
-
-    // @Incomplete: There isn't a one-to-one mapping between chars and glyphs
-    // Add a lookup to find the glyph given and index in the string.
-    Float2 position = {{padding.start, -padding.top - line_height}};
-    int size = string_size(text_block->text);
-    if(index >= size && size > 0)
-    {
-        UiGlyph glyph = text_block->glyphs[text_block->glyphs_count - 1];
-        Float2 bottom_right;
-        bottom_right.x = glyph.baseline_start.x + glyph.x_advance;
-        bottom_right.y = glyph.baseline_start.y;
-        position = bottom_right;
-    }
-    else if(index >= 0)
-    {
-        void* value;
-        void* key = (void*) (uintptr_t) index;
-        bool found = map_get(&text_block->glyph_map, key, &value);
-        if(found)
-        {
-            uintptr_t glyph_index = (uintptr_t) value;
-            UiGlyph glyph = text_block->glyphs[glyph_index];
-            position = glyph.baseline_start;
-        }
-    }
-
-    return position;
+    place_scroll_area_items(item, context);
 }
 
 static int find_index_at_position(UiTextBlock* text_block, Float2 dimensions, float line_height, Float2 position)
@@ -1590,213 +1405,6 @@ static int find_index_at_position(UiTextBlock* text_block, Float2 dimensions, fl
     }
 
     return index;
-}
-
-static Float2 draw_cursor(UiItem* item, UiContext* context)
-{
-    ASSERT(item->type == UI_ITEM_TYPE_TEXT_INPUT);
-
-    UiTextInput* text_input = &item->text_input;
-    UiTextBlock* text_block = &text_input->text_block;
-
-    Float4 cursor_colour = context->theme.colours.text_input_cursor;
-    float line_height = context->theme.font->line_height;
-
-    Float2 cursor = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
-    Float2 top_left = rect_top_left(item->bounds);
-    cursor = float2_add(cursor, top_left);
-
-    Rect rect;
-    rect.dimensions = (Float2){{1.7f, line_height}};
-    rect.bottom_left = cursor;
-
-    text_input->cursor_blink_frame = (text_input->cursor_blink_frame + 1) & 0x3f;
-    if((text_input->cursor_blink_frame / 32) & 1)
-    {
-        immediate_draw_opaque_rect(rect, cursor_colour);
-    }
-
-    return cursor;
-}
-
-static void draw_selection_highlight(UiItem* item, UiContext* context, Float2 cursor)
-{
-    ASSERT(item->type == UI_ITEM_TYPE_TEXT_INPUT);
-
-    UiTextInput* text_input = &item->text_input;
-    UiTextBlock* text_block = &text_input->text_block;
-
-    Float4 selection_colour = context->theme.colours.text_input_selection;
-    float line_height = context->theme.font->line_height;
-
-    Float2 start = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->selection_start);
-    Float2 top_left = rect_top_left(item->bounds);
-    start = float2_add(start, top_left);
-
-    Float2 first, second;
-    if(text_input->selection_start < text_input->cursor_position)
-    {
-        first = start;
-        second = cursor;
-    }
-    else
-    {
-        first = cursor;
-        second = start;
-    }
-
-    if(almost_equals(cursor.y, start.y))
-    {
-        // The selection endpoints are on the same line.
-        Rect rect;
-        rect.bottom_left = first;
-        rect.dimensions.x = second.x - first.x;
-        rect.dimensions.y = line_height;
-        immediate_draw_transparent_rect(rect, selection_colour);
-    }
-    else
-    {
-        // The selection endpoints are on different lines.
-        UiPadding padding = text_block->padding;
-        float left = item->bounds.bottom_left.x + padding.start;
-        float right = left + item->bounds.dimensions.x - padding.end;
-
-        Rect rect;
-        rect.bottom_left = first;
-        rect.dimensions.x = right - first.x;
-        rect.dimensions.y = line_height;
-        immediate_add_rect(rect, selection_colour);
-
-        int between_lines = (int) ((first.y - second.y) / line_height) - 1;
-        for(int i = 0; i < between_lines; i += 1)
-        {
-            rect.dimensions.x = right - left;
-            rect.bottom_left.x = left;
-            rect.bottom_left.y = first.y - (line_height * (i + 1));
-            immediate_add_rect(rect, selection_colour);
-        }
-
-        rect.dimensions.x = second.x - left;
-        rect.bottom_left.x = left;
-        rect.bottom_left.y = second.y;
-        immediate_add_rect(rect, selection_colour);
-
-        immediate_set_blend_mode(BLEND_MODE_TRANSPARENT);
-        immediate_draw();
-    }
-}
-
-static void draw_selection(UiItem* item, UiContext* context)
-{
-    ASSERT(item->type == UI_ITEM_TYPE_TEXT_INPUT);
-
-    UiTextInput* text_input = &item->text_input;
-
-    Float2 cursor = draw_cursor(item, context);
-
-    if(text_input->cursor_position != text_input->selection_start)
-    {
-        draw_selection_highlight(item, context, cursor);
-    }
-}
-
-static void draw_text_input(UiItem* item, UiContext* context)
-{
-    ASSERT(item->type == UI_ITEM_TYPE_TEXT_INPUT);
-
-    UiTextInput* text_input = &item->text_input;
-    UiTextBlock* text_block = &text_input->text_block;
-
-    bool in_focus = ui_focused_on(context, item);
-
-    if(in_focus || text_block->glyphs_count > 0)
-    {
-        draw_text_block(text_block, item->bounds);
-    }
-    else
-    {
-        // Show the label only when the field isn't focused. If it's been
-        // edited keep showing the entered text even if focus leaves.
-        draw_text_block(&text_input->label, item->bounds);
-    }
-
-    if(in_focus)
-    {
-        draw_selection(item, context);
-    }
-}
-
-void ui_draw(UiItem* item, UiContext* context)
-{
-    switch(item->type)
-    {
-        case UI_ITEM_TYPE_BUTTON:
-        {
-            draw_button(item, context);
-            break;
-        }
-        case UI_ITEM_TYPE_CONTAINER:
-        {
-            draw_container(item, context);
-            break;
-        }
-        case UI_ITEM_TYPE_LIST:
-        {
-            draw_list(item, context);
-            break;
-        }
-        case UI_ITEM_TYPE_TEXT_BLOCK:
-        {
-            draw_text_block(&item->text_block, item->bounds);
-            break;
-        }
-        case UI_ITEM_TYPE_TEXT_INPUT:
-        {
-            draw_text_input(item, context);
-            break;
-        }
-    }
-}
-
-void ui_draw_focus_indicator(UiItem* item, UiContext* context)
-{
-    if(context->focused_item && in_focus_scope(item, context->focused_item))
-    {
-        UiItem* focused = context->focused_item;
-
-        Float4 colour = context->theme.colours.focus_indicator;
-        const float line_width = 2.0f;
-
-        Rect bounds = focused->bounds;
-
-        float width = bounds.dimensions.x;
-        float height = bounds.dimensions.y;
-
-        Float2 top_left = rect_top_left(bounds);
-        Float2 bottom_left = bounds.bottom_left;
-        Float2 bottom_right = rect_bottom_right(bounds);
-
-        Rect top;
-        top.bottom_left = top_left;
-        top.dimensions = (Float2){{width, line_width}};
-
-        Rect bottom;
-        bottom.bottom_left = (Float2){{bottom_left.x, bottom_left.y - line_width}};
-        bottom.dimensions = (Float2){{width, line_width}};
-
-        Rect left;
-        left.bottom_left = (Float2){{bottom_left.x - line_width, bottom_left.y - line_width}};
-        left.dimensions = (Float2){{line_width, height + (2 * line_width)}};
-
-        Rect right;
-        right.bottom_left = (Float2){{bottom_right.x, bottom_right.y - line_width}};
-        right.dimensions = (Float2){{line_width, height + (2 * line_width)}};
-
-        immediate_draw_transparent_rect(top, colour);
-        immediate_draw_transparent_rect(bottom, colour);
-        immediate_draw_transparent_rect(left, colour);
-        immediate_draw_transparent_rect(right, colour);
-    }
 }
 
 static bool detect_button_hover(UiItem* item, Float2 pointer_position, Platform* platform)
@@ -2125,7 +1733,7 @@ static void update_cursor_position(UiTextInput* text_input, Rect bounds, UiConte
     {
         // Get the position within the item and determine the corresponding
         // point in the viewport.
-        Float2 position = compute_cursor_position(&text_input->text_block, bounds.dimensions, line_height, index);
+        Float2 position = ui_compute_cursor_position(&text_input->text_block, bounds.dimensions, line_height, index);
         position = float2_add(position, bounds.bottom_left);
         position.x += viewport.x / 2.0f;
         position.y = (viewport.y / 2.0f) - position.y;
@@ -2144,7 +1752,7 @@ static void remove_selected_text(UiTextInput* text_input, Float2 dimensions, UiI
         remove_substring(text_input->text_block.text, text_input->selection_start, text_input->cursor_position);
         update_removed_glyphs(&text_input->text_block, dimensions, id, context);
 
-        int collapsed = MIN(text_input->selection_start, text_input->cursor_position);
+        int collapsed = imin(text_input->selection_start, text_input->cursor_position);
         text_input->cursor_position = collapsed;
         text_input->selection_start = collapsed;
     }
@@ -2170,7 +1778,7 @@ void ui_insert_text(UiItem* item, const char* text_to_add, UiContext* context, P
 
         // Advance the cursor past the inserted text.
         int text_end = string_size(text_block->text);
-        text_input->cursor_position = MIN(text_input->cursor_position + text_to_add_size, text_end);
+        text_input->cursor_position = imin(text_input->cursor_position + text_to_add_size, text_end);
         text_input->selection_start = text_input->cursor_position;
         update_cursor_position(text_input, item->bounds, context, platform);
     }
@@ -2180,8 +1788,8 @@ static bool copy_selected_text(UiTextInput* text_input, Platform* platform, Heap
 {
     UiTextBlock* text_block = &text_input->text_block;
 
-    int start = MIN(text_input->cursor_position, text_input->selection_start);
-    int end = MAX(text_input->cursor_position, text_input->selection_start);
+    int start = imin(text_input->cursor_position, text_input->selection_start);
+    int end = imax(text_input->cursor_position, text_input->selection_start);
     int size = end - start;
 
     char* clipboard = copy_chars_to_heap(&text_block->text[start], size, heap);
@@ -2196,7 +1804,7 @@ static bool copy_selected_text(UiTextInput* text_input, Platform* platform, Heap
 
 static int find_beginning_of_line(UiTextBlock* text_block, int start_index)
 {
-    start_index = MIN(start_index, string_size(text_block->text) - 1);
+    start_index = imin(start_index, string_size(text_block->text) - 1);
 
     void* key = (void*) (uintptr_t) start_index;
     void* value;
@@ -2222,7 +1830,7 @@ static int find_beginning_of_line(UiTextBlock* text_block, int start_index)
 static int find_end_of_line(UiTextBlock* text_block, int start_index)
 {
     int end_of_text = string_size(text_block->text);
-    start_index = MIN(start_index, end_of_text - 1);
+    start_index = imin(start_index, end_of_text - 1);
 
     void* key = (void*) (uintptr_t) start_index;
     void* value;
@@ -2346,13 +1954,13 @@ static void update_list_keyboard_input(UiItem* item, UiContext* context)
 
         if(input_get_key_tapped(INPUT_KEY_PAGE_UP))
         {
-            list->selected_item_index = MAX(list->selected_item_index - items_per_page, 0);
+            list->selected_item_index = imax(list->selected_item_index - items_per_page, 0);
             selection_changed = true;
         }
 
         if(input_get_key_tapped(INPUT_KEY_PAGE_DOWN))
         {
-            list->selected_item_index = MIN(list->selected_item_index + items_per_page, count - 1);
+            list->selected_item_index = imin(list->selected_item_index + items_per_page, count - 1);
             selection_changed = true;
         }
     }
@@ -2424,7 +2032,7 @@ static void handle_cursor_up(UiItem* item, float line_height)
 
     if(input_get_key_auto_repeated(INPUT_KEY_UP_ARROW))
     {
-        Float2 position = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
+        Float2 position = ui_compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
         position.y += line_height;
         int index = find_index_at_position(text_block, item->bounds.dimensions, line_height, position);
 
@@ -2449,7 +2057,7 @@ static void handle_cursor_down(UiItem* item, float line_height)
 
     if(input_get_key_auto_repeated(INPUT_KEY_DOWN_ARROW))
     {
-        Float2 position = compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
+        Float2 position = ui_compute_cursor_position(text_block, item->bounds.dimensions, line_height, text_input->cursor_position);
         position.y -= line_height;
         int index = find_index_at_position(text_block, item->bounds.dimensions, line_height, position);
 
@@ -2547,7 +2155,7 @@ static void handle_delete_after_cursor(UiItem* item, UiContext* context)
         update_removed_glyphs(text_block, item->bounds.dimensions, item->id, context);
 
         // Set the cursor to the beginning of the selection.
-        int new_position = MIN(start, end);
+        int new_position = imin(start, end);
         text_input->cursor_position = new_position;
         text_input->selection_start = new_position;
     }
@@ -2568,7 +2176,7 @@ static void handle_delete_before_cursor(UiItem* item, UiContext* context)
         {
             end = text_input->cursor_position;
             int prior = utf8_skip_to_prior_codepoint(text_block->text, end - 1);
-            start = MAX(prior, 0);
+            start = imax(prior, 0);
         }
         else
         {
@@ -2579,7 +2187,7 @@ static void handle_delete_before_cursor(UiItem* item, UiContext* context)
         update_removed_glyphs(text_block, item->bounds.dimensions, item->id, context);
 
         // Retreat the cursor or set it to the beginning of the selection.
-        int new_position = MIN(start, end);
+        int new_position = imin(start, end);
         text_input->cursor_position = new_position;
         text_input->selection_start = new_position;
     }

@@ -263,8 +263,6 @@ void ui_add_column(UiContainer* container, int count, UiContext* context, Heap* 
 void ui_set_text(UiTextBlock* text_block, const char* text, Heap* heap);
 void ui_create_items(UiItem* item, int lines_count, Heap* heap);
 void ui_lay_out(UiItem* item, Rect space, UiContext* context);
-void ui_draw(UiItem* item, UiContext* context);
-void ui_draw_focus_indicator(UiItem* item, UiContext* context);
 
 void ui_update(UiContext* context, Platform* platform);
 void ui_accept_paste_from_clipboard(UiContext* context, const char* clipboard, Platform* platform);
