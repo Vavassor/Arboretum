@@ -13,13 +13,4 @@ bool signs_opposite(int x, int y);
 int imax(int a, int b);
 int imin(int a, int b);
 
-// Prefer these for integers and fmax() and fmin() for floating-point numbers.
-#define MAX(a, b) \
-    (((a) > (b)) ? (a) : (b))
-#define MIN(a, b) \
-    (((a) < (b)) ? (a) : (b))
-
-#define CLAMP(x, min, max) \
-    MIN(MAX(x, min), max)
-
 #endif // INT_UTILITIES_H_

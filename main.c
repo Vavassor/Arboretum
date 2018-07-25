@@ -533,7 +533,7 @@ LocaleId match_closest_locale_id(const char* locale)
     int period = find_char(locale, '.');
     if(period != invalid_index)
     {
-        int size = MIN(16, end - period);
+        int size = imin(16, end - period);
         copy_string(encoding, size, &locale[period + 1]);
         end = period;
     }
@@ -541,12 +541,12 @@ LocaleId match_closest_locale_id(const char* locale)
     int underscore = find_char(locale, '_');
     if(underscore != invalid_index)
     {
-        int size = MIN(4, end - underscore);
+        int size = imin(4, end - underscore);
         copy_string(region, size, &locale[underscore + 1]);
         end = underscore;
     }
 
-    int size = MIN(4, end + 1);
+    int size = imin(4, end + 1);
     copy_string(language, size, locale);
 
     // LOG_DEBUG("%s, %s, %s, %s", language, region, encoding, modifier);

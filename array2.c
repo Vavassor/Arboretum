@@ -15,7 +15,7 @@ int array_cap(void* array)
 
 void* resize_array_heap(void* array, int count, int element_size, Heap* heap)
 {
-    int cap = MAX(1 + 2 * array_cap(array), count);
+    int cap = imax(1 + 2 * array_cap(array), count);
     int bytes = offsetof(ArrayHeader, elements) + (element_size * cap);
 
     ArrayHeader* header;
@@ -36,7 +36,7 @@ void* resize_array_heap(void* array, int count, int element_size, Heap* heap)
 
 void* resize_array_stack(void* array, int count, int element_size, Stack* stack)
 {
-    int cap = MAX(1 + 2 * array_cap(array), count);
+    int cap = imax(1 + 2 * array_cap(array), count);
     int bytes = offsetof(ArrayHeader, elements) + (element_size * cap);
 
     ArrayHeader* header;
