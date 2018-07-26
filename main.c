@@ -412,13 +412,8 @@ static void destroy_input_method(XIM input_method, XPointer client_data, XPointe
     log_error(&platform->base.logger, "Input method closed unexpectedly.");
 }
 
-static void instantiate_input_method(Display* display, XPointer client_data, XPointer call_data)
+static void close_prior_input_method_and_context(PlatformX11* platform)
 {
-    (void) call_data; // always null
-
-    PlatformX11* platform = (PlatformX11*) client_data;
-
-    // Close the previous input method and context, if there was one.
     if(platform->input_method_connected)
     {
         if(platform->input_context)
@@ -433,28 +428,19 @@ static void instantiate_input_method(Display* display, XPointer client_data, XPo
         }
         platform->input_method_connected = false;
     }
+}
 
-    // input method
-    platform->input_method = XOpenIM(display, NULL, NULL, NULL);
-    if(!platform->input_method)
-    {
-        log_error(&platform->base.logger, "X Input Method failed to open.");
-        return;
-    }
-
-    // font set
+static void create_font_set(PlatformX11* platform, Display* display)
+{
     int num_missing_charsets;
     char** missing_charsets;
     char* default_string;
     const char* font_names = "-adobe-helvetica-*-r-*-*-*-120-*-*-*-*-*-*,-misc-fixed-*-r-*-*-*-130-*-*-*-*-*-*";
     platform->font_set = XCreateFontSet(display, font_names, &missing_charsets, &num_missing_charsets, &default_string);
-    if(!platform->font_set)
-    {
-        log_error(&platform->base.logger, "Failed to make a font set.");
-        return;
-    }
+}
 
-    // Negotiate input method styles.
+static XIMStyle negotiate_input_method_styles(PlatformX11* platform)
+{
     XIMStyles* input_method_styles;
     XGetIMValues(platform->input_method, XNQueryInputStyle, &input_method_styles, NULL);
     XIMStyle supported_styles = XIMPreeditPosition | XIMPreeditNothing | XIMStatusNothing;
@@ -468,13 +454,11 @@ static void instantiate_input_method(Display* display, XPointer client_data, XPo
         }
     }
     XFree(input_method_styles);
-    if(!best_style)
-    {
-        log_error(&platform->base.logger, "None of the input styles were supported.");
-        return;
-    }
+    return best_style;
+}
 
-    // input context
+static void create_input_context(PlatformX11* platform, XIMStyle best_style)
+{
     XPoint spot_location = {0, 0};
     XVaNestedList list = XVaCreateNestedList(0, XNFontSet, platform->font_set, XNSpotLocation, &spot_location, NULL);
     XIMCallback destroy_callback;
@@ -482,19 +466,55 @@ static void instantiate_input_method(Display* display, XPointer client_data, XPo
     destroy_callback.callback = destroy_input_method;
     platform->input_context = XCreateIC(platform->input_method, XNInputStyle, best_style, XNClientWindow, platform->window, XNPreeditAttributes, list, XNStatusAttributes, list, XNDestroyCallback, &destroy_callback, NULL);
     XFree(list);
+}
+
+static void add_input_events_to_window(PlatformX11* platform, Display* display)
+{
+    XWindowAttributes attributes = {0};
+    XGetWindowAttributes(display, platform->window, &attributes);
+    long event_mask = attributes.your_event_mask;
+    long input_method_event_mask;
+    XGetICValues(platform->input_context, XNFilterEvents, &input_method_event_mask, NULL);
+    XSelectInput(display, platform->window, event_mask | input_method_event_mask);
+}
+
+static void instantiate_input_method(Display* display, XPointer client_data, XPointer call_data)
+{
+    (void) call_data; // always null
+
+    PlatformX11* platform = (PlatformX11*) client_data;
+
+    close_prior_input_method_and_context(platform);
+
+    platform->input_method = XOpenIM(display, NULL, NULL, NULL);
+    if(!platform->input_method)
+    {
+        log_error(&platform->base.logger, "X Input Method failed to open.");
+        return;
+    }
+
+    create_font_set(platform, display);
+    if(!platform->font_set)
+    {
+        log_error(&platform->base.logger, "Failed to make a font set.");
+        return;
+    }
+
+    XIMStyle best_style = negotiate_input_method_styles(platform);
+    if(!best_style)
+    {
+        log_error(&platform->base.logger, "None of the input styles were supported.");
+        return;
+    }
+
+    create_input_context(platform, best_style);
     if(!platform->input_context)
     {
         log_error(&platform->base.logger, "X Input Context failed to open.");
         return;
     }
 
-    // Add input events to the event mask for the current window.
-    XWindowAttributes attributes = {};
-    XGetWindowAttributes(display, platform->window, &attributes);
-    long event_mask = attributes.your_event_mask;
-    long input_method_event_mask;
-    XGetICValues(platform->input_context, XNFilterEvents, &input_method_event_mask, NULL);
-    XSelectInput(display, platform->window, event_mask | input_method_event_mask);
+    add_input_events_to_window(platform, display);
 
     // By default, it seems to be in focus and will pop up the input method
     // editor when the app first opens, so purposefully "unset" it.
@@ -555,6 +575,109 @@ LocaleId match_closest_locale_id(const char* locale)
     return LOCALE_ID_DEFAULT;
 }
 
+static GLXFBConfig choose_best_framebuffer_configuration()
+{
+    const GLint visual_attributes[] =
+    {
+        GLX_X_RENDERABLE, True,
+        GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
+        GLX_RENDER_TYPE, GLX_RGBA_BIT,
+        GLX_X_VISUAL_TYPE, GLX_TRUE_COLOR,
+        GLX_RED_SIZE, 8,
+        GLX_GREEN_SIZE, 8,
+        GLX_BLUE_SIZE, 8,
+        GLX_ALPHA_SIZE, 8,
+        GLX_DEPTH_SIZE, 24,
+        GLX_STENCIL_SIZE, 8,
+        GLX_DOUBLEBUFFER, True,
+        X11_NONE,
+    };
+
+    int config_count;
+    GLXFBConfig* framebuffer_configs = glXChooseFBConfig(platform.display, platform.screen, visual_attributes, &config_count);
+    if(!framebuffer_configs)
+    {
+        return NULL;
+    }
+
+    int best_config = invalid_index;
+    int worst_config = invalid_index;
+    int best_samples = -1;
+    int worst_samples = 999;
+    for(int i = 0; i < config_count; i += 1)
+    {
+        XVisualInfo* visual_info = glXGetVisualFromFBConfig(platform.display, framebuffer_configs[i]);
+        if(visual_info)
+        {
+            int sample_buffers;
+            int samples;
+            glXGetFBConfigAttrib(platform.display, framebuffer_configs[i], GLX_SAMPLE_BUFFERS, &sample_buffers);
+            glXGetFBConfigAttrib(platform.display, framebuffer_configs[i], GLX_SAMPLES, &samples);
+            if(!is_valid_index(best_config) || (sample_buffers && samples > best_samples))
+            {
+                best_config = i;
+                best_samples = samples;
+            }
+            if(!is_valid_index(worst_config) || !sample_buffers || samples < worst_samples)
+            {
+                worst_config = i;
+                worst_samples = samples;
+            }
+        }
+        XFree(visual_info);
+    }
+    GLXFBConfig chosen_framebuffer_config = framebuffer_configs[best_config];
+    XFree(framebuffer_configs);
+
+    return chosen_framebuffer_config;
+}
+
+static void create_window()
+{
+    long event_mask = StructureNotifyMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask | FocusChangeMask | PropertyChangeMask;
+
+    int screen = platform.screen;
+    Window root = RootWindow(platform.display, screen);
+    Visual* visual = platform.visual_info->visual;
+    platform.colormap = XCreateColormap(platform.display, root, visual, AllocNone);
+
+    int width = window_width;
+    int height = window_height;
+    int depth = platform.visual_info->depth;
+
+    XSetWindowAttributes attributes = {};
+    attributes.colormap = platform.colormap;
+    attributes.event_mask = event_mask;
+    unsigned long mask = CWColormap | CWEventMask;
+    platform.window = XCreateWindow(platform.display, root, 0, 0, width, height, 0, depth, InputOutput, visual, mask, &attributes);
+}
+
+static void set_up_clipboard()
+{
+    platform.selection_primary = XInternAtom(platform.display, "PRIMARY", False);
+    platform.selection_clipboard = XInternAtom(platform.display, "CLIPBOARD", False);
+    platform.utf8_string = XInternAtom(platform.display, "UTF8_STRING", False);
+    platform.atom_pair = XInternAtom(platform.display, "ATOM_PAIR", False);
+    platform.targets = XInternAtom(platform.display, "TARGETS", False);
+    platform.multiple = XInternAtom(platform.display, "MULTIPLE", False);
+
+    platform.clipboard_manager = XInternAtom(platform.display, "CLIPBOARD_MANAGER", False);
+    platform.save_targets = XInternAtom(platform.display, "SAVE_TARGETS", False);
+
+    // These are arbitrarily-named atoms chosen which will be used to
+    // identify properties in selection requests we make.
+    const char* app_name = platform.base.nonlocalized_text.app_name;
+
+    char code[24];
+    format_string(code, sizeof(code), "%s_PASTE", app_name);
+    to_upper_case_ascii(code);
+    platform.paste_code = XInternAtom(platform.display, code, False);
+
+    format_string(code, sizeof(code), "%s_SAVE_TARGETS", app_name);
+    to_upper_case_ascii(code);
+    platform.save_code = XInternAtom(platform.display, code, False);
+}
+
 bool main_start_up()
 {
     // Set the locale.
@@ -613,59 +736,12 @@ bool main_start_up()
         return false;
     }
 
-    // Choose the best framebuffer configuration of the available ones.
-    const GLint visual_attributes[] =
-	{
-		GLX_X_RENDERABLE, True,
-		GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
-		GLX_RENDER_TYPE, GLX_RGBA_BIT,
-		GLX_X_VISUAL_TYPE, GLX_TRUE_COLOR,
-		GLX_RED_SIZE, 8,
-		GLX_GREEN_SIZE, 8,
-		GLX_BLUE_SIZE, 8,
-		GLX_ALPHA_SIZE, 8,
-		GLX_DEPTH_SIZE, 24,
-		GLX_STENCIL_SIZE, 8,
-		GLX_DOUBLEBUFFER, True,
-		X11_NONE,
-	};
-
-    int config_count;
-    GLXFBConfig* framebuffer_configs = glXChooseFBConfig(platform.display, platform.screen, visual_attributes, &config_count);
-	if(!framebuffer_configs)
-	{
-	    log_error(&platform.base.logger, "Failed to retrieve a framebuffer configuration.");
-		return false;
-	}
-
-	int best_config = invalid_index;
-	int worst_config = invalid_index;
-	int best_samples = -1;
-	int worst_samples = 999;
-	for(int i = 0; i < config_count; i += 1)
-	{
-		XVisualInfo* visual_info = glXGetVisualFromFBConfig(platform.display, framebuffer_configs[i]);
-		if(visual_info)
-		{
-			int sample_buffers;
-			int samples;
-			glXGetFBConfigAttrib(platform.display, framebuffer_configs[i], GLX_SAMPLE_BUFFERS, &sample_buffers);
-			glXGetFBConfigAttrib(platform.display, framebuffer_configs[i], GLX_SAMPLES, &samples);
-			if(!is_valid_index(best_config) || (sample_buffers && samples > best_samples))
-			{
-				best_config = i;
-				best_samples = samples;
-			}
-			if(!is_valid_index(worst_config) || !sample_buffers || samples < worst_samples)
-			{
-				worst_config = i;
-				worst_samples = samples;
-			}
-		}
-		XFree(visual_info);
-	}
-	GLXFBConfig chosen_framebuffer_config = framebuffer_configs[best_config];
-	XFree(framebuffer_configs);
+    GLXFBConfig chosen_framebuffer_config = choose_best_framebuffer_configuration();
+    if(!chosen_framebuffer_config)
+    {
+        log_error(&platform.base.logger, "Failed to retrieve a framebuffer configuration.");
+        return false;
+    }
 
     // Choose the abstract "Visual" type that will be used to describe both the
     // window and the OpenGL rendering context.
@@ -676,24 +752,7 @@ bool main_start_up()
         return false;
     }
 
-    // Create the window.
-    long event_mask = StructureNotifyMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask | FocusChangeMask | PropertyChangeMask;
-    {
-        int screen = platform.screen;
-        Window root = RootWindow(platform.display, screen);
-        Visual* visual = platform.visual_info->visual;
-        platform.colormap = XCreateColormap(platform.display, root, visual, AllocNone);
-
-        int width = window_width;
-        int height = window_height;
-        int depth = platform.visual_info->depth;
-
-        XSetWindowAttributes attributes = {};
-        attributes.colormap = platform.colormap;
-        attributes.event_mask = event_mask;
-        unsigned long mask = CWColormap | CWEventMask;
-        platform.window = XCreateWindow(platform.display, root, 0, 0, width, height, 0, depth, InputOutput, visual, mask, &attributes);
-    }
+    create_window();
 
     // Register to receive window close messages.
     platform.wm_delete_window = XInternAtom(platform.display, "WM_DELETE_WINDOW", False);
@@ -706,31 +765,7 @@ bool main_start_up()
     XPointer client_data = (XPointer) &platform;
     XRegisterIMInstantiateCallback(platform.display, NULL, NULL, NULL, instantiate_input_method, client_data);
 
-    // Set up the clipboard.
-    {
-        platform.selection_primary = XInternAtom(platform.display, "PRIMARY", False);
-        platform.selection_clipboard = XInternAtom(platform.display, "CLIPBOARD", False);
-        platform.utf8_string = XInternAtom(platform.display, "UTF8_STRING", False);
-        platform.atom_pair = XInternAtom(platform.display, "ATOM_PAIR", False);
-        platform.targets = XInternAtom(platform.display, "TARGETS", False);
-        platform.multiple = XInternAtom(platform.display, "MULTIPLE", False);
-
-        platform.clipboard_manager = XInternAtom(platform.display, "CLIPBOARD_MANAGER", False);
-        platform.save_targets = XInternAtom(platform.display, "SAVE_TARGETS", False);
-
-        // There are arbitrarily-named atom chosen which will be used to
-        // identify properties in selection requests we make.
-        const char* app_name = platform.base.nonlocalized_text.app_name;
-
-        char code[24];
-        format_string(code, sizeof(code), "%s_PASTE", app_name);
-        to_upper_case_ascii(code);
-        platform.paste_code = XInternAtom(platform.display, code, False);
-
-        format_string(code, sizeof(code), "%s_SAVE_TARGETS", app_name);
-        to_upper_case_ascii(code);
-        platform.save_code = XInternAtom(platform.display, code, False);
-    }
+    set_up_clipboard();
 
     glXCreateContextAttribsARBProc glXCreateContextAttribsARB = NULL;
 	glXCreateContextAttribsARB = (glXCreateContextAttribsARBProc) glXGetProcAddressARB((const GLubyte*) "glXCreateContextAttribsARB");
@@ -845,6 +880,168 @@ static InputKey translate_key(unsigned int scancode)
     {
         return platform.key_table[scancode];
     }
+}
+
+static void handle_button_press(XButtonEvent event)
+{
+    InputModifier modifier = translate_modifiers(event.state);
+    if(event.button == Button1)
+    {
+        input_mouse_click(MOUSE_BUTTON_LEFT, true, modifier);
+    }
+    else if(event.button == Button2)
+    {
+        input_mouse_click(MOUSE_BUTTON_MIDDLE, true, modifier);
+    }
+    else if(event.button == Button3)
+    {
+        input_mouse_click(MOUSE_BUTTON_RIGHT, true, modifier);
+    }
+    else if(event.button == Button4)
+    {
+        Int2 velocity = {0, +1};
+        input_mouse_scroll(velocity);
+    }
+    else if(event.button == Button5)
+    {
+        Int2 velocity = {0, -1};
+        input_mouse_scroll(velocity);
+    }
+}
+
+static void handle_button_release(XButtonEvent event)
+{
+    InputModifier modifier = translate_modifiers(event.state);
+    if(event.button == Button1)
+    {
+        input_mouse_click(MOUSE_BUTTON_LEFT, false, modifier);
+    }
+    else if(event.button == Button2)
+    {
+        input_mouse_click(MOUSE_BUTTON_MIDDLE, false, modifier);
+    }
+    else if(event.button == Button3)
+    {
+        input_mouse_click(MOUSE_BUTTON_RIGHT, false, modifier);
+    }
+}
+
+static void handle_client_message(XClientMessageEvent client_message)
+{
+    Atom message = (Atom) client_message.data.l[0];
+    if(message == platform.wm_delete_window)
+    {
+        platform.close_window_requested = true;
+    }
+}
+
+static void handle_configure_notify(XConfigureRequestEvent configure)
+{
+    double dpmm = get_dots_per_millimeter(&platform);
+    Int2 dimensions = {configure.width, configure.height};
+    resize_viewport(dimensions, dpmm);
+}
+
+static void handle_focus_in(XFocusInEvent focus_in)
+{
+    if(focus_in.window == platform.window && platform.input_context_focused)
+    {
+        XSetICFocus(platform.input_context);
+    }
+}
+
+static void handle_focus_out(XFocusInEvent focus_out)
+{
+    if(focus_out.window == platform.window && platform.input_context_focused)
+    {
+        XUnsetICFocus(platform.input_context);
+    }
+}
+
+static void handle_key_press(XKeyEvent press)
+{
+    // Process key presses that are used for controls and hotkeys.
+    InputKey key = translate_key(press.keycode);
+    InputModifier modifier = translate_modifiers(press.state);
+    input_key_press(key, true, modifier);
+
+    // Process key presses that are for typing text.
+    if(platform.input_context)
+    {
+        Status status;
+        KeySym key_sym;
+        const int buffer_size = 16;
+        char buffer[buffer_size];
+        int length = Xutf8LookupString(platform.input_context, &press, buffer, buffer_size, &key_sym, &status);
+        ASSERT(status != XBufferOverflow || length >= buffer_size);
+        switch(status)
+        {
+            case XLookupNone:
+            case XLookupKeySym:
+            {
+                break;
+            }
+            case XLookupBoth:
+            {
+                if(key_sym == XK_BackSpace || key_sym == XK_Delete || key_sym == XK_Return)
+                {
+                    break;
+                }
+                if(!only_control_characters(buffer))
+                {
+                    input_composed_text_entered(buffer);
+                }
+                break;
+            }
+            case XLookupChars:
+            {
+                if(!only_control_characters(buffer))
+                {
+                    input_composed_text_entered(buffer);
+                }
+                break;
+            }
+        }
+    }
+    else
+    {
+        // @Incomplete: throw away keystrokes?
+    }
+}
+
+static void handle_key_release(XKeyEvent release)
+{
+    InputKey key = translate_key(release.keycode);
+    InputModifier modifier = translate_modifiers(release.state);
+    // Examine the next event in the queue and if it's a
+    // key-press generated by auto-repeating, discard it and
+    // ignore this key release.
+    bool auto_repeated = false;
+    XEvent lookahead = {};
+    if(XPending(platform.display) > 0 && XPeekEvent(platform.display, &lookahead))
+    {
+        XKeyEvent next_press = lookahead.xkey;
+        if(
+            next_press.type == KeyPress &&
+            next_press.window == release.window &&
+            next_press.time == release.time &&
+            next_press.keycode == release.keycode)
+        {
+            // Remove the lookahead event.
+            XNextEvent(platform.display, &lookahead);
+            auto_repeated = true;
+        }
+    }
+    if(!auto_repeated)
+    {
+        input_key_press(key, false, modifier);
+    }
+}
+
+static void handle_motion_notify(XMotionEvent event)
+{
+    Int2 position = {event.x, event.y};
+    input_mouse_move(position);
 }
 
 static void handle_selection_clear()
@@ -981,170 +1178,47 @@ static void handle_event(XEvent event)
     {
         case ButtonPress:
         {
-            XButtonEvent button = event.xbutton;
-            InputModifier modifier = translate_modifiers(button.state);
-            if(button.button == Button1)
-            {
-                input_mouse_click(MOUSE_BUTTON_LEFT, true, modifier);
-            }
-            else if(button.button == Button2)
-            {
-                input_mouse_click(MOUSE_BUTTON_MIDDLE, true, modifier);
-            }
-            else if(button.button == Button3)
-            {
-                input_mouse_click(MOUSE_BUTTON_RIGHT, true, modifier);
-            }
-            else if(button.button == Button4)
-            {
-                Int2 velocity = {0, +1};
-                input_mouse_scroll(velocity);
-            }
-            else if(button.button == Button5)
-            {
-                Int2 velocity = {0, -1};
-                input_mouse_scroll(velocity);
-            }
+            handle_button_press(event.xbutton);
             break;
         }
         case ButtonRelease:
         {
-            XButtonEvent button = event.xbutton;
-            InputModifier modifier = translate_modifiers(button.state);
-            if(button.button == Button1)
-            {
-                input_mouse_click(MOUSE_BUTTON_LEFT, false, modifier);
-            }
-            else if(button.button == Button2)
-            {
-                input_mouse_click(MOUSE_BUTTON_MIDDLE, false, modifier);
-            }
-            else if(button.button == Button3)
-            {
-                input_mouse_click(MOUSE_BUTTON_RIGHT, false, modifier);
-            }
+            handle_button_release(event.xbutton);
             break;
         }
         case ClientMessage:
         {
-            XClientMessageEvent client_message = event.xclient;
-            Atom message = (Atom) client_message.data.l[0];
-            if(message == platform.wm_delete_window)
-            {
-                platform.close_window_requested = true;
-            }
+            handle_client_message(event.xclient);
             break;
         }
         case ConfigureNotify:
         {
-            XConfigureRequestEvent configure = event.xconfigurerequest;
-            double dpmm = get_dots_per_millimeter(&platform);
-            Int2 dimensions = {configure.width, configure.height};
-            resize_viewport(dimensions, dpmm);
+            handle_configure_notify(event.xconfigurerequest);
             break;
         }
         case FocusIn:
         {
-            XFocusInEvent focus_in = event.xfocus;
-            if(focus_in.window == platform.window && platform.input_context_focused)
-            {
-                XSetICFocus(platform.input_context);
-            }
+            handle_focus_in(event.xfocus);
             break;
         }
         case FocusOut:
         {
-            XFocusInEvent focus_out = event.xfocus;
-            if(focus_out.window == platform.window && platform.input_context_focused)
-            {
-                XUnsetICFocus(platform.input_context);
-            }
+            handle_focus_out(event.xfocus);
             break;
         }
         case KeyPress:
         {
-            XKeyEvent press = event.xkey;
-
-            // Process key presses that are used for controls and hotkeys.
-            InputKey key = translate_key(press.keycode);
-            InputModifier modifier = translate_modifiers(press.state);
-            input_key_press(key, true, modifier);
-
-            // Process key presses that are for typing text.
-            if(platform.input_context)
-            {
-                Status status;
-                KeySym key_sym;
-                const int buffer_size = 16;
-                char buffer[buffer_size];
-                int length = Xutf8LookupString(platform.input_context, &press, buffer, buffer_size, &key_sym, &status);
-                ASSERT(status != XBufferOverflow || length >= buffer_size);
-                switch(status)
-                {
-                    case XLookupNone:
-                    case XLookupKeySym:
-                    {
-                        break;
-                    }
-                    case XLookupBoth:
-                    {
-                        if(key_sym == XK_BackSpace || key_sym == XK_Delete || key_sym == XK_Return)
-                        {
-                            break;
-                        }
-                        // fallthrough
-                    }
-                    case XLookupChars:
-                    {
-                        if(!only_control_characters(buffer))
-                        {
-                            input_composed_text_entered(buffer);
-                        }
-                        break;
-                    }
-                }
-            }
-            else
-            {
-                // @Incomplete: throw away keystrokes?
-            }
+            handle_key_press(event.xkey);
             break;
         }
         case KeyRelease:
         {
-            XKeyEvent release = event.xkey;
-            InputKey key = translate_key(release.keycode);
-            InputModifier modifier = translate_modifiers(release.state);
-            // Examine the next event in the queue and if it's a
-            // key-press generated by auto-repeating, discard it and
-            // ignore this key release.
-            bool auto_repeated = false;
-            XEvent lookahead = {};
-            if(XPending(platform.display) > 0 && XPeekEvent(platform.display, &lookahead))
-            {
-                XKeyEvent next_press = lookahead.xkey;
-                if(
-                    next_press.type == KeyPress &&
-                    next_press.window == release.window &&
-                    next_press.time == release.time &&
-                    next_press.keycode == release.keycode)
-                {
-                    // Remove the lookahead event.
-                    XNextEvent(platform.display, &lookahead);
-                    auto_repeated = true;
-                }
-            }
-            if(!auto_repeated)
-            {
-                input_key_press(key, false, modifier);
-            }
+            handle_key_release(event.xkey);
             break;
         }
         case MotionNotify:
         {
-            XMotionEvent motion = event.xmotion;
-            Int2 position = {motion.x, motion.y};
-            input_mouse_move(position);
+            handle_motion_notify(event.xmotion);
             break;
         }
         case SelectionClear:
