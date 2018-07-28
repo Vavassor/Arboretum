@@ -60,8 +60,8 @@ typedef struct Samplers
 
 typedef struct Shaders
 {
+    ShaderId face_selection;
     ShaderId font;
-    ShaderId halo;
     ShaderId line;
     ShaderId lit;
     ShaderId point;
@@ -362,7 +362,7 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
     };
     shaders->font = build_shader(context, &shader_font_spec, "Font.fs", "Font.vs");
 
-    ShaderSpec halo_spec =
+    ShaderSpec face_selection_spec =
     {
         .fragment =
         {
@@ -377,7 +377,7 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
             },
         },
     };
-    shaders->halo = build_shader(context, &halo_spec, "Halo.fs", "Halo.vs");
+    shaders->face_selection = build_shader(context, &face_selection_spec, "Face Selection.fs", "Face Selection.vs");
 
     ShaderSpec shader_line_spec =
     {
@@ -487,8 +487,8 @@ static void destroy_shaders(VideoContext* context, Shaders* shaders)
 {
     Backend* backend = context->backend;
 
+    destroy_shader(backend, shaders->face_selection);
     destroy_shader(backend, shaders->font);
-    destroy_shader(backend, shaders->halo);
     destroy_shader(backend, shaders->line);
     destroy_shader(backend, shaders->lit);
     destroy_shader(backend, shaders->point);
@@ -634,7 +634,7 @@ static void create_pipelines(VideoContext* context, Pipelines* pipelines)
             .depth_compare_op = COMPARE_OP_LESS_OR_EQUAL,
             .depth_write_enabled = false,
         },
-        .shader = shaders->halo,
+        .shader = shaders->face_selection,
         .vertex_layout = vertex_layout_spec_lit,
     };
     pipelines->face_selection = create_pipeline(backend, &pipeline_face_selection_spec, logger);
@@ -1213,8 +1213,8 @@ static void draw_object_with_halo(VideoContext* context, ObjectLady* lady, int i
 
     ClearState clear =
     {
-        .stencil = 0xff,
         .flags = {.stencil = true},
+        .stencil = 0xffffffff,
     };
     clear_target(backend, &clear);
 

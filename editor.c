@@ -599,18 +599,30 @@ static void update_rotate_tool(RotateTool* rotate_tool, Camera* camera)
     rotate_tool->angles[2] = angles[2];
 }
 
+static void add_halo(Editor* editor)
+{
+    editor->selection_halo = video_add_object(editor->video_context, VERTEX_LAYOUT_LINE);
+}
+
+static void remove_halo(Editor* editor)
+{
+    video_remove_object(editor->video_context, editor->selection_halo);
+    editor->selection_halo = 0;
+}
+
 static void enter_object_mode(Editor* editor)
 {
+    add_halo(editor);
+
     editor->hover_halo = video_add_object(editor->video_context, VERTEX_LAYOUT_LINE);
-    editor->selection_halo = video_add_object(editor->video_context, VERTEX_LAYOUT_LINE);
 }
 
 static void exit_object_mode(Editor* editor)
 {
+    remove_halo(editor);
+
     video_remove_object(editor->video_context, editor->hover_halo);
-    video_remove_object(editor->video_context, editor->selection_halo);
     editor->hover_halo = 0;
-    editor->selection_halo = 0;
 }
 
 static void update_object_mode(Editor* editor, Platform* platform)
@@ -674,6 +686,9 @@ static void enter_edge_mode(Editor* editor)
     Matrix4 model = object_get_model(object);
 
     video_set_model(editor->video_context, editor->selection_wireframe_id, model);
+
+    add_halo(editor);
+    video_update_wireframe(editor->video_context, editor->selection_halo, &object->mesh, &editor->heap);
 }
 
 static void exit_edge_mode(Editor* editor)
@@ -682,6 +697,8 @@ static void exit_edge_mode(Editor* editor)
 
     video_remove_object(editor->video_context, editor->selection_wireframe_id);
     editor->selection_wireframe_id = 0;
+
+    remove_halo(editor);
 }
 
 static void update_edge_mode(Editor* editor)
@@ -737,6 +754,9 @@ static void enter_face_mode(Editor* editor)
 
     video_set_model(editor->video_context, editor->selection_id, model);
     video_set_model(editor->video_context, editor->selection_wireframe_id, model);
+
+    add_halo(editor);
+    video_update_wireframe(editor->video_context, editor->selection_halo, &object->mesh, &editor->heap);
 }
 
 static void exit_face_mode(Editor* editor)
@@ -747,6 +767,8 @@ static void exit_face_mode(Editor* editor)
     video_remove_object(editor->video_context, editor->selection_wireframe_id);
     editor->selection_id = 0;
     editor->selection_wireframe_id = 0;
+
+    remove_halo(editor);
 }
 
 static void translate_faces(Editor* editor, Object* object, Log* logger)
@@ -829,6 +851,9 @@ static void enter_vertex_mode(Editor* editor)
     Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
 
     video_set_model(editor->video_context, editor->selection_pointcloud_id, model);
+
+    add_halo(editor);
+    video_update_wireframe(editor->video_context, editor->selection_halo, &object->mesh, &editor->heap);
 }
 
 static void exit_vertex_mode(Editor* editor)
@@ -837,6 +862,8 @@ static void exit_vertex_mode(Editor* editor)
 
     video_remove_object(editor->video_context, editor->selection_pointcloud_id);
     editor->selection_pointcloud_id = 0;
+
+    remove_halo(editor);
 }
 
 static void update_vertex_mode(Editor* editor)

@@ -140,7 +140,7 @@ void video_object_update_selection(VideoObject* object, JanMesh* mesh, JanSelect
 
 void video_object_update_wireframe(VideoObject* object, JanMesh* mesh, Backend* backend, Log* logger, Heap* heap)
 {
-    const Float4 colour = (Float4){{1.0f, 0.5f, 0.0f, 0.8f}};
+    const Float4 colour = (Float4){{1.0f, 0.5f, 0.0f, 1.0f}};
 
     LineVertex* vertices;
     uint16_t* indices;
