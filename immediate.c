@@ -35,6 +35,7 @@ typedef struct Context
     BufferId buffers[CONTEXT_VERTEX_TYPE_COUNT];
     BufferId uniform_buffers[2];
     PipelineId pipelines[CONTEXT_BLEND_MODE_COUNT][CONTEXT_VERTEX_TYPE_COUNT];
+    PipelineId override_pipeline;
     Backend* backend;
     int filled;
     BlendMode blend_mode;
@@ -233,6 +234,11 @@ void immediate_set_text_colour(Float3 text_colour)
     context->text_colour = text_colour;
 }
 
+void immediate_set_override_pipeline(PipelineId pipeline)
+{
+    context->override_pipeline = pipeline;
+}
+
 void immediate_set_clip_area(Rect rect, int viewport_width, int viewport_height)
 {
     ScissorRect scissor_rect =
@@ -257,11 +263,21 @@ static bool is_fresh(Context* c)
     return c->filled == 0;
 }
 
+static void make_fresh()
+{
+    immediate_set_blend_mode(BLEND_MODE_NONE);
+    immediate_set_text_colour(float3_white);
+    immediate_set_line_width(4.0f);
+    context->override_pipeline.value = 0;
+    context->filled = 0;
+}
+
 void immediate_draw()
 {
     Context* c = context;
     if(c->filled == 0 || c->vertex_type == VERTEX_TYPE_NONE)
     {
+        make_fresh();
         return;
     }
 
@@ -311,7 +327,10 @@ void immediate_draw()
         }
     }
 
-    set_pipeline(c->backend, c->pipelines[blend_index][vertex_type_index]);
+    if(!c->override_pipeline.value)
+    {
+        set_pipeline(c->backend, c->pipelines[blend_index][vertex_type_index]);
+    }
 
     if(c->vertex_type == VERTEX_TYPE_TEXTURE)
     {
@@ -338,10 +357,7 @@ void immediate_draw()
     };
     draw(c->backend, &draw_action);
 
-    immediate_set_blend_mode(BLEND_MODE_NONE);
-    immediate_set_text_colour(float3_white);
-    immediate_set_line_width(4.0f);
-    c->filled = 0;
+    make_fresh();
 }
 
 void immediate_add_line(Float3 start, Float3 end, Float4 colour)

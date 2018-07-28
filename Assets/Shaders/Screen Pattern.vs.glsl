@@ -8,6 +8,12 @@ layout(std140) uniform PerImage
     vec2 texture_dimensions;
 };
 
+layout(std140) uniform PerObject
+{
+    mat4x4 model;
+    mat4x4 normal_matrix;
+};
+
 layout(std140) uniform PerView
 {
     mat4x4 view_projection;
@@ -19,7 +25,7 @@ out vec4 surface_colour;
 
 void main()
 {
-    vec4 surface_position = view_projection * vec4(position, 1.0);
+    vec4 surface_position = view_projection * model * vec4(position, 1.0);
     gl_Position = surface_position;
     
     vec2 texcoord = surface_position.xy;

@@ -613,6 +613,11 @@ static void remove_halo(Editor* editor)
 static void enter_object_mode(Editor* editor)
 {
     add_halo(editor);
+    if(is_valid_index(editor->selected_object_index))
+    {
+        Object* object = &editor->lady.objects[editor->selected_object_index];
+        video_update_wireframe(editor->video_context, editor->selection_halo, &object->mesh, &editor->heap);
+    }
 
     editor->hover_halo = video_add_object(editor->video_context, VERTEX_LAYOUT_LINE);
 }

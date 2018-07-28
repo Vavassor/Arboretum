@@ -40,6 +40,8 @@ typedef struct Images
     ImageId hatch_pattern;
     ImageId line_pattern;
     ImageId point_pattern;
+    Int2 hatch_pattern_dimensions;
+    Int2 line_pattern_dimensions;
 } Images;
 
 typedef struct Matrices
@@ -80,6 +82,7 @@ typedef struct Pipelines
     PipelineId wireframe;
     PipelineId selected;
     PipelineId halo;
+    PipelineId hidden;
 } Pipelines;
 
 typedef struct Uniforms
@@ -104,6 +107,11 @@ struct VideoContext
     VideoObject sky;
     Backend* backend;
 };
+
+static Float2 int2_to_float2(Int2 i)
+{
+    return (Float2){{(float) i.x, (float) i.y}};
+}
 
 static PixelFormat get_pixel_format(int bytes_per_pixel)
 {
@@ -220,15 +228,18 @@ static void create_images(VideoContext* context, Images* images)
     Backend* backend = context->backend;
     Uniforms* uniforms = &context->uniforms;
 
-    images->hatch_pattern = build_image(context, "polka_dot.png", false, NULL);
-    images->point_pattern = build_image(context, "Point.png", true, NULL);
-
     Int2 dimensions;
+    images->hatch_pattern = build_image(context, "polka_dot.png", false, &dimensions);
+    images->hatch_pattern_dimensions = dimensions;
+
     images->line_pattern = build_image(context, "Line Feathering.png", true, &dimensions);
+    images->line_pattern_dimensions = dimensions;
+
+    images->point_pattern = build_image(context, "Point.png", true, NULL);
 
     PerImage per_image =
     {
-        .texture_dimensions = {{(float) dimensions.x, (float) dimensions.y}},
+        .texture_dimensions = int2_to_float2(dimensions),
     };
     update_buffer(backend, uniforms->buffers[0], &per_image, 0, sizeof(PerImage));
 }
@@ -465,8 +476,9 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
         {
             .uniform_blocks =
             {
-                per_view_spec,
                 per_image_block_spec,
+                per_object_block_spec,
+                per_view_spec,
             },
         },
     };
@@ -692,6 +704,22 @@ static void create_pipelines(VideoContext* context, Pipelines* pipelines)
         .vertex_layout = vertex_layout_spec_lit,
     };
     pipelines->selected = create_pipeline(backend, &pipeline_selected_spec, logger);
+
+    PipelineSpec pipeline_spec_hidden =
+    {
+        .depth_stencil =
+        {
+            .depth_compare_enabled = false,
+            .depth_write_enabled = true,
+        },
+        .input_assembly =
+        {
+            .index_type = INDEX_TYPE_NONE,
+        },
+        .shader = shaders->screen_pattern,
+        .vertex_layout = vertex_layout_spec_vertex_colour,
+    };
+    pipelines->hidden = create_pipeline(backend, &pipeline_spec_hidden, logger);
 }
 
 static void destroy_pipelines(VideoContext* context, Pipelines* pipelines)
@@ -705,6 +733,7 @@ static void destroy_pipelines(VideoContext* context, Pipelines* pipelines)
     destroy_pipeline(backend, pipelines->wireframe);
     destroy_pipeline(backend, pipelines->selected);
     destroy_pipeline(backend, pipelines->halo);
+    destroy_pipeline(backend, pipelines->hidden);
 }
 
 static void create_uniforms(VideoContext* context, Uniforms* uniforms)
@@ -1101,40 +1130,46 @@ static void draw_move_tool_and_vectors(VideoContext* context, MoveTool* move_too
 {
     Backend* backend = context->backend;
     Images* images = &context->images;
+    Pipelines* pipelines = &context->pipelines;
     Samplers* samplers = &context->samplers;
+    Uniforms* uniforms = &context->uniforms;
 
     Matrix4 model = matrix4_compose_transform(move_tool->position, move_tool->orientation, float3_set_all(move_tool->scale));
 
-#if 0
     ImageSet image_set =
     {
         .stages[1] =
         {
             .images[0] = images->hatch_pattern,
-            .samplers[0] = samplers->linear_mipmap_repeat,
+            .samplers[0] = samplers->linear_repeat,
         },
     };
+
+    PerImage per_image =
+    {
+        .texture_dimensions = int2_to_float2(images->hatch_pattern_dimensions),
+    };
+    update_buffer(backend, uniforms->buffers[0], &per_image, 0, sizeof(PerImage));
+
+    set_model_matrix(context, model);
+    immediate_set_override_pipeline(context->pipelines.hidden);
+    set_pipeline(backend, pipelines->hidden);
     set_images(backend, &image_set);
-
-    // silhouette
-    glDisable(GL_DEPTH_TEST);
-    immediate_set_shader(shader_screen_pattern.program);
-    glActiveTexture(GL_TEXTURE0 + 0);
-    glBindTexture(GL_TEXTURE_2D, hatch_pattern);
-    glBindSampler(0, linear_repeat);
-
-    immediate_set_matrices(matrix4_multiply(view, model), projection);
     draw_move_tool(move_tool, true);
 
-    immediate_set_matrices(view, projection);
+    set_model_matrix(context, matrix4_identity);
+    immediate_set_override_pipeline(pipelines->hidden);
     draw_move_tool_vectors(move_tool);
-#endif
+
     // draw solid parts on top of silhouette
     set_model_matrix(context, model);
     draw_move_tool(move_tool, false);
 
     set_model_matrix(context, matrix4_identity);
     draw_move_tool_vectors(move_tool);
+
+    per_image.texture_dimensions = int2_to_float2(images->line_pattern_dimensions);
+    update_buffer(backend, uniforms->buffers[0], &per_image, 0, sizeof(PerImage));
 }
 
 static void draw_rotate_tool(VideoContext* context, RotateTool* rotate_tool)
@@ -1148,7 +1183,7 @@ static void draw_rotate_tool(VideoContext* context, RotateTool* rotate_tool)
         .stages[1] =
         {
             .images[0] = images->line_pattern,
-            .samplers[0] = samplers->linear_mipmap_repeat,
+            .samplers[0] = samplers->linear_repeat,
         },
     };
     set_images(backend, &image_set);
@@ -1221,6 +1256,8 @@ static void draw_object_with_halo(VideoContext* context, ObjectLady* lady, int i
 
     VideoObject* object = dense_map_look_up(&context->objects, lady->objects[index].video_object);
     VideoObject* halo = dense_map_look_up(&context->objects, halo_id);
+    ASSERT(object->indices_count > 0);
+    ASSERT(halo->indices_count > 0);
 
     Backend* backend = context->backend;
     Images* images = &context->images;
@@ -1385,11 +1422,6 @@ static void draw_selection(VideoContext* context, DenseMapId faces_id, DenseMapI
     draw_face_selection(context, faces);
     draw_pointcloud(context, pointcloud, projection);
     draw_wireframe(context, wireframe, projection);
-}
-
-static Float2 int2_to_float2(Int2 i)
-{
-    return (Float2){{(float) i.x, (float) i.y}};
 }
 
 static void set_regular_view(VideoContext* context, Int2 viewport, Matrix4 view, Matrix4 projection)
