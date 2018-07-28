@@ -27,6 +27,8 @@ typedef struct VideoUpdate
     DenseMapId selection_id;
     DenseMapId selection_pointcloud_id;
     DenseMapId selection_wireframe_id;
+    DenseMapId hover_halo;
+    DenseMapId selection_halo;
 } VideoUpdate;
 
 typedef enum VertexLayout

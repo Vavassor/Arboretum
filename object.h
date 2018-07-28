@@ -22,5 +22,6 @@ typedef struct Object
 void object_create(Object* object, VideoContext* context);
 void object_destroy(Object* object, VideoContext* context);
 void object_set_position(Object* object, Float3 position, VideoContext* context);
+Matrix4 object_get_model(Object* object);
 
 #endif // OBJECT_H_

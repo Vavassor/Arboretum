@@ -21,6 +21,11 @@ void object_set_position(Object* object, Float3 position, VideoContext* context)
 {
     object->position = position;
 
-    Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
+    Matrix4 model = object_get_model(object);
     video_set_model(context, object->video_object, model);
+}
+
+Matrix4 object_get_model(Object* object)
+{
+    return matrix4_compose_transform(object->position, object->orientation, float3_one);
 }

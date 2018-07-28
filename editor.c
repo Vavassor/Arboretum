@@ -59,7 +59,6 @@ struct Editor
 {
     Heap heap;
     Stack scratch;
-    Log logger;
 
     ObjectLady lady;
     JanSelection selection;
@@ -77,6 +76,8 @@ struct Editor
     DenseMapId selection_id;
     DenseMapId selection_pointcloud_id;
     DenseMapId selection_wireframe_id;
+    DenseMapId hover_halo;
+    DenseMapId selection_halo;
 
     Camera camera;
     Int2 viewport;
@@ -359,6 +360,9 @@ static void update_object_hover_and_selection(Editor* editor, Platform* platform
     MouseState* mouse = &editor->mouse;
     Int2 viewport = editor->viewport;
 
+    int prior_hovered = editor->hovered_object_index;
+    int prior_selected = editor->selected_object_index;
+
     // Update pointer hover detection.
     // Casually raycast against every triangle in the scene.
     float closest = infinity;
@@ -402,6 +406,18 @@ static void update_object_hover_and_selection(Editor* editor, Platform* platform
     else
     {
         action_stop(editor, ACTION_SELECT);
+    }
+
+    if(prior_hovered != editor->hovered_object_index && is_valid_index(editor->hovered_object_index))
+    {
+        Object* object = &editor->lady.objects[editor->hovered_object_index];
+        video_update_wireframe(editor->video_context, editor->hover_halo, &object->mesh, &editor->heap);
+    }
+
+    if(prior_selected != editor->selected_object_index && is_valid_index(editor->selected_object_index))
+    {
+        Object* object = &editor->lady.objects[editor->selected_object_index];
+        video_update_wireframe(editor->video_context, editor->selection_halo, &object->mesh, &editor->heap);
     }
 }
 
@@ -583,6 +599,20 @@ static void update_rotate_tool(RotateTool* rotate_tool, Camera* camera)
     rotate_tool->angles[2] = angles[2];
 }
 
+static void enter_object_mode(Editor* editor)
+{
+    editor->hover_halo = video_add_object(editor->video_context, VERTEX_LAYOUT_LINE);
+    editor->selection_halo = video_add_object(editor->video_context, VERTEX_LAYOUT_LINE);
+}
+
+static void exit_object_mode(Editor* editor)
+{
+    video_remove_object(editor->video_context, editor->hover_halo);
+    video_remove_object(editor->video_context, editor->selection_halo);
+    editor->hover_halo = 0;
+    editor->selection_halo = 0;
+}
+
 static void update_object_mode(Editor* editor, Platform* platform)
 {
     Camera* camera = &editor->camera;
@@ -641,7 +671,7 @@ static void enter_edge_mode(Editor* editor)
     editor->selection_wireframe_id = video_add_object(editor->video_context, VERTEX_LAYOUT_LINE);
 
     Object* object = &editor->lady.objects[editor->selected_object_index];
-    Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
+    Matrix4 model = object_get_model(object);
 
     video_set_model(editor->video_context, editor->selection_wireframe_id, model);
 }
@@ -719,7 +749,7 @@ static void exit_face_mode(Editor* editor)
     editor->selection_wireframe_id = 0;
 }
 
-static void translate_faces(Editor* editor, Object* object)
+static void translate_faces(Editor* editor, Object* object, Log* logger)
 {
     Camera* camera = &editor->camera;
     MouseState* mouse = &editor->mouse;
@@ -739,7 +769,7 @@ static void translate_faces(Editor* editor, Object* object)
     Float3 move = float3_add(float3_multiply(move_velocity.x, right), float3_multiply(move_velocity.y, up));
     jan_move_faces(mesh, &editor->selection, move);
 
-    ASSERT(jan_validate_mesh(mesh, &editor->logger));
+    ASSERT(jan_validate_mesh(mesh, logger));
 
     video_update_mesh(video_context, object->video_object, mesh, &editor->heap);
 }
@@ -766,9 +796,9 @@ static void select_face(Editor* editor, Object* object)
     video_update_wireframe(video_context, editor->selection_wireframe_id, mesh, &editor->heap);
 }
 
-static void update_face_mode(Editor* editor)
+static void update_face_mode(Editor* editor, Platform* platform)
 {
-    ASSERT(editor->selected_object_index != invalid_index);
+    ASSERT(is_valid_index(editor->selected_object_index));
     ASSERT(editor->selected_object_index >= 0 && editor->selected_object_index < array_count(editor->lady.objects));
 
     Object* object = &editor->lady.objects[editor->selected_object_index];
@@ -785,7 +815,7 @@ static void update_face_mode(Editor* editor)
 
     if(editor->translating)
     {
-        translate_faces(editor, object);
+        translate_faces(editor, object, &platform->logger);
     }
 
     select_face(editor, object);
@@ -874,6 +904,7 @@ static void request_mode_change(Editor* editor, Mode requested_mode)
                     }
                     case MODE_OBJECT:
                     {
+                        exit_object_mode(editor);
                         break;
                     }
                 }
@@ -904,6 +935,7 @@ static void request_mode_change(Editor* editor, Mode requested_mode)
                     }
                     case MODE_OBJECT:
                     {
+                        exit_object_mode(editor);
                         break;
                     }
                 }
@@ -936,6 +968,7 @@ static void request_mode_change(Editor* editor, Mode requested_mode)
                     break;
                 }
             }
+            enter_object_mode(editor);
             editor->mode = requested_mode;
             break;
         }
@@ -961,6 +994,7 @@ static void request_mode_change(Editor* editor, Mode requested_mode)
                     }
                     case MODE_OBJECT:
                     {
+                        exit_object_mode(editor);
                         break;
                     }
                 }
@@ -1311,6 +1345,8 @@ bool editor_start_up(Platform* platform)
     };
     editor->rotate_tool = rotate_tool;
 
+    enter_object_mode(editor);
+
     return true;
 }
 
@@ -1361,7 +1397,7 @@ void editor_update(Platform* platform)
             }
             case MODE_FACE:
             {
-                update_face_mode(editor);
+                update_face_mode(editor, platform);
                 break;
             }
             case MODE_OBJECT:
@@ -1401,6 +1437,8 @@ void editor_update(Platform* platform)
         .selection_id = editor->selection_id,
         .selection_pointcloud_id = editor->selection_pointcloud_id,
         .selection_wireframe_id = editor->selection_wireframe_id,
+        .hover_halo = editor->hover_halo,
+        .selection_halo = editor->selection_halo,
     };
     video_update_context(editor->video_context, &update, platform);
 }

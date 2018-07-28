@@ -77,6 +77,8 @@ typedef struct Pipelines
     PipelineId face_selection;
     PipelineId pointcloud;
     PipelineId wireframe;
+    PipelineId selected;
+    PipelineId halo;
 } Pipelines;
 
 typedef struct Uniforms
@@ -517,6 +519,46 @@ static void create_pipelines(VideoContext* context, Pipelines* pipelines)
         .depth_compare_enabled = true,
     };
 
+    StencilOpStateSpec selected_stencil_spec =
+    {
+        .compare_mask = 0xff,
+        .compare_op = COMPARE_OP_ALWAYS,
+        .depth_fail_op = STENCIL_OP_KEEP,
+        .fail_op = STENCIL_OP_KEEP,
+        .pass_op = STENCIL_OP_REPLACE,
+        .reference = 1,
+        .write_mask = 0xff,
+    };
+
+    StencilOpStateSpec halo_stencil_spec =
+    {
+        .compare_mask = 0xff,
+        .compare_op = COMPARE_OP_NOT_EQUAL,
+        .depth_fail_op = STENCIL_OP_KEEP,
+        .fail_op = STENCIL_OP_KEEP,
+        .pass_op = STENCIL_OP_REPLACE,
+        .reference = 1,
+        .write_mask = 0x00,
+    };
+
+    DepthStencilStateSpec selected_depth_stencil_spec =
+    {
+        .depth_compare_enabled = true,
+        .depth_write_enabled = true,
+        .stencil_enabled = true,
+        .back_stencil = selected_stencil_spec,
+        .front_stencil = selected_stencil_spec,
+    };
+
+    DepthStencilStateSpec halo_depth_stencil_spec =
+    {
+        .depth_compare_enabled = true,
+        .depth_write_enabled = true,
+        .stencil_enabled = true,
+        .back_stencil = halo_stencil_spec,
+        .front_stencil = halo_stencil_spec,
+    };
+
     VertexLayoutSpec vertex_layout_line_spec =
     {
         .attributes =
@@ -615,38 +657,21 @@ static void create_pipelines(VideoContext* context, Pipelines* pipelines)
     };
     pipelines->wireframe = create_pipeline(backend, &pipeline_wireframe_spec, logger);
 
-#if 0
-    StencilOpStateSpec selected_stencil_spec =
+    PipelineSpec pipeline_halo_spec =
     {
-        .compare_mask = 0xff,
-        .compare_op = COMPARE_OP_ALWAYS,
-        .depth_fail_op = STENCIL_OP_KEEP,
-        .fail_op = STENCIL_OP_KEEP,
-        .pass_op = STENCIL_OP_REPLACE,
-        .reference = 1,
-        .write_mask = 0xff,
+        .depth_stencil = halo_depth_stencil_spec,
+        .shader = shaders->line,
+        .vertex_layout = vertex_layout_line_spec,
     };
+    pipelines->halo = create_pipeline(backend, &pipeline_halo_spec, logger);
 
-    StencilOpStateSpec halo_stencil_spec =
+    PipelineSpec pipeline_selected_spec =
     {
-        .compare_mask = 0xff,
-        .compare_op = COMPARE_OP_NOT_EQUAL,
-        .depth_fail_op = STENCIL_OP_KEEP,
-        .fail_op = STENCIL_OP_KEEP,
-        .pass_op = STENCIL_OP_REPLACE,
-        .reference = 1,
-        .write_mask = 0x00,
+        .depth_stencil = selected_depth_stencil_spec,
+        .shader = shaders->lit,
+        .vertex_layout = vertex_layout_spec_lit,
     };
-
-    DepthStencilStateSpec selected_depth_stencil_spec =
-    {
-        .depth_compare_enabled = true,
-        .depth_write_enabled = true,
-        .stencil_enabled = true,
-        .back_stencil = selected_stencil_spec,
-        .front_stencil = selected_stencil_spec,
-    };
-#endif
+    pipelines->selected = create_pipeline(backend, &pipeline_selected_spec, logger);
 }
 
 static void destroy_pipelines(VideoContext* context, Pipelines* pipelines)
@@ -658,6 +683,8 @@ static void destroy_pipelines(VideoContext* context, Pipelines* pipelines)
     destroy_pipeline(backend, pipelines->face_selection);
     destroy_pipeline(backend, pipelines->pointcloud);
     destroy_pipeline(backend, pipelines->wireframe);
+    destroy_pipeline(backend, pipelines->selected);
+    destroy_pipeline(backend, pipelines->halo);
 }
 
 static void create_uniforms(VideoContext* context, Uniforms* uniforms)
@@ -1052,9 +1079,23 @@ static void draw_move_tool_vectors(MoveTool* tool)
 
 static void draw_move_tool_and_vectors(VideoContext* context, MoveTool* move_tool)
 {
+    Backend* backend = context->backend;
+    Images* images = &context->images;
+    Samplers* samplers = &context->samplers;
+
     Matrix4 model = matrix4_compose_transform(move_tool->position, move_tool->orientation, float3_set_all(move_tool->scale));
 
 #if 0
+    ImageSet image_set =
+    {
+        .stages[1] =
+        {
+            .images[0] = images->hatch_pattern,
+            .samplers[0] = samplers->linear_mipmap_repeat,
+        },
+    };
+    set_images(backend, &image_set);
+
     // silhouette
     glDisable(GL_DEPTH_TEST);
     immediate_set_shader(shader_screen_pattern.program);
@@ -1076,30 +1117,7 @@ static void draw_move_tool_and_vectors(VideoContext* context, MoveTool* move_too
     draw_move_tool_vectors(move_tool);
 }
 
-static void draw_rotate_tool(bool silhouetted)
-{
-    const float radius = 2.0f;
-    const float width = 0.3f;
-
-    Float4 x_axis_colour = (Float4){{1.0f, 0.0314f, 0.0314f, 1.0f}};
-    Float4 y_axis_colour = (Float4){{0.3569f, 1.0f, 0.0f, 1.0f}};
-    Float4 z_axis_colour = (Float4){{0.0863f, 0.0314f, 1.0f, 1.0f}};
-
-    Float3 center = (Float3){{-1.0f, 2.0f, 0.0f}};
-
-    immediate_add_arc(center, float3_unit_x, pi_over_2, -pi_over_2, radius, width, x_axis_colour);
-    immediate_add_arc(center, float3_negate(float3_unit_x), pi_over_2, pi, radius, width, x_axis_colour);
-
-    immediate_add_arc(center, float3_unit_y, pi_over_2, -pi_over_2, radius, width, y_axis_colour);
-    immediate_add_arc(center, float3_negate(float3_unit_y), pi_over_2, pi, radius, width, y_axis_colour);
-
-    immediate_add_arc(center, float3_unit_z, pi_over_2, pi_over_2, radius, width, z_axis_colour);
-    immediate_add_arc(center, float3_negate(float3_unit_z), pi_over_2, 0.0f, radius, width, z_axis_colour);
-
-    immediate_draw();
-}
-
-static void draw_rotate_tool_2(VideoContext* context, RotateTool* rotate_tool)
+static void draw_rotate_tool(VideoContext* context, RotateTool* rotate_tool)
 {
     Backend* backend = context->backend;
     Images* images = &context->images;
@@ -1176,52 +1194,55 @@ static void draw_scale_tool(bool silhouetted)
     immediate_draw();
 }
 
-#if 0
-
-static void draw_object_with_halo(ObjectLady* lady, int index, Float4 colour)
+static void draw_object_with_halo(VideoContext* context, ObjectLady* lady, int index, DenseMapId halo_id, Float4 colour, Matrix4 projection)
 {
     ASSERT(index != invalid_index);
     ASSERT(index >= 0 && index < array_count(lady->objects));
 
-    VideoObject object = *video_get_object(lady->objects[index].video_object);
+    VideoObject* object = dense_map_look_up(&context->objects, lady->objects[index].video_object);
+    VideoObject* halo = dense_map_look_up(&context->objects, halo_id);
+
+    Backend* backend = context->backend;
+    Images* images = &context->images;
+    Pipelines* pipelines = &context->pipelines;
+    Samplers* samplers = &context->samplers;
+    Uniforms* uniforms = &context->uniforms;
 
     // Draw the object.
-    glUseProgram(shader_lit.program);
+    set_pipeline(backend, pipelines->selected);
 
-    glEnable(GL_STENCIL_TEST);
-    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+    ClearState clear =
+    {
+        .stencil = 0xff,
+        .flags = {.stencil = true},
+    };
+    clear_target(backend, &clear);
 
-    glStencilMask(0xff);
-    glClear(GL_STENCIL_BUFFER_BIT);
-
-    glStencilFunc(GL_ALWAYS, 1, 0xff);
-
-    glUniformMatrix4fv(shader_lit.model_view_projection, 1, GL_TRUE, object.model_view_projection.e);
-    glUniformMatrix4fv(shader_lit.normal_matrix, 1, GL_TRUE, object.normal.e);
-    glBindVertexArray(object.vertex_array);
-    glDrawElements(GL_TRIANGLES, object.indices_count, GL_UNSIGNED_SHORT, NULL);
+    apply_object_block(context, object);
+    draw_object(context, object);
 
     // Draw the halo.
-    glUseProgram(shader_halo.program);
+    set_pipeline(backend, pipelines->halo);
 
-    glUniform4fv(shader_halo.halo_colour, 1, &colour.e[0]);
+    ImageSet image_set =
+    {
+        .stages[1] =
+        {
+            .images[0] = images->line_pattern,
+            .samplers[0] = samplers->linear_mipmap_repeat,
+        },
+    };
+    set_images(backend, &image_set);
 
-    glStencilFunc(GL_NOTEQUAL, 1, 0xff);
-    glStencilMask(0x00);
+    PerLine line_block =
+    {
+        .line_width = 3.0f,
+        .projection_factor = projection.e[0],
+    };
+    update_buffer(backend, uniforms->per_point, &line_block, 0, sizeof(line_block));
 
-    glLineWidth(3.0f);
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-    glUniformMatrix4fv(shader_halo.model_view_projection, 1, GL_TRUE, object.model_view_projection.e);
-    glBindVertexArray(object.vertex_array);
-    glDrawElements(GL_TRIANGLES, object.indices_count, GL_UNSIGNED_SHORT, NULL);
-
-    glLineWidth(1.0f);
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    glDisable(GL_STENCIL_TEST);
+    draw_object(context, halo);
 }
-
-#endif
 
 static void draw_face_selection(VideoContext* context, VideoObject* object)
 {
@@ -1518,6 +1539,9 @@ static void draw_opaque_phase(VideoContext* context, VideoUpdate* update, Matric
     ObjectLady* lady = update->lady;
     MoveTool* move_tool = update->move_tool;
     int selected_object_index = update->selected_object_index;
+    int hovered_object_index = update->hovered_object_index;
+    DenseMapId hover_halo = update->hover_halo;
+    DenseMapId selection_halo = update->selection_halo;
     Int2 viewport = update->viewport;
 
     Backend* backend = context->backend;
@@ -1555,12 +1579,10 @@ static void draw_opaque_phase(VideoContext* context, VideoUpdate* update, Matric
     // Draw all unselected models.
     for(int i = 0; i < array_count(lady->objects); i += 1)
     {
-#if 0
         if(i == hovered_object_index || i == selected_object_index)
         {
             continue;
         }
-#endif
         VideoObject* object = dense_map_look_up(&context->objects, lady->objects[i].video_object);
         apply_object_block(context, object);
         draw_object(context, object);
@@ -1574,20 +1596,15 @@ static void draw_opaque_phase(VideoContext* context, VideoUpdate* update, Matric
     }
     immediate_draw();
 
-#if 0
     // Draw the selected and hovered models.
     if(is_valid_index(selected_object_index))
     {
-        draw_object_with_halo(lady, selected_object_index, float4_white);
+        draw_object_with_halo(context, lady, selected_object_index, selection_halo, float4_white, matrices->projection);
     }
     if(is_valid_index(hovered_object_index) && hovered_object_index != selected_object_index)
     {
-        draw_object_with_halo(lady, hovered_object_index, float4_yellow);
+        draw_object_with_halo(context, lady, hovered_object_index, hover_halo, float4_yellow, matrices->projection);
     }
-#endif
-
-    set_model_matrix(context, matrix4_identity);
-    draw_rotate_tool(false);
 
     if(is_valid_index(selected_object_index))
     {
@@ -1609,7 +1626,7 @@ static void draw_transparent_phase(VideoContext* context, VideoUpdate* update, M
 
     draw_selection(context, selection_id, selection_pointcloud_id, selection_wireframe_id, matrices->projection);
 
-    draw_rotate_tool_2(context, rotate_tool);
+    draw_rotate_tool(context, rotate_tool);
 }
 
 static void draw_screen_phase(VideoContext* context, VideoUpdate* update, Matrices* matrices)
