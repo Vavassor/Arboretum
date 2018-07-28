@@ -1421,7 +1421,7 @@ Backend* create_backend(Heap* heap)
     create_id_pool(&backend->pass_id_pool, heap, 1);
     create_id_pool(&backend->pipeline_id_pool, heap, 16);
     create_id_pool(&backend->sampler_id_pool, heap, 4);
-    create_id_pool(&backend->shader_id_pool, heap, 8);
+    create_id_pool(&backend->shader_id_pool, heap, 16);
 
     backend->buffers = HEAP_ALLOCATE(heap, Buffer, backend->buffer_id_pool.cap);
     backend->images = HEAP_ALLOCATE(heap, Image, backend->image_id_pool.cap);

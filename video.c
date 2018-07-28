@@ -62,6 +62,7 @@ typedef struct Shaders
 {
     ShaderId face_selection;
     ShaderId font;
+    ShaderId halo;
     ShaderId line;
     ShaderId lit;
     ShaderId point;
@@ -379,6 +380,24 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
     };
     shaders->face_selection = build_shader(context, &face_selection_spec, "Face Selection.fs", "Face Selection.vs");
 
+    ShaderSpec shader_halo_spec =
+    {
+        .fragment =
+        {
+            .uniform_blocks[0] = halo_block_spec,
+        },
+        .vertex =
+        {
+            .uniform_blocks =
+            {
+                per_view_spec,
+                per_line_block_spec,
+                per_object_block_spec,
+            },
+        },
+    };
+    shaders->halo = build_shader(context, &shader_halo_spec, "Halo.fs", "Halo.vs");
+
     ShaderSpec shader_line_spec =
     {
         .fragment =
@@ -489,6 +508,7 @@ static void destroy_shaders(VideoContext* context, Shaders* shaders)
 
     destroy_shader(backend, shaders->face_selection);
     destroy_shader(backend, shaders->font);
+    destroy_shader(backend, shaders->halo);
     destroy_shader(backend, shaders->line);
     destroy_shader(backend, shaders->lit);
     destroy_shader(backend, shaders->point);
@@ -660,7 +680,7 @@ static void create_pipelines(VideoContext* context, Pipelines* pipelines)
     PipelineSpec pipeline_halo_spec =
     {
         .depth_stencil = halo_depth_stencil_spec,
-        .shader = shaders->line,
+        .shader = shaders->halo,
         .vertex_layout = vertex_layout_line_spec,
     };
     pipelines->halo = create_pipeline(backend, &pipeline_halo_spec, logger);
@@ -1233,6 +1253,9 @@ static void draw_object_with_halo(VideoContext* context, ObjectLady* lady, int i
         },
     };
     set_images(backend, &image_set);
+
+    HaloBlock halo_block = {.halo_colour = colour};
+    update_buffer(backend, uniforms->halo_block, &halo_block, 0, sizeof(halo_block));
 
     PerLine line_block =
     {
