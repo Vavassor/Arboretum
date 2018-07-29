@@ -97,7 +97,6 @@ struct VideoContext
 {
     Stack scratch;
     Heap heap;
-    Log logger;
     DenseMap objects;
     Images images;
     Pipelines pipelines;
@@ -106,6 +105,7 @@ struct VideoContext
     Uniforms uniforms;
     VideoObject sky;
     Backend* backend;
+    Log* logger;
 };
 
 static Float2 int2_to_float2(Int2 i)
@@ -166,7 +166,7 @@ static ImageId build_image(VideoContext* context, const char* name, bool with_mi
             .type = IMAGE_TYPE_2D,
             .width = bitmap.width,
         };
-        id = create_image(context->backend, &spec, &context->logger);
+        id = create_image(context->backend, &spec, context->logger);
 
         if(dimensions)
         {
@@ -204,15 +204,15 @@ static ShaderId build_shader(VideoContext* context, ShaderSpec* spec, const char
     {
         spec->fragment.source = fragment_source;
         spec->vertex.source = vertex_source;
-        shader = create_shader(context->backend, spec, &context->heap, &context->logger);
+        shader = create_shader(context->backend, spec, &context->heap, context->logger);
     }
     else if(!loaded_fragment)
     {
-        log_error(&context->logger, "Failed to compile %s.", fragment_name);
+        log_error(context->logger, "Failed to compile %s.", fragment_name);
     }
     else if(!loaded_vertex)
     {
-        log_error(&context->logger, "Failed to compile %s.", vertex_name);
+        log_error(context->logger, "Failed to compile %s.", vertex_name);
     }
 
     STACK_DEALLOCATE(&context->scratch, vertex_source);
@@ -261,7 +261,7 @@ static void destroy_images(VideoContext* context, Images* images)
 static void create_samplers(VideoContext* context, Samplers* samplers)
 {
     Backend* backend = context->backend;
-    Log* logger = &context->logger;
+    Log* logger = context->logger;
 
     SamplerSpec nearest_repeat_spec =
     {
@@ -532,7 +532,7 @@ static void destroy_shaders(VideoContext* context, Shaders* shaders)
 static void create_pipelines(VideoContext* context, Pipelines* pipelines)
 {
     Backend* backend = context->backend;
-    Log* logger = &context->logger;
+    Log* logger = context->logger;
     Shaders* shaders = &context->shaders;
 
     BlendStateSpec alpha_blend_spec =
@@ -739,7 +739,7 @@ static void destroy_pipelines(VideoContext* context, Pipelines* pipelines)
 static void create_uniforms(VideoContext* context, Uniforms* uniforms)
 {
     Backend* backend = context->backend;
-    Log* logger = &context->logger;
+    Log* logger = context->logger;
 
     BufferSpec per_image_spec =
     {
@@ -827,13 +827,14 @@ static void destroy_uniforms(VideoContext* context, Uniforms* uniforms)
     destroy_buffer(backend, uniforms->per_point);
 }
 
-static void create_context(VideoContext* context)
+static void create_context(VideoContext* context, Log* logger)
 {
     stack_create(&context->scratch, (uint32_t) uptibytes(1));
     heap_create(&context->heap, (uint32_t) uptibytes(1));
     dense_map_create(&context->objects, &context->heap);
 
     context->backend = create_backend(&context->heap);
+    context->logger = logger;
 
     create_samplers(context, &context->samplers);
     create_shaders(context, &context->shaders);
@@ -842,7 +843,6 @@ static void create_context(VideoContext* context)
     create_images(context, &context->images);
 
     Backend* backend = context->backend;
-    Log* logger = &context->logger;
     Shaders* shaders = &context->shaders;
     Uniforms* uniforms = &context->uniforms;
 
@@ -1720,10 +1720,10 @@ static void draw_screen_phase(VideoContext* context, VideoUpdate* update, Matric
     draw_main_menu(context, ui_context, main_menu, viewport_dimensions);
 }
 
-VideoContext* video_create_context(Heap* heap)
+VideoContext* video_create_context(Heap* heap, Log* logger)
 {
     VideoContext* context = HEAP_ALLOCATE(heap, VideoContext, 1);
-    create_context(context);
+    create_context(context, logger);
     return context;
 }
 
@@ -1785,31 +1785,31 @@ void video_set_model(VideoContext* context, DenseMapId id, Matrix4 model)
 void video_update_mesh(VideoContext* context, DenseMapId id, JanMesh* mesh, Heap* heap)
 {
     VideoObject* object = dense_map_look_up(&context->objects, id);
-    video_object_update_mesh(object, mesh, context->backend, &context->logger, heap);
+    video_object_update_mesh(object, mesh, context->backend, context->logger, heap);
 }
 
 void video_update_wireframe(VideoContext* context, DenseMapId id, JanMesh* mesh, Heap* heap)
 {
     VideoObject* object = dense_map_look_up(&context->objects, id);
-    video_object_update_wireframe(object, mesh, context->backend, &context->logger, heap);
+    video_object_update_wireframe(object, mesh, context->backend, context->logger, heap);
 }
 
 void video_update_selection(VideoContext* context, DenseMapId id, JanMesh* mesh, JanSelection* selection, Heap* heap)
 {
     VideoObject* object = dense_map_look_up(&context->objects, id);
-    video_object_update_selection(object, mesh, selection, context->backend, &context->logger, heap);
+    video_object_update_selection(object, mesh, selection, context->backend, context->logger, heap);
 }
 
 void video_update_pointcloud_selection(VideoContext* context, DenseMapId id, JanMesh* mesh, JanSelection* selection, JanVertex* hovered, Heap* heap)
 {
     VideoObject* object = dense_map_look_up(&context->objects, id);
-    video_object_update_pointcloud_selection(object, mesh, selection, hovered, context->backend, &context->logger, heap);
+    video_object_update_pointcloud_selection(object, mesh, selection, hovered, context->backend, context->logger, heap);
 }
 
 void video_update_wireframe_selection(VideoContext* context, DenseMapId id, JanMesh* mesh, JanSelection* selection, JanEdge* hovered, Heap* heap)
 {
     VideoObject* object = dense_map_look_up(&context->objects, id);
-    video_object_update_wireframe_selection(object, mesh, selection, hovered, context->backend, &context->logger, heap);
+    video_object_update_wireframe_selection(object, mesh, selection, hovered, context->backend, context->logger, heap);
 }
 
 int get_vertex_layout_size(VertexLayout vertex_layout)

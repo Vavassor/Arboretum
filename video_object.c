@@ -189,7 +189,6 @@ void video_object_update_pointcloud_selection(VideoObject* object, JanMesh* mesh
 void video_object_set_matrices(VideoObject* object, Matrix4 view, Matrix4 projection)
 {
     Matrix4 model_view = matrix4_multiply(view, object->model);
-    object->model_view_projection = matrix4_multiply(projection, model_view);
     object->normal = matrix4_transpose(matrix4_inverse_transform(model_view));
 }
 

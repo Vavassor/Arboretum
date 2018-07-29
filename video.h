@@ -6,6 +6,7 @@
 #include "dense_map.h"
 #include "int2.h"
 #include "jan.h"
+#include "log.h"
 #include "memory.h"
 #include "platform.h"
 #include "tools.h"
@@ -41,7 +42,7 @@ typedef enum VertexLayout
 
 typedef struct VideoContext VideoContext;
 
-VideoContext* video_create_context(Heap* heap);
+VideoContext* video_create_context(Heap* heap, Log* logger);
 void video_destroy_context(VideoContext* context, Heap* heap, bool functions_loaded);
 void video_update_context(VideoContext* context, VideoUpdate* update, Platform* platform);
 void video_resize_viewport(Int2 dimensions, double dots_per_millimeter, float fov);

@@ -10,7 +10,6 @@
 typedef struct VideoObject
 {
     Matrix4 model;
-    Matrix4 model_view_projection;
     Matrix4 normal;
     BufferId buffers[2];
     int vertices_count;
