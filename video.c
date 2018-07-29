@@ -1503,6 +1503,7 @@ static void draw_compass(VideoContext* context, Camera* camera, Int2 viewport)
     Matrix4 view = matrix4_look_at(float3_zero, direction, float3_unit_z);
     Matrix4 axis_projection = matrix4_orthographic_projection(across, across, -extent, extent);
     set_view_projection(context, view, axis_projection, int2_to_float2(viewport));
+    set_model_matrix(context, matrix4_identity);
 
     Float3 double_x = float3_multiply(2.0f, x_axis);
     Float3 double_y = float3_multiply(2.0f, y_axis);
@@ -1593,6 +1594,7 @@ static void draw_opaque_phase(VideoContext* context, VideoUpdate* update, Matric
 {
     ObjectLady* lady = update->lady;
     MoveTool* move_tool = update->move_tool;
+    RotateTool* rotate_tool = update->rotate_tool;
     int selected_object_index = update->selected_object_index;
     int hovered_object_index = update->hovered_object_index;
     DenseMapId hover_halo = update->hover_halo;
@@ -1651,7 +1653,6 @@ static void draw_opaque_phase(VideoContext* context, VideoUpdate* update, Matric
     }
     immediate_draw();
 
-    // Draw the selected and hovered models.
     if(is_valid_index(selected_object_index))
     {
         draw_object_with_halo(context, lady, selected_object_index, selection_halo, float4_white, matrices->projection);
@@ -1666,6 +1667,8 @@ static void draw_opaque_phase(VideoContext* context, VideoUpdate* update, Matric
         draw_move_tool_and_vectors(context, move_tool);
     }
 
+    draw_rotate_tool(context, rotate_tool);
+
     video_object_set_matrices(&context->sky, matrices->sky_view, matrices->sky_projection);
     draw_sky(context, viewport, matrices->sky_view, matrices->sky_projection);
 
@@ -1674,14 +1677,11 @@ static void draw_opaque_phase(VideoContext* context, VideoUpdate* update, Matric
 
 static void draw_transparent_phase(VideoContext* context, VideoUpdate* update, Matrices* matrices)
 {
-    RotateTool* rotate_tool = update->rotate_tool;
     DenseMapId selection_id = update->selection_id;
     DenseMapId selection_pointcloud_id = update->selection_pointcloud_id;
     DenseMapId selection_wireframe_id = update->selection_wireframe_id;
 
     draw_selection(context, selection_id, selection_pointcloud_id, selection_wireframe_id, matrices->projection);
-
-    draw_rotate_tool(context, rotate_tool);
 }
 
 static void draw_screen_phase(VideoContext* context, VideoUpdate* update, Matrices* matrices)
@@ -1710,6 +1710,7 @@ static void draw_screen_phase(VideoContext* context, VideoUpdate* update, Matric
     Matrix4 view = matrix4_identity;
     Matrix4 projection = matrices->screen_projection;
     set_view_projection(context, view, projection, viewport_dimensions);
+    set_model_matrix(context, matrix4_identity);
 
     if(dialog_enabled)
     {
