@@ -1586,6 +1586,39 @@ static void update_matrices(VideoUpdate* update, Matrices* matrices)
     matrices->screen_projection = matrix4_orthographic_projection(width, height, -1.0f, 1.0f);
 }
 
+static void draw_debug_draw_shapes(VideoContext* context)
+{
+    set_model_matrix(context, matrix4_identity);
+
+    for(int i = 0; i < debug_draw.shapes_count; i += 1)
+    {
+        DebugDrawShape shape = debug_draw.shapes[i];
+
+        if(shape.colour.w < 1.0f)
+        {
+            immediate_set_blend_mode(BLEND_MODE_TRANSPARENT);
+        }
+
+        switch(shape.type)
+        {
+            case DEBUG_DRAW_SHAPE_TYPE_LINE_SEGMENT:
+            {
+                LineSegment line_segment = shape.line_segment;
+                immediate_add_line(line_segment.start, line_segment.end, shape.colour);
+                break;
+            }
+            case DEBUG_DRAW_SHAPE_TYPE_SPHERE:
+            {
+                Sphere sphere = shape.sphere;
+                immediate_add_sphere(sphere.center, sphere.radius, shape.colour);
+                break;
+            }
+        }
+    }
+
+    immediate_draw();
+}
+
 static void draw_opaque_phase(VideoContext* context, VideoUpdate* update, Matrices* matrices)
 {
     ObjectLady* lady = update->lady;
@@ -1641,13 +1674,7 @@ static void draw_opaque_phase(VideoContext* context, VideoUpdate* update, Matric
         draw_object(context, object);
     }
 
-    set_model_matrix(context, matrix4_identity);
-    for(int i = 0; i < debug_draw.spheres_count; i += 1)
-    {
-        Sphere sphere = debug_draw.spheres[i];
-        immediate_add_sphere(sphere.center, sphere.radius, float4_white);
-    }
-    immediate_draw();
+    draw_debug_draw_shapes(context);
 
     if(is_valid_index(selected_object_index))
     {
