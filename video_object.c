@@ -55,20 +55,6 @@ static void ensure_buffer_room(VideoObject* object, int vertices_needed, int ind
     }
 }
 
-static void object_set_surface(VideoObject* object, Backend* backend, Log* logger, VertexPNC* vertices, int vertices_count, uint16_t* indices, int indices_count)
-{
-    ensure_buffer_room(object, vertices_count, indices_count, backend, logger);
-
-    int vertices_size = sizeof(VertexPNC) * vertices_count;
-    update_buffer(backend, object->buffers[0], vertices, 0, vertices_size);
-
-    int indices_size = sizeof(uint16_t) * indices_count;
-    update_buffer(backend, object->buffers[1], indices, 0, indices_size);
-
-    object->vertices_count = vertices_count;
-    object->indices_count = indices_count;
-}
-
 static void object_finish_update(VideoObject* object, Backend* backend, Log* logger, Heap* heap, VertexPNC* vertices, uint16_t* indices)
 {
     ensure_buffer_room(object, array_count(vertices), array_count(indices), backend, logger);

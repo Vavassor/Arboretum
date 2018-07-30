@@ -20,6 +20,7 @@ void log_error(Log* logger, const char* format, ...)
 
 void log_debug(Log* logger, const char* format, ...)
 {
+#if !defined(NDEBUG)
     va_list arguments;
     va_start(arguments, format);
     char buffer[BUFFER_SIZE];
@@ -28,4 +29,5 @@ void log_debug(Log* logger, const char* format, ...)
     bool output_to_stderr = false;
     write_to_standard_output(buffer, output_to_stderr);
     write_to_standard_output("\n", output_to_stderr);
+#endif
 }

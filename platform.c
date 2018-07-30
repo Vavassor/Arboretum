@@ -5,7 +5,7 @@
 
 void create_stack(Platform* platform)
 {
-    stack_create(&platform->stack, ezlabytes(4));
+    stack_create(&platform->stack, ezlabytes(16));
 }
 
 void destroy_stack(Platform* platform)
@@ -40,7 +40,6 @@ bool load_localized_text(Platform* platform)
     const char* filename = get_filename_for_locale_id(platform->locale_id);
     char* path = get_locale_path_by_name(filename, &platform->stack);
     bool loaded = loc_load_file(platform, path);
-    STACK_DEALLOCATE(&platform->stack, path);
 
     return loaded;
 }

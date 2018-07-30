@@ -1,6 +1,7 @@
 #ifndef PLATFORM_H_
 #define PLATFORM_H_
 
+#include "input.h"
 #include "log.h"
 #include "memory.h"
 
@@ -40,6 +41,7 @@ typedef struct Platform
 
     Stack stack;
     Log logger;
+    InputContext* input_context;
 
     LocaleId locale_id;
 } Platform;

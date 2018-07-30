@@ -24,6 +24,7 @@
 #include "string_utilities.h"
 #include "ui.h"
 #include "unicode_load_tables.h"
+#include "vector_extras.h"
 #include "vector_math.h"
 
 typedef enum Mode
@@ -391,7 +392,7 @@ static void update_object_hover_and_selection(Editor* editor, Platform* platform
     }
 
     // Detect selection.
-    if(input_get_mouse_clicked(MOUSE_BUTTON_LEFT) && is_valid_index(editor->hovered_object_index))
+    if(input_get_mouse_clicked(platform->input_context, MOUSE_BUTTON_LEFT) && is_valid_index(editor->hovered_object_index))
     {
         if(editor->selected_object_index == editor->hovered_object_index)
         {
@@ -502,11 +503,11 @@ static void detect_move_tool_plane_hover(MoveTool* move_tool, float* closest, Ra
     }
 }
 
-static void update_move_tool_selection_and_move(Editor* editor, MoveTool* move_tool, Ray ray)
+static void update_move_tool_selection_and_move(Editor* editor, InputContext* input_context, MoveTool* move_tool, Ray ray)
 {
     MouseState* mouse = &editor->mouse;
 
-    if(input_get_mouse_clicked(MOUSE_BUTTON_LEFT))
+    if(input_get_mouse_clicked(input_context, MOUSE_BUTTON_LEFT))
     {
         if(is_valid_index(move_tool->hovered_axis))
         {
@@ -637,6 +638,7 @@ static void update_object_mode(Editor* editor, Platform* platform)
     MoveTool* move_tool = &editor->move_tool;
     RotateTool* rotate_tool = &editor->rotate_tool;
     Int2 viewport = editor->viewport;
+    InputContext* input_context = platform->input_context;
 
     if(is_valid_index(editor->selected_object_index) && action_allowed(editor, ACTION_MOVE))
     {
@@ -648,7 +650,7 @@ static void update_object_mode(Editor* editor, Platform* platform)
         detect_move_tool_arrow_hover(move_tool, &closest, ray, model);
         detect_move_tool_plane_hover(move_tool, &closest, ray, model);
 
-        update_move_tool_selection_and_move(editor, move_tool, ray);
+        update_move_tool_selection_and_move(editor, input_context, move_tool, ray);
     }
 
     if(action_allowed(editor, ACTION_SELECT))
@@ -668,15 +670,15 @@ static void update_object_mode(Editor* editor, Platform* platform)
 
     if(editor->action_in_progress == ACTION_NONE)
     {
-        if(input_get_hotkey_tapped(INPUT_FUNCTION_UNDO))
+        if(input_get_hotkey_tapped(input_context, INPUT_FUNCTION_UNDO))
         {
             undo(&editor->history, &editor->lady, editor->video_context, &editor->heap, editor, platform);
         }
-        if(input_get_hotkey_tapped(INPUT_FUNCTION_REDO))
+        if(input_get_hotkey_tapped(input_context, INPUT_FUNCTION_REDO))
         {
             redo(&editor->history, &editor->lady, editor->video_context, &editor->heap);
         }
-        if(is_valid_index(editor->selected_object_index) && input_get_hotkey_tapped(INPUT_FUNCTION_DELETE))
+        if(is_valid_index(editor->selected_object_index) && input_get_hotkey_tapped(input_context, INPUT_FUNCTION_DELETE))
         {
             delete_object(editor, platform);
         }
@@ -706,7 +708,7 @@ static void exit_edge_mode(Editor* editor)
     remove_halo(editor);
 }
 
-static void update_edge_mode(Editor* editor)
+static void update_edge_mode(Editor* editor, Platform* platform)
 {
     ASSERT(is_valid_index(editor->selected_object_index));
     ASSERT(editor->selected_object_index >= 0 && editor->selected_object_index < array_count(editor->lady.objects));
@@ -739,7 +741,7 @@ static void update_edge_mode(Editor* editor)
         float distance_to_face = infinity;
         jan_first_face_hit_by_ray(mesh, ray, &distance_to_face, &editor->scratch);
 
-        if(distance_to_edge < distance_to_face && input_get_mouse_clicked(MOUSE_BUTTON_LEFT))
+        if(distance_to_edge < distance_to_face && input_get_mouse_clicked(platform->input_context, MOUSE_BUTTON_LEFT))
         {
             jan_toggle_edge_in_selection(&editor->selection, edge);
         }
@@ -776,16 +778,16 @@ static void exit_face_mode(Editor* editor)
     remove_halo(editor);
 }
 
-static void translate_faces(Editor* editor, Object* object, Log* logger)
+static void translate_faces(Editor* editor, Object* object, Platform* platform)
 {
     Camera* camera = &editor->camera;
     MouseState* mouse = &editor->mouse;
     VideoContext* video_context = editor->video_context;
     JanMesh* mesh = &object->mesh;
+    Log* logger = &platform->logger;
 
-    Int2 velocity = input_get_mouse_velocity();
-    mouse->velocity.x = (float) velocity.x;
-    mouse->velocity.y = (float) velocity.y;
+    Int2 velocity = input_get_mouse_velocity(platform->input_context);
+    mouse->velocity = int2_to_float2(velocity);
 
     Float3 forward = float3_subtract(camera->position, camera->target);
     Float3 right = float3_normalise(float3_cross(float3_unit_z, forward));
@@ -801,11 +803,12 @@ static void translate_faces(Editor* editor, Object* object, Log* logger)
     video_update_mesh(video_context, object->video_object, mesh, &editor->heap);
 }
 
-static void select_face(Editor* editor, Object* object)
+static void select_face(Editor* editor, Platform* platform, Object* object)
 {
     Camera* camera = &editor->camera;
     MouseState* mouse = &editor->mouse;
     VideoContext* video_context = editor->video_context;
+    InputContext* input_context = platform->input_context;
     Int2 viewport = editor->viewport;
     JanMesh* mesh = &object->mesh;
 
@@ -814,7 +817,7 @@ static void select_face(Editor* editor, Object* object)
     ray = transform_ray(ray, matrix4_inverse_transform(model));
 
     JanFace* face = jan_first_face_hit_by_ray(mesh, ray, NULL, &editor->scratch);
-    if(face && input_get_mouse_clicked(MOUSE_BUTTON_LEFT))
+    if(face && input_get_mouse_clicked(input_context, MOUSE_BUTTON_LEFT))
     {
         jan_toggle_face_in_selection(&editor->selection, face);
     }
@@ -830,7 +833,7 @@ static void update_face_mode(Editor* editor, Platform* platform)
 
     Object* object = &editor->lady.objects[editor->selected_object_index];
 
-    if(input_get_key_tapped(INPUT_KEY_G))
+    if(input_get_key_tapped(platform->input_context, INPUT_KEY_G))
     {
         editor->translating = !editor->translating;
     }
@@ -842,10 +845,10 @@ static void update_face_mode(Editor* editor, Platform* platform)
 
     if(editor->translating)
     {
-        translate_faces(editor, object, &platform->logger);
+        translate_faces(editor, object, platform);
     }
 
-    select_face(editor, object);
+    select_face(editor, platform, object);
 }
 
 static void enter_vertex_mode(Editor* editor)
@@ -871,7 +874,7 @@ static void exit_vertex_mode(Editor* editor)
     remove_halo(editor);
 }
 
-static void update_vertex_mode(Editor* editor)
+static void update_vertex_mode(Editor* editor, Platform* platform)
 {
     ASSERT(is_valid_index(editor->selected_object_index));
     ASSERT(editor->selected_object_index >= 0 && editor->selected_object_index < array_count(editor->lady.objects));
@@ -901,7 +904,7 @@ static void update_vertex_mode(Editor* editor)
         float distance_to_face;
         jan_first_face_hit_by_ray(mesh, ray, &distance_to_face, &editor->scratch);
 
-        if(distance_to_vertex <= distance_to_face && input_get_mouse_clicked(MOUSE_BUTTON_LEFT))
+        if(distance_to_vertex <= distance_to_face && input_get_mouse_clicked(platform->input_context, MOUSE_BUTTON_LEFT))
         {
             jan_toggle_vertex_in_selection(&editor->selection, vertex);
         }
@@ -1115,15 +1118,15 @@ static void set_up_main_menu(Editor* editor, Platform* platform)
     editor->vertex_mode_button_id = main_menu->container.items[5].id;
 }
 
-static void update_mouse_state(MouseState* mouse)
+static void update_mouse_state(MouseState* mouse, InputContext* input_context)
 {
-    if(input_get_mouse_clicked(MOUSE_BUTTON_LEFT))
+    if(input_get_mouse_clicked(input_context, MOUSE_BUTTON_LEFT))
     {
         mouse->drag = true;
         mouse->button = MOUSE_BUTTON_LEFT;
     }
 
-    if(input_get_mouse_clicked(MOUSE_BUTTON_RIGHT))
+    if(input_get_mouse_clicked(input_context, MOUSE_BUTTON_RIGHT))
     {
         mouse->drag = true;
         mouse->button = MOUSE_BUTTON_RIGHT;
@@ -1131,12 +1134,11 @@ static void update_mouse_state(MouseState* mouse)
 
     if(mouse->drag)
     {
-        if(input_get_mouse_pressed(MOUSE_BUTTON_LEFT)
-                || input_get_mouse_pressed(MOUSE_BUTTON_RIGHT))
+        if(input_get_mouse_pressed(input_context, MOUSE_BUTTON_LEFT)
+                || input_get_mouse_pressed(input_context, MOUSE_BUTTON_RIGHT))
         {
-            Int2 velocity = input_get_mouse_velocity();
-            mouse->velocity.x = (float) velocity.x;
-            mouse->velocity.y = (float) velocity.y;
+            Int2 velocity = input_get_mouse_velocity(input_context);
+            mouse->velocity = int2_to_float2(velocity);
         }
         else
         {
@@ -1144,12 +1146,11 @@ static void update_mouse_state(MouseState* mouse)
         }
     }
 
-    Int2 position = input_get_mouse_position();
-    mouse->position.x = (float) position.x;
-    mouse->position.y = (float) position.y;
+    Int2 position = input_get_mouse_position(input_context);
+    mouse->position = int2_to_float2(position);
 
     const float scroll_speed = 0.15f;
-    Int2 scroll_velocity = input_get_mouse_scroll_velocity();
+    Int2 scroll_velocity = input_get_mouse_scroll_velocity(input_context);
     mouse->scroll_velocity_y = scroll_speed * scroll_velocity.y;
 }
 
@@ -1412,10 +1413,11 @@ void editor_update(Platform* platform)
 
     FilePickDialog* dialog = &editor->dialog;
     UiContext* ui_context = &editor->ui_context;
+    InputContext* input_context = platform->input_context;
 
     debug_draw_reset();
 
-    update_mouse_state(&editor->mouse);
+    update_mouse_state(&editor->mouse, input_context);
     handle_ui_events(editor, platform);
 
     if(!ui_context->focused_item)
@@ -1424,7 +1426,7 @@ void editor_update(Platform* platform)
         {
             case MODE_EDGE:
             {
-                update_edge_mode(editor);
+                update_edge_mode(editor, platform);
                 break;
             }
             case MODE_FACE:
@@ -1439,7 +1441,7 @@ void editor_update(Platform* platform)
             }
             case MODE_VERTEX:
             {
-                update_vertex_mode(editor);
+                update_vertex_mode(editor, platform);
                 break;
             }
         }

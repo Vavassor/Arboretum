@@ -2,6 +2,7 @@
 #define INPUT_H_
 
 #include "int2.h"
+#include "memory.h"
 
 #include <stdbool.h>
 
@@ -145,32 +146,34 @@ typedef struct Hotkey
     InputKey key;
 } Hotkey;
 
-void input_key_press(InputKey key, bool pressed, InputModifier modifier);
-bool input_get_key_pressed(InputKey key);
-bool input_get_key_tapped(InputKey key);
-bool input_get_key_modified_by_control(InputKey key);
-bool input_get_key_modified_by_shift(InputKey key);
-bool input_get_key_modified_by_alt(InputKey key);
-bool input_get_key_auto_repeated(InputKey key);
+typedef struct InputContext InputContext;
 
-void input_mouse_click(MouseButton button, bool pressed, InputModifier modifier);
-void input_mouse_scroll(Int2 velocity);
-void input_mouse_move(Int2 position);
-Int2 input_get_mouse_position();
-Int2 input_get_mouse_velocity();
-Int2 input_get_mouse_scroll_velocity();
-bool input_get_mouse_pressed(MouseButton button);
-bool input_get_mouse_clicked(MouseButton button);
+void input_key_press(InputContext* context, InputKey key, bool pressed, InputModifier modifier);
+bool input_get_key_pressed(InputContext* context, InputKey key);
+bool input_get_key_tapped(InputContext* context, InputKey key);
+bool input_get_key_modified_by_control(InputContext* context, InputKey key);
+bool input_get_key_modified_by_shift(InputContext* context, InputKey key);
+bool input_get_key_modified_by_alt(InputContext* context, InputKey key);
+bool input_get_key_auto_repeated(InputContext* context, InputKey key);
 
-void input_set_primary_hotkey(InputFunction function, Hotkey hotkey);
-void input_set_secondary_hotkey(InputFunction function, Hotkey hotkey);
-bool input_get_hotkey_pressed(InputFunction function);
-bool input_get_hotkey_tapped(InputFunction function);
+void input_mouse_click(InputContext* context, MouseButton button, bool pressed, InputModifier modifier);
+void input_mouse_scroll(InputContext* context, Int2 velocity);
+void input_mouse_move(InputContext* context, Int2 position);
+Int2 input_get_mouse_position(InputContext* context);
+Int2 input_get_mouse_velocity(InputContext* context);
+Int2 input_get_mouse_scroll_velocity(InputContext* context);
+bool input_get_mouse_pressed(InputContext* context, MouseButton button);
+bool input_get_mouse_clicked(InputContext* context, MouseButton button);
 
-void input_composed_text_entered(char* text);
-char* input_get_composed_text();
+void input_set_primary_hotkey(InputContext* context, InputFunction function, Hotkey hotkey);
+void input_set_secondary_hotkey(InputContext* context, InputFunction function, Hotkey hotkey);
+bool input_get_hotkey_pressed(InputContext* context, InputFunction function);
+bool input_get_hotkey_tapped(InputContext* context, InputFunction function);
 
-void input_system_start_up();
-void input_system_update();
+void input_composed_text_entered(InputContext* context, char* text);
+char* input_get_composed_text(InputContext* context);
+
+InputContext* input_create_context(Stack* stack);
+void input_update_context(InputContext* context);
 
 #endif // INPUT_H_

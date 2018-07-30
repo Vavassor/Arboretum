@@ -26,6 +26,7 @@
 #include "string_utilities.h"
 #include "string_build.h"
 #include "uniform_blocks.h"
+#include "vector_extras.h"
 #include "vector_math.h"
 #include "vertex_layout.h"
 #include "video_object.h"
@@ -107,11 +108,6 @@ struct VideoContext
     Backend* backend;
     Log* logger;
 };
-
-static Float2 int2_to_float2(Int2 i)
-{
-    return (Float2){{(float) i.x, (float) i.y}};
-}
 
 static PixelFormat get_pixel_format(int bytes_per_pixel)
 {

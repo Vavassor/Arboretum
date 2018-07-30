@@ -806,7 +806,7 @@ bool main_start_up()
         return false;
     }
 
-    input_system_start_up();
+    platform.base.input_context = input_create_context(&platform.base.stack);
 
     bool started = editor_start_up(&platform.base);
     if(!started)
@@ -884,45 +884,47 @@ static InputKey translate_key(unsigned int scancode)
 
 static void handle_button_press(XButtonEvent event)
 {
+    InputContext* input_context = platform.base.input_context;
     InputModifier modifier = translate_modifiers(event.state);
     if(event.button == Button1)
     {
-        input_mouse_click(MOUSE_BUTTON_LEFT, true, modifier);
+        input_mouse_click(input_context, MOUSE_BUTTON_LEFT, true, modifier);
     }
     else if(event.button == Button2)
     {
-        input_mouse_click(MOUSE_BUTTON_MIDDLE, true, modifier);
+        input_mouse_click(input_context, MOUSE_BUTTON_MIDDLE, true, modifier);
     }
     else if(event.button == Button3)
     {
-        input_mouse_click(MOUSE_BUTTON_RIGHT, true, modifier);
+        input_mouse_click(input_context, MOUSE_BUTTON_RIGHT, true, modifier);
     }
     else if(event.button == Button4)
     {
         Int2 velocity = {0, +1};
-        input_mouse_scroll(velocity);
+        input_mouse_scroll(input_context, velocity);
     }
     else if(event.button == Button5)
     {
         Int2 velocity = {0, -1};
-        input_mouse_scroll(velocity);
+        input_mouse_scroll(input_context, velocity);
     }
 }
 
 static void handle_button_release(XButtonEvent event)
 {
+    InputContext* input_context = platform.base.input_context;
     InputModifier modifier = translate_modifiers(event.state);
     if(event.button == Button1)
     {
-        input_mouse_click(MOUSE_BUTTON_LEFT, false, modifier);
+        input_mouse_click(input_context, MOUSE_BUTTON_LEFT, false, modifier);
     }
     else if(event.button == Button2)
     {
-        input_mouse_click(MOUSE_BUTTON_MIDDLE, false, modifier);
+        input_mouse_click(input_context, MOUSE_BUTTON_MIDDLE, false, modifier);
     }
     else if(event.button == Button3)
     {
-        input_mouse_click(MOUSE_BUTTON_RIGHT, false, modifier);
+        input_mouse_click(input_context, MOUSE_BUTTON_RIGHT, false, modifier);
     }
 }
 
@@ -960,10 +962,12 @@ static void handle_focus_out(XFocusInEvent focus_out)
 
 static void handle_key_press(XKeyEvent press)
 {
+    InputContext* input_context = platform.base.input_context;
+
     // Process key presses that are used for controls and hotkeys.
     InputKey key = translate_key(press.keycode);
     InputModifier modifier = translate_modifiers(press.state);
-    input_key_press(key, true, modifier);
+    input_key_press(input_context, key, true, modifier);
 
     // Process key presses that are for typing text.
     if(platform.input_context)
@@ -989,7 +993,7 @@ static void handle_key_press(XKeyEvent press)
                 }
                 if(!only_control_characters(buffer))
                 {
-                    input_composed_text_entered(buffer);
+                    input_composed_text_entered(input_context, buffer);
                 }
                 break;
             }
@@ -997,7 +1001,7 @@ static void handle_key_press(XKeyEvent press)
             {
                 if(!only_control_characters(buffer))
                 {
-                    input_composed_text_entered(buffer);
+                    input_composed_text_entered(input_context, buffer);
                 }
                 break;
             }
@@ -1011,6 +1015,8 @@ static void handle_key_press(XKeyEvent press)
 
 static void handle_key_release(XKeyEvent release)
 {
+    InputContext* input_context = platform.base.input_context;
+
     InputKey key = translate_key(release.keycode);
     InputModifier modifier = translate_modifiers(release.state);
     // Examine the next event in the queue and if it's a
@@ -1034,14 +1040,15 @@ static void handle_key_release(XKeyEvent release)
     }
     if(!auto_repeated)
     {
-        input_key_press(key, false, modifier);
+        input_key_press(input_context, key, false, modifier);
     }
 }
 
 static void handle_motion_notify(XMotionEvent event)
 {
+    InputContext* input_context = platform.base.input_context;
     Int2 position = {event.x, event.y};
-    input_mouse_move(position);
+    input_mouse_move(input_context, position);
 }
 
 static void handle_selection_clear()
@@ -1273,7 +1280,7 @@ void main_loop()
         double frame_start_time = get_time(clock_frequency);
 
         editor_update(&platform.base);
-        input_system_update();
+        input_update_context(platform.base.input_context);
 
         glXSwapBuffers(platform.display, platform.window);
 
