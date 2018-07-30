@@ -66,6 +66,8 @@ typedef struct PlatformX11
     int clipboard_size;
 
     bool close_window_requested;
+
+    Editor* editor;
 } PlatformX11;
 
 static double get_dots_per_millimeter(PlatformX11* platform)
@@ -808,15 +810,15 @@ bool main_start_up()
 
     platform.base.input_context = input_create_context(&platform.base.stack);
 
-    bool started = editor_start_up(&platform.base);
-    if(!started)
+    platform.editor = editor_start_up(&platform.base);
+    if(!platform.editor)
     {
         log_error(&platform.base.logger, "Editor failed startup.");
         return false;
     }
     double dpmm = get_dots_per_millimeter(&platform);
     Int2 dimensions = {window_width, window_height};
-    resize_viewport(dimensions, dpmm);
+    resize_viewport(platform.editor, dimensions, dpmm);
 
     build_key_table(&platform);
 
@@ -825,7 +827,7 @@ bool main_start_up()
 
 void main_shut_down()
 {
-    editor_shut_down(functions_loaded);
+    editor_shut_down(platform.editor, functions_loaded);
     destroy_stack(&platform.base);
 
     if(platform.visual_info)
@@ -941,7 +943,7 @@ static void handle_configure_notify(XConfigureRequestEvent configure)
 {
     double dpmm = get_dots_per_millimeter(&platform);
     Int2 dimensions = {configure.width, configure.height};
-    resize_viewport(dimensions, dpmm);
+    resize_viewport(platform.editor, dimensions, dpmm);
 }
 
 static void handle_focus_in(XFocusInEvent focus_in)
@@ -1055,7 +1057,7 @@ static void handle_selection_clear()
 {
     // Another application overwrote our clipboard contents, so they can
     // be deallocated now.
-    editor_destroy_clipboard_copy(platform.clipboard);
+    editor_destroy_clipboard_copy(platform.editor, platform.clipboard);
     platform.clipboard = NULL;
     platform.clipboard_size = 0;
 }
@@ -1082,7 +1084,7 @@ static void handle_selection_notify(XEvent* event)
         {
             XGetWindowProperty(platform.display, platform.window, notification.property, 0, size, False, AnyPropertyType, &type, &format, &count, &size, &property);
             char* paste = (char*) property;
-            editor_paste_from_clipboard(&platform.base, paste);
+            editor_paste_from_clipboard(platform.editor, &platform.base, paste);
 
             XFree(property);
         }
@@ -1279,7 +1281,7 @@ void main_loop()
     {
         double frame_start_time = get_time(clock_frequency);
 
-        editor_update(&platform.base);
+        editor_update(platform.editor, &platform.base);
         input_update_context(platform.base.input_context);
 
         glXSwapBuffers(platform.display, platform.window);

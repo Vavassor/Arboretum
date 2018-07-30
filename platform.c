@@ -5,7 +5,7 @@
 
 void create_stack(Platform* platform)
 {
-    stack_create(&platform->stack, ezlabytes(16));
+    stack_create(&platform->stack, ezlabytes(32));
 }
 
 void destroy_stack(Platform* platform)

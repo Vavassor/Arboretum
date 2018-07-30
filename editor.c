@@ -1245,11 +1245,9 @@ static void clean_up_history(Editor* editor)
     }
 }
 
-static Editor static_editor;
-
-bool editor_start_up(Platform* platform)
+Editor* editor_start_up(Platform* platform)
 {
-    Editor* editor = &static_editor;
+    Editor* editor = STACK_ALLOCATE(&platform->stack, Editor, 1);
 
     Heap* heap = &editor->heap;
     Stack* stack = &editor->scratch;
@@ -1380,12 +1378,11 @@ bool editor_start_up(Platform* platform)
 
     enter_object_mode(editor);
 
-    return true;
+    return editor;
 }
 
-void editor_shut_down(bool functions_loaded)
+void editor_shut_down(Editor* editor, bool functions_loaded)
 {
-    Editor* editor = &static_editor;
     Heap* heap = &editor->heap;
 
     object_lady_destroy(&editor->lady, heap, editor->video_context);
@@ -1407,10 +1404,8 @@ void editor_shut_down(bool functions_loaded)
     heap_destroy(heap);
 }
 
-void editor_update(Platform* platform)
+void editor_update(Editor* editor, Platform* platform)
 {
-    Editor* editor = &static_editor;
-
     FilePickDialog* dialog = &editor->dialog;
     UiContext* ui_context = &editor->ui_context;
     InputContext* input_context = platform->input_context;
@@ -1477,23 +1472,18 @@ void editor_update(Platform* platform)
     video_update_context(editor->video_context, &update, platform);
 }
 
-void editor_destroy_clipboard_copy(char* clipboard)
+void editor_destroy_clipboard_copy(Editor* editor, char* clipboard)
 {
-    Editor* editor = &static_editor;
     HEAP_DEALLOCATE(&editor->heap, clipboard);
 }
 
-void editor_paste_from_clipboard(Platform* platform, char* clipboard)
+void editor_paste_from_clipboard(Editor* editor, Platform* platform, char* clipboard)
 {
-    Editor* editor = &static_editor;
-
     ui_accept_paste_from_clipboard(&editor->ui_context, clipboard, platform);
 }
 
-void resize_viewport(Int2 dimensions, double dots_per_millimeter)
+void resize_viewport(Editor* editor, Int2 dimensions, double dots_per_millimeter)
 {
-    Editor* editor = &static_editor;
-
     editor->viewport = dimensions;
 
     editor->ui_context.viewport.x = (float) dimensions.x;
