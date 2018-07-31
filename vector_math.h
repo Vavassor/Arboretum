@@ -24,6 +24,8 @@ Float2 float2_multiply(float s, Float2 v);
 Float2 float2_divide(Float2 v, float s);
 Float2 float2_negate(Float2 v);
 
+void float2_add_assign(Float2* a, Float2 b);
+
 Float2 float2_perp(Float2 v);
 float float2_squared_length(Float2 v);
 float float2_length(Float2 v);

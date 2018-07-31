@@ -35,13 +35,9 @@ Float2 float2_negate(Float2 v)
     return (Float2){{-v.x, -v.y}};
 }
 
-Float3 float3_madd(float a, Float3 b, Float3 c)
+void float2_add_assign(Float2* a, Float2 b)
 {
-    Float3 result;
-    result.x = (a * b.x) + c.x;
-    result.y = (a * b.y) + c.y;
-    result.z = (a * b.z) + c.z;
-    return result;
+    *a = (Float2){{a->x + b.x, a->y + b.y}};
 }
 
 Float2 float2_perp(Float2 v)
@@ -156,6 +152,15 @@ Float3 float3_divide(Float3 v, float s)
 Float3 float3_negate(Float3 v)
 {
     return (Float3){{-v.x, -v.y, -v.z}};
+}
+
+Float3 float3_madd(float a, Float3 b, Float3 c)
+{
+    Float3 result;
+    result.x = (a * b.x) + c.x;
+    result.y = (a * b.y) + c.y;
+    result.z = (a * b.z) + c.z;
+    return result;
 }
 
 float float3_squared_length(Float3 v)

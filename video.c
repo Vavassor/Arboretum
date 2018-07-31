@@ -9,6 +9,7 @@
 #include "closest_point_of_approach.h"
 #include "colours.h"
 #include "debug_draw.h"
+#include "debug_readout.h"
 #include "filesystem.h"
 #include "float_utilities.h"
 #include "history.h"
@@ -1566,6 +1567,83 @@ static void draw_main_menu(VideoContext* context, UiContext* ui_context, UiItem*
     ui_draw_focus_indicator(main_menu, ui_context);
 }
 
+static void draw_debug_readout_waves(UiItem* readout)
+{
+    for(int i = 0; i < DEBUG_CHANNEL_CAP; i += 1)
+    {
+        DebugChannel* channel = &debug_readout.channels[i];
+        UiItem* item = &readout->container.items[i];
+
+        Float2 channel_start = item->bounds.bottom_left;
+        float2_add_assign(&channel_start, (Float2){{60.0f, 0.0f}});
+
+        switch(channel->type)
+        {
+            case DEBUG_CHANNEL_TYPE_FLOAT:
+            {
+                for(int j = 0; j < DEBUG_CHANNEL_VALUE_CAP; j += 1)
+                {
+                    float value = channel->floats[j];
+                    float t;
+                    if(channel->float_min == channel->float_max)
+                    {
+                        t = 0.0f;
+                    }
+                    else
+                    {
+                        t = unlerp(channel->float_min, channel->float_max, value);
+                    }
+                    float x = 3.0f * j;
+                    float y = 16.0f * t;
+                    Float2 bottom_left = (Float2){{x, 2.0f}};
+                    float2_add_assign(&bottom_left, channel_start);
+                    Rect rect =
+                    {
+                        .bottom_left = bottom_left,
+                        .dimensions = (Float2){{3.0f, y}},
+                    };
+                    immediate_add_rect(rect, float4_white);
+                }
+                break;
+            }
+            case DEBUG_CHANNEL_TYPE_INVALID:
+            {
+                break;
+            }
+        }
+    }
+    immediate_draw();
+}
+
+static void draw_debug_readout(VideoContext* context, UiContext* ui_context, UiItem* readout, Float2 viewport)
+{
+    Backend* backend = context->backend;
+    Images* images = &context->images;
+    Samplers* samplers = &context->samplers;
+
+    ImageSet image_set =
+    {
+        .stages[1] =
+        {
+            .images[0] = images->font_textures[0],
+            .samplers[0] = samplers->nearest_repeat,
+        },
+    };
+    set_images(backend, &image_set);
+
+    Rect space =
+    {
+        .bottom_left = {{-viewport.x / 2.0f, -viewport.y / 2.0f}},
+        .dimensions = {{viewport.x, 80.0f}},
+    };
+    ui_lay_out(readout, space, ui_context);
+    ui_draw(readout, ui_context);
+
+    ui_draw_focus_indicator(readout, ui_context);
+
+    draw_debug_readout_waves(readout);
+}
+
 static void update_matrices(VideoUpdate* update, Matrices* matrices)
 {
     Camera* camera = update->camera;
@@ -1713,6 +1791,7 @@ static void draw_screen_phase(VideoContext* context, VideoUpdate* update, Matric
     bool dialog_enabled = update->dialog_enabled;
     UiItem* dialog_panel = update->dialog_panel;
     UiItem* main_menu = update->main_menu;
+    UiItem* readout = update->debug_readout;
     UiContext* ui_context = update->ui_context;
     Int2 viewport = update->viewport;
 
@@ -1741,6 +1820,7 @@ static void draw_screen_phase(VideoContext* context, VideoUpdate* update, Matric
     }
 
     draw_main_menu(context, ui_context, main_menu, viewport_dimensions);
+    draw_debug_readout(context, ui_context, readout, viewport_dimensions);
 }
 
 VideoContext* video_create_context(Heap* heap, Log* logger)

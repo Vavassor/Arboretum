@@ -7,6 +7,7 @@
 #include "closest_point_of_approach.h"
 #include "colours.h"
 #include "debug_draw.h"
+#include "debug_readout.h"
 #include "dense_map.h"
 #include "file_pick_dialog.h"
 #include "float_utilities.h"
@@ -94,6 +95,7 @@ struct Editor
     UiId vertex_mode_button_id;
     UiId edge_mode_button_id;
     UiId face_mode_button_id;
+    UiItem* debug_readout;
 
     MouseState mouse;
 };
@@ -653,6 +655,9 @@ static void update_object_mode(Editor* editor, Platform* platform)
         update_move_tool_selection_and_move(editor, input_context, move_tool, ray);
     }
 
+    debug_readout_float(0, "x", mouse->position.x);
+    debug_readout_float(1, "y", mouse->position.y);
+
     if(action_allowed(editor, ACTION_SELECT))
     {
         update_object_hover_and_selection(editor, platform);
@@ -1118,6 +1123,33 @@ static void set_up_main_menu(Editor* editor, Platform* platform)
     editor->vertex_mode_button_id = main_menu->container.items[5].id;
 }
 
+static void set_up_debug_readout(Editor* editor)
+{
+    Heap* heap = &editor->heap;
+    UiContext* ui_context = &editor->ui_context;
+
+    UiItem* readout = ui_create_toplevel_container(ui_context, heap);
+    readout->type = UI_ITEM_TYPE_CONTAINER;
+    readout->growable = true;
+    readout->container.style_type = UI_STYLE_TYPE_MENU_BAR;
+    readout->container.padding = (UiPadding){{1.0f, 1.0f, 1.0f, 1.0f}};
+    readout->container.direction = UI_DIRECTION_LEFT_TO_RIGHT;
+    readout->container.alignment = UI_ALIGNMENT_STRETCH;
+    readout->container.justification = UI_JUSTIFICATION_SPACE_BETWEEN;
+    editor->debug_readout = readout;
+
+    const int items_in_column = DEBUG_CHANNEL_CAP;
+    ui_add_column(&readout->container, items_in_column, ui_context, heap);
+
+    for(int i = 0; i < items_in_column; i += 1)
+    {
+        UiItem* item = &readout->container.items[i];
+        item->type = UI_ITEM_TYPE_TEXT_BLOCK;
+        item->text_block.padding = (UiPadding){{4.0f, 4.0f, 4.0f, 4.0f}};
+        ui_set_text(&item->text_block, "", &editor->heap);
+    }
+}
+
 static void update_mouse_state(MouseState* mouse, InputContext* input_context)
 {
     if(input_get_mouse_clicked(input_context, MOUSE_BUTTON_LEFT))
@@ -1215,6 +1247,26 @@ static void handle_ui_events(Editor* editor, Platform* platform)
     {
         editor->main_menu->container.items[1].button.enabled = is_valid_index(editor->selected_object_index);
     }
+}
+
+static void update_debug_readout(Editor* editor)
+{
+    UiContainer* container = &editor->debug_readout->container;
+
+    ASSERT(container->items_count == DEBUG_CHANNEL_CAP);
+
+    for(int i = 0; i < container->items_count; i += 1)
+    {
+        UiItem* item = &container->items[i];
+        DebugChannel* channel = &debug_readout.channels[i];
+
+        if(channel->type != DEBUG_CHANNEL_TYPE_INVALID)
+        {
+            ui_set_text(&item->text_block, channel->label, &editor->heap);
+        }
+    }
+
+    debug_readout_update_ranges();
 }
 
 static void clean_up_history(Editor* editor)
@@ -1349,6 +1401,7 @@ Editor* editor_start_up(Platform* platform)
 
     set_up_ui_theme(&ui_context->theme);
     set_up_main_menu(editor, platform);
+    set_up_debug_readout(editor);
 
     MoveTool move_tool =
     {
@@ -1411,6 +1464,7 @@ void editor_update(Editor* editor, Platform* platform)
     InputContext* input_context = platform->input_context;
 
     debug_draw_reset();
+    debug_readout_reset();
 
     update_mouse_state(&editor->mouse, input_context);
     handle_ui_events(editor, platform);
@@ -1450,6 +1504,8 @@ void editor_update(Editor* editor, Platform* platform)
 
     clean_up_history(editor);
 
+    update_debug_readout(editor);
+
     VideoUpdate update =
     {
         .viewport = editor->viewport,
@@ -1458,6 +1514,7 @@ void editor_update(Editor* editor, Platform* platform)
         .rotate_tool = &editor->rotate_tool,
         .ui_context = &editor->ui_context,
         .main_menu = editor->main_menu,
+        .debug_readout = editor->debug_readout,
         .dialog_panel = dialog->panel,
         .dialog_enabled = dialog->enabled,
         .lady = &editor->lady,

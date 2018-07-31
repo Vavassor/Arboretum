@@ -19,8 +19,9 @@ typedef struct VideoUpdate
     MoveTool* move_tool;
     RotateTool* rotate_tool;
     UiContext* ui_context;
-    UiItem* main_menu;
     UiItem* dialog_panel;
+    UiItem* main_menu;
+    UiItem* debug_readout;
     bool dialog_enabled;
     struct ObjectLady* lady;
     int hovered_object_index;

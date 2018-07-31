@@ -1175,8 +1175,22 @@ static void place_items_along_cross_axis(UiItem* item, Rect space)
     UiPadding padding = container->padding;
     int cross_axis = get_cross_axis_index(container->axis);
 
-    float space_top = rect_top(space);
-    item->bounds.bottom_left.y = space_top - item->bounds.dimensions.y;
+    switch(container->axis)
+    {
+        case UI_AXIS_HORIZONTAL:
+        {
+            float space_top = rect_top(space);
+            item->bounds.bottom_left.y = space_top - item->bounds.dimensions.y;
+            break;
+        }
+        case UI_AXIS_VERTICAL:
+        {
+            float space_left = space.bottom_left.x;
+            item->bounds.bottom_left.x = space_left;
+            break;
+        }
+    }
+
     float centering = 0.0f;
 
     float position;
