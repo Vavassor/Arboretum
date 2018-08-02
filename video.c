@@ -36,8 +36,16 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+typedef struct Buffers
+{
+    BufferId frame_triangle;
+} Buffers;
+
 typedef struct Images
 {
+    ImageId frame_colour;
+    ImageId frame_depth;
+    ImageId frame_velocity;
     ImageId font_textures[1];
     ImageId hatch_pattern;
     ImageId line_pattern;
@@ -54,6 +62,24 @@ typedef struct Matrices
     Matrix4 sky_projection;
     Matrix4 screen_projection;
 } Matrices;
+
+typedef struct Passes
+{
+    PassId base;
+} Passes;
+
+typedef struct Pipelines
+{
+    PipelineId background;
+    PipelineId face_selection;
+    PipelineId halo;
+    PipelineId hidden;
+    PipelineId pointcloud;
+    PipelineId resolve;
+    PipelineId selected;
+    PipelineId unselected;
+    PipelineId wireframe;
+} Pipelines;
 
 typedef struct Samplers
 {
@@ -75,18 +101,6 @@ typedef struct Shaders
     ShaderId vertex_colour;
 } Shaders;
 
-typedef struct Pipelines
-{
-    PipelineId background;
-    PipelineId unselected;
-    PipelineId face_selection;
-    PipelineId pointcloud;
-    PipelineId wireframe;
-    PipelineId selected;
-    PipelineId halo;
-    PipelineId hidden;
-} Pipelines;
-
 typedef struct Uniforms
 {
     BufferId buffers[5];
@@ -100,7 +114,9 @@ struct VideoContext
     Stack scratch;
     Heap heap;
     DenseMap objects;
+    Buffers buffers;
     Images images;
+    Passes passes;
     Pipelines pipelines;
     Samplers samplers;
     Shaders shaders;
@@ -218,6 +234,41 @@ static ShaderId build_shader(VideoContext* context, ShaderSpec* spec, const char
     STACK_DEALLOCATE(&context->scratch, fragment_path);
 
     return shader;
+}
+
+typedef struct VertexFrameTriangle
+{
+    Float3 position;
+    Float2 texcoord;
+} VertexFrameTriangle;
+
+static void create_buffers(VideoContext* context, Buffers* buffers)
+{
+    Backend* backend = context->backend;
+    Log* logger = context->logger;
+
+    VertexFrameTriangle vertices[3] =
+    {
+        {(Float3){{-1.0f, -1.0f, 0.0f}}, (Float2){{0.0f, 0.0f}}},
+        {(Float3){{+3.0f, -1.0f, 0.0f}}, (Float2){{2.0f, 0.0f}}},
+        {(Float3){{-1.0f, +3.0f, 0.0f}}, (Float2){{0.0f, 2.0f}}},
+    };
+
+    BufferSpec frame_triangle_spec =
+    {
+        .format = BUFFER_FORMAT_VERTEX,
+        .usage = BUFFER_USAGE_STATIC,
+        .content = vertices,
+        .size = sizeof(VertexFrameTriangle) * 3,
+    };
+    buffers->frame_triangle = create_buffer(backend, &frame_triangle_spec, logger);
+}
+
+static void destroy_buffers(VideoContext* context, Buffers* buffers)
+{
+    Backend* backend = context->backend;
+
+    destroy_buffer(backend, buffers->frame_triangle);
 }
 
 static void create_images(VideoContext* context, Images* images)
@@ -588,6 +639,15 @@ static void create_pipelines(VideoContext* context, Pipelines* pipelines)
         .front_stencil = halo_stencil_spec,
     };
 
+    VertexLayoutSpec frame_triangle_vertex_spec =
+    {
+        .attributes =
+        {
+            {.format = VERTEX_FORMAT_FLOAT3},
+            {.format = VERTEX_FORMAT_FLOAT2},
+        },
+    };
+
     VertexLayoutSpec vertex_layout_line_spec =
     {
         .attributes =
@@ -677,6 +737,17 @@ static void create_pipelines(VideoContext* context, Pipelines* pipelines)
     };
     pipelines->pointcloud = create_pipeline(backend, &pipeline_pointcloud_spec, logger);
 
+    PipelineSpec resolve_pipeline_spec =
+    {
+        .input_assembly =
+        {
+            .index_type = INDEX_TYPE_NONE,
+        },
+        .shader = shaders->texture_only,
+        .vertex_layout = frame_triangle_vertex_spec,
+    };
+    pipelines->resolve = create_pipeline(backend, &resolve_pipeline_spec, logger);
+
     PipelineSpec pipeline_wireframe_spec =
     {
         .blend = alpha_blend_spec,
@@ -724,13 +795,14 @@ static void destroy_pipelines(VideoContext* context, Pipelines* pipelines)
     Backend* backend = context->backend;
 
     destroy_pipeline(backend, pipelines->background);
-    destroy_pipeline(backend, pipelines->unselected);
     destroy_pipeline(backend, pipelines->face_selection);
-    destroy_pipeline(backend, pipelines->pointcloud);
-    destroy_pipeline(backend, pipelines->wireframe);
-    destroy_pipeline(backend, pipelines->selected);
     destroy_pipeline(backend, pipelines->halo);
     destroy_pipeline(backend, pipelines->hidden);
+    destroy_pipeline(backend, pipelines->pointcloud);
+    destroy_pipeline(backend, pipelines->resolve);
+    destroy_pipeline(backend, pipelines->selected);
+    destroy_pipeline(backend, pipelines->unselected);
+    destroy_pipeline(backend, pipelines->wireframe);
 }
 
 static void create_uniforms(VideoContext* context, Uniforms* uniforms)
@@ -833,6 +905,7 @@ static void create_context(VideoContext* context, Log* logger)
     context->backend = create_backend(&context->heap);
     context->logger = logger;
 
+    create_buffers(context, &context->buffers);
     create_samplers(context, &context->samplers);
     create_shaders(context, &context->shaders);
     create_pipelines(context, &context->pipelines);
@@ -868,6 +941,7 @@ static void destroy_context(VideoContext* context, bool functions_loaded)
 {
     if(functions_loaded)
     {
+        destroy_buffers(context, &context->buffers);
         destroy_images(context, &context->images);
         destroy_samplers(context, &context->samplers);
         destroy_shaders(context, &context->shaders);
@@ -1196,7 +1270,6 @@ static void draw_rotate_tool(VideoContext* context, RotateTool* rotate_tool)
     immediate_add_wire_arc(center, float3_unit_x, pi, rotate_tool->angles[0], radius, x_axis_colour);
     immediate_add_wire_arc(center, float3_unit_y, pi, rotate_tool->angles[1], radius, y_axis_colour);
     immediate_add_wire_arc(center, float3_unit_z, pi, rotate_tool->angles[2], radius, z_axis_colour);
-    immediate_set_blend_mode(BLEND_MODE_TRANSPARENT);
     immediate_draw();
 }
 
@@ -1486,13 +1559,6 @@ static void draw_compass(VideoContext* context, Camera* camera, Int2 viewport)
     };
     set_viewport(backend, &viewport_state);
 
-    ClearState clear_state =
-    {
-        .depth = 1.0f,
-        .flags = {.depth = true},
-    };
-    clear_target(backend, &clear_state);
-
     const float across = 3.0f * sqrtf(3.0f);
     const float extent = across / 2.0f;
 
@@ -1644,6 +1710,33 @@ static void draw_debug_readout(VideoContext* context, UiContext* ui_context, UiI
     draw_debug_readout_waves(readout);
 }
 
+static void draw_debug_images(VideoContext* context, Int2 viewport)
+{
+    Backend* backend = context->backend;
+    Images* images = &context->images;
+    Samplers* samplers = &context->samplers;
+
+    ImageSet image_set =
+    {
+        .stages[1] =
+        {
+            .images[0] = images->frame_colour,
+            .samplers[0] = samplers->nearest_repeat,
+        },
+    };
+    set_images(backend, &image_set);
+
+    Rect rect =
+    {
+        (Float2){{viewport.x / 2.0f - 80.0f, viewport.y / 2.0f - 80.0f}},
+        (Float2){{60.0f, 60.0f}},
+    };
+    Quad quad = rect_to_quad(rect);
+    Rect texture_rect = (Rect){float2_zero, float2_one};
+    immediate_add_quad_textured(&quad, texture_rect);
+    immediate_draw();
+}
+
 static void update_matrices(VideoUpdate* update, Matrices* matrices)
 {
     Camera* camera = update->camera;
@@ -1709,6 +1802,7 @@ static void draw_opaque_phase(VideoContext* context, VideoUpdate* update, Matric
     Int2 viewport = update->viewport;
 
     Backend* backend = context->backend;
+    Passes* passes = &context->passes;
     Pipelines* pipelines = &context->pipelines;
     Uniforms* uniforms = &context->uniforms;
 
@@ -1723,6 +1817,7 @@ static void draw_opaque_phase(VideoContext* context, VideoUpdate* update, Matric
     LightBlock light_block = {light_direction};
     update_buffer(backend, uniforms->light_block, &light_block, 0, sizeof(light_block));
 
+    set_pass(context->backend, passes->base);
     set_regular_view(context, viewport, matrices->view, matrices->projection);
 
     set_pipeline(backend, pipelines->unselected);
@@ -1734,9 +1829,7 @@ static void draw_opaque_phase(VideoContext* context, VideoUpdate* update, Matric
         {
             .colour = true,
             .depth = true,
-            .stencil = true,
         },
-        .stencil = 0xffffffff,
     };
     clear_target(backend, &clear_state);
 
@@ -1772,17 +1865,48 @@ static void draw_opaque_phase(VideoContext* context, VideoUpdate* update, Matric
 
     video_object_set_matrices(&context->sky, matrices->sky_view, matrices->sky_projection);
     draw_sky(context, viewport, matrices->sky_view, matrices->sky_projection);
-
-    set_regular_view(context, viewport, matrices->view, matrices->projection);
 }
 
 static void draw_transparent_phase(VideoContext* context, VideoUpdate* update, Matrices* matrices)
 {
+    Int2 viewport = update->viewport;
+
+    set_regular_view(context, viewport, matrices->view, matrices->projection);
+
     DenseMapId selection_id = update->selection_id;
     DenseMapId selection_pointcloud_id = update->selection_pointcloud_id;
     DenseMapId selection_wireframe_id = update->selection_wireframe_id;
 
     draw_selection(context, selection_id, selection_pointcloud_id, selection_wireframe_id, matrices->projection);
+}
+
+static void draw_resolved_base_pass(VideoContext* context, VideoUpdate* update)
+{
+    Backend* backend = context->backend;
+    Buffers* buffers = &context->buffers;
+    Images* images = &context->images;
+    Pipelines* pipelines = &context->pipelines;
+    Samplers* samplers = &context->samplers;
+
+    Float2 viewport = int2_to_float2(update->viewport);
+
+    ImageSet image_set =
+    {
+        .stages[1] =
+        {
+            .images[0] = images->frame_colour,
+            .samplers[0] = samplers->nearest_repeat,
+        },
+    };
+    set_images(backend, &image_set);
+    set_pipeline(backend, pipelines->resolve);
+    set_regular_view(context, update->viewport, matrix4_identity, matrix4_identity);
+    DrawAction draw_action =
+    {
+        .indices_count = 3,
+        .vertex_buffers[0] = buffers->frame_triangle,
+    };
+    draw(backend, &draw_action);
 }
 
 static void draw_screen_phase(VideoContext* context, VideoUpdate* update, Matrices* matrices)
@@ -1796,6 +1920,21 @@ static void draw_screen_phase(VideoContext* context, VideoUpdate* update, Matric
     Int2 viewport = update->viewport;
 
     Backend* backend = context->backend;
+
+    set_pass(backend, default_pass);
+    set_pipeline(backend, context->pipelines.unselected);
+    ClearState clear_state =
+    {
+        .depth = 1.0f,
+        .flags =
+        {
+            .colour = true,
+            .depth = true,
+        },
+    };
+    clear_target(backend, &clear_state);
+
+    draw_resolved_base_pass(context, update);
 
     draw_compass(context, camera, viewport);
 
@@ -1821,6 +1960,7 @@ static void draw_screen_phase(VideoContext* context, VideoUpdate* update, Matric
 
     draw_main_menu(context, ui_context, main_menu, viewport_dimensions);
     draw_debug_readout(context, ui_context, readout, viewport_dimensions);
+    draw_debug_images(context, viewport);
 }
 
 VideoContext* video_create_context(Heap* heap, Log* logger)
@@ -1846,9 +1986,69 @@ void video_update_context(VideoContext* context, VideoUpdate* update, Platform* 
     draw_screen_phase(context, update, &matrices);
 }
 
-void video_resize_viewport(Int2 dimensions, double dots_per_millimeter, float fov)
+static void clean_up_base_pass(VideoContext* context)
 {
-    // Later, we'll need to resize pass targets, here.
+    Backend* backend = context->backend;
+    Images* images = &context->images;
+    Passes* passes = &context->passes;
+
+    destroy_pass(backend, passes->base);
+
+    destroy_image(backend, images->frame_colour);
+    destroy_image(backend, images->frame_depth);
+    destroy_image(backend, images->frame_velocity);
+}
+
+static void recreate_base_pass(VideoContext* context, Int2 dimensions)
+{
+    Backend* backend = context->backend;
+    Images* images = &context->images;
+    Log* logger = context->logger;
+    Passes* passes = &context->passes;
+
+    ImageSpec spec_frame_colour =
+    {
+        .pixel_format = PIXEL_FORMAT_SRGB8_ALPHA8,
+        .render_target = true,
+        .width = dimensions.x,
+        .height = dimensions.y,
+    };
+    images->frame_colour = create_image(backend, &spec_frame_colour, logger);
+
+    ImageSpec spec_frame_depth =
+    {
+        .pixel_format = PIXEL_FORMAT_DEPTH24,
+        .render_target = true,
+        .width = dimensions.x,
+        .height = dimensions.y,
+    };
+    images->frame_depth = create_image(backend, &spec_frame_depth, logger);
+
+    ImageSpec spec_frame_velocity =
+    {
+        .pixel_format = PIXEL_FORMAT_RG8,
+        .render_target = true,
+        .width = dimensions.x,
+        .height = dimensions.y,
+    };
+    images->frame_velocity = create_image(backend, &spec_frame_velocity, logger);
+
+    PassSpec spec_base =
+    {
+        .colour_attachments =
+        {
+            [0] = {.image = images->frame_colour},
+            [1] = {.image = images->frame_velocity},
+        },
+        .depth_stencil_attachment = {.image = images->frame_depth},
+    };
+    passes->base = create_pass(backend, &spec_base, logger);
+}
+
+void video_resize_viewport(VideoContext* context, Int2 dimensions, double dots_per_millimeter, float fov)
+{
+    clean_up_base_pass(context);
+    recreate_base_pass(context, dimensions);
 }
 
 DenseMapId video_add_object(VideoContext* context, VertexLayout vertex_layout)

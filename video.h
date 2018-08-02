@@ -46,7 +46,7 @@ typedef struct VideoContext VideoContext;
 VideoContext* video_create_context(Heap* heap, Log* logger);
 void video_destroy_context(VideoContext* context, Heap* heap, bool functions_loaded);
 void video_update_context(VideoContext* context, VideoUpdate* update, Platform* platform);
-void video_resize_viewport(Int2 dimensions, double dots_per_millimeter, float fov);
+void video_resize_viewport(VideoContext* context, Int2 dimensions, double dots_per_millimeter, float fov);
 
 DenseMapId video_add_object(VideoContext* context, VertexLayout vertex_layout);
 void video_remove_object(VideoContext* context, DenseMapId id);

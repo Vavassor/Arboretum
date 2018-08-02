@@ -1,10 +1,6 @@
 #ifndef VIDEO_INTERNAL_H_
 #define VIDEO_INTERNAL_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -468,8 +464,6 @@ void set_scissor_rect(Backend* backend, ScissorRect* scissor_rect);
 void set_viewport(Backend* backend, Viewport* viewport);
 void update_buffer(Backend* backend, BufferId id, const void* memory, int base, int size);
 
-#if defined(__cplusplus)
-} // extern "C"
-#endif
+extern const PassId default_pass;
 
 #endif // VIDEO_INTERNAL_H_

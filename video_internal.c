@@ -4,6 +4,8 @@
 
 #include <math.h>
 
+const PassId default_pass = (PassId){0};
+
 int count_mip_levels(int width, int height)
 {
     return (int) floor(log2(imax(width, height))) + 1;

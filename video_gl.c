@@ -1679,6 +1679,20 @@ void destroy_shader(Backend* backend, ShaderId id)
     }
 }
 
+static bool get_boolean(GLenum name)
+{
+    GLboolean value;
+    glGetBooleanv(name, &value);
+    return value;
+}
+
+static bool check_all_set(GLenum name)
+{
+    GLboolean b[4];
+    glGetBooleanv(name, b);
+    return b[0] && b[1] && b[2] && b[3];
+}
+
 void clear_target(Backend* backend, ClearState* clear_state)
 {
     (void) backend;
@@ -1687,11 +1701,13 @@ void clear_target(Backend* backend, ClearState* clear_state)
 
     if(clear_state->flags.colour)
     {
+        ASSERT(check_all_set(GL_COLOR_WRITEMASK));
         mask |= GL_COLOR_BUFFER_BIT;
         glClearColor(clear_state->colour[0], clear_state->colour[1], clear_state->colour[2], clear_state->colour[3]);
     }
     if(clear_state->flags.depth)
     {
+        ASSERT(get_boolean(GL_DEPTH_WRITEMASK));
         mask |= GL_DEPTH_BUFFER_BIT;
 #if defined(PROFILE_CORE_3_3)
         glClearDepth(clear_state->depth);
@@ -1701,6 +1717,7 @@ void clear_target(Backend* backend, ClearState* clear_state)
     }
     if(clear_state->flags.stencil)
     {
+        ASSERT(get_boolean(GL_STENCIL_WRITEMASK));
         mask |= GL_STENCIL_BUFFER_BIT;
         glClearStencil(clear_state->stencil);
     }

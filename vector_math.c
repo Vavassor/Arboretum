@@ -7,6 +7,7 @@
 #include <float.h>
 
 const Float2 float2_zero = {{0.0f, 0.0f}};
+const Float2 float2_one = {{1.0f, 1.0f}};
 const Float2 float2_minus_infinity = {{-FLT_MAX, -FLT_MAX}};
 const Float2 float2_plus_infinity = {{+FLT_MAX, +FLT_MAX}};
 

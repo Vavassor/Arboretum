@@ -1546,5 +1546,5 @@ void resize_viewport(Editor* editor, Int2 dimensions, double dots_per_millimeter
     editor->ui_context.viewport.x = (float) dimensions.x;
     editor->ui_context.viewport.y = (float) dimensions.y;
 
-    video_resize_viewport(dimensions, dots_per_millimeter, editor->camera.field_of_view);
+    video_resize_viewport(editor->video_context, dimensions, dots_per_millimeter, editor->camera.field_of_view);
 }

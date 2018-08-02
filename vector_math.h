@@ -15,6 +15,7 @@ typedef union Float2
 } Float2;
 
 extern const Float2 float2_zero;
+extern const Float2 float2_one;
 extern const Float2 float2_minus_infinity;
 extern const Float2 float2_plus_infinity;
 
