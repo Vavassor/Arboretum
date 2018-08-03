@@ -27,7 +27,7 @@ static void break_debugger()
 
 #endif // defined(OS_WINDOWS)
 
-#define MESSAGE_SIZE 128
+#define MESSAGE_SIZE 256
 
 void assert_fail(const char* expression, const char* file, int line)
 {

@@ -1888,8 +1888,6 @@ static void draw_resolved_base_pass(VideoContext* context, VideoUpdate* update)
     Pipelines* pipelines = &context->pipelines;
     Samplers* samplers = &context->samplers;
 
-    Float2 viewport = int2_to_float2(update->viewport);
-
     ImageSet image_set =
     {
         .stages[1] =
@@ -2017,7 +2015,7 @@ static void recreate_base_pass(VideoContext* context, Int2 dimensions)
 
     ImageSpec spec_frame_depth =
     {
-        .pixel_format = PIXEL_FORMAT_DEPTH24,
+        .pixel_format = PIXEL_FORMAT_DEPTH24_STENCIL8,
         .render_target = true,
         .width = dimensions.x,
         .height = dimensions.y,

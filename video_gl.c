@@ -211,7 +211,8 @@ struct Backend
     Pipeline* pipelines;
     Sampler* samplers;
     Shader* shaders;
-    Pipeline* current_pipeline;
+    PipelineId current_pipeline;
+    PassId current_pass;
 };
 
 static BlendFactor default_blend_factor(BlendFactor factor, BlendFactor default_factor)
@@ -1693,9 +1694,69 @@ static bool check_all_set(GLenum name)
     return b[0] && b[1] && b[2] && b[3];
 }
 
+static bool is_attachment_present(GLenum attachment)
+{
+    GLint value;
+    glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, attachment, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &value);
+    return value != GL_NONE;
+}
+
+static bool validate_attachments(ClearState* clear_state, bool is_default_framebuffer)
+{
+    bool good = true;
+
+    if(clear_state->flags.colour)
+    {
+        GLenum attachment;
+        if(is_default_framebuffer)
+        {
+#if defined(PROFILE_CORE_3_3)
+            attachment = GL_BACK_LEFT;
+#elif defined(PROFILE_ES_3)
+            attachment = GL_BACK;
+#endif
+        }
+        else
+        {
+            attachment = GL_COLOR_ATTACHMENT0;
+        }
+        good = good && is_attachment_present(attachment);
+    }
+    if(clear_state->flags.depth)
+    {
+        GLenum attachment;
+        if(is_default_framebuffer)
+        {
+            attachment = GL_DEPTH;
+        }
+        else
+        {
+            attachment = GL_DEPTH_ATTACHMENT;
+        }
+        good = good && is_attachment_present(attachment);
+    }
+    if(clear_state->flags.stencil)
+    {
+        GLenum attachment;
+        if(is_default_framebuffer)
+        {
+            attachment = GL_STENCIL;
+        }
+        else
+        {
+            attachment = GL_STENCIL_ATTACHMENT;
+        }
+        good = good && is_attachment_present(attachment);
+    }
+
+    return good;
+}
+
 void clear_target(Backend* backend, ClearState* clear_state)
 {
     (void) backend;
+
+    ASSERT(validate_attachments(clear_state, backend->current_pass.value == default_pass.value));
 
     GLbitfield mask = 0;
 
@@ -1728,7 +1789,7 @@ void clear_target(Backend* backend, ClearState* clear_state)
 
 void draw(Backend* backend, DrawAction* draw_action)
 {
-    Pipeline* pipeline = backend->current_pipeline;
+    Pipeline* pipeline = fetch_pipeline(backend, backend->current_pipeline);
 
     glBindVertexArray(pipeline->vertex_array);
 
@@ -1766,7 +1827,7 @@ void draw(Backend* backend, DrawAction* draw_action)
 
 void set_images(Backend* backend, ImageSet* image_set)
 {
-    Pipeline* pipeline = backend->current_pipeline;
+    Pipeline* pipeline = fetch_pipeline(backend, backend->current_pipeline);
     Shader* shader = fetch_shader(backend, pipeline->shader);
 
     for(int i = 0; i < 2; i += 1)
@@ -1826,6 +1887,8 @@ void set_pass(Backend* backend, PassId id)
     {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
+
+    backend->current_pass = id;
 }
 
 static void set_blend_state(BlendState* state, BlendState* prior)
@@ -2030,7 +2093,7 @@ static void set_rasterizer_state(RasterizerState* state, RasterizerState* prior,
 void set_pipeline(Backend* backend, PipelineId id)
 {
     Pipeline* pipeline = fetch_pipeline(backend, id);
-    Pipeline* prior = backend->current_pipeline;
+    Pipeline* prior = fetch_pipeline(backend, backend->current_pipeline);
     if(pipeline != prior)
     {
         Shader* shader = fetch_shader(backend, pipeline->shader);
@@ -2049,7 +2112,7 @@ void set_pipeline(Backend* backend, PipelineId id)
         set_depth_stencil_state(&pipeline->depth_stencil, depth_stencil);
         set_rasterizer_state(&pipeline->rasterizer, rasterizer, backend);
 
-        backend->current_pipeline = pipeline;
+        backend->current_pipeline = id;
     }
 }
 
