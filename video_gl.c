@@ -415,11 +415,13 @@ static GLenum get_generic_pixel_format(PixelFormat pixel_format)
         case PIXEL_FORMAT_RGBA32F:
             return GL_RGBA;
         case PIXEL_FORMAT_RGB8:
+        case PIXEL_FORMAT_RGB8_SNORM:
         case PIXEL_FORMAT_SRGB8:
         case PIXEL_FORMAT_RGB16F:
         case PIXEL_FORMAT_RGB32F:
             return GL_RGB;
         case PIXEL_FORMAT_RG8:
+        case PIXEL_FORMAT_RG8_SNORM:
         case PIXEL_FORMAT_RG16F:
         case PIXEL_FORMAT_RG32F:
             return GL_RG;
@@ -457,10 +459,12 @@ static GLenum get_internal_pixel_format(PixelFormat pixel_format)
         case PIXEL_FORMAT_RGBA16F:          return GL_RGBA16F;
         case PIXEL_FORMAT_RGBA32F:          return GL_RGBA32F;
         case PIXEL_FORMAT_RGB8:             return GL_RGB8;
+        case PIXEL_FORMAT_RGB8_SNORM:       return GL_RGB8_SNORM;
         case PIXEL_FORMAT_SRGB8:            return GL_SRGB8;
         case PIXEL_FORMAT_RGB16F:           return GL_RGB16F;
         case PIXEL_FORMAT_RGB32F:           return GL_RGB32F;
         case PIXEL_FORMAT_RG8:              return GL_RG8;
+        case PIXEL_FORMAT_RG8_SNORM:        return GL_RG8_SNORM;
         case PIXEL_FORMAT_RG16F:            return GL_RG16F;
         case PIXEL_FORMAT_RG32F:            return GL_RG32F;
         case PIXEL_FORMAT_R8:               return GL_R8;
@@ -545,6 +549,9 @@ static GLenum get_pixel_format_type(PixelFormat pixel_format)
         case PIXEL_FORMAT_RG8:
         case PIXEL_FORMAT_R8:
             return GL_UNSIGNED_BYTE;
+        case PIXEL_FORMAT_RGB8_SNORM:
+        case PIXEL_FORMAT_RG8_SNORM:
+            return GL_BYTE;
         case PIXEL_FORMAT_DEPTH16:
             return GL_UNSIGNED_SHORT;
         case PIXEL_FORMAT_DEPTH24:
@@ -1420,7 +1427,7 @@ Backend* create_backend(Heap* heap)
     create_id_pool(&backend->buffer_id_pool, heap, 32);
     create_id_pool(&backend->image_id_pool, heap, 8);
     create_id_pool(&backend->pass_id_pool, heap, 1);
-    create_id_pool(&backend->pipeline_id_pool, heap, 16);
+    create_id_pool(&backend->pipeline_id_pool, heap, 32);
     create_id_pool(&backend->sampler_id_pool, heap, 4);
     create_id_pool(&backend->shader_id_pool, heap, 16);
 

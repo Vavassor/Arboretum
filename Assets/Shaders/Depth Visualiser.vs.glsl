@@ -17,4 +17,3 @@ void main()
     gl_Position = view_projection * vec4(position, 1.0);
     surface_texcoord = texcoord;
 }
-

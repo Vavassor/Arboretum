@@ -10,6 +10,7 @@
 typedef struct VideoObject
 {
     Matrix4 model;
+    Matrix4 prior_model;
     Matrix4 normal;
     BufferId buffers[2];
     int vertices_count;
@@ -28,5 +29,6 @@ void video_object_update_wireframe_selection(VideoObject* object, JanMesh* mesh,
 void video_object_set_matrices(VideoObject* object, Matrix4 view, Matrix4 projection);
 void video_object_generate_sky(VideoObject* object, Backend* backend, Log* logger, Stack* stack);
 void video_object_set_model(VideoObject* object, Matrix4 model);
+void video_object_store_past_model(VideoObject* object);
 
 #endif // VIDEO_OBJECT_H_

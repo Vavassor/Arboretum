@@ -3,6 +3,12 @@
 
 #include "vector_math.h"
 
+typedef struct DepthBlock
+{
+    float near;
+    float far;
+} DepthBlock;
+
 typedef struct HaloBlock
 {
     Float4 halo_colour;
@@ -27,6 +33,7 @@ typedef struct PerLine
 typedef struct PerObject
 {
     Matrix4 model;
+    Matrix4 prior_model;
     Matrix4 normal_matrix;
 } PerObject;
 
@@ -45,6 +52,7 @@ typedef struct PerSpan
 typedef struct PerView
 {
     Matrix4 view_projection;
+    Matrix4 prior_view_projection;
     Float2 viewport_dimensions;
 } PerView;
 

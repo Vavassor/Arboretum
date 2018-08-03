@@ -53,9 +53,11 @@ bool is_pixel_format_compressed(PixelFormat pixel_format)
         case PIXEL_FORMAT_RGBA16F:
         case PIXEL_FORMAT_RGBA32F:
         case PIXEL_FORMAT_RGB8:
+        case PIXEL_FORMAT_RGB8_SNORM:
         case PIXEL_FORMAT_RGB16F:
         case PIXEL_FORMAT_RGB32F:
         case PIXEL_FORMAT_RG8:
+        case PIXEL_FORMAT_RG8_SNORM:
         case PIXEL_FORMAT_RG16F:
         case PIXEL_FORMAT_RG32F:
         case PIXEL_FORMAT_R8:

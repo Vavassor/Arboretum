@@ -63,6 +63,14 @@ typedef struct Matrices
     Matrix4 screen_projection;
 } Matrices;
 
+typedef struct PastMatrices
+{
+    Matrix4 compass_view_projection;
+    Matrix4 move_tool_model;
+    Matrix4 sky_view_projection;
+    Matrix4 view_projection;
+} PastMatrices;
+
 typedef struct Passes
 {
     PassId base;
@@ -71,6 +79,7 @@ typedef struct Passes
 typedef struct Pipelines
 {
     PipelineId background;
+    PipelineId depth_visualiser;
     PipelineId face_selection;
     PipelineId halo;
     PipelineId hidden;
@@ -78,6 +87,7 @@ typedef struct Pipelines
     PipelineId resolve;
     PipelineId selected;
     PipelineId unselected;
+    PipelineId velocity_visualiser;
     PipelineId wireframe;
 } Pipelines;
 
@@ -90,6 +100,7 @@ typedef struct Samplers
 
 typedef struct Shaders
 {
+    ShaderId depth_visualiser;
     ShaderId face_selection;
     ShaderId font;
     ShaderId halo;
@@ -98,12 +109,14 @@ typedef struct Shaders
     ShaderId point;
     ShaderId screen_pattern;
     ShaderId texture_only;
+    ShaderId velocity_visualiser;
     ShaderId vertex_colour;
 } Shaders;
 
 typedef struct Uniforms
 {
     BufferId buffers[5];
+    BufferId depth_block;
     BufferId halo_block;
     BufferId light_block;
     BufferId per_point;
@@ -117,6 +130,7 @@ struct VideoContext
     Buffers buffers;
     Images images;
     Passes passes;
+    PastMatrices past_matrices;
     Pipelines pipelines;
     Samplers samplers;
     Shaders shaders;
@@ -408,6 +422,27 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
         .size = sizeof(PerSpan),
     };
 
+    UniformBlockSpec depth_block_spec =
+    {
+        .binding = 8,
+        .name = "DepthBlock",
+        .size = sizeof(DepthBlock),
+    };
+
+    ShaderSpec depth_visualiser_shader_spec =
+    {
+        .fragment =
+        {
+            .images[0] = {.name = "texture"},
+            .uniform_blocks = {depth_block_spec},
+        },
+        .vertex =
+        {
+            .uniform_blocks = {per_view_spec},
+        },
+    };
+    shaders->depth_visualiser = build_shader(context, &depth_visualiser_shader_spec, "Depth Visualiser.fs", "Depth Visualiser.vs");
+
     ShaderSpec shader_font_spec =
     {
         .fragment =
@@ -548,6 +583,19 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
     };
     shaders->texture_only = build_shader(context, &texture_only_spec, "Texture Only.fs", "Texture Only.vs");
 
+    ShaderSpec velocity_visualiser_shader_spec =
+    {
+        .fragment =
+        {
+            .images[0] = {.name = "texture"},
+        },
+        .vertex =
+        {
+            .uniform_blocks = {per_view_spec},
+        },
+    };
+    shaders->velocity_visualiser = build_shader(context, &velocity_visualiser_shader_spec, "Velocity Visualiser.fs", "Velocity Visualiser.vs");
+
     ShaderSpec shader_vertex_colour_spec =
     {
         .vertex =
@@ -566,6 +614,7 @@ static void destroy_shaders(VideoContext* context, Shaders* shaders)
 {
     Backend* backend = context->backend;
 
+    destroy_shader(backend, shaders->depth_visualiser);
     destroy_shader(backend, shaders->face_selection);
     destroy_shader(backend, shaders->font);
     destroy_shader(backend, shaders->halo);
@@ -574,6 +623,7 @@ static void destroy_shaders(VideoContext* context, Shaders* shaders)
     destroy_shader(backend, shaders->point);
     destroy_shader(backend, shaders->screen_pattern);
     destroy_shader(backend, shaders->texture_only);
+    destroy_shader(backend, shaders->velocity_visualiser);
     destroy_shader(backend, shaders->vertex_colour);
 }
 
@@ -639,6 +689,21 @@ static void create_pipelines(VideoContext* context, Pipelines* pipelines)
         .front_stencil = halo_stencil_spec,
     };
 
+    DepthStencilStateSpec basic_depth_stencil_spec =
+    {
+        .depth_compare_enabled = true,
+        .depth_write_enabled = true,
+    };
+
+    VertexLayoutSpec texture_vertex_layout_spec =
+    {
+        .attributes =
+        {
+            {.format = VERTEX_FORMAT_FLOAT3},
+            {.format = VERTEX_FORMAT_USHORT2_NORM},
+        },
+    };
+
     VertexLayoutSpec frame_triangle_vertex_spec =
     {
         .attributes =
@@ -652,11 +717,11 @@ static void create_pipelines(VideoContext* context, Pipelines* pipelines)
     {
         .attributes =
         {
-            [0] = {.format = VERTEX_FORMAT_FLOAT3},
-            [1] = {.format = VERTEX_FORMAT_FLOAT3},
-            [2] = {.format = VERTEX_FORMAT_UBYTE4_NORM},
-            [3] = {.format = VERTEX_FORMAT_USHORT2_NORM},
-            [4] = {.format = VERTEX_FORMAT_FLOAT1},
+            {.format = VERTEX_FORMAT_FLOAT3},
+            {.format = VERTEX_FORMAT_FLOAT3},
+            {.format = VERTEX_FORMAT_UBYTE4_NORM},
+            {.format = VERTEX_FORMAT_USHORT2_NORM},
+            {.format = VERTEX_FORMAT_FLOAT1},
         },
     };
 
@@ -664,10 +729,10 @@ static void create_pipelines(VideoContext* context, Pipelines* pipelines)
     {
         .attributes =
         {
-            [0] = {.format = VERTEX_FORMAT_FLOAT3},
-            [1] = {.format = VERTEX_FORMAT_FLOAT2},
-            [2] = {.format = VERTEX_FORMAT_UBYTE4_NORM},
-            [3] = {.format = VERTEX_FORMAT_USHORT2_NORM},
+            {.format = VERTEX_FORMAT_FLOAT3},
+            {.format = VERTEX_FORMAT_FLOAT2},
+            {.format = VERTEX_FORMAT_UBYTE4_NORM},
+            {.format = VERTEX_FORMAT_USHORT2_NORM},
         },
     };
 
@@ -675,9 +740,9 @@ static void create_pipelines(VideoContext* context, Pipelines* pipelines)
     {
         .attributes =
         {
-            [0] = {.format = VERTEX_FORMAT_FLOAT3},
-            [1] = {.format = VERTEX_FORMAT_FLOAT3},
-            [2] = {.format = VERTEX_FORMAT_UBYTE4_NORM},
+            {.format = VERTEX_FORMAT_FLOAT3},
+            {.format = VERTEX_FORMAT_FLOAT3},
+            {.format = VERTEX_FORMAT_UBYTE4_NORM},
         },
     };
 
@@ -685,8 +750,8 @@ static void create_pipelines(VideoContext* context, Pipelines* pipelines)
     {
         .attributes =
         {
-            [0] = {.format = VERTEX_FORMAT_FLOAT3},
-            [1] = {.format = VERTEX_FORMAT_UBYTE4_NORM},
+            {.format = VERTEX_FORMAT_FLOAT3},
+            {.format = VERTEX_FORMAT_UBYTE4_NORM},
         },
     };
 
@@ -702,13 +767,21 @@ static void create_pipelines(VideoContext* context, Pipelines* pipelines)
     };
     pipelines->background = create_pipeline(backend, &pipeline_background_spec, logger);
 
+    PipelineSpec depth_visualiser_pipeline_spec =
+    {
+        .depth_stencil = basic_depth_stencil_spec,
+        .input_assembly =
+        {
+            .index_type = INDEX_TYPE_NONE,
+        },
+        .shader = shaders->depth_visualiser,
+        .vertex_layout = texture_vertex_layout_spec,
+    };
+    pipelines->depth_visualiser = create_pipeline(backend, &depth_visualiser_pipeline_spec, logger);
+
     PipelineSpec pipeline_unselected_spec =
     {
-        .depth_stencil =
-        {
-            .depth_compare_enabled = true,
-            .depth_write_enabled = true,
-        },
+        .depth_stencil = basic_depth_stencil_spec,
         .shader = shaders->lit,
         .vertex_layout = vertex_layout_spec_lit,
     };
@@ -788,6 +861,18 @@ static void create_pipelines(VideoContext* context, Pipelines* pipelines)
         .vertex_layout = vertex_layout_spec_vertex_colour,
     };
     pipelines->hidden = create_pipeline(backend, &pipeline_spec_hidden, logger);
+
+    PipelineSpec velocity_visualiser_pipeline_spec =
+    {
+        .depth_stencil = basic_depth_stencil_spec,
+        .input_assembly =
+        {
+            .index_type = INDEX_TYPE_NONE,
+        },
+        .shader = shaders->velocity_visualiser,
+        .vertex_layout = texture_vertex_layout_spec,
+    };
+    pipelines->velocity_visualiser = create_pipeline(backend, &velocity_visualiser_pipeline_spec, logger);
 }
 
 static void destroy_pipelines(VideoContext* context, Pipelines* pipelines)
@@ -795,6 +880,7 @@ static void destroy_pipelines(VideoContext* context, Pipelines* pipelines)
     Backend* backend = context->backend;
 
     destroy_pipeline(backend, pipelines->background);
+    destroy_pipeline(backend, pipelines->depth_visualiser);
     destroy_pipeline(backend, pipelines->face_selection);
     destroy_pipeline(backend, pipelines->halo);
     destroy_pipeline(backend, pipelines->hidden);
@@ -802,6 +888,7 @@ static void destroy_pipelines(VideoContext* context, Pipelines* pipelines)
     destroy_pipeline(backend, pipelines->resolve);
     destroy_pipeline(backend, pipelines->selected);
     destroy_pipeline(backend, pipelines->unselected);
+    destroy_pipeline(backend, pipelines->velocity_visualiser);
     destroy_pipeline(backend, pipelines->wireframe);
 }
 
@@ -809,6 +896,15 @@ static void create_uniforms(VideoContext* context, Uniforms* uniforms)
 {
     Backend* backend = context->backend;
     Log* logger = context->logger;
+
+    BufferSpec depth_block_spec =
+    {
+        .binding = 8,
+        .size = sizeof(DepthBlock),
+        .format = BUFFER_FORMAT_UNIFORM,
+        .usage = BUFFER_USAGE_DYNAMIC,
+    };
+    uniforms->depth_block = create_buffer(backend, &depth_block_spec, logger);
 
     BufferSpec per_image_spec =
     {
@@ -891,6 +987,7 @@ static void destroy_uniforms(VideoContext* context, Uniforms* uniforms)
     {
         destroy_buffer(backend, uniforms->buffers[i]);
     }
+    destroy_buffer(backend, uniforms->depth_block);
     destroy_buffer(backend, uniforms->halo_block);
     destroy_buffer(backend, uniforms->light_block);
     destroy_buffer(backend, uniforms->per_point);
@@ -969,6 +1066,7 @@ static void apply_object_block(VideoContext* context, VideoObject* object)
     PerObject per_object =
     {
         .model = matrix4_transpose(object->model),
+        .prior_model = matrix4_transpose(object->prior_model),
         .normal_matrix = matrix4_transpose(object->normal),
     };
     update_buffer(backend, uniforms->buffers[2], &per_object, 0, sizeof(per_object));
@@ -985,7 +1083,7 @@ static void draw_object(VideoContext* context, VideoObject* object)
     draw(context->backend, &draw_action);
 }
 
-static void set_model_matrix(VideoContext* context, Matrix4 model)
+static void set_model_matrix(VideoContext* context, Matrix4 model, Matrix4 prior_model)
 {
     Backend* backend = context->backend;
     Uniforms* uniforms = &context->uniforms;
@@ -993,11 +1091,12 @@ static void set_model_matrix(VideoContext* context, Matrix4 model)
     PerObject per_object =
     {
         .model = matrix4_transpose(model),
+        .prior_model = matrix4_transpose(prior_model),
     };
     update_buffer(backend, uniforms->buffers[2], &per_object, 0, sizeof(per_object));
 }
 
-static void set_view_projection(VideoContext* context, Matrix4 view, Matrix4 projection, Float2 viewport_dimensions)
+static void set_view_projection(VideoContext* context, Matrix4 view, Matrix4 projection, Matrix4 prior_view_projection, Float2 viewport_dimensions)
 {
     Backend* backend = context->backend;
     Uniforms* uniforms = &context->uniforms;
@@ -1005,6 +1104,7 @@ static void set_view_projection(VideoContext* context, Matrix4 view, Matrix4 pro
     PerView per_view =
     {
         .view_projection = matrix4_transpose(matrix4_multiply(projection, view)),
+        .prior_view_projection = matrix4_transpose(prior_view_projection),
         .viewport_dimensions = viewport_dimensions,
     };
     update_buffer(backend, uniforms->buffers[3], &per_view, 0, sizeof(per_view));
@@ -1201,6 +1301,7 @@ static void draw_move_tool_and_vectors(VideoContext* context, MoveTool* move_too
 {
     Backend* backend = context->backend;
     Images* images = &context->images;
+    PastMatrices* past_matrices = &context->past_matrices;
     Pipelines* pipelines = &context->pipelines;
     Samplers* samplers = &context->samplers;
     Uniforms* uniforms = &context->uniforms;
@@ -1222,25 +1323,27 @@ static void draw_move_tool_and_vectors(VideoContext* context, MoveTool* move_too
     };
     update_buffer(backend, uniforms->buffers[0], &per_image, 0, sizeof(PerImage));
 
-    set_model_matrix(context, model);
+    set_model_matrix(context, model, past_matrices->move_tool_model);
     immediate_set_override_pipeline(context->pipelines.hidden);
     set_pipeline(backend, pipelines->hidden);
     set_images(backend, &image_set);
     draw_move_tool(move_tool, true);
 
-    set_model_matrix(context, matrix4_identity);
+    set_model_matrix(context, matrix4_identity, matrix4_identity);
     immediate_set_override_pipeline(pipelines->hidden);
     draw_move_tool_vectors(move_tool);
 
     // draw solid parts on top of silhouette
-    set_model_matrix(context, model);
+    set_model_matrix(context, model, past_matrices->move_tool_model);
     draw_move_tool(move_tool, false);
 
-    set_model_matrix(context, matrix4_identity);
+    set_model_matrix(context, matrix4_identity, matrix4_identity);
     draw_move_tool_vectors(move_tool);
 
     per_image.texture_dimensions = int2_to_float2(images->line_pattern_dimensions);
     update_buffer(backend, uniforms->buffers[0], &per_image, 0, sizeof(PerImage));
+
+    past_matrices->move_tool_model = model;
 }
 
 static void draw_rotate_tool(VideoContext* context, RotateTool* rotate_tool)
@@ -1494,7 +1597,7 @@ static void draw_selection(VideoContext* context, DenseMapId faces_id, DenseMapI
     draw_wireframe(context, wireframe, projection);
 }
 
-static void set_regular_view(VideoContext* context, Int2 viewport, Matrix4 view, Matrix4 projection)
+static void set_regular_view(VideoContext* context, Int2 viewport, Matrix4 view, Matrix4 projection, Matrix4 prior_view_projection)
 {
     Viewport viewport_state =
     {
@@ -1504,10 +1607,10 @@ static void set_regular_view(VideoContext* context, Int2 viewport, Matrix4 view,
         .near_depth = 0.0f,
     };
     set_viewport(context->backend, &viewport_state);
-    set_view_projection(context, view, projection, int2_to_float2(viewport));
+    set_view_projection(context, view, projection, prior_view_projection, int2_to_float2(viewport));
 }
 
-static void draw_sky(VideoContext* context, Int2 viewport, Matrix4 view, Matrix4 projection)
+static void draw_sky(VideoContext* context, Int2 viewport, Matrix4 view, Matrix4 projection, Matrix4 prior_view_projection)
 {
     Backend* backend = context->backend;
     Pipelines* pipelines = &context->pipelines;
@@ -1522,7 +1625,7 @@ static void draw_sky(VideoContext* context, Int2 viewport, Matrix4 view, Matrix4
         .near_depth = 1.0f,
     };
     set_viewport(backend, &viewport_state);
-    set_view_projection(context, view, projection, viewport_dimensions);
+    set_view_projection(context, view, projection, prior_view_projection, viewport_dimensions);
 
     set_pipeline(backend, pipelines->background);
     apply_object_block(context, &context->sky);
@@ -1562,11 +1665,15 @@ static void draw_compass(VideoContext* context, Camera* camera, Int2 viewport)
     const float across = 3.0f * sqrtf(3.0f);
     const float extent = across / 2.0f;
 
+    PastMatrices* past_matrices = &context->past_matrices;
+    Matrix4 prior_view_projection = past_matrices->compass_view_projection;
+
     Float3 direction = float3_normalise(float3_subtract(camera->target, camera->position));
     Matrix4 view = matrix4_look_at(float3_zero, direction, float3_unit_z);
     Matrix4 axis_projection = matrix4_orthographic_projection(across, across, -extent, extent);
-    set_view_projection(context, view, axis_projection, int2_to_float2(viewport));
-    set_model_matrix(context, matrix4_identity);
+    set_view_projection(context, view, axis_projection, prior_view_projection, int2_to_float2(viewport));
+    set_model_matrix(context, matrix4_identity, matrix4_identity);
+    past_matrices->compass_view_projection = matrix4_multiply(axis_projection, view);
 
     Float3 double_x = float3_multiply(2.0f, x_axis);
     Float3 double_y = float3_multiply(2.0f, y_axis);
@@ -1714,22 +1821,29 @@ static void draw_debug_images(VideoContext* context, Int2 viewport)
 {
     Backend* backend = context->backend;
     Images* images = &context->images;
+    Pipelines* pipelines = &context->pipelines;
     Samplers* samplers = &context->samplers;
 
     ImageSet image_set =
     {
         .stages[1] =
         {
-            .images[0] = images->frame_colour,
+            .images[0] = images->frame_velocity,
             .samplers[0] = samplers->nearest_repeat,
         },
     };
     set_images(backend, &image_set);
-
+#if 0
+    immediate_set_override_pipeline(pipelines->depth_visualiser);
+    set_pipeline(backend, pipelines->depth_visualiser);
+#else
+    immediate_set_override_pipeline(pipelines->velocity_visualiser);
+    set_pipeline(backend, pipelines->velocity_visualiser);
+#endif
     Rect rect =
     {
-        (Float2){{viewport.x / 2.0f - 80.0f, viewport.y / 2.0f - 80.0f}},
-        (Float2){{60.0f, 60.0f}},
+        (Float2){{viewport.x / 2.0f - 140.0f, viewport.y / 2.0f - 140.0f}},
+        (Float2){{120.0f, 120.0f}},
     };
     Quad quad = rect_to_quad(rect);
     Rect texture_rect = (Rect){float2_zero, float2_one};
@@ -1757,9 +1871,22 @@ static void update_matrices(VideoUpdate* update, Matrices* matrices)
     matrices->screen_projection = matrix4_orthographic_projection(width, height, -1.0f, 1.0f);
 }
 
+static void store_past_matrices(VideoContext* context, Matrices* matrices)
+{
+    PastMatrices* past_matrices = &context->past_matrices;
+
+    past_matrices->view_projection = matrix4_multiply(matrices->projection, matrices->view);
+    past_matrices->sky_view_projection = matrix4_multiply(matrices->sky_projection, matrices->sky_view);
+
+    FOR_ALL(VideoObject, context->objects.array)
+    {
+        video_object_store_past_model(it);
+    }
+}
+
 static void draw_debug_draw_shapes(VideoContext* context)
 {
-    set_model_matrix(context, matrix4_identity);
+    set_model_matrix(context, matrix4_identity, matrix4_identity);
 
     for(int i = 0; i < debug_draw.shapes_count; i += 1)
     {
@@ -1803,6 +1930,7 @@ static void draw_opaque_phase(VideoContext* context, VideoUpdate* update, Matric
 
     Backend* backend = context->backend;
     Passes* passes = &context->passes;
+    PastMatrices* past_matrices = &context->past_matrices;
     Pipelines* pipelines = &context->pipelines;
     Uniforms* uniforms = &context->uniforms;
 
@@ -1817,8 +1945,16 @@ static void draw_opaque_phase(VideoContext* context, VideoUpdate* update, Matric
     LightBlock light_block = {light_direction};
     update_buffer(backend, uniforms->light_block, &light_block, 0, sizeof(light_block));
 
+    Camera* camera = update->camera;
+    DepthBlock depth_block =
+    {
+        .near = camera->near_plane,
+        .far = camera->far_plane,
+    };
+    update_buffer(backend, uniforms->depth_block, &depth_block, 0, sizeof(depth_block));
+
     set_pass(context->backend, passes->base);
-    set_regular_view(context, viewport, matrices->view, matrices->projection);
+    set_regular_view(context, viewport, matrices->view, matrices->projection, past_matrices->view_projection);
 
     set_pipeline(backend, pipelines->unselected);
 
@@ -1864,14 +2000,16 @@ static void draw_opaque_phase(VideoContext* context, VideoUpdate* update, Matric
     draw_rotate_tool(context, rotate_tool);
 
     video_object_set_matrices(&context->sky, matrices->sky_view, matrices->sky_projection);
-    draw_sky(context, viewport, matrices->sky_view, matrices->sky_projection);
+    draw_sky(context, viewport, matrices->sky_view, matrices->sky_projection, past_matrices->sky_view_projection);
 }
 
 static void draw_transparent_phase(VideoContext* context, VideoUpdate* update, Matrices* matrices)
 {
     Int2 viewport = update->viewport;
 
-    set_regular_view(context, viewport, matrices->view, matrices->projection);
+    PastMatrices* past_matrices = &context->past_matrices;
+
+    set_regular_view(context, viewport, matrices->view, matrices->projection, past_matrices->view_projection);
 
     DenseMapId selection_id = update->selection_id;
     DenseMapId selection_pointcloud_id = update->selection_pointcloud_id;
@@ -1898,7 +2036,7 @@ static void draw_resolved_base_pass(VideoContext* context, VideoUpdate* update)
     };
     set_images(backend, &image_set);
     set_pipeline(backend, pipelines->resolve);
-    set_regular_view(context, update->viewport, matrix4_identity, matrix4_identity);
+    set_regular_view(context, update->viewport, matrix4_identity, matrix4_identity, matrix4_identity);
     DrawAction draw_action =
     {
         .indices_count = 3,
@@ -1948,8 +2086,8 @@ static void draw_screen_phase(VideoContext* context, VideoUpdate* update, Matric
     Float2 viewport_dimensions = int2_to_float2(viewport);
     Matrix4 view = matrix4_identity;
     Matrix4 projection = matrices->screen_projection;
-    set_view_projection(context, view, projection, viewport_dimensions);
-    set_model_matrix(context, matrix4_identity);
+    set_view_projection(context, view, projection, matrix4_multiply(projection, view), viewport_dimensions);
+    set_model_matrix(context, matrix4_identity, matrix4_identity);
 
     if(dialog_enabled)
     {
@@ -1982,6 +2120,8 @@ void video_update_context(VideoContext* context, VideoUpdate* update, Platform* 
     draw_opaque_phase(context, update, &matrices);
     draw_transparent_phase(context, update, &matrices);
     draw_screen_phase(context, update, &matrices);
+
+    store_past_matrices(context, &matrices);
 }
 
 static void clean_up_base_pass(VideoContext* context)
@@ -2024,7 +2164,7 @@ static void recreate_base_pass(VideoContext* context, Int2 dimensions)
 
     ImageSpec spec_frame_velocity =
     {
-        .pixel_format = PIXEL_FORMAT_RG8,
+        .pixel_format = PIXEL_FORMAT_RG8_SNORM,
         .render_target = true,
         .width = dimensions.x,
         .height = dimensions.y,
@@ -2035,8 +2175,8 @@ static void recreate_base_pass(VideoContext* context, Int2 dimensions)
     {
         .colour_attachments =
         {
-            [0] = {.image = images->frame_colour},
-            [1] = {.image = images->frame_velocity},
+            {.image = images->frame_colour},
+            {.image = images->frame_velocity},
         },
         .depth_stencil_attachment = {.image = images->frame_depth},
     };
