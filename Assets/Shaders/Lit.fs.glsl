@@ -27,7 +27,7 @@ vec2 get_velocity(vec4 now, vec4 prior)
 {
     vec3 ndc_now = (now / now.w).xyz;
     vec3 ndc_prior = (prior / prior.w).xyz;
-    return (ndc_now - ndc_prior).xy;
+    return 0.5 * (ndc_now - ndc_prior).xy;
 }
 
 void main()
