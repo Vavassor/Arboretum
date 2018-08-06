@@ -610,8 +610,10 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
         {
             .images =
             {
+                {.name = "depth_buffer"},
                 {.name = "history"},
                 {.name = "texture"},
+                {.name = "velocity_buffer"},
             },
             .uniform_blocks[0] = tsaa_resolve_block_spec,
         },
@@ -1931,28 +1933,8 @@ static Float2 compute_jitter(Int2 viewport, int frame_count)
 {
     Float2 subsample_extents = (Float2){{1.0f / viewport.x, 1.0f / viewport.y}};
 
-#if 0
-    const Float2 sample_locations[2] =
-    {
-        (Float2){{-0.5f, -0.5f}},
-        (Float2){{+0.5f, +0.5f}},
-    };
-#elif 0
-    const Float2 sample_locations[8] =
-    {
-        (Float2){{-7.0f / 8.0f, +1.0f / 8.0f}},
-        (Float2){{-5.0f / 8.0f, -5.0f / 8.0f}},
-        (Float2){{-1.0f / 8.0f, -3.0f / 8.0f}},
-        (Float2){{+3.0f / 8.0f, -7.0f / 8.0f}},
-        (Float2){{+5.0f / 8.0f, -1.0f / 8.0f}},
-        (Float2){{+7.0f / 8.0f, +7.0f / 8.0f}},
-        (Float2){{+1.0f / 8.0f, +3.0f / 8.0f}},
-        (Float2){{-3.0f / 8.0f, +5.0f / 8.0f}},
-    };
-#else
     Float2 sample_locations[8];
     fill_jitter_samples(sample_locations, 8);
-#endif
 
     int index = frame_count % 8;
     Float2 location = sample_locations[index];
@@ -2183,13 +2165,17 @@ static void draw_tsaa_resolve_pass(VideoContext* context, VideoUpdate* update)
         {
             .images =
             {
+                images->g_buffer_images.depth,
                 images->tsaa_colour[last_frame_index],
                 images->g_buffer_images.colour,
+                images->g_buffer_images.velocity,
             },
             .samplers =
             {
+                samplers->nearest_repeat,
                 samplers->linear_repeat,
                 samplers->linear_repeat,
+                samplers->nearest_repeat,
             },
         },
     };
