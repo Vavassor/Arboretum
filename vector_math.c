@@ -638,6 +638,17 @@ Matrix4 matrix4_orthographic_projection(float width, float height, float near_pl
     return result;
 }
 
+Matrix4 matrix4_translation(Float3 translation)
+{
+    return (Matrix4)
+    {{
+        1.0f, 0.0f, 0.0f, translation.x,
+        0.0f, 1.0f, 0.0f, translation.y,
+        0.0f, 0.0f, 1.0f, translation.z,
+        0.0f, 0.0f, 0.0f, 1.0f,
+    }};
+}
+
 Matrix4 matrix4_dilation(Float3 dilation)
 {
     return (Matrix4)

@@ -457,6 +457,7 @@ void destroy_pipeline(Backend* backend, PipelineId id);
 void destroy_sampler(Backend* backend, SamplerId id);
 void destroy_shader(Backend* backend, ShaderId id);
 
+void blit_pass_colour(Backend* backend, PassId source_id, PassId target_id);
 void clear_target(Backend* backend, ClearState* clear_state);
 void draw(Backend* backend, DrawAction* draw_action);
 void set_images(Backend* backend, ImageSet* image_set);

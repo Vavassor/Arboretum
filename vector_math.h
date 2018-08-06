@@ -149,6 +149,7 @@ Matrix4 matrix4_turn(Float3 position, float yaw, float pitch, Float3 world_up);
 Matrix4 matrix4_perspective_projection(float fovy, float width, float height, float near_plane, float far_plane);
 Matrix4 matrix4_orthographic_projection(float width, float height, float near_plane, float far_plane);
 Matrix4 matrix4_dilation(Float3 dilation);
+Matrix4 matrix4_translation(Float3 translation);
 Matrix4 matrix4_compose_transform(Float3 position, Quaternion orientation, Float3 scale);
 Matrix4 matrix4_inverse_view(Matrix4 m);
 Matrix4 matrix4_inverse_perspective(Matrix4 m);

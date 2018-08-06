@@ -36,16 +36,24 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#define TSAA_PASS_COUNT 2
+
 typedef struct Buffers
 {
     BufferId frame_triangle;
 } Buffers;
 
+typedef struct GBufferImages
+{
+    ImageId colour;
+    ImageId depth;
+    ImageId velocity;
+} GBufferImages;
+
 typedef struct Images
 {
-    ImageId frame_colour;
-    ImageId frame_depth;
-    ImageId frame_velocity;
+    ImageId tsaa_colour[TSAA_PASS_COUNT];
+    GBufferImages g_buffer_images;
     ImageId font_textures[1];
     ImageId hatch_pattern;
     ImageId line_pattern;
@@ -73,7 +81,8 @@ typedef struct PastMatrices
 
 typedef struct Passes
 {
-    PassId base;
+    PassId tsaa[TSAA_PASS_COUNT];
+    PassId g_buffer;
 } Passes;
 
 typedef struct Pipelines
@@ -84,8 +93,8 @@ typedef struct Pipelines
     PipelineId halo;
     PipelineId hidden;
     PipelineId pointcloud;
-    PipelineId resolve;
     PipelineId selected;
+    PipelineId tsaa_resolve;
     PipelineId unselected;
     PipelineId velocity_visualiser;
     PipelineId wireframe;
@@ -109,6 +118,7 @@ typedef struct Shaders
     ShaderId point;
     ShaderId screen_pattern;
     ShaderId texture_only;
+    ShaderId tsaa_resolve;
     ShaderId velocity_visualiser;
     ShaderId vertex_colour;
 } Shaders;
@@ -120,6 +130,7 @@ typedef struct Uniforms
     BufferId halo_block;
     BufferId light_block;
     BufferId per_point;
+    BufferId tsaa_resolve_block;
 } Uniforms;
 
 struct VideoContext
@@ -138,6 +149,9 @@ struct VideoContext
     VideoObject sky;
     Backend* backend;
     Log* logger;
+    uint32_t frame_count;
+    bool tsaa_enabled;
+    Float2 tsaa_jitter;
 };
 
 static PixelFormat get_pixel_format(int bytes_per_pixel)
@@ -314,9 +328,9 @@ static void destroy_images(VideoContext* context, Images* images)
     destroy_image(backend, images->line_pattern);
     destroy_image(backend, images->point_pattern);
 
-    for(int i = 0; i < 1; i += 1)
+    for(int texture_index = 0; texture_index < 1; texture_index += 1)
     {
-        destroy_image(backend, images->font_textures[i]);
+        destroy_image(backend, images->font_textures[texture_index]);
     }
 }
 
@@ -366,6 +380,13 @@ static void destroy_samplers(VideoContext* context, Samplers* samplers)
 
 static void create_shaders(VideoContext* context, Shaders* shaders)
 {
+    UniformBlockSpec depth_block_spec =
+    {
+        .binding = 8,
+        .name = "DepthBlock",
+        .size = sizeof(DepthBlock),
+    };
+
     UniformBlockSpec halo_block_spec =
     {
         .binding = 6,
@@ -422,11 +443,11 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
         .size = sizeof(PerSpan),
     };
 
-    UniformBlockSpec depth_block_spec =
+    UniformBlockSpec tsaa_resolve_block_spec =
     {
-        .binding = 8,
-        .name = "DepthBlock",
-        .size = sizeof(DepthBlock),
+        .binding = 9,
+        .name = "TsaaResolveBlock",
+        .size = sizeof(TsaaResolveBlock),
     };
 
     ShaderSpec depth_visualiser_shader_spec =
@@ -583,6 +604,24 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
     };
     shaders->texture_only = build_shader(context, &texture_only_spec, "Texture Only.fs", "Texture Only.vs");
 
+    ShaderSpec tsaa_resolve_shader_spec =
+    {
+        .fragment =
+        {
+            .images =
+            {
+                {.name = "history"},
+                {.name = "texture"},
+            },
+            .uniform_blocks[0] = tsaa_resolve_block_spec,
+        },
+        .vertex =
+        {
+            .uniform_blocks[0] = per_view_spec,
+        },
+    };
+    shaders->tsaa_resolve = build_shader(context, &tsaa_resolve_shader_spec, "Tsaa Resolve.fs", "Tsaa Resolve.vs");
+
     ShaderSpec velocity_visualiser_shader_spec =
     {
         .fragment =
@@ -623,6 +662,7 @@ static void destroy_shaders(VideoContext* context, Shaders* shaders)
     destroy_shader(backend, shaders->point);
     destroy_shader(backend, shaders->screen_pattern);
     destroy_shader(backend, shaders->texture_only);
+    destroy_shader(backend, shaders->tsaa_resolve);
     destroy_shader(backend, shaders->velocity_visualiser);
     destroy_shader(backend, shaders->vertex_colour);
 }
@@ -810,16 +850,16 @@ static void create_pipelines(VideoContext* context, Pipelines* pipelines)
     };
     pipelines->pointcloud = create_pipeline(backend, &pipeline_pointcloud_spec, logger);
 
-    PipelineSpec resolve_pipeline_spec =
+    PipelineSpec tsaa_resolve_pipeline_spec =
     {
         .input_assembly =
         {
             .index_type = INDEX_TYPE_NONE,
         },
-        .shader = shaders->texture_only,
+        .shader = shaders->tsaa_resolve,
         .vertex_layout = frame_triangle_vertex_spec,
     };
-    pipelines->resolve = create_pipeline(backend, &resolve_pipeline_spec, logger);
+    pipelines->tsaa_resolve = create_pipeline(backend, &tsaa_resolve_pipeline_spec, logger);
 
     PipelineSpec pipeline_wireframe_spec =
     {
@@ -885,8 +925,8 @@ static void destroy_pipelines(VideoContext* context, Pipelines* pipelines)
     destroy_pipeline(backend, pipelines->halo);
     destroy_pipeline(backend, pipelines->hidden);
     destroy_pipeline(backend, pipelines->pointcloud);
-    destroy_pipeline(backend, pipelines->resolve);
     destroy_pipeline(backend, pipelines->selected);
+    destroy_pipeline(backend, pipelines->tsaa_resolve);
     destroy_pipeline(backend, pipelines->unselected);
     destroy_pipeline(backend, pipelines->velocity_visualiser);
     destroy_pipeline(backend, pipelines->wireframe);
@@ -977,15 +1017,24 @@ static void create_uniforms(VideoContext* context, Uniforms* uniforms)
         .usage = BUFFER_USAGE_DYNAMIC,
     };
     uniforms->light_block = create_buffer(backend, &light_block_buffer_spec, logger);
+
+    BufferSpec tsaa_resolve_block_spec =
+    {
+        .binding = 9,
+        .size = sizeof(TsaaResolveBlock),
+        .format = BUFFER_FORMAT_UNIFORM,
+        .usage = BUFFER_USAGE_DYNAMIC,
+    };
+    uniforms->tsaa_resolve_block = create_buffer(backend, &tsaa_resolve_block_spec, logger);
 }
 
 static void destroy_uniforms(VideoContext* context, Uniforms* uniforms)
 {
     Backend* backend = context->backend;
 
-    for(int i = 0; i < 5; i += 1)
+    for(int buffer_index = 0; buffer_index < 5; buffer_index += 1)
     {
-        destroy_buffer(backend, uniforms->buffers[i]);
+        destroy_buffer(backend, uniforms->buffers[buffer_index]);
     }
     destroy_buffer(backend, uniforms->depth_block);
     destroy_buffer(backend, uniforms->halo_block);
@@ -1001,6 +1050,7 @@ static void create_context(VideoContext* context, Log* logger)
 
     context->backend = create_backend(&context->heap);
     context->logger = logger;
+    context->tsaa_enabled = true;
 
     create_buffers(context, &context->buffers);
     create_samplers(context, &context->samplers);
@@ -1742,10 +1792,10 @@ static void draw_main_menu(VideoContext* context, UiContext* ui_context, UiItem*
 
 static void draw_debug_readout_waves(UiItem* readout)
 {
-    for(int i = 0; i < DEBUG_CHANNEL_CAP; i += 1)
+    for(int channel_index = 0; channel_index < DEBUG_CHANNEL_CAP; channel_index += 1)
     {
-        DebugChannel* channel = &debug_readout.channels[i];
-        UiItem* item = &readout->container.items[i];
+        DebugChannel* channel = &debug_readout.channels[channel_index];
+        UiItem* item = &readout->container.items[channel_index];
 
         Float2 channel_start = item->bounds.bottom_left;
         float2_add_assign(&channel_start, (Float2){{60.0f, 0.0f}});
@@ -1754,9 +1804,9 @@ static void draw_debug_readout_waves(UiItem* readout)
         {
             case DEBUG_CHANNEL_TYPE_FLOAT:
             {
-                for(int j = 0; j < DEBUG_CHANNEL_VALUE_CAP; j += 1)
+                for(int float_index = 0; float_index < DEBUG_CHANNEL_VALUE_CAP; float_index += 1)
                 {
-                    float value = channel->floats[j];
+                    float value = channel->floats[float_index];
                     float t;
                     if(channel->float_min == channel->float_max)
                     {
@@ -1766,7 +1816,7 @@ static void draw_debug_readout_waves(UiItem* readout)
                     {
                         t = unlerp(channel->float_min, channel->float_max, value);
                     }
-                    float x = 3.0f * j;
+                    float x = 3.0f * float_index;
                     float y = 16.0f * t;
                     Float2 bottom_left = (Float2){{x, 2.0f}};
                     float2_add_assign(&bottom_left, channel_start);
@@ -1824,34 +1874,99 @@ static void draw_debug_images(VideoContext* context, Int2 viewport)
     Pipelines* pipelines = &context->pipelines;
     Samplers* samplers = &context->samplers;
 
-    ImageSet image_set =
+    for(int image_index = 0; image_index < 2; image_index += 1)
     {
-        .stages[1] =
+        int pass_index = (context->frame_count % 2) ^ image_index;
+        ImageSet image_set =
         {
-            .images[0] = images->frame_velocity,
-            .samplers[0] = samplers->nearest_repeat,
-        },
-    };
-    set_images(backend, &image_set);
+            .stages[1] =
+            {
+                .images[0] = images->tsaa_colour[pass_index],
+                .samplers[0] = samplers->nearest_repeat,
+            },
+        };
+        set_images(backend, &image_set);
 #if 0
-    immediate_set_override_pipeline(pipelines->depth_visualiser);
-    set_pipeline(backend, pipelines->depth_visualiser);
-#else
-    immediate_set_override_pipeline(pipelines->velocity_visualiser);
-    set_pipeline(backend, pipelines->velocity_visualiser);
+        immediate_set_override_pipeline(pipelines->depth_visualiser);
+        set_pipeline(backend, pipelines->depth_visualiser);
+#elif 0
+        immediate_set_override_pipeline(pipelines->velocity_visualiser);
+        set_pipeline(backend, pipelines->velocity_visualiser);
 #endif
-    Rect rect =
-    {
-        (Float2){{viewport.x / 2.0f - 140.0f, viewport.y / 2.0f - 140.0f}},
-        (Float2){{120.0f, 120.0f}},
-    };
-    Quad quad = rect_to_quad(rect);
-    Rect texture_rect = (Rect){float2_zero, float2_one};
-    immediate_add_quad_textured(&quad, texture_rect);
-    immediate_draw();
+        float x_offset = image_index * 160.0f;
+        Rect rect =
+        {
+            (Float2){{viewport.x / 2.0f - 140.0f - x_offset, viewport.y / 2.0f - 140.0f}},
+            (Float2){{120.0f, 120.0f}},
+        };
+        Quad quad = rect_to_quad(rect);
+        Rect texture_rect = (Rect){float2_zero, float2_one};
+        immediate_add_quad_textured(&quad, texture_rect);
+        immediate_draw();
+    }
 }
 
-static void update_matrices(VideoUpdate* update, Matrices* matrices)
+static float halton_sequence(int base, int index)
+{
+    float f = 1.0f;
+    float r = 0.0f;
+    for(int i = index + 1; i > 0; i = (int) floorf(i / (float) base))
+    {
+        f /= base;
+        r += f * (i % base);
+    }
+    return r;
+}
+
+static void fill_jitter_samples(Float2* samples, int count)
+{
+    for(int i = 0; i < count; i += 1)
+    {
+        samples[i].x = halton_sequence(2, i) - 0.5f;
+        samples[i].y = halton_sequence(3, i) - 0.5f;
+    }
+}
+
+static Float2 compute_jitter(Int2 viewport, int frame_count)
+{
+    Float2 subsample_extents = (Float2){{1.0f / viewport.x, 1.0f / viewport.y}};
+
+#if 0
+    const Float2 sample_locations[2] =
+    {
+        (Float2){{-0.5f, -0.5f}},
+        (Float2){{+0.5f, +0.5f}},
+    };
+#elif 0
+    const Float2 sample_locations[8] =
+    {
+        (Float2){{-7.0f / 8.0f, +1.0f / 8.0f}},
+        (Float2){{-5.0f / 8.0f, -5.0f / 8.0f}},
+        (Float2){{-1.0f / 8.0f, -3.0f / 8.0f}},
+        (Float2){{+3.0f / 8.0f, -7.0f / 8.0f}},
+        (Float2){{+5.0f / 8.0f, -1.0f / 8.0f}},
+        (Float2){{+7.0f / 8.0f, +7.0f / 8.0f}},
+        (Float2){{+1.0f / 8.0f, +3.0f / 8.0f}},
+        (Float2){{-3.0f / 8.0f, +5.0f / 8.0f}},
+    };
+#else
+    Float2 sample_locations[8];
+    fill_jitter_samples(sample_locations, 8);
+#endif
+
+    int index = frame_count % 8;
+    Float2 location = sample_locations[index];
+    Float2 subsample = float2_pointwise_multiply(location, subsample_extents);
+    return subsample;
+}
+
+static Matrix4 make_jitter_matrix(Float2 jitter)
+{
+    Float3 translation = float2_make_float3(jitter);
+    return matrix4_translation(translation);
+}
+
+static void update_matrices(VideoContext* context, VideoUpdate* update, Matrices* matrices)
 {
     Camera* camera = update->camera;
     Int2 viewport = update->viewport;
@@ -1865,10 +1980,20 @@ static void update_matrices(VideoUpdate* update, Matrices* matrices)
 
     Float3 direction = float3_normalise(float3_subtract(camera->target, camera->position));
     matrices->sky_view = matrix4_look_at(float3_zero, direction, float3_unit_z);
-
     matrices->sky_projection = matrix4_perspective_projection(fov, width, height, 0.001f, 1.0f);
 
     matrices->screen_projection = matrix4_orthographic_projection(width, height, -1.0f, 1.0f);
+
+    if(context->tsaa_enabled)
+    {
+        Float2 jitter = compute_jitter(viewport, context->frame_count);
+        Matrix4 jitter_matrix = make_jitter_matrix(jitter);
+
+        matrices->projection = matrix4_multiply(jitter_matrix, matrices->projection);
+        matrices->sky_projection = matrix4_multiply(jitter_matrix, matrices->sky_projection);
+
+        context->tsaa_jitter = jitter;
+    }
 }
 
 static void store_past_matrices(VideoContext* context, Matrices* matrices)
@@ -1888,9 +2013,11 @@ static void draw_debug_draw_shapes(VideoContext* context)
 {
     set_model_matrix(context, matrix4_identity, matrix4_identity);
 
-    for(int i = 0; i < debug_draw.shapes_count; i += 1)
+    for(int shape_index = 0;
+            shape_index < debug_draw.shapes_count;
+            shape_index += 1)
     {
-        DebugDrawShape shape = debug_draw.shapes[i];
+        DebugDrawShape shape = debug_draw.shapes[shape_index];
 
         if(shape.colour.w < 1.0f)
         {
@@ -1953,7 +2080,7 @@ static void draw_opaque_phase(VideoContext* context, VideoUpdate* update, Matric
     };
     update_buffer(backend, uniforms->depth_block, &depth_block, 0, sizeof(depth_block));
 
-    set_pass(context->backend, passes->base);
+    set_pass(context->backend, passes->g_buffer);
     set_regular_view(context, viewport, matrices->view, matrices->projection, past_matrices->view_projection);
 
     set_pipeline(backend, pipelines->unselected);
@@ -1969,16 +2096,18 @@ static void draw_opaque_phase(VideoContext* context, VideoUpdate* update, Matric
     };
     clear_target(backend, &clear_state);
 
-    // Draw all unselected models.
-    for(int i = 0; i < array_count(lady->objects); i += 1)
+    for(int object_index = 0;
+            object_index < array_count(lady->objects);
+            object_index += 1)
     {
-        if(i == hovered_object_index || i == selected_object_index)
+        if(object_index == hovered_object_index || object_index == selected_object_index)
         {
             continue;
         }
-        VideoObject* object = dense_map_look_up(&context->objects, lady->objects[i].video_object);
-        apply_object_block(context, object);
-        draw_object(context, object);
+        Object* object = &lady->objects[object_index];
+        VideoObject* video_object = dense_map_look_up(&context->objects, object->video_object);
+        apply_object_block(context, video_object);
+        draw_object(context, video_object);
     }
 
     draw_debug_draw_shapes(context);
@@ -2018,24 +2147,54 @@ static void draw_transparent_phase(VideoContext* context, VideoUpdate* update, M
     draw_selection(context, selection_id, selection_pointcloud_id, selection_wireframe_id, matrices->projection);
 }
 
-static void draw_resolved_base_pass(VideoContext* context, VideoUpdate* update)
+static void draw_tsaa_resolve_pass(VideoContext* context, VideoUpdate* update)
 {
     Backend* backend = context->backend;
     Buffers* buffers = &context->buffers;
     Images* images = &context->images;
+    Passes* passes = &context->passes;
     Pipelines* pipelines = &context->pipelines;
     Samplers* samplers = &context->samplers;
+    Uniforms* uniforms = &context->uniforms;
+
+    int this_frame_index = context->frame_count % 2;
+    int last_frame_index = this_frame_index ^ 1;
+
+    set_pass(backend, passes->tsaa[this_frame_index]);
+    set_pipeline(backend, pipelines->tsaa_resolve);
+    ClearState clear_state =
+    {
+        .flags =
+        {
+            .colour = true,
+        },
+    };
+    clear_target(backend, &clear_state);
+
+    TsaaResolveBlock tsaa_resolve =
+    {
+        .uv_jitter = context->tsaa_jitter,
+    };
+    update_buffer(backend, uniforms->tsaa_resolve_block, &tsaa_resolve, 0, sizeof(TsaaResolveBlock));
 
     ImageSet image_set =
     {
         .stages[1] =
         {
-            .images[0] = images->frame_colour,
-            .samplers[0] = samplers->nearest_repeat,
+            .images =
+            {
+                images->tsaa_colour[last_frame_index],
+                images->g_buffer_images.colour,
+            },
+            .samplers =
+            {
+                samplers->linear_repeat,
+                samplers->linear_repeat,
+            },
         },
     };
     set_images(backend, &image_set);
-    set_pipeline(backend, pipelines->resolve);
+
     set_regular_view(context, update->viewport, matrix4_identity, matrix4_identity, matrix4_identity);
     DrawAction draw_action =
     {
@@ -2043,6 +2202,39 @@ static void draw_resolved_base_pass(VideoContext* context, VideoUpdate* update)
         .vertex_buffers[0] = buffers->frame_triangle,
     };
     draw(backend, &draw_action);
+}
+
+static void draw_resolved_to_default_pass(VideoContext* context)
+{
+    Backend* backend = context->backend;
+    Passes* passes = &context->passes;
+    Pipelines* pipelines = &context->pipelines;
+
+    set_pass(backend, default_pass);
+    set_pipeline(backend, pipelines->unselected);
+    ClearState clear_state =
+    {
+        .depth = 1.0f,
+        .flags =
+        {
+            .colour = true,
+            .depth = true,
+        },
+    };
+    clear_target(backend, &clear_state);
+
+    PassId pass;
+    if(context->tsaa_enabled)
+    {
+        int this_frame_index = context->frame_count % 2;
+        pass = passes->tsaa[this_frame_index];
+    }
+    else
+    {
+        pass = passes->g_buffer;
+    }
+
+    blit_pass_colour(backend, pass, default_pass);
 }
 
 static void draw_screen_phase(VideoContext* context, VideoUpdate* update, Matrices* matrices)
@@ -2057,20 +2249,14 @@ static void draw_screen_phase(VideoContext* context, VideoUpdate* update, Matric
 
     Backend* backend = context->backend;
 
-    set_pass(backend, default_pass);
-    set_pipeline(backend, context->pipelines.unselected);
-    ClearState clear_state =
+    if(context->tsaa_enabled)
     {
-        .depth = 1.0f,
-        .flags =
-        {
-            .colour = true,
-            .depth = true,
-        },
-    };
-    clear_target(backend, &clear_state);
+        draw_tsaa_resolve_pass(context, update);
+    }
 
-    draw_resolved_base_pass(context, update);
+    draw_resolved_to_default_pass(context);
+
+    set_pass(backend, default_pass);
 
     draw_compass(context, camera, viewport);
 
@@ -2115,78 +2301,127 @@ void video_destroy_context(VideoContext* context, Heap* heap, bool functions_loa
 void video_update_context(VideoContext* context, VideoUpdate* update, Platform* platform)
 {
     Matrices matrices = {0};
-    update_matrices(update, &matrices);
+    update_matrices(context, update, &matrices);
 
     draw_opaque_phase(context, update, &matrices);
     draw_transparent_phase(context, update, &matrices);
     draw_screen_phase(context, update, &matrices);
 
     store_past_matrices(context, &matrices);
+    context->frame_count += 1;
 }
 
-static void clean_up_base_pass(VideoContext* context)
+static void clean_up_g_buffer_pass(VideoContext* context)
 {
     Backend* backend = context->backend;
     Images* images = &context->images;
     Passes* passes = &context->passes;
 
-    destroy_pass(backend, passes->base);
+    GBufferImages* g_buffer_images = &images->g_buffer_images;
+    destroy_image(backend, g_buffer_images->colour);
+    destroy_image(backend, g_buffer_images->depth);
+    destroy_image(backend, g_buffer_images->velocity);
 
-    destroy_image(backend, images->frame_colour);
-    destroy_image(backend, images->frame_depth);
-    destroy_image(backend, images->frame_velocity);
+    destroy_pass(backend, passes->g_buffer);
 }
 
-static void recreate_base_pass(VideoContext* context, Int2 dimensions)
+static void clean_up_tsaa_pass(VideoContext* context)
+{
+    Backend* backend = context->backend;
+    Images* images = &context->images;
+    Passes* passes = &context->passes;
+
+    for(int pass_index = 0; pass_index < TSAA_PASS_COUNT; pass_index += 1)
+    {
+        destroy_pass(backend, passes->tsaa[pass_index]);
+        destroy_image(backend, images->tsaa_colour[pass_index]);
+    }
+}
+
+static void recreate_g_buffer_pass(VideoContext* context, Int2 dimensions)
 {
     Backend* backend = context->backend;
     Images* images = &context->images;
     Log* logger = context->logger;
     Passes* passes = &context->passes;
 
-    ImageSpec spec_frame_colour =
+    GBufferImages* g_buffer_images = &images->g_buffer_images;
+
+    ImageSpec colour_image_spec =
     {
         .pixel_format = PIXEL_FORMAT_SRGB8_ALPHA8,
         .render_target = true,
         .width = dimensions.x,
         .height = dimensions.y,
     };
-    images->frame_colour = create_image(backend, &spec_frame_colour, logger);
+    g_buffer_images->colour = create_image(backend, &colour_image_spec, logger);
 
-    ImageSpec spec_frame_depth =
+    ImageSpec depth_image_spec =
     {
         .pixel_format = PIXEL_FORMAT_DEPTH24_STENCIL8,
         .render_target = true,
         .width = dimensions.x,
         .height = dimensions.y,
     };
-    images->frame_depth = create_image(backend, &spec_frame_depth, logger);
+    g_buffer_images->depth = create_image(backend, &depth_image_spec, logger);
 
-    ImageSpec spec_frame_velocity =
+    ImageSpec velocity_image_spec =
     {
         .pixel_format = PIXEL_FORMAT_RG8_SNORM,
         .render_target = true,
         .width = dimensions.x,
         .height = dimensions.y,
     };
-    images->frame_velocity = create_image(backend, &spec_frame_velocity, logger);
+    g_buffer_images->velocity = create_image(backend, &velocity_image_spec, logger);
 
-    PassSpec spec_base =
+    PassSpec g_buffer_pass_spec =
     {
         .colour_attachments =
         {
-            {.image = images->frame_colour},
-            {.image = images->frame_velocity},
+            {.image = g_buffer_images->colour},
+            {.image = g_buffer_images->velocity},
         },
-        .depth_stencil_attachment = {.image = images->frame_depth},
+        .depth_stencil_attachment = {.image = g_buffer_images->depth},
     };
-    passes->base = create_pass(backend, &spec_base, logger);
+    passes->g_buffer = create_pass(backend, &g_buffer_pass_spec, logger);
+}
+
+static void recreate_tsaa_pass(VideoContext* context, Int2 dimensions)
+{
+    Backend* backend = context->backend;
+    Images* images = &context->images;
+    Log* logger = context->logger;
+    Passes* passes = &context->passes;
+
+    ImageSpec colour_image_spec =
+    {
+        .pixel_format = PIXEL_FORMAT_SRGB8_ALPHA8,
+        .render_target = true,
+        .width = dimensions.x,
+        .height = dimensions.y,
+    };
+
+    for(int pass_index = 0; pass_index < TSAA_PASS_COUNT; pass_index += 1)
+    {
+        images->tsaa_colour[pass_index] = create_image(backend, &colour_image_spec, logger);
+
+        PassSpec spec_base =
+        {
+            .colour_attachments =
+            {
+                {.image = images->tsaa_colour[pass_index]},
+            },
+        };
+        passes->tsaa[pass_index] = create_pass(backend, &spec_base, logger);
+    }
 }
 
 void video_resize_viewport(VideoContext* context, Int2 dimensions, double dots_per_millimeter, float fov)
 {
-    clean_up_base_pass(context);
-    recreate_base_pass(context, dimensions);
+    clean_up_g_buffer_pass(context);
+    clean_up_tsaa_pass(context);
+    recreate_g_buffer_pass(context, dimensions);
+    recreate_tsaa_pass(context, dimensions);
 }
 
 DenseMapId video_add_object(VideoContext* context, VertexLayout vertex_layout)
@@ -2210,10 +2445,10 @@ void video_set_up_font(VideoContext* context, BmfFont* font)
 {
     Images* images = &context->images;
 
-    for(int i = 0; i < font->pages_count; i += 1)
+    for(int texture_index = 0; texture_index < font->pages_count; texture_index += 1)
     {
-        char* filename = font->pages[i].bitmap_filename;
-        images->font_textures[i] = build_image(context, filename, false, NULL);
+        char* filename = font->pages[texture_index].bitmap_filename;
+        images->font_textures[texture_index] = build_image(context, filename, false, NULL);
     }
 }
 

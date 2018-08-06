@@ -56,4 +56,9 @@ typedef struct PerView
     Float2 viewport_dimensions;
 } PerView;
 
+typedef struct TsaaResolveBlock
+{
+    Float2 uv_jitter;
+} TsaaResolveBlock;
+
 #endif // UNIFORM_BLOCKS_H_

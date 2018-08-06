@@ -1316,12 +1316,10 @@ static void set_up_shader_images(Shader* shader, ShaderSpec* shader_spec)
         for(int j = 0; j < SHADER_STAGE_IMAGE_CAP; j += 1)
         {
             ShaderImageSpec* image_spec = &shader_stage_spec->images[j];
-            if(image_spec->type == IMAGE_TYPE_INVALID)
+            if(!image_spec->name)
             {
                 break;
             }
-
-            ASSERT(image_spec->name);
 
             ShaderImage* image = &stage->images[j];
             image->texture_slot = texture_slot;
@@ -1425,8 +1423,8 @@ Backend* create_backend(Heap* heap)
     Backend* backend = HEAP_ALLOCATE(heap, Backend, 1);
 
     create_id_pool(&backend->buffer_id_pool, heap, 32);
-    create_id_pool(&backend->image_id_pool, heap, 8);
-    create_id_pool(&backend->pass_id_pool, heap, 1);
+    create_id_pool(&backend->image_id_pool, heap, 16);
+    create_id_pool(&backend->pass_id_pool, heap, 4);
     create_id_pool(&backend->pipeline_id_pool, heap, 32);
     create_id_pool(&backend->sampler_id_pool, heap, 4);
     create_id_pool(&backend->shader_id_pool, heap, 16);
@@ -1685,6 +1683,72 @@ void destroy_shader(Backend* backend, ShaderId id)
         deallocate_id(&backend->shader_id_pool, id.value);
         ASSERT(shader->resource.status == RESOURCE_STATUS_INVALID);
     }
+}
+
+static GLenum get_colour_attachment(Pass* pass)
+{
+    if(pass)
+    {
+        return GL_COLOR_ATTACHMENT0;
+    }
+    else
+    {
+        return GL_BACK;
+    }
+}
+
+static GLuint get_pass_framebuffer(Pass* pass)
+{
+    if(pass)
+    {
+        return pass->framebuffer;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+static void get_colour_attachment_dimensions(Backend* backend, Pass* pass, int* width, int* height)
+{
+    if(pass)
+    {
+        Attachment* attachment = &pass->colour_attachments[0];
+        Image* image = fetch_image(backend, attachment->image);
+        *width = image->width;
+        *height = image->height;
+    }
+}
+
+void blit_pass_colour(Backend* backend, PassId source_id, PassId target_id)
+{
+    Pass* source = fetch_pass(backend, source_id);
+    Pass* target = fetch_pass(backend, target_id);
+
+    ASSERT(source != target);
+
+    int source_width = 0;
+    int source_height = 0;
+    get_colour_attachment_dimensions(backend, source, &source_width, &source_height);
+
+    int target_width = 0;
+    int target_height = 0;
+    get_colour_attachment_dimensions(backend, target, &target_width, &target_height);
+
+    ASSERT(source_width != 0 || target_width != 0);
+    ASSERT(source_height != 0 || target_height != 0);
+    ASSERT(!(source_width != 0 && target_width != 0 && source_width != target_width));
+    ASSERT(!(source_height != 0 && target_height != 0 && source_height != target_height));
+
+    int width = imax(source_width, target_width);
+    int height = imax(source_height, target_height);
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, get_pass_framebuffer(source));
+    glReadBuffer(get_colour_attachment(source));
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, get_pass_framebuffer(target));
+    glDrawBuffer(get_colour_attachment(target));
+
+    glBlitFramebuffer(0, 0, width, height, 0, 0, width, height,  GL_COLOR_BUFFER_BIT, GL_NEAREST);
 }
 
 static bool get_boolean(GLenum name)
