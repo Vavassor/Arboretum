@@ -6,7 +6,6 @@ layout(location = 1) in vec2 texcoord;
 layout(std140) uniform PerView
 {
     mat4x4 view_projection;
-    mat4x4 prior_view_projection;
     vec2 viewport_dimensions;
 };
 

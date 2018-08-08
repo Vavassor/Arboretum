@@ -9,7 +9,6 @@
 void video_object_create(VideoObject* object, VertexLayout vertex_layout)
 {
     object->model = matrix4_identity;
-    object->prior_model = matrix4_identity;
     object->vertex_layout = vertex_layout;
 }
 
@@ -281,9 +280,4 @@ void video_object_generate_sky(VideoObject* object, Backend* backend, Log* logge
 void video_object_set_model(VideoObject* object, Matrix4 model)
 {
     object->model = model;
-}
-
-void video_object_store_past_model(VideoObject* object)
-{
-    object->prior_model = object->model;
 }

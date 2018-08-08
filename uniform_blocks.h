@@ -33,7 +33,6 @@ typedef struct PerLine
 typedef struct PerObject
 {
     Matrix4 model;
-    Matrix4 prior_model;
     Matrix4 normal_matrix;
 } PerObject;
 
@@ -52,13 +51,7 @@ typedef struct PerSpan
 typedef struct PerView
 {
     Matrix4 view_projection;
-    Matrix4 prior_view_projection;
     Float2 viewport_dimensions;
 } PerView;
-
-typedef struct TsaaResolveBlock
-{
-    Float2 uv_jitter;
-} TsaaResolveBlock;
 
 #endif // UNIFORM_BLOCKS_H_

@@ -908,34 +908,34 @@ static void update_image(Image* image, ImageContent* content)
 
     glBindTexture(image->target, image->texture);
 
-    for(int i = 0; i < face_count; i += 1)
+    for(int face = 0; face < face_count; face += 1)
     {
         GLenum target = image->target;
         if(image->type == IMAGE_TYPE_CUBE)
         {
-            target = get_cube_face_target(i);
+            target = get_cube_face_target(face);
         }
 
-        for(int j = 0; j < image->mipmap_count; j += 1)
+        for(int mip_level = 0; mip_level < image->mipmap_count; mip_level += 1)
         {
-            Subimage* subimage = &content->subimages[i][j];
+            Subimage* subimage = &content->subimages[face][mip_level];
 
-            int width = imax(image->width >> j, 1);
-            int height = imax(image->height >> j, 1);
+            int width = imax(image->width >> mip_level, 1);
+            int height = imax(image->height >> mip_level, 1);
 
             switch(image->type)
             {
                 case IMAGE_TYPE_2D:
                 case IMAGE_TYPE_CUBE:
                 {
-                    glTexSubImage2D(target, j, 0, 0, width, height, format, type, subimage->content);
+                    glTexSubImage2D(target, mip_level, 0, 0, width, height, format, type, subimage->content);
                     break;
                 }
                 case IMAGE_TYPE_3D:
                 case IMAGE_TYPE_ARRAY:
                 {
-                    int depth = imax(image->depth >> j, 1);
-                    glTexSubImage3D(target, j, 0, 0, 0, width, height, depth, format, type, subimage->content);
+                    int depth = imax(image->depth >> mip_level, 1);
+                    glTexSubImage3D(target, mip_level, 0, 0, 0, width, height, depth, format, type, subimage->content);
                     break;
                 }
                 case IMAGE_TYPE_INVALID:
@@ -979,15 +979,15 @@ static void load_pass(Pass* pass, PassSpec* spec, Backend* backend)
 {
     Attachment* attachment;
     AttachmentSpec* attachment_spec;
-    for(int i = 0; i < PASS_COLOUR_ATTACHMENT_CAP; i += 1)
+    for(int attachment_index = 0; attachment_index < PASS_COLOUR_ATTACHMENT_CAP; attachment_index += 1)
     {
-        attachment_spec = &spec->colour_attachments[i];
+        attachment_spec = &spec->colour_attachments[attachment_index];
         if(attachment_spec->image.value == invalid_id)
         {
             break;
         }
 
-        attachment = &pass->colour_attachments[i];
+        attachment = &pass->colour_attachments[attachment_index];
         attachment->image = attachment_spec->image;
         attachment->mip_level = attachment_spec->mip_level;
         attachment->slice = attachment_spec->slice;
@@ -1006,16 +1006,16 @@ static void load_pass(Pass* pass, PassSpec* spec, Backend* backend)
     glBindFramebuffer(GL_FRAMEBUFFER, pass->framebuffer);
 
     Image* image;
-    for(int i = 0; i < PASS_COLOUR_ATTACHMENT_CAP; i += 1)
+    for(int attachment_index = 0; attachment_index < PASS_COLOUR_ATTACHMENT_CAP; attachment_index += 1)
     {
-        attachment = &pass->colour_attachments[i];
+        attachment = &pass->colour_attachments[attachment_index];
         image = fetch_image(backend, attachment->image);
         if(!image)
         {
             break;
         }
 
-        GLuint point = GL_COLOR_ATTACHMENT0 + i;
+        GLuint point = GL_COLOR_ATTACHMENT0 + attachment_index;
         set_up_attachment_image(attachment, image, point);
     }
 
@@ -1048,9 +1048,9 @@ static void unload_pass(Pass* pass)
 
 static void load_blend_state(BlendState* state, BlendStateSpec* spec)
 {
-    for(int i = 0; i < 4; i += 1)
+    for(int component = 0; component < 4; component += 1)
     {
-        state->constant_colour[i] = spec->constant_colour[i];
+        state->constant_colour[component] = spec->constant_colour[component];
     }
 
     state->alpha_op = default_blend_op(spec->alpha_op, BLEND_OP_ADD);
@@ -1112,16 +1112,16 @@ static void load_rasterizer_state(RasterizerState* state, RasterizerStateSpec* s
 
 static void load_vertex_layout(Pipeline* pipeline, VertexLayoutSpec* spec)
 {
-    for(int i = 0; i < VERTEX_ATTRIBUTE_CAP; i += 1)
+    for(int attribute_index = 0; attribute_index < VERTEX_ATTRIBUTE_CAP; attribute_index += 1)
     {
-        pipeline->attributes[i].buffer_index = invalid_index;
+        pipeline->attributes[attribute_index].buffer_index = invalid_index;
     }
 
     int auto_offset[SHADER_STAGE_BUFFER_CAP] = {0};
 
-    for(int i = 0; i < VERTEX_ATTRIBUTE_CAP; i += 1)
+    for(int attribute_index = 0; attribute_index < VERTEX_ATTRIBUTE_CAP; attribute_index += 1)
     {
-        VertexAttributeSpec* attribute_spec = &spec->attributes[i];
+        VertexAttributeSpec* attribute_spec = &spec->attributes[attribute_index];
         if(attribute_spec->format == VERTEX_FORMAT_INVALID)
         {
             break;
@@ -1130,7 +1130,7 @@ static void load_vertex_layout(Pipeline* pipeline, VertexLayoutSpec* spec)
         int buffer_index = attribute_spec->buffer_index;
         GLenum format = attribute_spec->format;
 
-        VertexAttribute* attribute = &pipeline->attributes[i];
+        VertexAttribute* attribute = &pipeline->attributes[attribute_index];
         attribute->type = get_vertex_format_type(format);
         attribute->buffer_index = buffer_index;
         attribute->offset = auto_offset[buffer_index];
@@ -1140,9 +1140,9 @@ static void load_vertex_layout(Pipeline* pipeline, VertexLayoutSpec* spec)
         auto_offset[attribute->buffer_index] += get_vertex_format_size(format);
     }
 
-    for(int i = 0; i < VERTEX_ATTRIBUTE_CAP; i += 1)
+    for(int attribute_index = 0; attribute_index < VERTEX_ATTRIBUTE_CAP; attribute_index += 1)
     {
-        VertexAttribute* attribute = &pipeline->attributes[i];
+        VertexAttribute* attribute = &pipeline->attributes[attribute_index];
         if(attribute->buffer_index != invalid_index)
         {
             attribute->stride = auto_offset[attribute->buffer_index];
@@ -1268,10 +1268,10 @@ static bool check_link_status(GLuint program, Heap* heap, Log* log)
 
 static void set_up_uniform_blocks(Shader* shader, ShaderSpec* shader_spec)
 {
-    for(int i = 0; i < 2; i += 1)
+    for(int stage_index = 0; stage_index < 2; stage_index += 1)
     {
         ShaderStageSpec* shader_stage_spec;
-        if(i == 0)
+        if(stage_index == 0)
         {
             shader_stage_spec = &shader_spec->vertex;
         }
@@ -1279,9 +1279,9 @@ static void set_up_uniform_blocks(Shader* shader, ShaderSpec* shader_spec)
         {
             shader_stage_spec = &shader_spec->fragment;
         }
-        for(int j = 0; j < SHADER_STAGE_UNIFORM_BLOCK_CAP; j += 1)
+        for(int block_index = 0; block_index < SHADER_STAGE_UNIFORM_BLOCK_CAP; block_index += 1)
         {
-            UniformBlockSpec* uniform_block_spec = &shader_stage_spec->uniform_blocks[j];
+            UniformBlockSpec* uniform_block_spec = &shader_stage_spec->uniform_blocks[block_index];
             if(uniform_block_spec->size == 0)
             {
                 break;
@@ -1300,10 +1300,10 @@ static void set_up_shader_images(Shader* shader, ShaderSpec* shader_spec)
     int texture_slot = 0;
     glUseProgram(shader->program);
 
-    for(int i = 0; i < 2; i += 1)
+    for(int stage_index = 0; stage_index < 2; stage_index += 1)
     {
         ShaderStageSpec* shader_stage_spec;
-        if(i == 0)
+        if(stage_index == 0)
         {
             shader_stage_spec = &shader_spec->vertex;
         }
@@ -1311,17 +1311,17 @@ static void set_up_shader_images(Shader* shader, ShaderSpec* shader_spec)
         {
             shader_stage_spec = &shader_spec->fragment;
         }
-        ShaderStage* stage = &shader->stages[i];
+        ShaderStage* stage = &shader->stages[stage_index];
 
-        for(int j = 0; j < SHADER_STAGE_IMAGE_CAP; j += 1)
+        for(int image_index = 0; image_index < SHADER_STAGE_IMAGE_CAP; image_index += 1)
         {
-            ShaderImageSpec* image_spec = &shader_stage_spec->images[j];
+            ShaderImageSpec* image_spec = &shader_stage_spec->images[image_index];
             if(!image_spec->name)
             {
                 break;
             }
 
-            ShaderImage* image = &stage->images[j];
+            ShaderImage* image = &stage->images[image_index];
             image->texture_slot = texture_slot;
             texture_slot += 1;
 
@@ -1388,9 +1388,9 @@ static void set_up_features(Features* features)
     int extension_count;
     glGetIntegerv(GL_NUM_EXTENSIONS, &extension_count);
 
-    for(int i = 0; i < extension_count; i += 1)
+    for(int extension_index = 0; extension_index < extension_count; extension_index += 1)
     {
-        const char* name = (const char*) glGetStringi(GL_EXTENSIONS, i);
+        const char* name = (const char*) glGetStringi(GL_EXTENSIONS, extension_index);
 
         if(string_ends_with(name, "texture_filter_anisotropic"))
         {
@@ -1448,54 +1448,54 @@ Backend* create_backend(Heap* heap)
 
 void destroy_backend(Backend* backend, Heap* heap)
 {
-    for(int i = 0; i < backend->buffer_id_pool.cap; i += 1)
+    for(int buffer_index = 0; buffer_index < backend->buffer_id_pool.cap; buffer_index += 1)
     {
-        Buffer* buffer = &backend->buffers[i];
+        Buffer* buffer = &backend->buffers[buffer_index];
         if(buffer->resource.status != RESOURCE_STATUS_INVALID)
         {
             unload_buffer(buffer);
         }
     }
 
-    for(int i = 0; i < backend->image_id_pool.cap; i += 1)
+    for(int image_index = 0; image_index < backend->image_id_pool.cap; image_index += 1)
     {
-        Image* image = &backend->images[i];
+        Image* image = &backend->images[image_index];
         if(image->resource.status != RESOURCE_STATUS_INVALID)
         {
             unload_image(image);
         }
     }
 
-    for(int i = 0; i < backend->pass_id_pool.cap; i += 1)
+    for(int pass_index = 0; pass_index < backend->pass_id_pool.cap; pass_index += 1)
     {
-        Pass* pass = &backend->passes[i];
+        Pass* pass = &backend->passes[pass_index];
         if(pass->resource.status != RESOURCE_STATUS_INVALID)
         {
             unload_pass(pass);
         }
     }
 
-    for(int i = 0; i < backend->pipeline_id_pool.cap; i += 1)
+    for(int pipeline_index = 0; pipeline_index < backend->pipeline_id_pool.cap; pipeline_index += 1)
     {
-        Pipeline* pipeline = &backend->pipelines[i];
+        Pipeline* pipeline = &backend->pipelines[pipeline_index];
         if(pipeline->resource.status != RESOURCE_STATUS_INVALID)
         {
             unload_pipeline(pipeline);
         }
     }
 
-    for(int i = 0; i < backend->sampler_id_pool.cap; i += 1)
+    for(int sampler_index = 0; sampler_index < backend->sampler_id_pool.cap; sampler_index += 1)
     {
-        Sampler* sampler = &backend->samplers[i];
+        Sampler* sampler = &backend->samplers[sampler_index];
         if(sampler->resource.status != RESOURCE_STATUS_INVALID)
         {
             unload_sampler(sampler);
         }
     }
 
-    for(int i = 0; i < backend->shader_id_pool.cap; i += 1)
+    for(int shader_index = 0; shader_index < backend->shader_id_pool.cap; shader_index += 1)
     {
-        Shader* shader = &backend->shaders[i];
+        Shader* shader = &backend->shaders[shader_index];
         if(shader->resource.status != RESOURCE_STATUS_INVALID)
         {
             unload_shader(shader);
@@ -1864,9 +1864,9 @@ void draw(Backend* backend, DrawAction* draw_action)
 
     glBindVertexArray(pipeline->vertex_array);
 
-    for(int i = 0; i < VERTEX_ATTRIBUTE_CAP; i += 1)
+    for(int attribute_index = 0; attribute_index < VERTEX_ATTRIBUTE_CAP; attribute_index += 1)
     {
-        VertexAttribute* attribute = &pipeline->attributes[i];
+        VertexAttribute* attribute = &pipeline->attributes[attribute_index];
         if(attribute->buffer_index == invalid_index)
         {
             break;
@@ -1876,8 +1876,8 @@ void draw(Backend* backend, DrawAction* draw_action)
         ASSERT(buffer);
 
         glBindBuffer(GL_ARRAY_BUFFER, buffer->id);
-        glEnableVertexAttribArray(i);
-        glVertexAttribPointer(i, attribute->size, attribute->type, attribute->normalised, attribute->stride, (const GLvoid*) (uintptr_t) attribute->offset);
+        glEnableVertexAttribArray(attribute_index);
+        glVertexAttribPointer(attribute_index, attribute->size, attribute->type, attribute->normalised, attribute->stride, (const GLvoid*) (uintptr_t) attribute->offset);
     }
 
     GLenum mode = translate_primitive_topology(pipeline->input_assembly.primitive_topology);
@@ -1901,21 +1901,21 @@ void set_images(Backend* backend, ImageSet* image_set)
     Pipeline* pipeline = fetch_pipeline(backend, backend->current_pipeline);
     Shader* shader = fetch_shader(backend, pipeline->shader);
 
-    for(int i = 0; i < 2; i += 1)
+    for(int stage_index = 0; stage_index < 2; stage_index += 1)
     {
-        ShaderStage* stage = &shader->stages[i];
-        ShaderStageImageSet* stage_set = &image_set->stages[i];
+        ShaderStage* stage = &shader->stages[stage_index];
+        ShaderStageImageSet* stage_set = &image_set->stages[stage_index];
 
-        for(int j = 0; j < SHADER_STAGE_IMAGE_CAP; j += 1)
+        for(int image_index = 0; image_index < SHADER_STAGE_IMAGE_CAP; image_index += 1)
         {
-            ImageId image_id = stage_set->images[j];
-            SamplerId sampler_id = stage_set->samplers[j];
+            ImageId image_id = stage_set->images[image_index];
+            SamplerId sampler_id = stage_set->samplers[image_index];
             if(image_id.value == invalid_id)
             {
                 break;
             }
 
-            ShaderImage* shader_image = &stage->images[j];
+            ShaderImage* shader_image = &stage->images[image_index];
             Image* image = fetch_image(backend, image_id);
             Sampler* sampler = fetch_sampler(backend, sampler_id);
 
@@ -1942,9 +1942,9 @@ void set_pass(Backend* backend, PassId id)
             GL_COLOR_ATTACHMENT3
         };
         int total_attachments = 0;
-        for(int i = 0; i < PASS_COLOUR_ATTACHMENT_CAP; i += 1)
+        for(int attachment_index = 0; attachment_index < PASS_COLOUR_ATTACHMENT_CAP; attachment_index += 1)
         {
-            Attachment* attachment = &pass->colour_attachments[i];
+            Attachment* attachment = &pass->colour_attachments[attachment_index];
             Image* image = fetch_image(backend, attachment->image);
             if(!image)
             {
