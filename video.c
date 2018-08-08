@@ -36,6 +36,12 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+typedef enum AntiAliasingMode
+{
+    ANTI_ALIASING_MODE_NONE,
+    ANTI_ALIASING_MODE_FXAA,
+} AntiAliasingMode;
+
 typedef struct Buffers
 {
     BufferId frame_triangle;
@@ -77,6 +83,7 @@ typedef struct Pipelines
     PipelineId background;
     PipelineId depth_visualiser;
     PipelineId face_selection;
+    PipelineId fxaa;
     PipelineId halo;
     PipelineId hidden;
     PipelineId pointcloud;
@@ -98,6 +105,7 @@ typedef struct Shaders
     ShaderId depth_visualiser;
     ShaderId face_selection;
     ShaderId font;
+    ShaderId fxaa;
     ShaderId halo;
     ShaderId line;
     ShaderId lit;
@@ -112,6 +120,7 @@ typedef struct Uniforms
 {
     BufferId buffers[5];
     BufferId depth_block;
+    BufferId fxaa_block;
     BufferId halo_block;
     BufferId light_block;
     BufferId per_point;
@@ -132,9 +141,7 @@ struct VideoContext
     VideoObject sky;
     Backend* backend;
     Log* logger;
-    uint32_t frame_count;
-    bool tsaa_enabled;
-    Float2 tsaa_jitter;
+    AntiAliasingMode anti_aliasing_mode;
 };
 
 static PixelFormat get_pixel_format(int bytes_per_pixel)
@@ -370,6 +377,13 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
         .size = sizeof(DepthBlock),
     };
 
+    UniformBlockSpec fxaa_block_spec =
+    {
+        .binding = 9,
+        .name = "FxaaBlock",
+        .size = sizeof(FxaaBlock),
+    };
+
     UniformBlockSpec halo_block_spec =
     {
         .binding = 6,
@@ -470,6 +484,23 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
         },
     };
     shaders->face_selection = build_shader(context, &face_selection_spec, "Face Selection.fs", "Face Selection.vs");
+
+    ShaderSpec fxaa_shader_spec =
+    {
+        .fragment =
+        {
+            .images =
+            {
+                {.name = "frame_colour"},
+            },
+            .uniform_blocks[0] = fxaa_block_spec,
+        },
+        .vertex =
+        {
+            .uniform_blocks[0] = per_view_spec,
+        },
+    };
+    shaders->fxaa = build_shader(context, &fxaa_shader_spec, "Fxaa.fs", "Fxaa.vs");
 
     ShaderSpec shader_halo_spec =
     {
@@ -614,6 +645,7 @@ static void destroy_shaders(VideoContext* context, Shaders* shaders)
     destroy_shader(backend, shaders->depth_visualiser);
     destroy_shader(backend, shaders->face_selection);
     destroy_shader(backend, shaders->font);
+    destroy_shader(backend, shaders->fxaa);
     destroy_shader(backend, shaders->halo);
     destroy_shader(backend, shaders->line);
     destroy_shader(backend, shaders->lit);
@@ -776,6 +808,17 @@ static void create_pipelines(VideoContext* context, Pipelines* pipelines)
     };
     pipelines->depth_visualiser = create_pipeline(backend, &depth_visualiser_pipeline_spec, logger);
 
+    PipelineSpec fxaa_pipeline_spec =
+    {
+        .input_assembly =
+        {
+            .index_type = INDEX_TYPE_NONE,
+        },
+        .shader = shaders->fxaa,
+        .vertex_layout = frame_triangle_vertex_spec,
+    };
+    pipelines->fxaa = create_pipeline(backend, &fxaa_pipeline_spec, logger);
+
     PipelineSpec pipeline_unselected_spec =
     {
         .depth_stencil = basic_depth_stencil_spec,
@@ -868,6 +911,7 @@ static void destroy_pipelines(VideoContext* context, Pipelines* pipelines)
     destroy_pipeline(backend, pipelines->background);
     destroy_pipeline(backend, pipelines->depth_visualiser);
     destroy_pipeline(backend, pipelines->face_selection);
+    destroy_pipeline(backend, pipelines->fxaa);
     destroy_pipeline(backend, pipelines->halo);
     destroy_pipeline(backend, pipelines->hidden);
     destroy_pipeline(backend, pipelines->pointcloud);
@@ -890,6 +934,15 @@ static void create_uniforms(VideoContext* context, Uniforms* uniforms)
         .usage = BUFFER_USAGE_DYNAMIC,
     };
     uniforms->depth_block = create_buffer(backend, &depth_block_spec, logger);
+
+    BufferSpec fxaa_block_spec =
+    {
+        .binding = 9,
+        .size = sizeof(FxaaBlock),
+        .format = BUFFER_FORMAT_UNIFORM,
+        .usage = BUFFER_USAGE_DYNAMIC,
+    };
+    uniforms->fxaa_block = create_buffer(backend, &fxaa_block_spec, logger);
 
     BufferSpec per_image_spec =
     {
@@ -973,6 +1026,7 @@ static void destroy_uniforms(VideoContext* context, Uniforms* uniforms)
         destroy_buffer(backend, uniforms->buffers[buffer_index]);
     }
     destroy_buffer(backend, uniforms->depth_block);
+    destroy_buffer(backend, uniforms->fxaa_block);
     destroy_buffer(backend, uniforms->halo_block);
     destroy_buffer(backend, uniforms->light_block);
     destroy_buffer(backend, uniforms->per_point);
@@ -986,6 +1040,7 @@ static void create_context(VideoContext* context, Log* logger)
 
     context->backend = create_backend(&context->heap);
     context->logger = logger;
+    context->anti_aliasing_mode = ANTI_ALIASING_MODE_FXAA;
 
     create_buffers(context, &context->buffers);
     create_samplers(context, &context->samplers);
@@ -2029,7 +2084,7 @@ static void draw_transparent_phase(VideoContext* context, VideoUpdate* update, M
     draw_selection(context, selection_id, selection_pointcloud_id, selection_wireframe_id, matrices->projection);
 }
 
-static void draw_resolved_to_default_pass(VideoContext* context)
+static void draw_g_buffer_to_default_pass(VideoContext* context)
 {
     Backend* backend = context->backend;
     Passes* passes = &context->passes;
@@ -2051,6 +2106,62 @@ static void draw_resolved_to_default_pass(VideoContext* context)
     blit_pass_colour(backend, passes->g_buffer, default_pass);
 }
 
+static void draw_fxaa_pass(VideoContext* context, VideoUpdate* update)
+{
+    Backend* backend = context->backend;
+    Buffers* buffers = &context->buffers;
+    Images* images = &context->images;
+    Pipelines* pipelines = &context->pipelines;
+    Samplers* samplers = &context->samplers;
+    Uniforms* uniforms = &context->uniforms;
+    Int2 viewport = update->viewport;
+
+    set_pass(backend, default_pass);
+    set_pipeline(backend, pipelines->fxaa);
+    ClearState clear_state =
+    {
+        .flags =
+        {
+            .colour = true,
+        },
+    };
+    clear_target(backend, &clear_state);
+
+    FxaaBlock fxaa_block =
+    {
+        .edge_sharpness = 8.0f,
+        .edge_threshold = 0.125f,
+        .edge_threshold_min = 0.0078125f,
+        .rcp_frame_option_1 = (Float2){{0.5f / viewport.x, 0.5f / viewport.y}},
+        .rcp_frame_option_2 = (Float2){{2.0f / viewport.x, 2.0f / viewport.y}},
+    };
+    update_buffer(backend, uniforms->fxaa_block, &fxaa_block, 0, sizeof(FxaaBlock));
+
+    ImageSet image_set =
+    {
+        .stages[1] =
+        {
+            .images =
+            {
+                images->g_buffer_images.colour,
+            },
+            .samplers =
+            {
+                samplers->nearest_repeat,
+            },
+        },
+    };
+    set_images(backend, &image_set);
+
+    set_regular_view(context, update->viewport, matrix4_identity, matrix4_identity);
+    DrawAction draw_action =
+    {
+        .indices_count = 3,
+        .vertex_buffers[0] = buffers->frame_triangle,
+    };
+    draw(backend, &draw_action);
+}
+
 static void draw_screen_phase(VideoContext* context, VideoUpdate* update, Matrices* matrices)
 {
     Camera* camera = update->camera;
@@ -2063,7 +2174,19 @@ static void draw_screen_phase(VideoContext* context, VideoUpdate* update, Matric
 
     Backend* backend = context->backend;
 
-    draw_resolved_to_default_pass(context);
+    switch(context->anti_aliasing_mode)
+    {
+        case ANTI_ALIASING_MODE_NONE:
+        {
+            draw_g_buffer_to_default_pass(context);
+            break;
+        }
+        case ANTI_ALIASING_MODE_FXAA:
+        {
+            draw_fxaa_pass(context, update);
+            break;
+        }
+    }
 
     set_pass(backend, default_pass);
 
@@ -2115,8 +2238,6 @@ void video_update_context(VideoContext* context, VideoUpdate* update, Platform* 
     draw_opaque_phase(context, update, &matrices);
     draw_transparent_phase(context, update, &matrices);
     draw_screen_phase(context, update, &matrices);
-
-    context->frame_count += 1;
 }
 
 static void clean_up_g_buffer_pass(VideoContext* context)

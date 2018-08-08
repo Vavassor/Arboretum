@@ -9,6 +9,15 @@ typedef struct DepthBlock
     float far;
 } DepthBlock;
 
+typedef struct FxaaBlock
+{
+    Float2 rcp_frame_option_1;
+    Float2 rcp_frame_option_2;
+    float edge_sharpness;
+    float edge_threshold;
+    float edge_threshold_min;
+} FxaaBlock;
+
 typedef struct HaloBlock
 {
     Float4 halo_colour;
