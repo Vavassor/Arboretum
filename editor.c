@@ -1376,7 +1376,8 @@ Editor* editor_start_up(Platform* platform)
         JanMesh* mesh = &test_model->mesh;
 
         char* path = get_model_path_by_name("test.obj", stack);
-        obj_load_file(path, mesh, heap, stack);
+        bool loaded = obj_load_file(path, mesh, heap, stack);
+        ASSERT(loaded);
         STACK_DEALLOCATE(stack, path);
         jan_colour_all_faces(mesh, float3_yellow);
 

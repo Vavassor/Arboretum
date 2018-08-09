@@ -2173,6 +2173,7 @@ static void draw_screen_phase(VideoContext* context, VideoUpdate* update, Matric
     Int2 viewport = update->viewport;
 
     Backend* backend = context->backend;
+    Pipelines* pipelines = &context->pipelines;
 
     switch(context->anti_aliasing_mode)
     {
@@ -2189,6 +2190,16 @@ static void draw_screen_phase(VideoContext* context, VideoUpdate* update, Matric
     }
 
     set_pass(backend, default_pass);
+    set_pipeline(backend, pipelines->unselected);
+    ClearState clear_state =
+    {
+        .depth = 1.0f,
+        .flags =
+        {
+            .depth = true,
+        },
+    };
+    clear_target(backend, &clear_state);
 
     draw_compass(context, camera, viewport);
 

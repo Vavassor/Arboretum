@@ -4,7 +4,7 @@
 
 #include <math.h>
 
-const PassId default_pass = (PassId){0};
+const PassId default_pass = {0};
 
 int count_mip_levels(int width, int height)
 {

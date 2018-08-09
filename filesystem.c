@@ -805,7 +805,7 @@ bool load_whole_file(const char* path, void** contents, uint64_t* bytes, Stack* 
 
 bool save_whole_file(const char* path, const void* contents, uint64_t bytes, Stack* stack)
 {
-    wchar_t* wide_path = utf8_to_wide_char(path, stack);
+    wchar_t* wide_path = utf8_to_wide_char_stack(path, stack);
     HANDLE handle = CreateFileW(wide_path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     STACK_DEALLOCATE(stack, wide_path);
     if(handle == INVALID_HANDLE_VALUE)

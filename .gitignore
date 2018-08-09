@@ -6,5 +6,4 @@ Release/
 .project
 *.vcxproj*
 *.o
-*.obj
 *.exe

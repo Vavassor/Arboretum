@@ -4,7 +4,7 @@
 
 #include <stddef.h>
 
-static const char* assets_path = "/home/andrew/workspace/Arboretum/Assets";
+static const char* assets_path = "C:/Users/Andrew/source/repos/arboretum/Assets";
 
 static const char* fonts_folder = "Fonts";
 static const char* images_folder = "Images";

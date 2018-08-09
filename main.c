@@ -1335,7 +1335,7 @@ int main(int argc, char** argv)
 #include "gl_core_3_3.h"
 #include "input.h"
 #include "int2.h"
-#include "logging.h"
+#include "log.h"
 #include "platform.h"
 #include "string_build.h"
 #include "string_utilities.h"
@@ -1366,6 +1366,8 @@ typedef struct PlatformWindows
     bool input_context_focused;
     Int2 composed_text_position;
     bool composing;
+
+    Editor* editor;
 } PlatformWindows;
 
 static void load_cursors(PlatformWindows* platform)
@@ -1543,7 +1545,7 @@ void request_paste_from_clipboard(Platform* base)
         // carriage return + line feed pairs before handing it to the editor.
 
         char* corrected = replace_substrings(paste, "\r\n", "\n", &base->stack);
-        editor_paste_from_clipboard(base, corrected);
+        editor_paste_from_clipboard(platform->editor, base, corrected);
         STACK_DEALLOCATE(&base->stack, corrected);
         STACK_DEALLOCATE(&base->stack, paste);
     }
@@ -1720,7 +1722,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
         {
             WORD dpi = HIWORD(w_param);
             double dots_per_millimeter = dpi / 25.4;
-            resize_viewport(platform.viewport, dots_per_millimeter);
+            resize_viewport(platform.editor, platform.viewport, dots_per_millimeter);
 
             RECT* suggested_rect = (RECT*) l_param;
             int left = suggested_rect->left;
@@ -1740,7 +1742,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
                 char* text = wide_char_to_utf8_stack(wide, &platform.base.stack);
                 if(!only_control_characters(text))
                 {
-                    input_composed_text_entered(text);
+                    input_composed_text_entered(platform.base.input_context, text);
                 }
                 STACK_DEALLOCATE(&platform.base.stack, text);
                 
@@ -1769,7 +1771,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
                 ImmReleaseContext(hwnd, context);
 
                 char* text = wide_char_to_utf8_stack(string, &platform.base.stack);
-                input_composed_text_entered(text);
+                input_composed_text_entered(platform.base.input_context, text);
 
                 STACK_DEALLOCATE(&platform.base.stack, text);
                 STACK_DEALLOCATE(&platform.base.stack, string);
@@ -1824,7 +1826,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
             {
                 InputModifier modifier = fetch_modifiers();
                 InputKey key = translate_virtual_key(w_param);
-                input_key_press(key, true, modifier);
+                input_key_press(platform.base.input_context, key, true, modifier);
 
                 return 0;
             }
@@ -1833,35 +1835,35 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
         {
             InputModifier modifier = fetch_modifiers();
             InputKey key = translate_virtual_key(w_param);
-            input_key_press(key, false, modifier);
+            input_key_press(platform.base.input_context, key, false, modifier);
 
             return 0;
         }
         case WM_LBUTTONDOWN:
         {
             InputModifier modifier = translate_modifiers(w_param);
-            input_mouse_click(MOUSE_BUTTON_LEFT, true, modifier);
+            input_mouse_click(platform.base.input_context, MOUSE_BUTTON_LEFT, true, modifier);
 
             return 0;
         }
         case WM_LBUTTONUP:
         {
             InputModifier modifier = translate_modifiers(w_param);
-            input_mouse_click(MOUSE_BUTTON_LEFT, false, modifier);
+            input_mouse_click(platform.base.input_context, MOUSE_BUTTON_LEFT, false, modifier);
 
             return 0;
         }
         case WM_MBUTTONDOWN:
         {
             InputModifier modifier = translate_modifiers(w_param);
-            input_mouse_click(MOUSE_BUTTON_MIDDLE, true, modifier);
+            input_mouse_click(platform.base.input_context, MOUSE_BUTTON_MIDDLE, true, modifier);
 
             return 0;
         }
         case WM_MBUTTONUP:
         {
             InputModifier modifier = translate_modifiers(w_param);
-            input_mouse_click(MOUSE_BUTTON_MIDDLE, false, modifier);
+            input_mouse_click(platform.base.input_context, MOUSE_BUTTON_MIDDLE, false, modifier);
 
             return 0;
         }
@@ -1870,7 +1872,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
             Int2 position;
             position.x = GET_X_LPARAM(l_param);
             position.y = GET_Y_LPARAM(l_param);
-            input_mouse_move(position);
+            input_mouse_move(platform.base.input_context, position);
 
             return 0;
         }
@@ -1878,21 +1880,21 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
         {
             int scroll = GET_WHEEL_DELTA_WPARAM(w_param) / WHEEL_DELTA;
             Int2 velocity = {0, scroll};
-            input_mouse_scroll(velocity);
+            input_mouse_scroll(platform.base.input_context, velocity);
 
             return 0;
         }
         case WM_RBUTTONDOWN:
         {
             InputModifier modifier = translate_modifiers(w_param);
-            input_mouse_click(MOUSE_BUTTON_RIGHT, true, modifier);
+            input_mouse_click(platform.base.input_context, MOUSE_BUTTON_RIGHT, true, modifier);
 
             return 0;
         }
         case WM_RBUTTONUP:
         {
             InputModifier modifier = translate_modifiers(w_param);
-            input_mouse_click(MOUSE_BUTTON_RIGHT, false, modifier);
+            input_mouse_click(platform.base.input_context, MOUSE_BUTTON_RIGHT, false, modifier);
 
             return 0;
         }
@@ -1915,7 +1917,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
             double dpmm = get_dots_per_millimeter(&platform);
             if(functions_loaded)
             {
-                resize_viewport(platform.viewport, dpmm);
+                resize_viewport(platform.editor, platform.viewport, dpmm);
             }
 
             return 0;
@@ -2031,17 +2033,10 @@ static bool main_start_up(HINSTANCE instance, int show_command)
         return false;
     }
 
-    input_system_start_up();
+    platform.base.input_context = input_create_context(&platform.base.stack);
 
-    bool started = video_system_start_up();
-    if(!started)
-    {
-        log_error(&platform.base.logger, "Video system failed startup.");
-        return false;
-    }
-
-    started = editor_start_up(&platform.base);
-    if(!started)
+    platform.editor = editor_start_up(&platform.base);
+    if(!platform.editor)
     {
         log_error(&platform.base.logger, "Editor failed startup.");
         return false;
@@ -2049,15 +2044,14 @@ static bool main_start_up(HINSTANCE instance, int show_command)
 
     double dpmm = get_dots_per_millimeter(&platform);
     Int2 dimensions = get_window_dimensions(&platform);
-    resize_viewport(dimensions, dpmm);
+    resize_viewport(platform.editor, dimensions, dpmm);
 
     return true;
 }
 
 static void main_shut_down()
 {
-    editor_shut_down();
-    video_system_shut_down(functions_loaded);
+    editor_shut_down(platform.editor, functions_loaded);
     destroy_stack(&platform.base);
 
     if(rendering_context)
@@ -2111,8 +2105,8 @@ static int main_loop()
     {
         int64_t frame_start_time = get_timestamp();
 
-        editor_update(&platform.base);
-        input_system_update();
+        editor_update(platform.editor, &platform.base);
+        input_update_context(platform.base.input_context);
 
         SwapBuffers(platform.device_context);
 
