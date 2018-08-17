@@ -1,7 +1,9 @@
 Arboretum/
+Assets/Shaders/build_shaders.sh
 Debug/
 Release/
 .vs/
+.settings/
 .cproject
 .project
 *.vcxproj*

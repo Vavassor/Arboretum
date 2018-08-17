@@ -1,6 +1,7 @@
 #include "file_pick_dialog.h"
 
 #include "array2.h"
+#include "ascii.h"
 #include "assert.h"
 #include "colours.h"
 #include "obj.h"
@@ -20,7 +21,7 @@ static bool record_is_before(DirectoryRecord a, DirectoryRecord b)
     {
         return false;
     }
-    return compare_alphabetic_ascii(a.name, b.name) < 0;
+    return ascii_compare_alphabetic(a.name, b.name) < 0;
 }
 
 DEFINE_QUICK_SORT(DirectoryRecord, record_is_before, by_filename);

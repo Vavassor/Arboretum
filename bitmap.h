@@ -1,6 +1,7 @@
 #ifndef BITMAP_H_
 #define BITMAP_H_
 
+#include "int2.h"
 #include "memory.h"
 
 #include <stdint.h>
@@ -28,8 +29,7 @@ typedef struct Pixel32
 typedef struct Bitmap
 {
     void* pixels;
-    int width;
-    int height;
+    Int2 dimensions;
     int bytes_per_pixel;
 } Bitmap;
 

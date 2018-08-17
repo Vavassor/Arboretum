@@ -6,9 +6,9 @@
 #include "math_basics.h"
 #include "memory.h"
 
-int get_mip_level_count(int width, int height)
+int get_mip_level_count(Int2 dimensions)
 {
-    return floor(log2(imax(width, height))) + 1;
+    return floor(log2(imax(dimensions.x, dimensions.y))) + 1;
 }
 
 static Pixel8 lerp8(Pixel8 p0, Pixel8 p1, float t)
@@ -48,8 +48,8 @@ static Pixel32 lerp32(Pixel32 p0, Pixel32 p1, float t)
 static void scale_pixel8s(Bitmap* source, Pixel8* pixels, int width, int height)
 {
     Pixel8* from = (Pixel8*) source->pixels;
-    int source_width = source->width;
-    int source_height = source->height;
+    int source_width = source->dimensions.x;
+    int source_height = source->dimensions.y;
 
     float width_divisor = imax(width - 1, 1);
     float height_divisor = imax(height - 1, 1);
@@ -85,8 +85,8 @@ static void scale_pixel8s(Bitmap* source, Pixel8* pixels, int width, int height)
 static void scale_pixel16s(Bitmap* source, Pixel16* pixels, int width, int height)
 {
     Pixel16* from = (Pixel16*) source->pixels;
-    int source_width = source->width;
-    int source_height = source->height;
+    int source_width = source->dimensions.x;
+    int source_height = source->dimensions.y;
 
     float width_divisor = imax(width - 1, 1);
     float height_divisor = imax(height - 1, 1);
@@ -122,8 +122,8 @@ static void scale_pixel16s(Bitmap* source, Pixel16* pixels, int width, int heigh
 static void scale_pixel24s(Bitmap* source, Pixel24* pixels, int width, int height)
 {
     Pixel24* from = (Pixel24*) source->pixels;
-    int source_width = source->width;
-    int source_height = source->height;
+    int source_width = source->dimensions.x;
+    int source_height = source->dimensions.y;
 
     float width_divisor = imax(width - 1, 1);
     float height_divisor = imax(height - 1, 1);
@@ -159,8 +159,8 @@ static void scale_pixel24s(Bitmap* source, Pixel24* pixels, int width, int heigh
 static void scale_pixel32s(Bitmap* source, Pixel32* pixels, int width, int height)
 {
     Pixel32* from = (Pixel32*) source->pixels;
-    int source_width = source->width;
-    int source_height = source->height;
+    int source_width = source->dimensions.x;
+    int source_height = source->dimensions.y;
 
     float width_divisor = imax(width - 1, 1);
     float height_divisor = imax(height - 1, 1);
@@ -195,12 +195,12 @@ static void scale_pixel32s(Bitmap* source, Pixel32* pixels, int width, int heigh
 
 Bitmap generate_mipmap(Bitmap* bitmap, Heap* heap)
 {
-    int width = imax(bitmap->width / 2, 1);
-    int height = imax(bitmap->height / 2, 1);
+    int width = imax(bitmap->dimensions.x / 2, 1);
+    int height = imax(bitmap->dimensions.y / 2, 1);
 
     Bitmap result;
-    result.width = width;
-    result.height = height;
+    result.dimensions.x = width;
+    result.dimensions.y = height;
     result.bytes_per_pixel = bitmap->bytes_per_pixel;
 
     switch(bitmap->bytes_per_pixel)
@@ -240,7 +240,7 @@ Bitmap generate_mipmap(Bitmap* bitmap, Heap* heap)
 
 Bitmap* generate_mipmap_array(Bitmap* bitmap, Heap* heap)
 {
-    int levels = get_mip_level_count(bitmap->width, bitmap->height);
+    int levels = get_mip_level_count(bitmap->dimensions);
 
     Bitmap* bitmaps = NULL;
 
@@ -266,5 +266,5 @@ void bitmap_destroy_array(Bitmap* bitmaps, Heap* heap)
 
 int bitmap_get_size(Bitmap* bitmap)
 {
-    return bitmap->width * bitmap->height * bitmap->bytes_per_pixel;
+    return bitmap->dimensions.x * bitmap->dimensions.y * bitmap->bytes_per_pixel;
 }

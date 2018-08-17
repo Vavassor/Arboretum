@@ -1,6 +1,7 @@
 #include "obj.h"
 
 #include "array2.h"
+#include "ascii.h"
 #include "assert.h"
 #include "filesystem.h"
 #include "jan.h"
@@ -14,21 +15,6 @@ typedef struct Stream
     const char* buffer;
 } Stream;
 
-static bool is_whitespace(char c)
-{
-    return c == ' ' || c - 9 <= 5;
-}
-
-static bool is_space_or_tab(char c)
-{
-    return c == ' ' || c == '\t';
-}
-
-static bool is_newline(char c)
-{
-    return c == '\n' || c == '\r';
-}
-
 static bool stream_has_more(Stream* stream)
 {
     return *stream->buffer;
@@ -37,14 +23,14 @@ static bool stream_has_more(Stream* stream)
 static void skip_spacing(Stream* stream)
 {
     const char* s;
-    for(s = stream->buffer; is_space_or_tab(*s); s += 1);
+    for(s = stream->buffer; ascii_is_space_or_tab(*s); s += 1);
     stream->buffer = s;
 }
 
 static void next_line(Stream* stream)
 {
     const char* s;
-    for(s = stream->buffer; *s && !is_newline(*s); s += 1);
+    for(s = stream->buffer; *s && !ascii_is_newline(*s); s += 1);
     if(*s)
     {
         s += 1;
@@ -58,7 +44,7 @@ static char* next_token(Stream* stream, Stack* stack)
 
     const char* first = stream->buffer;
     const char* s;
-    for(s = first; *s && !is_whitespace(*s); ++s);
+    for(s = first; *s && !ascii_is_whitespace(*s); ++s);
     int token_size = (int) (s - first);
 
     if(token_size == 0)
@@ -78,7 +64,7 @@ static char* next_index(Stream* stream, Stack* stack)
     const char* first = stream->buffer;
     const char* s;
     bool slash_found = false;
-    for(s = first; *s && !is_whitespace(*s); ++s)
+    for(s = first; *s && !ascii_is_whitespace(*s); ++s)
     {
         if(*s == '/')
         {

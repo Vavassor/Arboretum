@@ -485,7 +485,7 @@ static Float2 measure_ideal_dimensions_text_block(UiTextBlock* text_block, UiCon
             typeset_glyph->text_index = text_index;
             text_block->glyphs_count += 1;
 
-            MAP_ADD(&text_block->glyph_map, text_index, glyph_index, context->heap);
+            map_add_uint64_from_uint64(&text_block->glyph_map, text_index, glyph_index, context->heap);
 
             pen.x += glyph->x_advance + kerning;
         }
@@ -508,7 +508,7 @@ static Float2 measure_ideal_dimensions_text_block(UiTextBlock* text_block, UiCon
             typeset_glyph->text_index = text_index;
             text_block->glyphs_count += 1;
 
-            MAP_ADD(&text_block->glyph_map, text_index, glyph_index, context->heap);
+            map_add_uint64_from_uint64(&text_block->glyph_map, text_index, glyph_index, context->heap);
         }
 
         prior_char = current;
@@ -621,7 +621,7 @@ static void place_glyph(UiTextBlock* text_block, BmfGlyph* glyph, BmfFont* font,
     typeset_glyph->text_index = text_index;
     text_block->glyphs_count += 1;
 
-    MAP_ADD(&text_block->glyph_map, text_index, glyph_index, context->heap);
+    map_add_uint64_from_uint64(&text_block->glyph_map, text_index, glyph_index, context->heap);
 }
 
 static Float2 measure_bound_dimensions_text_block(UiTextBlock* text_block, Float2 dimensions, UiContext* context)
@@ -757,7 +757,7 @@ static Float2 measure_bound_dimensions_text_block(UiTextBlock* text_block, Float
             typeset_glyph->text_index = text_index;
             text_block->glyphs_count += 1;
 
-            MAP_ADD(&text_block->glyph_map, text_index, glyph_index, context->heap);
+            map_add_uint64_from_uint64(&text_block->glyph_map, text_index, glyph_index, context->heap);
         }
 
         prior_char = current;

@@ -46,9 +46,8 @@ bool point_in_rect(Rect rect, Float2 point)
 {
     Float2 min = rect.bottom_left;
     Float2 max = float2_add(min, rect.dimensions);
-    return
-        point.x >= min.x && point.x <= max.x &&
-        point.y >= min.y && point.y <= max.y;
+    return point.x >= min.x && point.x <= max.x
+        && point.y >= min.y && point.y <= max.y;
 }
 
 bool clip_rects(Rect inner, Rect outer, Rect* result)

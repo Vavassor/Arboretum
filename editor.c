@@ -427,12 +427,12 @@ static void update_object_hover_and_selection(Editor* editor, Platform* platform
 static void detect_move_tool_arrow_hover(MoveTool* move_tool, float* closest, Ray ray, Matrix4 model)
 {
     int hovered_axis = invalid_index;
-    for(int i = 0; i < 3; i += 1)
+    for(int axis_index = 0; axis_index < 3; axis_index += 1)
     {
         Float3 shaft_axis = float3_zero;
-        shaft_axis.e[i] = move_tool->shaft_length;
+        shaft_axis.e[axis_index] = move_tool->shaft_length;
         Float3 head_axis = float3_zero;
-        head_axis.e[i] = move_tool->head_height;
+        head_axis.e[axis_index] = move_tool->head_height;
 
         Cylinder cylinder =
         {
@@ -447,7 +447,7 @@ static void detect_move_tool_arrow_hover(MoveTool* move_tool, float* closest, Ra
         if(intersected && distance < *closest)
         {
             *closest = distance;
-            hovered_axis = i;
+            hovered_axis = axis_index;
         }
 
         Cone cone =
@@ -462,7 +462,7 @@ static void detect_move_tool_arrow_hover(MoveTool* move_tool, float* closest, Ra
         if(intersected && distance < *closest)
         {
             *closest = distance;
-            hovered_axis = i;
+            hovered_axis = axis_index;
         }
     }
     move_tool->hovered_axis = hovered_axis;
@@ -471,13 +471,13 @@ static void detect_move_tool_arrow_hover(MoveTool* move_tool, float* closest, Ra
 static void detect_move_tool_plane_hover(MoveTool* move_tool, float* closest, Ray ray, Matrix4 model)
 {
     int hovered_plane = invalid_index;
-    for(int i = 0; i < 3; i += 1)
+    for(int axis_index = 0; axis_index < 3; axis_index += 1)
     {
         Float3 center = float3_set_all(move_tool->shaft_length);
-        center.e[i] = 0.0f;
+        center.e[axis_index] = 0.0f;
 
         Float3 extents = float3_set_all(move_tool->scale * move_tool->plane_extent);
-        extents.e[i] = move_tool->scale * move_tool->plane_thickness;
+        extents.e[axis_index] = move_tool->scale * move_tool->plane_thickness;
 
         Box box =
         {
@@ -494,7 +494,7 @@ static void detect_move_tool_plane_hover(MoveTool* move_tool, float* closest, Ra
             if(distance < *closest)
             {
                 *closest = distance;
-                hovered_plane = i;
+                hovered_plane = axis_index;
             }
         }
     }
@@ -1141,9 +1141,11 @@ static void set_up_debug_readout(Editor* editor)
     const int items_in_column = DEBUG_CHANNEL_CAP;
     ui_add_column(&readout->container, items_in_column, ui_context, heap);
 
-    for(int i = 0; i < items_in_column; i += 1)
+    for(int item_index = 0;
+            item_index < items_in_column;
+            item_index += 1)
     {
-        UiItem* item = &readout->container.items[i];
+        UiItem* item = &readout->container.items[item_index];
         item->type = UI_ITEM_TYPE_TEXT_BLOCK;
         item->text_block.padding = (UiPadding){{4.0f, 4.0f, 4.0f, 4.0f}};
         ui_set_text(&item->text_block, "", &editor->heap);
@@ -1255,10 +1257,12 @@ static void update_debug_readout(Editor* editor)
 
     ASSERT(container->items_count == DEBUG_CHANNEL_CAP);
 
-    for(int i = 0; i < container->items_count; i += 1)
+    for(int item_index = 0;
+            item_index < container->items_count;
+            item_index += 1)
     {
-        UiItem* item = &container->items[i];
-        DebugChannel* channel = &debug_readout.channels[i];
+        UiItem* item = &container->items[item_index];
+        DebugChannel* channel = &debug_readout.channels[item_index];
 
         if(channel->type != DEBUG_CHANNEL_TYPE_INVALID)
         {
@@ -1271,9 +1275,11 @@ static void update_debug_readout(Editor* editor)
 
 static void clean_up_history(Editor* editor)
 {
-    for(int i = 0; i < editor->history.changes_to_clean_up_count; i += 1)
+    for(int change_index = 0;
+            change_index < editor->history.changes_to_clean_up_count;
+            change_index += 1)
     {
-        Change change = editor->history.changes_to_clean_up[i];
+        Change change = editor->history.changes_to_clean_up[change_index];
         switch(change.type)
         {
             case CHANGE_TYPE_INVALID:
@@ -1544,8 +1550,7 @@ void resize_viewport(Editor* editor, Int2 dimensions, double dots_per_millimeter
 {
     editor->viewport = dimensions;
 
-    editor->ui_context.viewport.x = (float) dimensions.x;
-    editor->ui_context.viewport.y = (float) dimensions.y;
+    editor->ui_context.viewport = int2_to_float2(dimensions);
 
     video_resize_viewport(editor->video_context, dimensions, dots_per_millimeter, editor->camera.field_of_view);
 }

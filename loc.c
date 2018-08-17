@@ -1,34 +1,15 @@
 #include "loc.h"
 
 #include "array2.h"
+#include "ascii.h"
 #include "filesystem.h"
 #include "memory.h"
 #include "string_build.h"
 #include "string_utilities.h"
 
-static bool is_space_or_tab_ascii(char c)
-{
-    return c == ' ' || c == '\t';
-}
-
-static bool is_newline_ascii(char c)
-{
-    return c >= '\n' && c <= '\r';
-}
-
-static bool is_numeric_ascii(char c)
-{
-    return c >= '0' && c <= '9';
-}
-
-static bool is_alphabetic_ascii(char c)
-{
-    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
-}
-
 static bool is_valid_in_name(char c)
 {
-    return is_alphabetic_ascii(c) || is_numeric_ascii(c) || c == '_';
+    return ascii_is_alphanumeric(c) || c == '_';
 }
 
 typedef struct Stream
@@ -45,14 +26,14 @@ static bool stream_has_more(Stream* stream)
 static void skip_spacing(Stream* stream)
 {
     const char* s;
-    for(s = stream->buffer; is_space_or_tab_ascii(*s); s += 1);
+    for(s = stream->buffer; ascii_is_space_or_tab(*s); s += 1);
     stream->buffer = s;
 }
 
 static void next_line(Stream* stream)
 {
     const char* s;
-    for(s = stream->buffer; *s && !is_newline_ascii(*s); s += 1);
+    for(s = stream->buffer; *s && !ascii_is_newline(*s); s += 1);
     if(*s)
     {
         s += 1;
@@ -65,11 +46,11 @@ static bool find_name(Stream* stream)
     skip_spacing(stream);
 
     char c = *stream->buffer;
-    if(is_alphabetic_ascii(c))
+    if(ascii_is_alphabetic(c))
     {
         return true;
     }
-    else if(c == '#' || is_newline_ascii(c))
+    else if(c == '#' || ascii_is_newline(c))
     {
         return false;
     }
@@ -109,7 +90,7 @@ static char* get_entry(Stream* stream, Stack* stack)
             i += 1;
             c = stream->buffer[i];
 
-            if(is_alphabetic_ascii(c))
+            if(ascii_is_alphabetic(c))
             {
                 ARRAY_ADD_STACK(entry, '\\', stack);
                 ARRAY_ADD_STACK(entry, c, stack);
@@ -197,10 +178,10 @@ static bool add_localized_text(Platform* platform, const char* name, const char*
 static bool check_until_newline(Stream* stream)
 {
     const char* s;
-    for(s = stream->buffer; *s && is_space_or_tab_ascii(*s); s += 1);
+    for(s = stream->buffer; *s && ascii_is_space_or_tab(*s); s += 1);
     stream->buffer = s;
 
-    return is_newline_ascii(*s);
+    return ascii_is_newline(*s);
 }
 
 static bool process_next_entry(Stream* stream, Platform* platform, Stack* stack)

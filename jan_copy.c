@@ -92,7 +92,7 @@ void jan_copy_mesh(JanMesh* copy, JanMesh* original, Heap* heap, Stack* stack)
     FOR_EACH_IN_POOL(JanVertex, vertex, original->vertex_pool)
     {
         JanVertex* added = jan_add_vertex(copy, vertex->position);
-        MAP_ADD(&vertex_map, vertex, added, heap);
+        map_add(&vertex_map, vertex, added, heap);
     }
 
     FOR_EACH_IN_POOL(JanEdge, edge, original->edge_pool)
@@ -101,7 +101,7 @@ void jan_copy_mesh(JanMesh* copy, JanMesh* original, Heap* heap, Stack* stack)
         map_get(&vertex_map, edge->vertices[0], (void**) &vertices[0]);
         map_get(&vertex_map, edge->vertices[1], (void**) &vertices[1]);
         JanEdge* added = jan_add_edge(copy, vertices[0], vertices[1]);
-        MAP_ADD(&edge_map, edge, added, heap);
+        map_add(&edge_map, edge, added, heap);
     }
 
     FOR_EACH_IN_POOL(JanFace, face, original->face_pool)

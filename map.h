@@ -21,8 +21,15 @@ void map_create(Map* map, int cap, Heap* heap);
 void map_destroy(Map* map, Heap* heap);
 void map_clear(Map* map);
 bool map_get(Map* map, void* key, void** value);
+bool map_get_uint64(Map* map, void* key, uint64_t* value);
+bool map_get_from_uint64(Map* map, uint64_t key, void** value);
+bool map_get_uint64_from_uint64(Map* map, uint64_t key, uint64_t* value);
 void map_add(Map* map, void* key, void* value, Heap* heap);
+void map_add_uint64(Map* map, void* key, uint64_t value, Heap* heap);
+void map_add_from_uint64(Map* map, uint64_t key, void* value, Heap* heap);
+void map_add_uint64_from_uint64(Map* map, uint64_t key, uint64_t value, Heap* heap);
 void map_remove(Map* map, void* key);
+void map_remove_uint64(Map* map, uint64_t key);
 void map_reserve(Map* map, int cap, Heap* heap);
 
 typedef struct MapIterator
@@ -36,12 +43,6 @@ MapIterator map_iterator_start(Map* map);
 bool map_iterator_is_not_end(MapIterator it);
 void* map_iterator_get_key(MapIterator it);
 void* map_iterator_get_value(MapIterator it);
-
-#define MAP_ADD(map, key, value, heap) \
-    map_add(map, ((void*) (uintptr_t) key), ((void*) (uintptr_t) value), heap)
-
-#define MAP_REMOVE(map, key) \
-    map_remove(map, ((void*) (uintptr_t) key))
 
 #define ITERATE_MAP(it, map) \
     for(MapIterator it = map_iterator_start(map); map_iterator_is_not_end(it); it = map_iterator_next(it))

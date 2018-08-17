@@ -137,6 +137,33 @@ bool map_get(Map* map, void* key, void** value)
     return got;
 }
 
+bool map_get_uint64(Map* map, void* key, uint64_t* value)
+{
+    void* pointer;
+    bool got = map_get(map, key, &pointer);
+    if(got)
+    {
+        *value = (uint64_t) (uintptr_t) pointer;
+    }
+    return got;
+}
+
+bool map_get_from_uint64(Map* map, uint64_t key, void** value)
+{
+    return map_get(map, (uint64_t) (uintptr_t) key, value);
+}
+
+bool map_get_uint64_from_uint64(Map* map, uint64_t key, uint64_t* value)
+{
+    void* pointer;
+    bool got = map_get(map, (uint64_t) (uintptr_t) key, &pointer);
+    if(got)
+    {
+        *value = (uint64_t) (uintptr_t) pointer;
+    }
+    return got;
+}
+
 static void map_grow(Map* map, int cap, Heap* heap)
 {
     int prior_cap = map->cap;
@@ -194,6 +221,21 @@ void map_add(Map* map, void* key, void* value, Heap* heap)
     map->values[slot] = value;
     map->hashes[slot] = hash;
     map->count += 1;
+}
+
+void map_add_uint64(Map* map, void* key, uint64_t value, Heap* heap)
+{
+    map_add(map, key, (void*) (uintptr_t) value, heap);
+}
+
+void map_add_from_uint64(Map* map, uint64_t key, void* value, Heap* heap)
+{
+    map_add(map, (void*) (uintptr_t) key, value, heap);
+}
+
+void map_add_uint64_from_uint64(Map* map, uint64_t key, uint64_t value, Heap* heap)
+{
+    map_add(map, (void*) (uintptr_t) key, (void*) (uintptr_t) value, heap);
 }
 
 static bool in_cyclic_interval(int x, int first, int second)
@@ -254,6 +296,11 @@ void map_remove(Map* map, void* key)
         map->hashes[i] = map->hashes[j];
     }
 	map->count -= 1;
+}
+
+void map_remove_uint64(Map* map, uint64_t key)
+{
+    map_remove(map, (void*) (uintptr_t) key);
 }
 
 void map_reserve(Map* map, int cap, Heap* heap)

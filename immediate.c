@@ -141,8 +141,8 @@ void immediate_context_create(ImmediateContextSpec* spec, Heap* heap, Log* log)
             {
                 .attributes =
                 {
-                    [0] = {.format = VERTEX_FORMAT_FLOAT3},
-                    [1] = {.format = VERTEX_FORMAT_UBYTE4_NORM},
+                    {.format = VERTEX_FORMAT_FLOAT3},
+                    {.format = VERTEX_FORMAT_UBYTE4_NORM},
                 },
             },
         };
@@ -159,8 +159,8 @@ void immediate_context_create(ImmediateContextSpec* spec, Heap* heap, Log* log)
             {
                 .attributes =
                 {
-                    [0] = {.format = VERTEX_FORMAT_FLOAT3},
-                    [1] = {.format = VERTEX_FORMAT_USHORT2_NORM},
+                    {.format = VERTEX_FORMAT_FLOAT3},
+                    {.format = VERTEX_FORMAT_USHORT2_NORM},
                 },
             },
         };
@@ -177,11 +177,11 @@ void immediate_context_create(ImmediateContextSpec* spec, Heap* heap, Log* log)
             {
                 .attributes =
                 {
-                    [0] = {.format = VERTEX_FORMAT_FLOAT3},
-                    [1] = {.format = VERTEX_FORMAT_FLOAT3},
-                    [2] = {.format = VERTEX_FORMAT_UBYTE4_NORM},
-                    [3] = {.format = VERTEX_FORMAT_USHORT2_NORM},
-                    [4] = {.format = VERTEX_FORMAT_FLOAT1},
+                    {.format = VERTEX_FORMAT_FLOAT3},
+                    {.format = VERTEX_FORMAT_FLOAT3},
+                    {.format = VERTEX_FORMAT_UBYTE4_NORM},
+                    {.format = VERTEX_FORMAT_USHORT2_NORM},
+                    {.format = VERTEX_FORMAT_FLOAT1},
                 },
             },
         };

@@ -33,18 +33,22 @@ void debug_readout_reset()
 
 void debug_readout_update_ranges()
 {
-    for(int i = 0; i < DEBUG_CHANNEL_CAP; i += 1)
+    for(int channel_index = 0;
+            channel_index < DEBUG_CHANNEL_CAP;
+            channel_index += 1)
     {
-        DebugChannel* channel = &debug_readout.channels[i];
+        DebugChannel* channel = &debug_readout.channels[channel_index];
         switch(channel->type)
         {
             case DEBUG_CHANNEL_TYPE_FLOAT:
             {
                 float min = +infinity;
                 float max = -infinity;
-                for(int j = 0; j < DEBUG_CHANNEL_VALUE_CAP; j += 1)
+                for(int value_index = 0;
+                        value_index < DEBUG_CHANNEL_VALUE_CAP;
+                        value_index += 1)
                 {
-                    float value = channel->floats[j];
+                    float value = channel->floats[value_index];
                     min = fminf(min, value);
                     max = fmaxf(max, value);
                 }

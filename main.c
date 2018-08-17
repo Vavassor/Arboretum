@@ -13,6 +13,7 @@
 #define X11_NONE 0L /* universal null resource or null atom */
 #endif
 
+#include "ascii.h"
 #include "assert.h"
 #include "editor.h"
 #include "gl_core_3_3.h"
@@ -330,16 +331,16 @@ static InputKey translate_key_sym(KeySym key_sym)
 
 static void build_key_table(PlatformX11* platform)
 {
-    for(int i = 0; i < 8; ++i)
+    for(int key_index = 0; key_index < 8; ++key_index)
     {
-        platform->key_table[i] = INPUT_KEY_UNKNOWN;
+        platform->key_table[key_index] = INPUT_KEY_UNKNOWN;
     }
-    for(int i = 8; i < 256; ++i)
+    for(int key_index = 8; key_index < 256; key_index += 1)
     {
-        KeyCode scancode = i;
+        KeyCode scancode = key_index;
         int keysyms_per_keycode_return;
         KeySym* key_syms = XGetKeyboardMapping(platform->display, scancode, 1, &keysyms_per_keycode_return);
-        platform->key_table[i] = translate_key_sym(key_syms[0]);
+        platform->key_table[key_index] = translate_key_sym(key_syms[0]);
         XFree(key_syms);
     }
 }
@@ -447,9 +448,9 @@ static XIMStyle negotiate_input_method_styles(PlatformX11* platform)
     XGetIMValues(platform->input_method, XNQueryInputStyle, &input_method_styles, NULL);
     XIMStyle supported_styles = XIMPreeditPosition | XIMPreeditNothing | XIMStatusNothing;
     XIMStyle best_style = 0;
-    for(int i = 0; i < input_method_styles->count_styles; i += 1)
+    for(int style_index = 0; style_index < input_method_styles->count_styles; style_index += 1)
     {
-        XIMStyle style = input_method_styles->supported_styles[i];
+        XIMStyle style = input_method_styles->supported_styles[style_index];
         if((style & supported_styles) == style)
         {
             best_style = choose_better_style(style, best_style);
@@ -606,23 +607,25 @@ static GLXFBConfig choose_best_framebuffer_configuration()
     int worst_config = invalid_index;
     int best_samples = -1;
     int worst_samples = 999;
-    for(int i = 0; i < config_count; i += 1)
+    for(int config_index = 0;
+            config_index < config_count;
+            config_index += 1)
     {
-        XVisualInfo* visual_info = glXGetVisualFromFBConfig(platform.display, framebuffer_configs[i]);
+        XVisualInfo* visual_info = glXGetVisualFromFBConfig(platform.display, framebuffer_configs[config_index]);
         if(visual_info)
         {
             int sample_buffers;
             int samples;
-            glXGetFBConfigAttrib(platform.display, framebuffer_configs[i], GLX_SAMPLE_BUFFERS, &sample_buffers);
-            glXGetFBConfigAttrib(platform.display, framebuffer_configs[i], GLX_SAMPLES, &samples);
+            glXGetFBConfigAttrib(platform.display, framebuffer_configs[config_index], GLX_SAMPLE_BUFFERS, &sample_buffers);
+            glXGetFBConfigAttrib(platform.display, framebuffer_configs[config_index], GLX_SAMPLES, &samples);
             if(!is_valid_index(best_config) || (sample_buffers && samples > best_samples))
             {
-                best_config = i;
+                best_config = config_index;
                 best_samples = samples;
             }
             if(!is_valid_index(worst_config) || !sample_buffers || samples < worst_samples)
             {
-                worst_config = i;
+                worst_config = config_index;
                 worst_samples = samples;
             }
         }
@@ -672,11 +675,11 @@ static void set_up_clipboard()
 
     char code[24];
     format_string(code, sizeof(code), "%s_PASTE", app_name);
-    to_upper_case_ascii(code);
+    ascii_to_uppercase(code);
     platform.paste_code = XInternAtom(platform.display, code, False);
 
     format_string(code, sizeof(code), "%s_SAVE_TARGETS", app_name);
-    to_upper_case_ascii(code);
+    ascii_to_uppercase(code);
     platform.save_code = XInternAtom(platform.display, code, False);
 }
 

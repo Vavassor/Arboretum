@@ -1,5 +1,6 @@
 #include "string_utilities.h"
 
+#include "ascii.h"
 #include "assert.h"
 #include "math_basics.h"
 #include "variable_arguments.h"
@@ -164,31 +165,6 @@ static void reverse_string(char* s, int length)
     }
 }
 
-static bool is_lower_case(char c)
-{
-    return c >= 'a' && c <= 'z';
-}
-
-static char to_upper_case_char(char c)
-{
-    if(is_lower_case(c))
-    {
-        return 'A' + (c - 'a');
-    }
-    else
-    {
-        return c;
-    }
-}
-
-void to_upper_case_ascii(char* s)
-{
-    for(int i = 0; s[i]; i += 1)
-    {
-        s[i] = to_upper_case_char(s[i]);
-    }
-}
-
 static bool is_ascii(char c)
 {
     return !(c & 0x80);
@@ -197,18 +173,6 @@ static bool is_ascii(char c)
 static bool is_control_character(char c)
 {
     return is_ascii(c) && (c <= 0x1f || (c >= 0x7f && c <= 0x9f));
-}
-
-int compare_alphabetic_ascii(const char* RESTRICT a, const char* RESTRICT b)
-{
-    while(*a && (*a == *b))
-    {
-        a += 1;
-        b += 1;
-    }
-    char c0 = to_upper_case_char(*a);
-    char c1 = to_upper_case_char(*b);
-    return c0 - c1;
 }
 
 bool only_control_characters(const char* s)
@@ -236,11 +200,6 @@ void replace_chars(char* s, char original, char replacement)
 
 // String To Value..............................................................
 
-static bool is_whitespace(char c)
-{
-    return c == ' ' || c - 9 <= 5;
-}
-
 static int char_to_integer(char c)
 {
     if     ('0' <= c && c <= '9') return c - '0';
@@ -258,7 +217,7 @@ static bool string_to_u64(const char* string, char** after, int base, uint64_t* 
 
     const char* s = string;
 
-    while(is_whitespace(*s))
+    while(ascii_is_whitespace(*s))
     {
         s += 1;
     }
@@ -379,7 +338,7 @@ bool string_to_double(const char* string, double* result)
     const char* s = string;
 
     // Skip any leading whitespace.
-    while(is_whitespace(*s))
+    while(ascii_is_whitespace(*s))
     {
         s += 1;
     }
@@ -711,6 +670,7 @@ typedef struct FormatContext
     bool positive_space;
     bool pound_flag;
     bool left_pad_with_zero;
+    bool precision_set;
 } FormatContext;
 
 static void default_context(FormatContext* context)
@@ -726,6 +686,7 @@ static void default_context(FormatContext* context)
     context->positive_space = false;
     context->pound_flag = false;
     context->left_pad_with_zero = false;
+    context->precision_set = false;
 }
 
 static void add_char(FormatContext* context, char c)
@@ -830,6 +791,7 @@ static void find_width(FormatContext* context, va_list* arguments)
             if(context->digits_count > 0)
             {
                 bool success = parse_digits(context, &context->width);
+                ASSERT(success);
             }
             return;
         }
@@ -860,7 +822,9 @@ static void find_precision(FormatContext* context, va_list* arguments)
         }
         else if(next == '*')
         {
+            context->format += 1;
             context->precision = va_arg(*arguments, int);
+            context->precision_set = true;
             return;
         }
         else
@@ -869,6 +833,11 @@ static void find_precision(FormatContext* context, va_list* arguments)
             if(context->digits_count > 0)
             {
                 bool success = parse_digits(context, &context->precision);
+                ASSERT(success);
+                if(success)
+                {
+                    context->precision_set = true;
+                }
             }
             return;
         }
@@ -1215,7 +1184,7 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                     break;
                 }
             }
-            to_upper_case_ascii(int_buffer);
+            ascii_to_uppercase(int_buffer);
             int copied = copy_string(buffer, buffer_left, int_buffer);
             context->chars_written += copied;
             break;
@@ -1270,7 +1239,7 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                     break;
                 }
             }
-            to_upper_case_ascii(float_buffer);
+            ascii_to_uppercase(float_buffer);
             int copied = copy_string(buffer, buffer_left, float_buffer);
             context->chars_written += copied;
             break;
@@ -1325,7 +1294,7 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                     break;
                 }
             }
-            to_upper_case_ascii(float_buffer);
+            ascii_to_uppercase(float_buffer);
             int copied = copy_string(buffer, buffer_left, float_buffer);
             context->chars_written += copied;
             break;
@@ -1380,7 +1349,7 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                     break;
                 }
             }
-            to_upper_case_ascii(float_buffer);
+            ascii_to_uppercase(float_buffer);
             int copied = copy_string(buffer, buffer_left, float_buffer);
             context->chars_written += copied;
             break;
@@ -1435,7 +1404,12 @@ static void process_specifier(FormatContext* context, va_list* arguments)
                 case LENGTH_UNSPECIFIED:
                 {
                     char* value = va_arg(*arguments, char*);
-                    context->chars_written += copy_string(buffer, buffer_left, value);
+                    int copy_size = buffer_left;
+                    if(context->precision_set)
+                    {
+                        copy_size = context->precision;
+                    }
+                    context->chars_written += copy_string(buffer, copy_size, value);
                     break;
                 }
                 case LENGTH_LONG:

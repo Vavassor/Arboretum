@@ -368,6 +368,16 @@ typedef struct ShaderImageSpec
     ImageType type;
 } ShaderImageSpec;
 
+typedef struct ShaderVertexAttributeSpec
+{
+    const char* name;
+} ShaderVertexAttributeSpec;
+
+typedef struct ShaderVertexLayoutSpec
+{
+    ShaderVertexAttributeSpec attributes[VERTEX_ATTRIBUTE_CAP];
+} ShaderVertexLayoutSpec;
+
 typedef struct ShaderStageSpec
 {
     const char* source;
@@ -379,6 +389,7 @@ typedef struct ShaderSpec
 {
     ShaderStageSpec vertex;
     ShaderStageSpec fragment;
+    ShaderVertexLayoutSpec vertex_layout;
 } ShaderSpec;
 
 // Viewport.....................................................................

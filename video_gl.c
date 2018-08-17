@@ -1110,12 +1110,14 @@ static void load_rasterizer_state(RasterizerState* state, RasterizerStateSpec* s
     state->depth_bias_enabled = spec->depth_bias_enabled;
 }
 
-static void load_vertex_layout(Pipeline* pipeline, VertexLayoutSpec* spec)
+static void load_vertex_layout(Pipeline* pipeline, VertexLayoutSpec* spec, Backend* backend)
 {
     for(int attribute_index = 0; attribute_index < VERTEX_ATTRIBUTE_CAP; attribute_index += 1)
     {
         pipeline->attributes[attribute_index].buffer_index = invalid_index;
     }
+
+    Shader* shader = fetch_shader(backend, pipeline->shader);
 
     int auto_offset[SHADER_STAGE_BUFFER_CAP] = {0};
 
@@ -1150,7 +1152,7 @@ static void load_vertex_layout(Pipeline* pipeline, VertexLayoutSpec* spec)
     }
 }
 
-static void load_pipeline(Pipeline* pipeline, PipelineSpec* spec)
+static void load_pipeline(Pipeline* pipeline, PipelineSpec* spec, Backend* backend)
 {
     ASSERT(spec->shader.value != invalid_id);
     pipeline->shader = spec->shader;
@@ -1159,7 +1161,7 @@ static void load_pipeline(Pipeline* pipeline, PipelineSpec* spec)
     load_depth_stencil_state(&pipeline->depth_stencil, &spec->depth_stencil);
     load_input_assembly(&pipeline->input_assembly, &spec->input_assembly);
     load_rasterizer_state(&pipeline->rasterizer, &spec->rasterizer);
-    load_vertex_layout(pipeline, &spec->vertex_layout);
+    load_vertex_layout(pipeline, &spec->vertex_layout, backend);
 
     glGenVertexArrays(1, &pipeline->vertex_array);
 
@@ -1266,6 +1268,21 @@ static bool check_link_status(GLuint program, Heap* heap, Log* log)
     return true;
 }
 
+static void set_up_vertex_attributes(ShaderSpec* shader_spec, GLuint program)
+{
+    for(int attribute_index = 0;
+            attribute_index < VERTEX_ATTRIBUTE_CAP;
+            attribute_index += 1)
+    {
+        ShaderVertexAttributeSpec* attribute_spec = &shader_spec->vertex_layout.attributes[attribute_index];
+        if(!attribute_spec->name)
+        {
+            continue;
+        }
+        glBindAttribLocation(program, attribute_index, attribute_spec->name);
+    }
+}
+
 static void set_up_uniform_blocks(Shader* shader, ShaderSpec* shader_spec)
 {
     for(int stage_index = 0; stage_index < 2; stage_index += 1)
@@ -1354,6 +1371,7 @@ static void load_shader(Shader* shader, ShaderSpec* shader_spec, Heap* heap, Log
     GLuint program = glCreateProgram();
     glAttachShader(program, fragment_shader);
     glAttachShader(program, vertex_shader);
+    set_up_vertex_attributes(shader_spec, program);
     glLinkProgram(program);
     glDeleteShader(fragment_shader);
     glDeleteShader(vertex_shader);
@@ -1575,7 +1593,7 @@ PipelineId create_pipeline(Backend* backend, PipelineSpec* spec, Log* log)
     if(id.value != invalid_id)
     {
         Pipeline* pipeline = fetch_pipeline(backend, id);
-        load_pipeline(pipeline, spec);
+        load_pipeline(pipeline, spec, backend);
         ASSERT(pipeline->resource.status == RESOURCE_STATUS_VALID);
     }
     else

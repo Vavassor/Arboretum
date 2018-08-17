@@ -17,9 +17,7 @@ bool string_ends_with(const char* RESTRICT a, const char* RESTRICT b);
 int count_char_occurrences(const char* string, char c);
 int count_substring_occurrences(const char* string, const char* pattern);
 
-int compare_alphabetic_ascii(const char* RESTRICT a, const char* RESTRICT b);
 bool only_control_characters(const char* string);
-void to_upper_case_ascii(char* string);
 void replace_chars(char* s, char original, char replacement);
 
 bool string_to_int(const char* string, int* value);

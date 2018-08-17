@@ -160,7 +160,7 @@ static ImageId build_image(VideoContext* context, const char* name, bool with_mi
 {
     char* path = get_image_path_by_name(name, &context->scratch);
     Bitmap bitmap;
-    bitmap.pixels = stbi_load(path, &bitmap.width, &bitmap.height, &bitmap.bytes_per_pixel, STBI_default);
+    bitmap.pixels = stbi_load(path, &bitmap.dimensions.x, &bitmap.dimensions.y, &bitmap.bytes_per_pixel, STBI_default);
     STACK_DEALLOCATE(&context->scratch, path);
 
     ImageId id = {0};
@@ -176,13 +176,15 @@ static ImageId build_image(VideoContext* context, const char* name, bool with_mi
         int mip_levels = 1;
         if(with_mipmaps)
         {
-            mip_levels = count_mip_levels(bitmap.width, bitmap.height);
+            mip_levels = count_mip_levels(bitmap.dimensions.x, bitmap.dimensions.y);
 
             mipmaps = generate_mipmap_array(&bitmap, &context->heap);
-            for(int i = 0; i < array_count(mipmaps); i += 1)
+            for(int mip_level = 0;
+                    mip_level < array_count(mipmaps);
+                    mip_level += 1)
             {
-                Bitmap* mipmap = &mipmaps[i];
-                subimage = &content.subimages[0][i + 1];
+                Bitmap* mipmap = &mipmaps[mip_level];
+                subimage = &content.subimages[0][mip_level + 1];
                 subimage->content = mipmap->pixels;
                 subimage->size = bitmap_get_size(mipmap);
             }
@@ -191,18 +193,17 @@ static ImageId build_image(VideoContext* context, const char* name, bool with_mi
         ImageSpec spec =
         {
             .content = content,
-            .height = bitmap.height,
+            .height = bitmap.dimensions.y,
             .mipmap_count = mip_levels,
             .pixel_format = get_pixel_format(bitmap.bytes_per_pixel),
             .type = IMAGE_TYPE_2D,
-            .width = bitmap.width,
+            .width = bitmap.dimensions.x,
         };
         id = create_image(context->backend, &spec, context->logger);
 
         if(dimensions)
         {
-            dimensions->x = bitmap.width;
-            dimensions->y = bitmap.height;
+            *dimensions = bitmap.dimensions;
         }
 
         stbi_image_free(bitmap.pixels);
@@ -440,6 +441,66 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
         .size = sizeof(PerSpan),
     };
 
+    ShaderVertexLayoutSpec frame_triangle_vertex_layout_spec =
+    {
+        .attributes =
+        {
+            {.name = "position"},
+            {.name = "texcoord"},
+        },
+    };
+
+    ShaderVertexLayoutSpec line_vertex_layout_spec =
+    {
+        .attributes =
+        {
+            {.name = "position"},
+            {.name = "direction"},
+            {.name = "colour"},
+            {.name = "texcoord"},
+            {.name = "side"},
+        },
+    };
+
+    ShaderVertexLayoutSpec lit_vertex_layout_spec =
+    {
+        .attributes =
+        {
+            {.name = "position"},
+            {.name = "normal"},
+            {.name = "colour"},
+        },
+    };
+
+    ShaderVertexLayoutSpec point_vertex_layout_spec =
+    {
+        .attributes =
+        {
+            {.name = "position"},
+            {.name = "direction"},
+            {.name = "colour"},
+            {.name = "texcoord"},
+        },
+    };
+
+    ShaderVertexLayoutSpec texture_only_vertex_layout_spec =
+    {
+        .attributes =
+        {
+            {.name = "position"},
+            {.name = "texcoord"},
+        },
+    };
+
+    ShaderVertexLayoutSpec vertex_colour_vertex_layout_spec =
+    {
+        .attributes =
+        {
+            {.name = "position"},
+            {.name = "colour"},
+        },
+    };
+
     ShaderSpec depth_visualiser_shader_spec =
     {
         .fragment =
@@ -451,22 +512,9 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
         {
             .uniform_blocks = {per_view_spec},
         },
+        .vertex_layout = texture_only_vertex_layout_spec,
     };
     shaders->depth_visualiser = build_shader(context, &depth_visualiser_shader_spec, "Depth Visualiser.fs", "Depth Visualiser.vs");
-
-    ShaderSpec shader_font_spec =
-    {
-        .fragment =
-        {
-            .images[0] = {.name = "texture"},
-            .uniform_blocks = {per_span_block_spec},
-        },
-        .vertex =
-        {
-            .uniform_blocks = {per_view_spec},
-        },
-    };
-    shaders->font = build_shader(context, &shader_font_spec, "Font.fs", "Font.vs");
 
     ShaderSpec face_selection_spec =
     {
@@ -482,8 +530,24 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
                 per_object_block_spec,
             },
         },
+        .vertex_layout = lit_vertex_layout_spec,
     };
     shaders->face_selection = build_shader(context, &face_selection_spec, "Face Selection.fs", "Face Selection.vs");
+
+    ShaderSpec shader_font_spec =
+    {
+        .fragment =
+        {
+            .images[0] = {.name = "texture"},
+            .uniform_blocks = {per_span_block_spec},
+        },
+        .vertex =
+        {
+            .uniform_blocks = {per_view_spec},
+        },
+        .vertex_layout = texture_only_vertex_layout_spec,
+    };
+    shaders->font = build_shader(context, &shader_font_spec, "Font.fs", "Font.vs");
 
     ShaderSpec fxaa_shader_spec =
     {
@@ -499,6 +563,7 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
         {
             .uniform_blocks[0] = per_view_spec,
         },
+        .vertex_layout = frame_triangle_vertex_layout_spec,
     };
     shaders->fxaa = build_shader(context, &fxaa_shader_spec, "Fxaa.fs", "Fxaa.vs");
 
@@ -517,6 +582,7 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
                 per_object_block_spec,
             },
         },
+        .vertex_layout = line_vertex_layout_spec,
     };
     shaders->halo = build_shader(context, &shader_halo_spec, "Halo.fs", "Halo.vs");
 
@@ -536,6 +602,7 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
                 per_object_block_spec,
             },
         },
+        .vertex_layout = line_vertex_layout_spec,
     };
     shaders->line = build_shader(context, &shader_line_spec, "Line.fs", "Line.vs");
 
@@ -553,6 +620,7 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
                 per_object_block_spec,
             },
         },
+        .vertex_layout = lit_vertex_layout_spec,
     };
     shaders->lit = build_shader(context, &lit_spec, "Lit.fs", "Lit.vs");
 
@@ -571,6 +639,7 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
                 per_point_block_spec,
             },
         },
+        .vertex_layout = point_vertex_layout_spec,
     };
     shaders->point = build_shader(context, &shader_point_spec, "Point.fs", "Point.vs");
 
@@ -592,6 +661,7 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
                 per_view_spec,
             },
         },
+        .vertex_layout = vertex_colour_vertex_layout_spec,
     };
     shaders->screen_pattern = build_shader(context, &shader_screen_pattern_spec, "Screen Pattern.fs", "Screen Pattern.vs");
 
@@ -608,6 +678,7 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
         {
             .uniform_blocks[0] = per_view_spec,
         },
+        .vertex_layout = texture_only_vertex_layout_spec,
     };
     shaders->texture_only = build_shader(context, &texture_only_spec, "Texture Only.fs", "Texture Only.vs");
 
@@ -621,6 +692,7 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
         {
             .uniform_blocks = {per_view_spec},
         },
+        .vertex_layout = texture_only_vertex_layout_spec,
     };
     shaders->velocity_visualiser = build_shader(context, &velocity_visualiser_shader_spec, "Velocity Visualiser.fs", "Velocity Visualiser.vs");
 
@@ -634,6 +706,7 @@ static void create_shaders(VideoContext* context, Shaders* shaders)
                 per_object_block_spec,
             },
         },
+        .vertex_layout = vertex_colour_vertex_layout_spec,
     };
     shaders->vertex_colour = build_shader(context, &shader_vertex_colour_spec, "Vertex Colour.fs", "Vertex Colour.vs");
 }
@@ -1105,8 +1178,8 @@ static void apply_object_block(VideoContext* context, VideoObject* object)
 
     PerObject per_object =
     {
-        .model = matrix4_transpose(object->model),
-        .normal_matrix = matrix4_transpose(object->normal),
+        .model = object->model,
+        .normal_matrix = object->normal,
     };
     update_buffer(backend, uniforms->buffers[2], &per_object, 0, sizeof(per_object));
 }
@@ -1129,7 +1202,7 @@ static void set_model_matrix(VideoContext* context, Matrix4 model)
 
     PerObject per_object =
     {
-        .model = matrix4_transpose(model),
+        .model = model,
     };
     update_buffer(backend, uniforms->buffers[2], &per_object, 0, sizeof(per_object));
 }
@@ -1141,7 +1214,7 @@ static void set_view_projection(VideoContext* context, Matrix4 view, Matrix4 pro
 
     PerView per_view =
     {
-        .view_projection = matrix4_transpose(matrix4_multiply(projection, view)),
+        .view_projection = matrix4_multiply(projection, view),
         .viewport_dimensions = viewport_dimensions,
     };
     update_buffer(backend, uniforms->buffers[3], &per_view, 0, sizeof(per_view));
