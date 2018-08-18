@@ -2,9 +2,7 @@
 
 #include "platform_definitions.h"
 
-#if !defined(OS_WINDOWS)
-#error Only compile wide_char.c on Windows!
-#endif
+#if defined(OS_WINDOWS)
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -65,3 +63,5 @@ wchar_t* utf8_to_wide_char_stack(const char* string, Stack* stack)
     }
     return result;
 }
+
+#endif // defined(OS_WINDOWS)

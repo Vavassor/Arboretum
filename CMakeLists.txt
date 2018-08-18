@@ -1,15 +1,19 @@
 cmake_minimum_required(VERSION 2.8)
 project(Arboretum)
 
-file(GLOB FilesAll ${PROJECT_SOURCE_DIR}/*.*)
+file(GLOB FilesAll ${PROJECT_SOURCE_DIR}/Source/*.*)
 
 add_executable(Arboretum ${FilesAll})
 
-set_property(TARGET Arboretum PROPERTY C_STANDARD 99)
+set_target_properties(Arboretum PROPERTIES
+    C_STANDARD 99
+    C_STANDARD_REQUIRED ON)
 
 if(WIN32)
-set_property(TARGET Arboretum APPEND_STRING PROPERTY LINK_FLAGS "/SUBSYSTEM:WINDOWS")
-target_link_libraries(Arboretum imm32 opengl32)
+    set_property(TARGET Arboretum APPEND_STRING PROPERTY LINK_FLAGS "/SUBSYSTEM:WINDOWS")
+    target_link_libraries(Arboretum imm32 opengl32)
+else()
+    target_link_libraries(Arboretum m GL X11 Xcursor)
 endif()
 
 file (GLOB_RECURSE resources "Assets/*.*")

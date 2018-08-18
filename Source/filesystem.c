@@ -753,6 +753,42 @@ char* get_user_folder(UserFolder folder, Heap* heap)
     return get_user_folder_path(env_name, default_relative_path, heap);
 }
 
+// Executable Directory.........................................................
+
+static void remove_filename(char* path)
+{
+    int slash = find_last_char(path, '/');
+    if(is_valid_index(slash))
+    {
+        path[slash] = '\0';
+    }
+}
+
+char* get_executable_folder(Heap* heap)
+{
+    const char* symlink_path = "/proc/self/exe";
+    struct stat status = {0};
+    if(lstat(symlink_path, &status) == -1)
+    {
+        return NULL;
+    }
+
+    int path_size = status.st_size + 1;
+    char* path = HEAP_ALLOCATE(heap, char, path_size);
+
+    int result = readlink(symlink_path, path, path_size);
+    if(result == -1 || result > path_size)
+    {
+        HEAP_DEALLOCATE(heap, path);
+        return NULL;
+    }
+
+    path[path_size - 1] = '\0';
+    remove_filename(path);
+
+    return path;
+}
+
 #elif defined(OS_WINDOWS)
 
 #include "wide_char.h"
