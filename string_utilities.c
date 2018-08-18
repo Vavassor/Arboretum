@@ -97,6 +97,19 @@ int find_char(const char* s, char c)
     return invalid_index;
 }
 
+int find_last_char(const char* s, char c)
+{
+    ASSERT(s);
+    for(int i = string_size(s) - 1; i >= 0; i -= 1)
+    {
+        if(s[i] == c)
+        {
+            return i;
+        }
+    }
+    return invalid_index;
+}
+
 bool string_starts_with(const char* RESTRICT a, const char* RESTRICT b)
 {
     ASSERT(a);

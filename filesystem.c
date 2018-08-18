@@ -1152,6 +1152,38 @@ char* get_user_folder(UserFolder folder, Heap* heap)
     return finished;
 }
 
+// Executable Directory.........................................................
+
+static void remove_filename(char* path)
+{
+    int slash = find_last_char(path, '/');
+    if(is_valid_index(slash))
+    {
+        path[slash] = '\0';
+    }
+}
+
+char* get_executable_folder(Heap* heap)
+{
+    int wide_path_cap = 128;
+    wchar_t* wide_path = NULL;
+    DWORD wchars_copied;
+    do
+    {
+        wide_path_cap *= 2;
+        wide_path = HEAP_REALLOCATE(heap, wide_path, wchar_t, wide_path_cap);
+        wchars_copied = GetModuleFileNameW(NULL, wide_path, wide_path_cap);
+    } while(wchars_copied == wide_path_cap);
+
+    char* path = wide_char_to_utf8(wide_path, heap);
+    replace_chars(path, '\\', '/');
+    remove_filename(path);
+
+    HEAP_DEALLOCATE(heap, wide_path);
+
+    return path;
+}
+
 #endif // defined(OS_WINDOWS)
 
 // Directory Listing............................................................

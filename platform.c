@@ -13,6 +13,16 @@ void destroy_stack(Platform* platform)
     stack_destroy(&platform->stack);
 }
 
+void platform_create_heap(Platform* platform)
+{
+    heap_create(&platform->heap, ezlabytes(8));
+}
+
+void platform_destroy_heap(Platform* platform)
+{
+    heap_destroy(&platform->heap);
+}
+
 static const char* get_filename_for_locale_id(LocaleId locale_id)
 {
     switch(locale_id)

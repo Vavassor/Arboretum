@@ -39,8 +39,9 @@ typedef struct Platform
         const char* app_name;
     } nonlocalized_text;
 
-    Stack stack;
+    Heap heap;
     Log logger;
+    Stack stack;
     InputContext* input_context;
 
     LocaleId locale_id;

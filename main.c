@@ -734,6 +734,8 @@ bool main_start_up()
     platform.base.locale_id = match_closest_locale_id(text_locale);
 
     create_stack(&platform.base);
+    platform_create_heap(&platform.base);
+    set_asset_path(&platform.base.heap);
     bool loaded = load_localized_text(&platform.base);
     if(!loaded)
     {
@@ -832,6 +834,7 @@ void main_shut_down()
 {
     editor_shut_down(platform.editor, functions_loaded);
     destroy_stack(&platform.base);
+    platform_destroy_heap(&platform.base.heap);
 
     if(platform.visual_info)
     {
@@ -1950,6 +1953,8 @@ static bool main_start_up(HINSTANCE instance, int show_command)
 {
     platform.base.locale_id = match_closest_locale_id();
     create_stack(&platform.base);
+    platform_create_heap(&platform.base);
+    set_asset_path(&platform.base.heap);
     bool loaded = load_localized_text(&platform.base);
     if(!loaded)
     {
@@ -2056,6 +2061,7 @@ static void main_shut_down()
 {
     editor_shut_down(platform.editor, functions_loaded);
     destroy_stack(&platform.base);
+    platform_destroy_heap(&platform.base.heap);
 
     if(rendering_context)
     {

@@ -1,11 +1,14 @@
 #include "asset_paths.h"
 
+#include "filesystem.h"
 #include "string_build.h"
 
 #include <stddef.h>
 
-static const char* assets_path = "/home/andrew/workspace/Arboretum/Assets";
+//TODO: Make assets_path non-global.
+static char* assets_path;
 
+static const char* assets_folder = "Assets";
 static const char* fonts_folder = "Fonts";
 static const char* images_folder = "Images";
 static const char* locales_folder = "Locales";
@@ -15,6 +18,13 @@ static const char* unicode_data_folder = "Unicode";
 
 static const char* shader_extension = ".glsl";
 static const char* unicode_data_extension = ".bin";
+
+void set_asset_path(Heap* heap)
+{
+    char* path = get_executable_folder(heap);
+    assets_path = append_to_path(path, assets_folder, heap);
+    HEAP_DEALLOCATE(heap, path);
+}
 
 char* get_font_path_by_name(const char* asset_name, Stack* stack)
 {

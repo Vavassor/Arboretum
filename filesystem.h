@@ -82,4 +82,8 @@ typedef enum UserFolder
 
 char* get_user_folder(UserFolder folder, Heap* heap);
 
+// Executable Directory.........................................................
+
+char* get_executable_folder(Heap* heap);
+
 #endif // FILESYSTEM_H_

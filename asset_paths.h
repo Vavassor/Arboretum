@@ -3,6 +3,7 @@
 
 #include "memory.h"
 
+void set_asset_path(Heap* heap);
 char* get_font_path_by_name(const char* asset_name, Stack* stack);
 char* get_image_path_by_name(const char* asset_name, Stack* stack);
 char* get_locale_path_by_name(const char* asset_name, Stack* stack);

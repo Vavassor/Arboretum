@@ -1,5 +1,7 @@
 #include "glx_extensions.h"
 
+#if defined(OS_LINUX)
+
 #include "string_utilities.h"
 
 // Internal Get Procedure Address
@@ -62,3 +64,5 @@ void load_glx_extensions(Display* display, int screen)
         }
     }
 }
+
+#endif // defined(OS_LINUX)
