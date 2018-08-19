@@ -144,7 +144,7 @@ char* replace_substrings(const char* original, const char* pattern, const char* 
         int i = 0;
         do
         {
-            int span = s1 - s0;
+            int span = (int) (s1 - s0);
             copy_string(&result[i], span + 1, s0);
             i += span;
             copy_string(&result[i], replacement_size + 1, replacement);
@@ -153,7 +153,7 @@ char* replace_substrings(const char* original, const char* pattern, const char* 
             s1 = find_string(s0, pattern);
         } while(s1);
 
-        int remaining = (original + original_size) - s0;
+        int remaining = (int) ((original + original_size) - s0);
         if(remaining > 0)
         {
             copy_string(&result[i], remaining + 1, s0);

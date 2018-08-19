@@ -14,9 +14,9 @@ typedef union Pack4x8
 static uint32_t pack_unorm3x8(Float3 v)
 {
     Pack4x8 u;
-    u.r = 0xff * v.x;
-    u.g = 0xff * v.y;
-    u.b = 0xff * v.z;
+    u.r = (uint8_t) (0xff * v.x);
+    u.g = (uint8_t) (0xff * v.y);
+    u.b = (uint8_t) (0xff * v.z);
     u.a = 0xff;
     return u.packed;
 }
@@ -35,10 +35,10 @@ static Float3 unpack_unorm3x8(uint32_t x)
 static uint32_t pack_unorm4x8(Float4 v)
 {
     Pack4x8 u;
-    u.r = 0xff * v.x;
-    u.g = 0xff * v.y;
-    u.b = 0xff * v.z;
-    u.a = 0xff * v.w;
+    u.r = (uint8_t) (0xff * v.x);
+    u.g = (uint8_t) (0xff * v.y);
+    u.b = (uint8_t) (0xff * v.z);
+    u.a = (uint8_t) (0xff * v.w);
     return u.packed;
 }
 
@@ -65,8 +65,8 @@ static uint32_t pack_unorm16x2(Float2 v)
         };
         uint32_t packed;
     } u;
-    u.x = 0xffff * v.x;
-    u.y = 0xffff * v.y;
+    u.x = (uint16_t) (0xffff * v.x);
+    u.y = (uint16_t) (0xffff * v.y);
     return u.packed;
 }
 

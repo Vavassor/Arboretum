@@ -44,7 +44,7 @@ static uint32_t hash_key(uint64_t key)
     key = key ^ (key >> 11);
     key = key + (key << 6);
     key = key ^ (key >> 22);
-    return key;
+    return (uint32_t) key;
 }
 
 void map_create(Map* map, int cap, Heap* heap)
@@ -150,13 +150,13 @@ bool map_get_uint64(Map* map, void* key, uint64_t* value)
 
 bool map_get_from_uint64(Map* map, uint64_t key, void** value)
 {
-    return map_get(map, (uint64_t) (uintptr_t) key, value);
+    return map_get(map, (void*) (uintptr_t) key, value);
 }
 
 bool map_get_uint64_from_uint64(Map* map, uint64_t key, uint64_t* value)
 {
     void* pointer;
-    bool got = map_get(map, (uint64_t) (uintptr_t) key, &pointer);
+    bool got = map_get(map, (void*) (uintptr_t) key, &pointer);
     if(got)
     {
         *value = (uint64_t) (uintptr_t) pointer;

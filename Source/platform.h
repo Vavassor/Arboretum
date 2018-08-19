@@ -54,7 +54,9 @@ void set_composed_text_position(Platform* base, int x, int y);
 bool copy_to_clipboard(Platform* platform, char* clipboard);
 void request_paste_from_clipboard(Platform* platform);
 
+void platform_create_heap(Platform* platform);
 void create_stack(Platform* platform);
+void platform_destroy_heap(Platform* platform);
 void destroy_stack(Platform* platform);
 bool load_localized_text(Platform* platform);
 

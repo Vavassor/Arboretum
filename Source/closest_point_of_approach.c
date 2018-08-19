@@ -116,7 +116,7 @@ Float3 closest_point_on_line(Ray ray, Float3 start, Float3 end)
 
 Float3 closest_ray_point(Ray ray, Float3 point)
 {
-    double d = float3_dot(float3_subtract(point, ray.origin), ray.direction);
+    float d = float3_dot(float3_subtract(point, ray.origin), ray.direction);
     if(d <= 0.0f)
     {
         return ray.origin;

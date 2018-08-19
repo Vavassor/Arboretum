@@ -1,6 +1,7 @@
 #include "filesystem.h"
 
 #include "array2.h"
+#include "assert.h"
 #include "memory.h"
 #include "platform_definitions.h"
 #include "string_utilities.h"
@@ -819,8 +820,9 @@ bool load_whole_file(const char* path, void** contents, uint64_t* bytes, Stack* 
 
     uint64_t size = (uint64_t) info.nFileSizeHigh << 32 | info.nFileSizeLow;
     char* buffer = STACK_ALLOCATE(stack, char, size + 1);
+    ASSERT(size <= UINT32_MAX);
     DWORD bytes_read;
-    BOOL read = ReadFile(handle, buffer, size, &bytes_read, NULL);
+    BOOL read = ReadFile(handle, buffer, (DWORD) size, &bytes_read, NULL);
 
     CloseHandle(handle);
 
@@ -849,8 +851,9 @@ bool save_whole_file(const char* path, const void* contents, uint64_t bytes, Sta
         return false;
     }
 
+    ASSERT(bytes <= UINT32_MAX);
     DWORD bytes_written;
-    BOOL wrote = WriteFile(handle, contents, bytes, &bytes_written, NULL);
+    BOOL wrote = WriteFile(handle, contents, (DWORD) bytes, &bytes_written, NULL);
     CloseHandle(handle);
 
     return wrote && bytes_written == bytes;
@@ -943,8 +946,9 @@ bool make_file_permanent(File* file, const char* path)
 
 bool write_file(File* file, const void* data, uint64_t bytes)
 {
+    ASSERT(bytes <= UINT32_MAX);
     DWORD bytes_written;
-    BOOL wrote = WriteFile(file->handle, data, bytes, &bytes_written, NULL);
+    BOOL wrote = WriteFile(file->handle, data, (DWORD) bytes, &bytes_written, NULL);
     return wrote && bytes_written == bytes;
 }
 

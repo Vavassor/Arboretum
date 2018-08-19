@@ -8,40 +8,40 @@
 
 int get_mip_level_count(Int2 dimensions)
 {
-    return floor(log2(imax(dimensions.x, dimensions.y))) + 1;
+    return (int) floor(log2(imax(dimensions.x, dimensions.y))) + 1;
 }
 
 static Pixel8 lerp8(Pixel8 p0, Pixel8 p1, float t)
 {
     Pixel8 result;
-    result.r = lerp(p0.r, p1.r, t);
+    result.r = (uint8_t) lerp(p0.r, p1.r, t);
     return result;
 }
 
 static Pixel16 lerp16(Pixel16 p0, Pixel16 p1, float t)
 {
     Pixel16 result;
-    result.r = lerp(p0.r, p1.r, t);
-    result.g = lerp(p0.g, p1.g, t);
+    result.r = (uint8_t) lerp(p0.r, p1.r, t);
+    result.g = (uint8_t) lerp(p0.g, p1.g, t);
     return result;
 }
 
 static Pixel24 lerp24(Pixel24 p0, Pixel24 p1, float t)
 {
     Pixel24 result;
-    result.r = lerp(p0.r, p1.r, t);
-    result.g = lerp(p0.g, p1.g, t);
-    result.b = lerp(p0.b, p1.b, t);
+    result.r = (uint8_t) lerp(p0.r, p1.r, t);
+    result.g = (uint8_t) lerp(p0.g, p1.g, t);
+    result.b = (uint8_t) lerp(p0.b, p1.b, t);
     return result;
 }
 
 static Pixel32 lerp32(Pixel32 p0, Pixel32 p1, float t)
 {
     Pixel32 result;
-    result.r = lerp(p0.r, p1.r, t);
-    result.g = lerp(p0.g, p1.g, t);
-    result.b = lerp(p0.b, p1.b, t);
-    result.a = lerp(p0.a, p1.a, t);
+    result.r = (uint8_t) lerp(p0.r, p1.r, t);
+    result.g = (uint8_t) lerp(p0.g, p1.g, t);
+    result.b = (uint8_t) lerp(p0.b, p1.b, t);
+    result.a = (uint8_t) lerp(p0.a, p1.a, t);
     return result;
 }
 
@@ -51,20 +51,20 @@ static void scale_pixel8s(Bitmap* source, Pixel8* pixels, int width, int height)
     int source_width = source->dimensions.x;
     int source_height = source->dimensions.y;
 
-    float width_divisor = imax(width - 1, 1);
-    float height_divisor = imax(height - 1, 1);
+    float width_divisor = (float) imax(width - 1, 1);
+    float height_divisor = (float) imax(height - 1, 1);
 
     for(int i = 0; i < height; i += 1)
     {
         float y = i * (source_height - 1) / height_divisor;
-        int y_int = y;
+        int y_int = (int) y;
         float y_fraction = y - y_int;
         int m = imin(y_int + 1, source_height - 1);
 
         for(int j = 0; j < width; j += 1)
         {
             float x = j * (source_width - 1) / width_divisor;
-            int x_int = x;
+            int x_int = (int) x;
             float x_fraction = x - x_int;
             int k = imin(x_int + 1, source_width - 1);
 
@@ -88,20 +88,20 @@ static void scale_pixel16s(Bitmap* source, Pixel16* pixels, int width, int heigh
     int source_width = source->dimensions.x;
     int source_height = source->dimensions.y;
 
-    float width_divisor = imax(width - 1, 1);
-    float height_divisor = imax(height - 1, 1);
+    float width_divisor = (float) imax(width - 1, 1);
+    float height_divisor = (float) imax(height - 1, 1);
 
     for(int i = 0; i < height; i += 1)
     {
         float y = i * (source_height - 1) / height_divisor;
-        int y_int = y;
+        int y_int = (int) y;
         float y_fraction = y - y_int;
         int m = imin(y_int + 1, source_height - 1);
 
         for(int j = 0; j < width; j += 1)
         {
             float x = j * (source_width - 1) / width_divisor;
-            int x_int = x;
+            int x_int = (int) x;
             float x_fraction = x - x_int;
             int k = imin(x_int + 1, source_width - 1);
 
@@ -125,20 +125,20 @@ static void scale_pixel24s(Bitmap* source, Pixel24* pixels, int width, int heigh
     int source_width = source->dimensions.x;
     int source_height = source->dimensions.y;
 
-    float width_divisor = imax(width - 1, 1);
-    float height_divisor = imax(height - 1, 1);
+    float width_divisor = (float) imax(width - 1, 1);
+    float height_divisor = (float) imax(height - 1, 1);
 
     for(int i = 0; i < height; i += 1)
     {
         float y = i * (source_height - 1) / height_divisor;
-        int y_int = y;
+        int y_int = (int) y;
         float y_fraction = y - y_int;
         int m = imin(y_int + 1, source_height - 1);
 
         for(int j = 0; j < width; j += 1)
         {
             float x = j * (source_width - 1) / width_divisor;
-            int x_int = x;
+            int x_int = (int) x;
             float x_fraction = x - x_int;
             int k = imin(x_int + 1, source_width - 1);
 
@@ -162,20 +162,20 @@ static void scale_pixel32s(Bitmap* source, Pixel32* pixels, int width, int heigh
     int source_width = source->dimensions.x;
     int source_height = source->dimensions.y;
 
-    float width_divisor = imax(width - 1, 1);
-    float height_divisor = imax(height - 1, 1);
+    float width_divisor = (float) imax(width - 1, 1);
+    float height_divisor = (float) imax(height - 1, 1);
 
     for(int i = 0; i < height; i += 1)
     {
         float y = i * (source_height - 1) / height_divisor;
-        int y_int = y;
+        int y_int = (int) y;
         float y_fraction = y - y_int;
         int m = imin(y_int + 1, source_height - 1);
 
         for(int j = 0; j < width; j += 1)
         {
             float x = j * (source_width - 1) / width_divisor;
-            int x_int = x;
+            int x_int = (int) x;
             float x_fraction = x - x_int;
             int k = imin(x_int + 1, source_width - 1);
 

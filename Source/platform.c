@@ -5,7 +5,7 @@
 
 void create_stack(Platform* platform)
 {
-    stack_create(&platform->stack, ezlabytes(32));
+    stack_create(&platform->stack, (uint32_t) ezlabytes(32));
 }
 
 void destroy_stack(Platform* platform)
@@ -15,7 +15,7 @@ void destroy_stack(Platform* platform)
 
 void platform_create_heap(Platform* platform)
 {
-    heap_create(&platform->heap, ezlabytes(8));
+    heap_create(&platform->heap, (uint32_t) ezlabytes(8));
 }
 
 void platform_destroy_heap(Platform* platform)

@@ -1337,6 +1337,7 @@ int main(int argc, char** argv)
 #elif defined(OS_WINDOWS)
 
 #include "assert.h"
+#include "asset_paths.h"
 #include "editor.h"
 #include "gl_core_3_3.h"
 #include "input.h"
@@ -2061,7 +2062,7 @@ static void main_shut_down()
 {
     editor_shut_down(platform.editor, functions_loaded);
     destroy_stack(&platform.base);
-    platform_destroy_heap(&platform.base.heap);
+    platform_destroy_heap(&platform.base);
 
     if(rendering_context)
     {

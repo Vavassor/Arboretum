@@ -245,10 +245,10 @@ void immediate_set_clip_area(Rect rect, int viewport_width, int viewport_height)
     {
         .bottom_left =
         {
-            .x = rect.bottom_left.x + (viewport_width / 2),
-            .y = rect.bottom_left.y + (viewport_height / 2),
+            .x = (int) rect.bottom_left.x + (viewport_width / 2),
+            .y = (int) rect.bottom_left.y + (viewport_height / 2),
         },
-        .dimensions = {rect.dimensions.x, rect.dimensions.y},
+        .dimensions = {(int) rect.dimensions.x, (int) rect.dimensions.y},
     };
     set_scissor_rect(context->backend, &scissor_rect);
 }
