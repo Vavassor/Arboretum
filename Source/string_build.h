@@ -10,6 +10,7 @@ char* copy_string_to_stack(const char* original, Stack* stack);
 void replace_string(char** original, const char* new_string, Heap* heap);
 
 char* append_to_path(const char* path, const char* segment, Heap* heap);
+void remove_basename(char* path);
 void append_string(char** buffer, const char* string, Stack* stack);
 char* insert_string(const char* string, const char* insert, int index, Heap* heap);
 void remove_substring(char* string, int start, int end);

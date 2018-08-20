@@ -1,10 +1,6 @@
 #ifndef POINTER_C_GENERATED_HEADER_WINDOWSGL_H
 #define POINTER_C_GENERATED_HEADER_WINDOWSGL_H
 
-#include "platform_definitions.h"
-
-#if defined(OS_WINDOWS)
-
 #ifdef __wglext_h_
 #error Attempt to include auto-generated WGL header after wglext.h
 #endif
@@ -193,7 +189,5 @@ int wgl_LoadFunctions(HDC hdc);
 #ifdef __cplusplus
 }
 #endif /*__cplusplus*/
-
-#endif // defined(OS_WINDOWS)
 
 #endif //POINTER_C_GENERATED_HEADER_WINDOWSGL_H

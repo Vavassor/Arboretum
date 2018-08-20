@@ -60,6 +60,15 @@ char* append_to_path(const char* path, const char* segment, Heap* heap)
     return extended;
 }
 
+void remove_basename(char* path)
+{
+    int slash = find_last_char(path, '/');
+    if(is_valid_index(slash))
+    {
+        path[slash] = '\0';
+    }
+}
+
 void append_string(char** buffer, const char* string, Stack* stack)
 {
     int buffer_size;

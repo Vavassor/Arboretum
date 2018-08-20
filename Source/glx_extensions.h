@@ -1,10 +1,6 @@
 #ifndef GLX_EXTENSIONS_H_
 #define GLX_EXTENSIONS_H_
 
-#include "platform_definitions.h"
-
-#if defined(OS_LINUX)
-
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <GL/glx.h>
@@ -24,7 +20,5 @@ extern void (*ptrc_glXSwapIntervalEXT)(Display* display, GLXDrawable drawable, i
 // Load GLX Extensions.........................................................
 
 void load_glx_extensions(Display* display, int screen);
-
-#endif // defined(OS_LINUX)
 
 #endif // GLX_EXTENSIONS_H_

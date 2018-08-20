@@ -1,9 +1,5 @@
 #include "wide_char.h"
 
-#include "platform_definitions.h"
-
-#if defined(OS_WINDOWS)
-
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -63,5 +59,3 @@ wchar_t* utf8_to_wide_char_stack(const char* string, Stack* stack)
     }
     return result;
 }
-
-#endif // defined(OS_WINDOWS)

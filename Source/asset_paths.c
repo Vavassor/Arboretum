@@ -22,6 +22,7 @@ static const char* unicode_data_extension = ".bin";
 void set_asset_path(Heap* heap)
 {
     char* path = get_executable_folder(heap);
+    remove_basename(path);
     assets_path = append_to_path(path, assets_folder, heap);
     HEAP_DEALLOCATE(heap, path);
 }

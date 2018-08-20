@@ -1,7 +1,5 @@
 #include "wgl_extensions.h"
 
-#if defined(OS_WINDOWS)
-
 #include <stdlib.h>
 #include <string.h>
 #include <stddef.h>
@@ -270,5 +268,3 @@ int wgl_LoadFunctions(HDC hdc)
     ProcExtsFromExtString((const char *)_ptrc_wglGetExtensionsStringARB(hdc));
     return wgl_LOAD_SUCCEEDED;
 }
-
-#endif // defined(OS_WINDOWS)

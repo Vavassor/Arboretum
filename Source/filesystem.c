@@ -756,15 +756,6 @@ char* get_user_folder(UserFolder folder, Heap* heap)
 
 // Executable Directory.........................................................
 
-static void remove_filename(char* path)
-{
-    int slash = find_last_char(path, '/');
-    if(is_valid_index(slash))
-    {
-        path[slash] = '\0';
-    }
-}
-
 char* get_executable_folder(Heap* heap)
 {
     const char* symlink_path = "/proc/self/exe";
@@ -785,7 +776,7 @@ char* get_executable_folder(Heap* heap)
     }
 
     path[path_size - 1] = '\0';
-    remove_filename(path);
+    remove_basename(path);
 
     return path;
 }
@@ -1194,15 +1185,6 @@ char* get_user_folder(UserFolder folder, Heap* heap)
 
 // Executable Directory.........................................................
 
-static void remove_filename(char* path)
-{
-    int slash = find_last_char(path, '/');
-    if(is_valid_index(slash))
-    {
-        path[slash] = '\0';
-    }
-}
-
 char* get_executable_folder(Heap* heap)
 {
     int wide_path_cap = 128;
@@ -1217,7 +1199,7 @@ char* get_executable_folder(Heap* heap)
 
     char* path = wide_char_to_utf8(wide_path, heap);
     replace_chars(path, '\\', '/');
-    remove_filename(path);
+    remove_basename(path);
 
     HEAP_DEALLOCATE(heap, wide_path);
 
