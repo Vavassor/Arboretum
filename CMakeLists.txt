@@ -4,7 +4,9 @@ set(Arboretum_VERSION_MAJOR 1)
 set(Arboretum_VERSION_MINOR 0)
 set(Arboretum_VERSION_PATCH 0)
 
-add_executable(Arboretum WIN32 Source/main.c)
+option(PORTABLE_APP "Put everything in a self-contained directory instead of being installed." ON)
+
+add_executable(Arboretum WIN32 "")
 
 set_target_properties(
 	Arboretum
@@ -25,12 +27,14 @@ if(WIN32)
 		Source/wgl_extensions.c
 		Source/wide_char.c
 	)
+	set(DATA_DIRECTORY ./)
 elseif(LINUX)
     target_link_libraries(Arboretum PRIVATE m GL X11 Xcursor)
 	set(
 		PLATFORM_SPECIFIC_SOURCES
 		Source/glx_extensions.c
 	)
+	set(DATA_DIRECTORY /usr/share/arboretum)
 endif()
 
 target_sources(
@@ -72,6 +76,7 @@ target_sources(
 	Source/jan_validate.c
 	Source/loc.c
 	Source/log.c
+	Source/main.c
 	Source/map.c
 	Source/memory.c
 	Source/obj.c
@@ -98,34 +103,38 @@ target_sources(
 	${PLATFORM_SPECIFIC_SOURCES}
 )
 
-# Copy Assets to the build directory.
-file (GLOB_RECURSE resources "Assets/*.*")
-foreach(resource ${resources})
-	get_filename_component(filename ${resource} NAME)
-	get_filename_component(dir ${resource} DIRECTORY)
-	get_filename_component(dirname ${dir} NAME)
- 
-	set (output "")
- 
-	while(NOT ${dirname} STREQUAL Assets)
-		get_filename_component(path_component ${dir} NAME)
-		set (output "${path_component}/${output}")
-		get_filename_component(dir ${dir} DIRECTORY)
-		get_filename_component(dirname ${dir} NAME)
-	endwhile()
- 
-	set(output "${CMAKE_CURRENT_BINARY_DIR}/Assets/${output}/${filename}")
- 
-	add_custom_command(
-		COMMENT "Moving updated asset file '${filename}'"
-		OUTPUT ${output}
-		DEPENDS ${resource}
-		COMMAND ${CMAKE_COMMAND} -E copy_if_different
-		${resource}
-		${output}
-	)
-	add_custom_target(${filename} ALL DEPENDS ${resource} ${output})
-endforeach()
+macro(mirror_files directory_name)
+    file (GLOB_RECURSE resources "${directory_name}/*.*")
+    foreach(resource ${resources})
+        get_filename_component(filename ${resource} NAME)
+        get_filename_component(dir ${resource} DIRECTORY)
+        get_filename_component(dirname ${dir} NAME)
+     
+        set (output "")
+     
+        while(NOT ${dirname} STREQUAL ${directory_name})
+            get_filename_component(path_component ${dir} NAME)
+            set (output "${path_component}/${output}")
+            get_filename_component(dir ${dir} DIRECTORY)
+            get_filename_component(dirname ${dir} NAME)
+        endwhile()
+     
+        set(output "${CMAKE_CURRENT_BINARY_DIR}/${directory_name}/${output}/${filename}")
+     
+        add_custom_command(
+            COMMENT "Moving updated file '${filename}'"
+            OUTPUT ${output}
+            DEPENDS ${resource}
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${resource}
+            ${output}
+        )
+        add_custom_target(${filename} ALL DEPENDS ${resource} ${output})
+    endforeach()
+endmacro()
+
+mirror_files(Assets)
+mirror_files(Package)
 
 install(
 	TARGETS Arboretum
@@ -133,17 +142,27 @@ install(
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
 )
-install(DIRECTORY Assets DESTINATION ./)
+if(PORTABLE_APP)
+    install(DIRECTORY Assets DESTINATION ./)
+else()
+    install(DIRECTORY Assets DESTINATION ${DATA_DIRECTORY})
+endif()
 
 include(InstallRequiredSystemLibraries)
+set(CPACK_PACKAGE_DESCRIPTION_FILE "Package/Description.txt")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Arboretum is a 3D modeling app")
 set(CPACK_PACKAGE_NAME "Arboretum")
 set(CPACK_PACKAGE_VENDOR "Keyless Palace")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Arboretum - 3D modeling app")
 set(CPACK_PACKAGE_VERSION_MAJOR "${Arboretum_VERSION_MAJOR}")
 set(CPACK_PACKAGE_VERSION_MINOR "${Arboretum_VERSION_MINOR}")
 set(CPACK_PACKAGE_VERSION_PATCH "${Arboretum_VERSION_PATCH}")
 if(WIN32)
     set(CPACK_PACKAGE_EXECUTABLES "Arboretum" "Arboretum")
+    set(CPACK_WIX_UPGRADE_GUID "C335D757-A9D6-4CEA-AFBE-AE7AE97B981E")
+elseif(LINUX)
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6, libgl1-mesa-glx, libx11-6, libxcursor1")
+    set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "https://github.com/Vavassor/Arboretum")
+    set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Andrew Dawson <dawso.andrew@gmail.com>")
+    set(CPACK_DEBIAN_PACKAGE_SECTION "graphics")
 endif()
-set(CPACK_WIX_UPGRADE_GUID "C335D757-A9D6-4CEA-AFBE-AE7AE97B981E")
 include(CPack)
