@@ -121,15 +121,7 @@ macro(mirror_files directory_name)
      
         set(output "${CMAKE_CURRENT_BINARY_DIR}/${directory_name}/${output}/${filename}")
      
-        add_custom_command(
-            COMMENT "Moving updated file '${filename}'"
-            OUTPUT ${output}
-            DEPENDS ${resource}
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${resource}
-            ${output}
-        )
-        add_custom_target(${filename} ALL DEPENDS ${resource} ${output})
+        configure_file(${resource} ${output} COPYONLY)
     endforeach()
 endmacro()
 
