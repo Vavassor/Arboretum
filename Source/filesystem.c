@@ -759,23 +759,23 @@ char* get_user_folder(UserFolder folder, Heap* heap)
 char* get_executable_folder(Heap* heap)
 {
     const char* symlink_path = "/proc/self/exe";
-    struct stat status = {0};
-    if(lstat(symlink_path, &status) == -1)
+
+    char* path = NULL;
+    int path_size = 128;
+    int chars_copied;
+    do
     {
-        return NULL;
-    }
+        path_size *= 2;
+        path = HEAP_REALLOCATE(heap, path, char, path_size + 1);
+        chars_copied = readlink(symlink_path, path, path_size);
+        if(chars_copied == -1 || chars_copied > path_size)
+        {
+            HEAP_DEALLOCATE(heap, path);
+            return NULL;
+        }
+    } while(chars_copied == path_size);
 
-    int path_size = status.st_size + 1;
-    char* path = HEAP_ALLOCATE(heap, char, path_size);
-
-    int result = readlink(symlink_path, path, path_size);
-    if(result == -1 || result > path_size)
-    {
-        HEAP_DEALLOCATE(heap, path);
-        return NULL;
-    }
-
-    path[path_size - 1] = '\0';
+    path[chars_copied] = '\0';
     remove_basename(path);
 
     return path;

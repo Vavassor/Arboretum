@@ -4,7 +4,7 @@ set(Arboretum_VERSION_MAJOR 1)
 set(Arboretum_VERSION_MINOR 0)
 set(Arboretum_VERSION_PATCH 0)
 
-add_executable(Arboretum WIN32)
+add_executable(Arboretum WIN32 Source/main.c)
 
 set_target_properties(
 	Arboretum
@@ -72,7 +72,6 @@ target_sources(
 	Source/jan_validate.c
 	Source/loc.c
 	Source/log.c
-	Source/main.c
 	Source/map.c
 	Source/memory.c
 	Source/obj.c
