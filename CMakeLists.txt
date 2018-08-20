@@ -5,6 +5,11 @@ set(Arboretum_VERSION_MINOR 0)
 set(Arboretum_VERSION_PATCH 0)
 
 option(PORTABLE_APP "Put everything in a self-contained directory instead of being installed." ON)
+if(PORTABLE_APP)
+    set(Arboretum_PORTABLE_APP 1)
+else()
+    set(Arboretum_PORTABLE_APP 0)
+endif()
 
 add_executable(Arboretum WIN32 "")
 
@@ -102,6 +107,13 @@ target_sources(
 	Source/video_ui.c
 	${PLATFORM_SPECIFIC_SOURCES}
 )
+
+configure_file (
+    "${PROJECT_SOURCE_DIR}/Source/arboretum_config.h.in"
+    "${PROJECT_BINARY_DIR}/arboretum_config.h"
+    @ONLY
+)
+include_directories("${PROJECT_BINARY_DIR}")
 
 macro(mirror_files directory_name)
     file (GLOB_RECURSE resources "${directory_name}/*.*")

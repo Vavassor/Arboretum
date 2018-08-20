@@ -1,6 +1,8 @@
 #include "asset_paths.h"
 
+#include "arboretum_config.h"
 #include "filesystem.h"
+#include "platform_definitions.h"
 #include "string_build.h"
 
 #include <stddef.h>
@@ -21,8 +23,12 @@ static const char* unicode_data_extension = ".bin";
 
 void set_asset_path(Heap* heap)
 {
+#if defined(OS_WINDOWS) || ARBORETUM_PORTABLE_APP
     char* path = get_executable_folder(heap);
     remove_basename(path);
+#else
+    char* path = "/usr/share/arboretum";
+#endif
     assets_path = append_to_path(path, assets_folder, heap);
     HEAP_DEALLOCATE(heap, path);
 }
