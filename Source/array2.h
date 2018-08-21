@@ -5,6 +5,33 @@
 
 #include <stddef.h>
 
+// This type of array is based on stretchy_buffer.h by Sean Barrett:
+// https://github.com/nothings/stb/blob/master/stretchy_buffer.h
+//
+// It's an automatically resizing array that can be used generically for any
+// type and also allows indexing in the normal way like `array[index]`.
+// Instead of having an associated structure, use a pointer to the desired type
+// as follows:
+//
+//    Type* array = NULL;
+//    while(has_more_items())
+//    {
+//        Type item = get_next_item();
+//        ARRAY_ADD(array, item, heap);
+//    }
+//    use_the_array_for_something(array);
+//    ARRAY_DESTROY(array, heap);
+//
+// It works by allocating a bit of extra memory to keep the element count
+// and capacity. This *header* is stored first, followed by all of the elements.
+//
+//     [header][element 0][element 1][element 2][...]
+//
+// The `array` pointer, though, actually points to `element 0`. So, the header
+// is effectively stored before the `array` pointer. Because it's actually
+// pointing to an address part of the way into an allocation, it **should not**
+// be deallocated. Instead use ARRAY_DESTROY.
+
 typedef struct ArrayHeader
 {
     int count;
