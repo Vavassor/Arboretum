@@ -7,9 +7,9 @@ set(ARBORETUM_URL "https://github.com/Vavassor/Arboretum")
 
 option(PORTABLE_APP "Put everything in a self-contained directory instead of being installed." ON)
 if(PORTABLE_APP)
-    set(Arboretum_PORTABLE_APP 1)
+    set(ARBORETUM_PORTABLE_APP 1)
 else()
-    set(Arboretum_PORTABLE_APP 0)
+    set(ARBORETUM_PORTABLE_APP 0)
 endif()
 
 add_executable(Arboretum WIN32 "")
@@ -33,14 +33,14 @@ if(WIN32)
 		Source/wgl_extensions.c
 		Source/wide_char.c
 	)
-	set(DATA_DIRECTORY ./)
+    set(DATA_DIRECTORY ./)
 elseif(LINUX)
     target_link_libraries(Arboretum PRIVATE m GL X11 Xcursor)
 	set(
 		PLATFORM_SPECIFIC_SOURCES
 		Source/glx_extensions.c
 	)
-	set(DATA_DIRECTORY /usr/share/arboretum)
+    set(DATA_DIRECTORY ${CMAKE_INSTALL_DATAROOTDIR})
 endif()
 
 target_sources(

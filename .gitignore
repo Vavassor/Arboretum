@@ -1,8 +1,8 @@
 Arboretum/
-Assets/Shaders/build_shaders.sh
 Debug/
 Release/
 Build/
+Documentation/Build/
 .vs/
 .settings/
 .cproject
