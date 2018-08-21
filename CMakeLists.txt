@@ -3,6 +3,7 @@ project(Arboretum)
 set(Arboretum_VERSION_MAJOR 1)
 set(Arboretum_VERSION_MINOR 0)
 set(Arboretum_VERSION_PATCH 0)
+set(ARBORETUM_URL "https://github.com/Vavassor/Arboretum")
 
 option(PORTABLE_APP "Put everything in a self-contained directory instead of being installed." ON)
 if(PORTABLE_APP)
@@ -108,7 +109,7 @@ target_sources(
 	${PLATFORM_SPECIFIC_SOURCES}
 )
 
-configure_file (
+configure_file(
     "${PROJECT_SOURCE_DIR}/Source/arboretum_config.h.in"
     "${PROJECT_BINARY_DIR}/arboretum_config.h"
     @ONLY
@@ -138,7 +139,6 @@ macro(mirror_files directory_name)
 endmacro()
 
 mirror_files(Assets)
-mirror_files(Package)
 
 install(
 	TARGETS Arboretum
@@ -153,20 +153,24 @@ else()
 endif()
 
 include(InstallRequiredSystemLibraries)
-set(CPACK_PACKAGE_DESCRIPTION_FILE "Package/Description.txt")
+set(CPACK_PACKAGE_DESCRIPTION_FILE "${PROJECT_SOURCE_DIR}/Package/Description.txt")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Arboretum is a 3D modeling app")
+set(CPACK_PACKAGE_EXECUTABLES "Arboretum" "Arboretum")
 set(CPACK_PACKAGE_NAME "Arboretum")
 set(CPACK_PACKAGE_VENDOR "Keyless Palace")
 set(CPACK_PACKAGE_VERSION_MAJOR "${Arboretum_VERSION_MAJOR}")
 set(CPACK_PACKAGE_VERSION_MINOR "${Arboretum_VERSION_MINOR}")
 set(CPACK_PACKAGE_VERSION_PATCH "${Arboretum_VERSION_PATCH}")
+set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE.txt")
 if(WIN32)
-    set(CPACK_PACKAGE_EXECUTABLES "Arboretum" "Arboretum")
     set(CPACK_WIX_UPGRADE_GUID "C335D757-A9D6-4CEA-AFBE-AE7AE97B981E")
 elseif(LINUX)
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6, libgl1-mesa-glx, libx11-6, libxcursor1")
-    set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "https://github.com/Vavassor/Arboretum")
+    set(CPACK_DEBIAN_PACKAGE_HOMEPAGE ARBORETUM_URL)
     set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Andrew Dawson <dawso.andrew@gmail.com>")
     set(CPACK_DEBIAN_PACKAGE_SECTION "graphics")
+    set(CPACK_RPM_PACKAGE_LICENSE "GPLv3+")
+    set(CPACK_RPM_PACKAGE_REQUIRES "glibc, mesa-libGL, libX11, libXcursor")
+    set(CPACK_RPM_PACKAGE_URL ARBORETUM_URL)
 endif()
 include(CPack)
