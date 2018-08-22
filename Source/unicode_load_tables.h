@@ -1,3 +1,5 @@
+// Loads the tables for grapheme cluster breaks, line breaks, and word breaks.
+
 #ifndef UNICODE_LOAD_TABLES_H_
 #define UNICODE_LOAD_TABLES_H_
 

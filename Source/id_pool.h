@@ -1,3 +1,9 @@
+// The ID Pool is a data structure meant to be used together with an array of
+// the same size. The ID pool manages which indices of the array are used. Users
+// are expected to use IDs returned by the pool to refer to the array's elements
+// instead of pointers. This allows the array to be resized or reallocated
+// without invalidating their references to the elements.
+
 #ifndef ID_POOL_H_
 #define ID_POOL_H_
 

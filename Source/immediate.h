@@ -1,3 +1,15 @@
+// Immediate Mode Drawing
+//
+// Immediate Mode refers to a descriptive style of interface where visuals are
+// drawn on demand. This is in contrast to Retained Mode, where a model of
+// objects to be drawn is maintained between frames.
+//
+// Immediate mode is convenient in that it frees the user from needing to do
+// up-front setup of objects or manage object lifetimes. But it's generally
+// slower than retained mode. So it should be reserved for convenient debug
+// visualizations or shapes that are being completely regenerated every frame
+// anyhow.
+
 #ifndef IMMEDIATE_H_
 #define IMMEDIATE_H_
 

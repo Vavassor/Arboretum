@@ -1,3 +1,7 @@
+// Windows uses an encoding of UTF-16 as wide-characters for many of its
+// platform functions. Since this app uses UTF-8, it's necessary to transcode to
+// and from UTF-16 in order to interoperate with Windows.
+
 #ifndef WIDE_CHAR_H_
 #define WIDE_CHAR_H_
 

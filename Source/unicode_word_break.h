@@ -1,3 +1,7 @@
+// Word Breaking is finding where in a string the boundaries of words are. It's
+// mainly used for Ctrl+Arrow cursor movement, which moves the cursor by whole
+// words at a time.
+
 #ifndef UNICODE_WORD_BREAK_H_
 #define UNICODE_WORD_BREAK_H_
 

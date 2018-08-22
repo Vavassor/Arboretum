@@ -1,11 +1,11 @@
+// Jan is an editable polygon mesh.
+
 #ifndef JAN_H_
 #define JAN_H_
 
 #include "memory.h"
 #include "vector_math.h"
 #include "vertex_layout.h"
-
-// Editable Polygon Mesh
 
 typedef struct JanBorder JanBorder;
 typedef struct JanEdge JanEdge;

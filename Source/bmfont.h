@@ -1,3 +1,10 @@
+// This file is for loading and using font data from BMFont by AngelCode
+// <http://www.angelcode.com/products/bmfont/>.
+//
+// They consist of pre-made images with glyphs drawn on them. And .fnt text
+// files, which describe which glyph is what part of the image as well as
+// additional information about how it should be put together with other glyphs.
+
 #ifndef BMFONT_H_
 #define BMFONT_H_
 

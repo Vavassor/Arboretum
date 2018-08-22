@@ -1,3 +1,5 @@
+// Bitmap File Format (.bmp)
+
 #ifndef BMP_H_
 #define BMP_H_
 

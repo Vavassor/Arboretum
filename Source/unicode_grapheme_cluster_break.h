@@ -1,3 +1,11 @@
+// Grapheme Cluster Breaking consists of finding where in a string the
+// boundaries between graphemes are. Graphemes can loosely be thought of like
+// letters, or more precisely as the smallest unit of a writing system.
+// Graphemes may be represented by multiple or single codepoints in a cluster.
+//
+// Grapheme cluster breaking is used in cursor movement, text selection, and
+// editing text so that strings aren't broken mid-grapheme.
+
 #ifndef UNICODE_GRAPHEME_CLUSTER_BREAK_H_
 #define UNICODE_GRAPHEME_CLUSTER_BREAK_H_
 

@@ -1,3 +1,8 @@
+// ASCII stands for the American Standard Code for Information Interchange.
+// Generally text is encoded in UTF-8, which ASCII is a subset of. In situations
+// where only the ASCII characters are relevant, it's useful to have procedures
+// for them.
+
 #ifndef ASCII_H_
 #define ASCII_H_
 

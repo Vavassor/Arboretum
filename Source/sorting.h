@@ -130,7 +130,9 @@
 #define REVERSE_ARRAY(type, array, count) \
     do \
     { \
-        for(int start = 0, end = (count) - 1; start < end; start += 1, end -= 1) \
+        for(int start = 0, end = (count) - 1; \
+                start < end; \
+                start += 1, end -= 1) \
             SWAP(type, (array)[start], (array)[end]); \
     } while(0)
 

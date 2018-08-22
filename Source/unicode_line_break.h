@@ -1,3 +1,8 @@
+// Line Breaking consists of finding where in a string it is legal to cut off
+// and start a new line. It's used in word wrapping to divide the text into
+// runs that it can lay out, without cutting between characters that should be
+// written together.
+
 #ifndef UNICODE_LINE_BREAK_H_
 #define UNICODE_LINE_BREAK_H_
 

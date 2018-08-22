@@ -1,10 +1,3 @@
-#ifndef ARRAY2_H_
-#define ARRAY2_H_
-
-#include "memory.h"
-
-#include <stddef.h>
-
 // This type of array is based on stretchy_buffer.h by Sean Barrett:
 // https://github.com/nothings/stb/blob/master/stretchy_buffer.h
 //
@@ -31,6 +24,13 @@
 // is effectively stored before the `array` pointer. Because it's actually
 // pointing to an address part of the way into an allocation, it **should not**
 // be deallocated. Instead use ARRAY_DESTROY.
+
+#ifndef ARRAY2_H_
+#define ARRAY2_H_
+
+#include "memory.h"
+
+#include <stddef.h>
 
 typedef struct ArrayHeader
 {
