@@ -15,8 +15,8 @@
 //    use_the_array_for_something(array);
 //    ARRAY_DESTROY(array, heap);
 //
-// It works by allocating a bit of extra memory to keep the element count
-// and capacity. This *header* is stored first, followed by all of the elements.
+// It works by allocating a bit of extra memory to keep the element count and
+// capacity. This *header* is stored first, followed by all of the elements.
 //
 //     [header][element 0][element 1][element 2][...]
 //
