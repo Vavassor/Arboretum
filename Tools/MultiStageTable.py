@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # Unicode multi-stage table builder
 # (c) Peter Kankowski, 2008
 # Released under the zlib/libpng license (http://www.opensource.org/licenses/zlib-license.php)
@@ -6,6 +8,7 @@
 # other than General Category.
 
 import argparse
+import os.path
 import requests
 
 class TableBuilder:
@@ -57,34 +60,38 @@ class TableBuilder:
         with open(filepath, "wb") as file:
             file.write(bytearray(self.stage2))
     
-    def print_table(self, prop_name):
+    def output_cpp_file(self, output_path, prop_name, mood_print):
         stage1_type, stage1_size = self.__get_type_size(self.stage1)
         stage2_type, stage2_size = self.__get_type_size(self.stage2)
         
-        # Print header
-        total_size = len(self.stage1) * stage1_size + len(self.stage2) * stage2_size
-        print("// {:s} table, {:d} bytes".format(prop_name, total_size))
-        
-        # Print the first stage
-        print("static const {:s} {:s}_stage1[] = {{".format(stage1_type, prop_name))
-        for i, block in enumerate(self.stage1):
-            print("{:2d},".format(block), end="")
-            if i % 16 == 15:
-                print("// U+{:04X}".format((i - 15) * self.block_size))
-        print("}};\n")
-        
-        # Print the second stage
-        print("static const {:s} {:s}_stage2[] = {{".format(stage2_type, prop_name))
-        for i, val in enumerate(self.stage2):
-            if i % self.block_size == 0:
-                print("\n// block {:d}".format(i // self.block_size))
-            print("{:2d},".format(val), end="")
-            if i % 16 == 15:
-                print("")
-        print("}};")
-        
-        # Print access function
-        func = """
+        filename = prop_name + ".cpp"
+        path = os.path.join(output_path, filename)
+        with open(path, "w") as file:
+            total_size = len(self.stage1) * stage1_size \
+                    + len(self.stage2) * stage2_size
+            header = "// {:s} table, {:d} bytes\n".format(prop_name, total_size)
+            file.write(header)
+            
+            file.write("static const {:s} {:s}_stage1[] = {{\n".format(
+                    stage1_type, prop_name))
+            for i, block in enumerate(self.stage1):
+                file.write("{:2d},".format(block))
+                if i % 16 == 15:
+                    block_base = (i - 15) * self.block_size
+                    file.write("// U+{:04X}\n".format(block_base))
+            file.write("}};\n\n")
+            
+            file.write("static const {:s} {:s}_stage2[] = {{\n".format(
+                    stage2_type, prop_name))
+            for i, val in enumerate(self.stage2):
+                if i % self.block_size == 0:
+                    file.write("\n// block {:d}\n".format(i // self.block_size))
+                file.write("{:2d},".format(val))
+                if i % 16 == 15:
+                    file.write("\n")
+            file.write("}};\n")
+            
+            func = """
 {t} get_{p}(uint32_t ch)
 {{
     const uint32_t BLOCK_SIZE = {size};
@@ -93,7 +100,11 @@ class TableBuilder:
     return {p}_stage2[block_offset + ch % BLOCK_SIZE];
 }}
 """
-        print(func.format(t=stage2_type, p=prop_name, size=self.block_size))
+            file.write(func.format(t=stage2_type, p=prop_name,
+                    size=self.block_size))
+
+        abs_output_path = os.path.abspath(output_path)
+        mood_print("Saved {} to {}.".format(filename, abs_output_path))
 
 
 class UnicodeDataExtractor:
@@ -253,74 +264,93 @@ class BreakExtractor:
             self.__add_char(self.default_value)
 
 
-def generate_table(data_url, property_name, extractor_info, output_path, output_cpp):
+def generate_table(data_url, property_name, extractor_info, output_path,
+            output_cpp, mood_print):
     block_size = extractor_info.block_size
     builder = TableBuilder(block_size)
     if property_name is "category":
         extractor = UnicodeDataExtractor(block_size, builder.add_block)
     else:
         extractor = BreakExtractor(builder.add_block, extractor_info)
+    mood_print("Loading {}… ".format(data_url), end="", flush=True)
     response = requests.get(data_url)
-    for line in response.text.splitlines():
+    mood_print("Completed.")
+    lines = response.text.splitlines()
+    for line in lines:
         extractor.add_line(line)
     extractor.finish()
     if output_cpp:
-        builder.print_table(property_name)
+        builder.output_cpp_file(output_path, property_name, mood_print)
     else:
-        builder.output_stage1_binary("{}/{}_stage1.bin".format(output_path, property_name))
-        builder.output_stage2_binary("{}/{}_stage2.bin".format(output_path, property_name))
+        stage1_name = property_name + "_stage1.bin"
+        stage1_path = os.path.join(output_path, stage1_name)
+        stage2_name = property_name + "_stage2.bin"
+        stage2_path = os.path.join(output_path, stage2_name)
+        abs_output_path = os.path.abspath(output_path)
+        builder.output_stage1_binary(stage1_path)
+        mood_print("Saved {} to {}.".format(stage1_name, abs_output_path))
+        builder.output_stage2_binary(stage2_path)
+        mood_print("Saved {} to {}.".format(stage2_name, abs_output_path))
 
 
-def main():
+def parse_arguments():
     description = "Generates two-stage tables for looking up Unicode " \
             "codepoint properties."
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument("output_path", help="where to put the table files")
-    parser.add_argument("--cpp", action='store_true',
-            help="print C++ instead of saving to .bin", dest="cpp")
-    arguments = parser.parse_args()
+    parser.add_argument("--cpp", action="store_true",
+            help="save C++ .cpp files instead of .bin files", dest="cpp")
+    parser.add_argument("-o", "--output", default=".",
+            help="path to put the table files", dest="output")
+    parser.add_argument("-q", "--quiet", action="store_true",
+            help="don't print anything", dest="quiet")
+    return parser.parse_args()
+
     
-    output_path = arguments.output_path
-    output_cpp = arguments.cpp
+arguments = parse_arguments()
+output_path = arguments.output
+output_cpp = arguments.cpp
+quiet = arguments.quiet
 
-    grapheme_cluster_breaks = {
-        "Other":0, "CR":1, "LF":2, "Control":3,
-        "Extend":4, "ZWJ":5, "Regional_Indicator":6, "Prepend":7,
-        "SpacingMark":8, "L":9, "V":10, "T":11, "LV":12, "LVT":13,
-        "E_Base":14, "E_Modifier":15, "Glue_After_Zwj":16,
-        "E_Base_GAZ":17,
-    }
-    default_value = 0 # 'XX' (Grapheme_Cluster_Break=Unknown)
-    extractor_info = ExtractorInfo(grapheme_cluster_breaks, default_value, 256)
-    url = "https://www.unicode.org/Public/10.0.0/ucd/auxiliary/GraphemeBreakProperty.txt"
-    generate_table(url, "grapheme_cluster_break", extractor_info, output_path,
-            output_cpp)
+mood_print = print if not quiet else lambda *a, **k: None
 
-    line_breaks = {
-        "AI":0, "AL":1, "B2":2, "BA":3, "BB":4, "BK":5, "CB":6, "CJ":7,
-        "CL":8, "CM":9, "CP":10, "CR":11, "EB":12, "EM":13, "EX":14,
-        "GL":15, "H2":16, "H3":17, "HL":18, "HY":19, "ID":20, "IN":21,
-        "IS":22, "JL":23, "JT":24, "JV":25, "LF":26, "NL":27, "NS":28,
-        "NU":29, "OP":30, "PO":31, "PR":32, "QU":33, "RI":34, "SA":35,
-        "SG":36, "SP":37, "SY":38, "WJ":39, "XX":40, "ZW":41, "ZWJ":42,
-    }
-    default_value = 40 # 'XX' (Line_Break=Unassigned)
-    extractor_info = ExtractorInfo(line_breaks, default_value, 128)
-    url = "https://www.unicode.org/Public/10.0.0/ucd/LineBreak.txt"
-    generate_table(url, "line_break", extractor_info, output_path, output_cpp)
+grapheme_cluster_breaks = {
+    "Other":0, "CR":1, "LF":2, "Control":3,
+    "Extend":4, "ZWJ":5, "Regional_Indicator":6, "Prepend":7,
+    "SpacingMark":8, "L":9, "V":10, "T":11, "LV":12, "LVT":13,
+    "E_Base":14, "E_Modifier":15, "Glue_After_Zwj":16,
+    "E_Base_GAZ":17,
+}
+default_value = 0 # 'XX' (Grapheme_Cluster_Break=Unknown)
+extractor_info = ExtractorInfo(grapheme_cluster_breaks, default_value, 256)
+url = "https://www.unicode.org/Public/10.0.0/ucd/auxiliary/GraphemeBreakProperty.txt"
+generate_table(url, "grapheme_cluster_break", extractor_info, output_path,
+        output_cpp, mood_print)
 
-    word_breaks = {
-        "Other":0, "CR":1, "LF":2, "Newline":3, "Extend":4, "ZWJ":5,
-        "Regional_Indicator":6, "Format":7, "Katakana":8,
-        "Hebrew_Letter":9, "ALetter":10, "Single_Quote":11,
-        "Double_Quote":12, "MidNumLet":13, "MidLetter":14, "MidNum":15,
-        "Numeric":16, "ExtendNumLet":17, "E_Base":18, "E_Modifier":19,
-        "Glue_After_Zwj":20, "E_Base_GAZ":21,
-    }
-    default_value = 0 # 'XX' (Word_Break=Other)
-    extractor_info = ExtractorInfo(word_breaks, default_value, 256)
-    url = "https://www.unicode.org/Public/10.0.0/ucd/auxiliary/WordBreakProperty.txt"
-    generate_table(url, "word_break", extractor_info, output_path, output_cpp)
+line_breaks = {
+    "AI":0, "AL":1, "B2":2, "BA":3, "BB":4, "BK":5, "CB":6, "CJ":7,
+    "CL":8, "CM":9, "CP":10, "CR":11, "EB":12, "EM":13, "EX":14,
+    "GL":15, "H2":16, "H3":17, "HL":18, "HY":19, "ID":20, "IN":21,
+    "IS":22, "JL":23, "JT":24, "JV":25, "LF":26, "NL":27, "NS":28,
+    "NU":29, "OP":30, "PO":31, "PR":32, "QU":33, "RI":34, "SA":35,
+    "SG":36, "SP":37, "SY":38, "WJ":39, "XX":40, "ZW":41, "ZWJ":42,
+}
+default_value = 40 # 'XX' (Line_Break=Unassigned)
+extractor_info = ExtractorInfo(line_breaks, default_value, 128)
+url = "https://www.unicode.org/Public/10.0.0/ucd/LineBreak.txt"
+generate_table(url, "line_break", extractor_info, output_path, output_cpp,
+        mood_print)
 
-main()
+word_breaks = {
+    "Other":0, "CR":1, "LF":2, "Newline":3, "Extend":4, "ZWJ":5,
+    "Regional_Indicator":6, "Format":7, "Katakana":8,
+    "Hebrew_Letter":9, "ALetter":10, "Single_Quote":11,
+    "Double_Quote":12, "MidNumLet":13, "MidLetter":14, "MidNum":15,
+    "Numeric":16, "ExtendNumLet":17, "E_Base":18, "E_Modifier":19,
+    "Glue_After_Zwj":20, "E_Base_GAZ":21,
+}
+default_value = 0 # 'XX' (Word_Break=Other)
+extractor_info = ExtractorInfo(word_breaks, default_value, 256)
+url = "https://www.unicode.org/Public/10.0.0/ucd/auxiliary/WordBreakProperty.txt"
+generate_table(url, "word_break", extractor_info, output_path, output_cpp,
+        mood_print)
 

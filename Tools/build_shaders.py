@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 # The "xsc" in this file is https://github.com/LukasBanana/XShaderCompiler .
 # It will need to be installed for this script to work correctly.
