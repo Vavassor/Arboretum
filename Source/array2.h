@@ -61,10 +61,10 @@ typedef struct ArrayHeader
     ((array)[array_header_(array)->count - 1])
 
 #define ARRAY_RESIZE_(array, extra, heap) \
-    ((array) = resize_array_heap(array, array_count(array) + (extra), sizeof(*(array)), heap))
+    ((array) = resize_array_heap_(array, array_count(array) + (extra), sizeof(*(array)), heap))
 
 #define ARRAY_RESIZE_STACK_(array, extra, stack) \
-    ((array) = resize_array_stack(array, array_count(array) + (extra), sizeof(*(array)), stack))
+    ((array) = resize_array_stack_(array, array_count(array) + (extra), sizeof(*(array)), stack))
 
 #define ARRAY_FIT_(array, extra, heap) \
     (array_fits_(array, extra) ? 0 : ARRAY_RESIZE_(array, extra, heap))
@@ -80,9 +80,9 @@ typedef struct ArrayHeader
 
 int array_count(void* array);
 int array_cap(void* array);
-void* resize_array_heap(void* array, int count, int element_size, Heap* heap);
-void* resize_array_stack(void* array, int count, int element_size, Stack* stack);
 
+void* resize_array_heap_(void* array, int count, int element_size, Heap* heap);
+void* resize_array_stack_(void* array, int count, int element_size, Stack* stack);
 ArrayHeader* array_header_(void* array);
 bool array_fits_(void* array, int extra);
 

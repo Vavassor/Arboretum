@@ -2,7 +2,7 @@ Arboretum/
 Debug/
 Release/
 Build/
-Documentation/Build/
+Documentation/build/
 .vs/
 .settings/
 .cproject

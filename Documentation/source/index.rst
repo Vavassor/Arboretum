@@ -12,6 +12,8 @@ Contents:
    :maxdepth: 2
 
    intro
+   array2
+   memory
 
 Indices and tables
 ==================

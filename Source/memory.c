@@ -179,6 +179,11 @@ void* stack_reallocate(Stack* stack, void* memory, uint32_t bytes)
     {
         return stack_allocate(stack, bytes);
     }
+    if(bytes == 0)
+    {
+        stack_deallocate(stack, memory);
+        return NULL;
+    }
 
     uint8_t* place = (uint8_t*) memory;
     uint32_t present_bytes = (uint32_t) (stack->top - (place - stack->memory));
