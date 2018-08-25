@@ -13,7 +13,10 @@ Contents:
 
    intro
    array2
+   jan
+   map
    memory
+   vector_math
 
 Indices and tables
 ==================
