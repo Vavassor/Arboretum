@@ -13,10 +13,12 @@ Contents:
 
    intro
    array2
+   invalid_index
    jan
    map
    memory
    vector_math
+   string_utilities
 
 Indices and tables
 ==================
