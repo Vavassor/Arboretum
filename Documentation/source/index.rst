@@ -13,6 +13,7 @@ Contents:
 
    intro
    array2
+   ascii
    invalid_index
    jan
    map

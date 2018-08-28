@@ -16,10 +16,17 @@ typedef enum TestType
     TEST_TYPE_COUNT,
 } TestType;
 
+typedef struct Pair
+{
+    void* key;
+    void* value;
+} Pair;
+
 typedef struct Test
 {
-    TestType type;
     Map map;
+    RandomGenerator generator;
+    TestType type;
 } Test;
 
 static const char* describe_test(TestType type)
@@ -68,12 +75,6 @@ static bool test_get_overflow(Test* test, Heap* heap)
     return got && found == value;
 }
 
-typedef struct Pair
-{
-    void* key;
-    void* value;
-} Pair;
-
 static bool is_key_before(Pair a, Pair b)
 {
     return a.key < b.key;
@@ -88,15 +89,14 @@ static bool test_iterate(Test* test, Heap* heap)
     const int pairs_count = 256;
     Pair insert_pairs[pairs_count];
 
-    RandomGenerator generator = {0};
-    random_seed(&generator, 1635899);
+    random_seed(&test->generator, 1635899);
 
-    for(int i = 0; i < pairs_count; i += 1)
+    for(int pair_index = 0; pair_index < pairs_count; pair_index += 1)
     {
-        void* key = (void*) random_generate(&generator);
-        void* value = (void*) random_generate(&generator);
-        insert_pairs[i].key = key;
-        insert_pairs[i].value = value;
+        void* key = (void*) random_generate(&test->generator);
+        void* value = (void*) random_generate(&test->generator);
+        insert_pairs[pair_index].key = key;
+        insert_pairs[pair_index].value = value;
         map_add(map, key, value, heap);
     }
 
@@ -119,10 +119,12 @@ static bool test_iterate(Test* test, Heap* heap)
 
     int mismatches = 0;
 
-    for(int i = 0; i < pairs_count; i += 1)
+    for(int pair_index = 0; pair_index < pairs_count; pair_index += 1)
     {
-        bool key_matches = insert_pairs[i].key == pairs[i].key;
-        bool value_matches = insert_pairs[i].value == pairs[i].value;
+        Pair insert = insert_pairs[pair_index];
+        Pair found = pairs[pair_index];
+        bool key_matches = insert.key == found.key;
+        bool value_matches = insert.value == found.value;
         mismatches += !(key_matches && value_matches);
     }
 
@@ -214,7 +216,7 @@ static bool run_tests(Heap* heap)
     {
         fprintf(file, "test failed: %d\n", failed);
         int printed = 0;
-        for(int i = 0; i < TEST_TYPE_COUNT; i += 1)
+        for(int test_index = 0; test_index < TEST_TYPE_COUNT; test_index += 1)
         {
             const char* separator = "";
             const char* also = "";
@@ -233,9 +235,9 @@ static bool run_tests(Heap* heap)
                     also = "and ";
                 }
             }
-            if(which_failed[i])
+            if(which_failed[test_index])
             {
-                const char* test = describe_test(tests[i]);
+                const char* test = describe_test(tests[test_index]);
                 fprintf(file, "%s%s%s", separator, also, test);
                 printed += 1;
             }

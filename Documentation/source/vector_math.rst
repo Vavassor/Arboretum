@@ -434,7 +434,7 @@ Matrices
 
     Produce a dilation transform, which scales a vector when applied to it.
 
-    :dilation: the dilation amount along each axis
+    :param dilation: the dilation amount along each axis
     :return: a dilation transform
 
 .. c:function:: Matrix4 matrix4_inverse_view(Matrix4 m)

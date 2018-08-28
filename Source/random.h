@@ -14,5 +14,6 @@ uint64_t random_generate(RandomGenerator* generator);
 int random_int_range(RandomGenerator* generator, int min, int max);
 uint64_t random_seed(RandomGenerator* generator, uint64_t value);
 uint64_t random_seed_by_time(RandomGenerator* generator);
+void shuffle(RandomGenerator* generator, int* numbers, int count);
 
 #endif // RANDOM_H_
