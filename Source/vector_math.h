@@ -81,6 +81,8 @@ Float3 float3_min(Float3 a, Float3 b);
 Float3 float3_perp(Float3 v);
 Float3 float3_project(Float3 a, Float3 b);
 Float3 float3_reject(Float3 a, Float3 b);
+float float3_scalar_triple(Float3 a, Float3 b, Float3 c);
+Float3 float3_vector_triple(Float3 a, Float3 b, Float3 c);
 float float3_angle_between(Float3 a, Float3 b);
 bool float3_exactly_equals(Float3 a, Float3 b);
 bool float3_is_normalised(Float3 v);

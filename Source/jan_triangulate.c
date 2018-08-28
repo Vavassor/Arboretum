@@ -164,7 +164,9 @@ void jan_make_wireframe_selection(JanMesh* mesh, Heap* heap, Float4 colour, JanE
 
 static float signed_double_area(Float2 v0, Float2 v1, Float2 v2)
 {
-    return (v0.x - v2.x) * (v1.y - v2.y) - (v1.x - v2.x) * (v0.y - v2.y);
+    Float2 a = float2_subtract(v0, v2);
+    Float2 b = float2_subtract(v1, v2);
+    return float2_determinant(a, b);
 }
 
 static bool is_clockwise(Float2 v0, Float2 v1, Float2 v2)

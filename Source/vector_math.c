@@ -293,6 +293,19 @@ Float3 float3_reject(Float3 a, Float3 b)
     return float3_subtract(a, float3_project(a, b));
 }
 
+float float3_scalar_triple(Float3 a, Float3 b, Float3 c)
+{
+    return float3_dot(a, float3_cross(b, c));
+}
+
+// This uses Lagrange's Formula: b(a⋅c) - c(a⋅b).
+Float3 float3_vector_triple(Float3 a, Float3 b, Float3 c)
+{
+    Float3 s0 = float3_multiply(float3_dot(a, c), b);
+    Float3 s1 = float3_multiply(float3_dot(a, b), c);
+    return float3_subtract(s0, s1);
+}
+
 float float3_angle_between(Float3 a, Float3 b)
 {
     float l = float3_length(a) * float3_length(b);

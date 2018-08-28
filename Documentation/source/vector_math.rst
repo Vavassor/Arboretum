@@ -109,6 +109,9 @@ Vectors
 
     :math:`\begin{vmatrix} a_0 a_1 \\ b_0 b_1 \end{vmatrix} = a_0 b_1 - a_1 b_0`
 
+    It gives the signed area of a parallelogram defined by the two vectors, or
+    double the signed area of a triangle.
+
     This is equivalent to taking the magnitude of the bivector
     :math:`a \wedge b`, where :math:`\wedge` is the outer product.
 
@@ -341,6 +344,23 @@ Vectors
     :param a: the second vector
     :return: a rejection
 
+.. c:function:: float float3_scalar_triple(Float3 a, Float3 b, Float3 c)
+
+    Produce the scalar triple product. This is :math:`a \cdot (b \times c)`,
+    where :math:`\cdot` is the dot product and :math:`\times` is the cross
+    product.
+
+    It gives the signed volume of a parallelpiped defined by the three vectors,
+    or double the signed volume of a tetrahedron.
+
+    This is equivalent to taking the magnitude of the trivector
+    :math:`a \wedge b \wedge c` where :math:`\wedge` is the outer product.
+
+    :param a: the first vector
+    :param b: the second vector
+    :param c: the third vector
+    :return: a product
+
 .. c:function:: Float3 float3_set_all(float x)
 
     Make a vector where all components are a given number.
@@ -374,6 +394,15 @@ Vectors
     :param b: the subtrahend
     :return: a difference
 
+.. c:function:: Float3 float3_vector_triple(Float3 a, Float3 b, Float3 c)
+
+    Produce a vector triple product. This is :math:`a \times (b \times c)`,
+    where :math:`\times` is the cross product.
+
+    :param a: the first vector
+    :param b: the second vector
+    :param c: the third vector
+    :return: a product
 
 Matrices
 --------
