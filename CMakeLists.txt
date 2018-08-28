@@ -5,12 +5,16 @@ set(Arboretum_VERSION_MINOR 0)
 set(Arboretum_VERSION_PATCH 0)
 set(ARBORETUM_URL "https://github.com/Vavassor/Arboretum")
 
+include(CTest)
+
+
 option(PORTABLE_APP "Put everything in a self-contained directory instead of being installed." ON)
 if(PORTABLE_APP)
     set(ARBORETUM_PORTABLE_APP 1)
 else()
     set(ARBORETUM_PORTABLE_APP 0)
 endif()
+
 
 add_executable(Arboretum WIN32 "")
 
@@ -139,6 +143,12 @@ macro(mirror_files directory_name)
 endmacro()
 
 mirror_files(Assets)
+
+
+if(BUILD_TESTING)
+    add_subdirectory(Test)
+endif()
+
 
 install(
 	TARGETS Arboretum

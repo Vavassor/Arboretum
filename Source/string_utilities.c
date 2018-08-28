@@ -9,6 +9,33 @@
 #include <stdint.h>
 #include <wchar.h>
 
+static bool is_heading_byte(char c)
+{
+    return (c & 0xc0) != 0x80;
+}
+
+int copy_string(char* RESTRICT to, int to_size, const char* RESTRICT from)
+{
+    ASSERT(from);
+    ASSERT(to);
+    int i;
+    for(i = 0; i < to_size - 1; i += 1)
+    {
+        if(from[i] == '\0')
+        {
+            break;
+        }
+        to[i] = from[i];
+    }
+    while(i > 0 && !is_heading_byte(from[i]))
+    {
+        i -= 1;
+    }
+    to[i] = '\0';
+    ASSERT(i < to_size);
+    return i;
+}
+
 int string_size(const char* string)
 {
     ASSERT(string);
@@ -27,24 +54,6 @@ bool strings_match(const char* RESTRICT a, const char* RESTRICT b)
         b += 1;
     }
     return *a == *b;
-}
-
-int copy_string(char* RESTRICT to, int to_size, const char* RESTRICT from)
-{
-    ASSERT(from);
-    ASSERT(to);
-    int i;
-    for(i = 0; i < to_size - 1; i += 1)
-    {
-        if(from[i] == '\0')
-        {
-            break;
-        }
-        to[i] = from[i];
-    }
-    to[i] = '\0';
-    ASSERT(i < to_size);
-    return i;
 }
 
 static bool memory_matches(const void* RESTRICT a, const void* RESTRICT b, int n)

@@ -205,7 +205,10 @@ void map_add(Map* map, void* key, void* value, Heap* heap)
         int overflow_index = map->cap;
         map->keys[overflow_index] = key;
         map->values[overflow_index] = value;
-        map->count += 1;
+        if(map->keys[overflow_index] != key)
+        {
+            map->count += 1;
+        }
         return;
     }
 
@@ -217,10 +220,13 @@ void map_add(Map* map, void* key, void* value, Heap* heap)
 
     uint32_t hash = hash_key((uint64_t) key);
     int slot = find_slot(map->keys, map->cap, key, hash);
+    if(map->keys[slot] != key)
+    {
+        map->count += 1;
+    }
     map->keys[slot] = key;
     map->values[slot] = value;
     map->hashes[slot] = hash;
-    map->count += 1;
 }
 
 void map_add_uint64(Map* map, void* key, uint64_t value, Heap* heap)

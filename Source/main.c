@@ -15,6 +15,7 @@
 
 #include "ascii.h"
 #include "assert.h"
+#include "asset_paths.h"
 #include "editor.h"
 #include "gl_core_3_3.h"
 #include "glx_extensions.h"
@@ -834,7 +835,7 @@ void main_shut_down()
 {
     editor_shut_down(platform.editor, functions_loaded);
     destroy_stack(&platform.base);
-    platform_destroy_heap(&platform.base.heap);
+    platform_destroy_heap(&platform.base);
 
     if(platform.visual_info)
     {

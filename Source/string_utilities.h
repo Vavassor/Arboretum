@@ -7,9 +7,9 @@
 
 #include <stdbool.h>
 
+int copy_string(char* RESTRICT to, int to_size, const char* RESTRICT from);
 int string_size(const char* string);
 bool strings_match(const char* RESTRICT a, const char* RESTRICT b);
-int copy_string(char* RESTRICT to, int to_size, const char* RESTRICT from);
 char* find_string(const char* RESTRICT a, const char* RESTRICT b);
 int find_char(const char* s, char c);
 int find_last_char(const char* s, char c);

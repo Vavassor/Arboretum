@@ -17,9 +17,12 @@ class TableBuilder:
     """
 
     def __init__(self, block_size):
-        self.blocks = {} # Dictionary for finding identical blocks
-        self.stage1 = [] # Stage 1 table contains block numbers (indices into stage 2 table)
-        self.stage2 = [] # Stage 2 table contains the blocks with property values
+        # Dictionary for finding identical blocks
+        self.blocks = {}
+        # Stage 1 table contains block numbers (indices into stage 2 table)
+        self.stage1 = [] 
+        # Stage 2 table contains the blocks with property values
+        self.stage2 = []
         self.block_size = block_size
     
     def add_block(self, block, count = 1):

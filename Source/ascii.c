@@ -1,7 +1,11 @@
 #include "ascii.h"
 
+#include "assert.h"
+
 int ascii_compare_alphabetic(const char* RESTRICT a, const char* RESTRICT b)
 {
+    ASSERT(a);
+    ASSERT(b);
     while(*a && (*a == *b))
     {
         a += 1;
@@ -81,6 +85,7 @@ char ascii_to_lowercase_char(char c)
 
 void ascii_to_uppercase(char* s)
 {
+    ASSERT(s);
     for(int i = 0; s[i]; i += 1)
     {
         s[i] = ascii_to_uppercase_char(s[i]);
