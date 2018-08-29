@@ -258,5 +258,5 @@ int main(int argc, char** argv)
     heap_create(&heap, (uint32_t) capobytes(16));
     bool success = run_tests(&heap);
     heap_destroy(&heap);
-    return (success) ? 0 : -1;
+    return !success;
 }

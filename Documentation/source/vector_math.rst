@@ -105,7 +105,7 @@ Vectors
 .. c:function:: float float2_determinant(Float2 a, Float2 b)
 
     Produce the determinant of a 2x2 matrix where the vectors are
-    its two rows. Using the Leibniz formula, this is:
+    its two rows or columns. Using the Leibniz formula, this is:
 
     :math:`\begin{vmatrix} a_0 a_1 \\ b_0 b_1 \end{vmatrix} = a_0 b_1 - a_1 b_0`
 
@@ -351,10 +351,12 @@ Vectors
     product.
 
     It gives the signed volume of a parallelpiped defined by the three vectors,
-    or double the signed volume of a tetrahedron.
+    or six times the signed volume of a tetrahedron.
 
-    This is equivalent to taking the magnitude of the trivector
-    :math:`a \wedge b \wedge c` where :math:`\wedge` is the outer product.
+    It's the same as the determinant of a 3x3 matrix where the the three vectors
+    are its rows or columns. It's also equivalent to taking the magnitude of the
+    trivector :math:`a \wedge b \wedge c`, where :math:`\wedge` is the outer
+    product.
 
     :param a: the first vector
     :param b: the second vector

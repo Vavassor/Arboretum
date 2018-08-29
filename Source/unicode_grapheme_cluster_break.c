@@ -20,6 +20,8 @@ static uint8_t* grapheme_cluster_break_stage2;
 
 void set_grapheme_cluster_break_tables(uint8_t* stage1, uint8_t* stage2)
 {
+    ASSERT(stage1);
+    ASSERT(stage2);
     grapheme_cluster_break_stage1 = stage1;
     grapheme_cluster_break_stage2 = stage2;
 }

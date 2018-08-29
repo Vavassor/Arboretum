@@ -69,5 +69,6 @@ void destroy_line_break_tables(Heap* heap);
 LineBreak get_line_break(char32_t c);
 int find_next_line_break(const char* text, int start_index, bool* mandatory, Stack* stack);
 int find_next_mandatory_line_break(const char* text, int start_index, Stack* stack);
+LineBreakCategory test_line_break(const char* text, int start_index, Stack* stack);
 
 #endif // UNICODE_LINE_BREAK_H_

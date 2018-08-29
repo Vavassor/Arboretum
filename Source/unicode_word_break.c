@@ -20,6 +20,8 @@ static uint8_t* word_break_stage2;
 
 void set_word_break_tables(uint8_t* stage1, uint8_t* stage2)
 {
+    ASSERT(stage1);
+    ASSERT(stage2);
     word_break_stage1 = stage1;
     word_break_stage2 = stage2;
 }

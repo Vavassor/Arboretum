@@ -19,6 +19,8 @@ static uint8_t* line_break_stage2;
 
 void set_line_break_tables(uint8_t* stage1, uint8_t* stage2)
 {
+    ASSERT(stage1);
+    ASSERT(stage2);
     line_break_stage1 = stage1;
     line_break_stage2 = stage2;
 }
@@ -861,4 +863,30 @@ int find_next_mandatory_line_break(const char* text, int start_index, Stack* sta
         }
     }
     return end;
+}
+
+LineBreakCategory test_line_break(const char* text, int start_index, Stack* stack)
+{
+    const int breaks_cap = 64;
+
+    LineBreakContext context = {0};
+    context.text = text;
+    context.breaks = STACK_ALLOCATE(stack, LineBreak, breaks_cap);
+    context.lowest_in_text = start_index;
+    context.highest_in_text = start_index;
+    context.text_size = string_size(text);
+    context.breaks_cap = breaks_cap;
+    context.head = 0;
+    context.tail = 0;
+
+    for(int i = 0; i < breaks_cap; i += 1)
+    {
+        context.breaks[i] = LINE_BREAK_UNKNOWN;
+    }
+
+    LineBreakCategory category = categorise_line_break(&context, start_index, 0);
+
+    STACK_DEALLOCATE(stack, context.breaks);
+
+    return category;
 }
