@@ -11,6 +11,7 @@ import argparse
 import os.path
 import requests
 
+
 class TableBuilder:
     """Build the table, including compacting the identical blocks and choosing
     the smallest possible item size.

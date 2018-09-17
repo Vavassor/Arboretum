@@ -18,8 +18,8 @@ void debug_readout_float(int channel_index, const char* label, float value)
     if(channel->type != DEBUG_CHANNEL_TYPE_FLOAT)
     {
         channel->type = DEBUG_CHANNEL_TYPE_FLOAT;
-        set_memory(channel->floats, 0, sizeof(float) * DEBUG_CHANNEL_VALUE_CAP);
-        set_memory(channel->label, 0, DEBUG_CHANNEL_LABEL_CAP);
+        zero_memory(channel->floats, sizeof(float) * DEBUG_CHANNEL_VALUE_CAP);
+        zero_memory(channel->label, DEBUG_CHANNEL_LABEL_CAP);
     }
 
     channel->floats[debug_readout.index] = value;

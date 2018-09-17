@@ -348,15 +348,15 @@ static void bridge_hole(FlatLoop* loop, int bridge_index, FlatLoop* hole, Heap* 
     loop->vertices = HEAP_REALLOCATE(heap, loop->vertices, VertexPNC, loop->edges);
 
     int count = original_edges - bridge_index;
-    MOVE_ARRAY(&loop->positions[bridge_index + hole->edges + 2], &loop->positions[bridge_index], count);
-    MOVE_ARRAY(&loop->vertices[bridge_index + hole->edges + 2], &loop->vertices[bridge_index], count);
+    COPY_ARRAY(&loop->positions[bridge_index + hole->edges + 2], &loop->positions[bridge_index], count);
+    COPY_ARRAY(&loop->vertices[bridge_index + hole->edges + 2], &loop->vertices[bridge_index], count);
 
     int to_end = hole->edges - hole->rightmost;
-    MOVE_ARRAY(&loop->positions[bridge_index + 1], &hole->positions[hole->rightmost], to_end);
-    MOVE_ARRAY(&loop->vertices[bridge_index + 1], &hole->vertices[hole->rightmost], to_end);
+    COPY_ARRAY(&loop->positions[bridge_index + 1], &hole->positions[hole->rightmost], to_end);
+    COPY_ARRAY(&loop->vertices[bridge_index + 1], &hole->vertices[hole->rightmost], to_end);
 
-    MOVE_ARRAY(&loop->positions[bridge_index + to_end + 1], hole->positions, hole->rightmost + 1);
-    MOVE_ARRAY(&loop->vertices[bridge_index + to_end + 1], hole->vertices, hole->rightmost + 1);
+    COPY_ARRAY(&loop->positions[bridge_index + to_end + 1], hole->positions, hole->rightmost + 1);
+    COPY_ARRAY(&loop->vertices[bridge_index + to_end + 1], hole->vertices, hole->rightmost + 1);
 
     REVERSE_ARRAY(Float2, &loop->positions[bridge_index + 1], hole->edges + 1);
     REVERSE_ARRAY(VertexPNC, &loop->vertices[bridge_index + 1], hole->edges + 1);

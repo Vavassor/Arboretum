@@ -54,6 +54,7 @@ target_sources(
 	Source/ascii.c
 	Source/assert.c
 	Source/asset_paths.c
+	Source/atr.c
 	Source/bitmap.c
 	Source/bmfont.c
 	Source/bmp.c
@@ -101,6 +102,7 @@ target_sources(
 	Source/unicode_grapheme_cluster_break.c
 	Source/unicode_line_break.c
 	Source/unicode_load_tables.c
+	Source/unicode_trie.c
 	Source/unicode_word_break.c
 	Source/vector_extras.c
 	Source/vector_math.c

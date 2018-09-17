@@ -46,25 +46,7 @@ void virtual_deallocate(void* memory)
 
 #endif // defined(OS_WINDOWS)
 
-void set_memory(void* memory, uint8_t value, uint64_t bytes)
-{
-    for(uint8_t* p = memory; bytes; bytes -= 1, p += 1)
-    {
-        *p = value;
-    }
-}
-
-void copy_memory(void* RESTRICT to, const void* RESTRICT from, uint64_t bytes)
-{
-    const uint8_t* p0 = from;
-    uint8_t* p1 = to;
-    for(; bytes; bytes -= 1, p0 += 1, p1 += 1)
-    {
-        *p1 = *p0;
-    }
-}
-
-void move_memory(void* to, const void* from, uint64_t bytes)
+void copy_memory(void* to, const void* from, uint64_t bytes)
 {
     const uint8_t* p0 = from;
     uint8_t* p1 = to;
@@ -83,6 +65,14 @@ void move_memory(void* to, const void* from, uint64_t bytes)
         {
             *p1 = *p0;
         }
+    }
+}
+
+void zero_memory(void* memory, uint64_t bytes)
+{
+    for(uint8_t* p = memory; bytes; bytes -= 1, p += 1)
+    {
+        *p = 0;
     }
 }
 
@@ -168,7 +158,7 @@ void* stack_allocate(Stack* stack, uint32_t bytes)
     *((uint32_t*) top) = prior_top;
 
     void* result = top + header_size;
-    set_memory(result, 0, bytes);
+    zero_memory(result, bytes);
     ASSERT(is_aligned(result, alignment));
     return result;
 }
@@ -193,7 +183,7 @@ void* stack_reallocate(Stack* stack, void* memory, uint32_t bytes)
         return NULL;
     }
 
-    set_memory(&stack->memory[stack->top], 0, more_bytes);
+    zero_memory(&stack->memory[stack->top], more_bytes);
     stack->top += more_bytes;
 
     return memory;
@@ -298,7 +288,7 @@ void* pool_allocate(Pool* pool)
 void pool_deallocate(Pool* pool, void* memory)
 {
     ASSERT(memory);
-    set_memory(memory, 0, pool->object_size);
+    zero_memory(memory, pool->object_size);
     *((void**) memory) = pool->free_list;
     pool->free_list = ((void**) memory);
     mark_block_status(pool, memory, POOL_BLOCK_STATUS_FREE);
@@ -436,7 +426,7 @@ void* heap_allocate(Heap* heap, uint32_t bytes)
         PREV_BLOCK(cf + blocks) = cf;
     }
 
-    set_memory(&BLOCK_DATA(cf), 0, bytes);
+    zero_memory(&BLOCK_DATA(cf), bytes);
     return &BLOCK_DATA(cf);
 }
 

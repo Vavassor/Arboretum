@@ -86,9 +86,9 @@ void map_destroy(Map* map, Heap* heap)
 void map_clear(Map* map)
 {
     int cap = map->cap;
-    set_memory(map->keys, 0, sizeof(*map->keys) * cap);
-    set_memory(map->values, 0, sizeof(*map->values) * cap);
-    set_memory(map->hashes, 0, sizeof(*map->hashes) * cap);
+    zero_memory(map->keys, sizeof(*map->keys) * cap);
+    zero_memory(map->values, sizeof(*map->values) * cap);
+    zero_memory(map->hashes, sizeof(*map->hashes) * cap);
 
     int overflow_index = cap;
     map->keys[overflow_index] = (void*) overflow_empty;

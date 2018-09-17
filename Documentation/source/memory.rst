@@ -11,11 +11,19 @@ General Memory
 
     :return: the number of bytes in ``count`` capobytes
 
-.. c:function:: void copy_memory(void* RESTRICT to, const void* RESTRICT from, \
-        uint64_t bytes)
+.. c:function:: COPY_ARRAY(to, from, count)
+
+    This is a convenience macro to use :c:func:`copy_memory` on arrays, which
+    allows counting in terms of number of elements rather than bytes.
+
+    :param to: a pointer to elements in an array of the same type as ``from``
+    :param from: a pointer to elements in an array of any type
+    :param count: the number of elements to move
+
+.. c:function:: void copy_memory(void* to, const void* from, uint64_t bytes)
 
     Copy a block of memory from one place to another. The original and new
-    locations for the memory must not overlap one another.
+    locations may overlap one another.
 
     :param to: the destination
     :param from: the memory to copy
@@ -39,25 +47,6 @@ General Memory
 
     :return: the number of bytes in ``count`` megabytes
 
-.. c:function:: void move_memory(void* to, const void* from, uint64_t bytes)
-
-    Copy a block memory from one place to another. Unlike :c:func:`copy_memory`,
-    the original and new locations for the memory are allowed to overlap one
-    another.
-
-    :param to: the destination
-    :param from: the memory to copy
-    :param bytes: the number of bytes to copy
-
-.. c:function:: MOVE_ARRAY(to, from, count)
-
-    This is a convenience macro to use :c:func:`move_memory` on arrays, which
-    allows counting in terms of number of elements rather than bytes.
-
-    :param to: a pointer to elements in an array of the same type as ``from``
-    :param from: a pointer to elements in an array of any type
-    :param count: the number of elements to move
-
 .. c:function:: SAFE_VIRTUAL_DEALLOCATE(memory)
 
     A wrapper around :c:func:`virtual_deallocate` that prevents double-free
@@ -65,14 +54,6 @@ General Memory
 
     :param memory: a pointer previously returned from :c:func:`virtual_allocate`
             or ``NULL``
-
-.. c:function:: void set_memory(void* memory, uint8_t value, uint64_t bytes)
-
-    Set each byte of a block of memory to a value.
-
-    :param memory: the memory to set
-    :param value: the value to set each byte to
-    :param bytes: the number of bytes to set
 
 .. c:function:: uint64_t uptibytes(uint64_t count)
 
@@ -97,6 +78,13 @@ General Memory
     :param memory: a pointer previously returned from :c:func:`virtual_allocate`
 
         This should not be ``NULL`` or another pointer under any circumstance.
+
+.. c:function:: void zero_memory(void* memory, uint64_t bytes)
+
+    Set each byte of a block of memory to zero.
+
+    :param memory: the memory to set
+    :param bytes: the number of bytes to set
 
 
 Heap

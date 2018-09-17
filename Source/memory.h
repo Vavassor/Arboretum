@@ -11,9 +11,8 @@
 
 void* virtual_allocate(uint64_t bytes);
 void virtual_deallocate(void* memory);
-void set_memory(void* memory, uint8_t value, uint64_t bytes);
-void copy_memory(void* RESTRICT to, const void* RESTRICT from, uint64_t bytes);
-void move_memory(void* to, const void* from, uint64_t bytes);
+void copy_memory(void* to, const void* from, uint64_t bytes);
+void zero_memory(void* memory, uint64_t bytes);
 uint64_t kilobytes(uint64_t count);
 uint64_t megabytes(uint64_t count);
 uint64_t ezlabytes(uint64_t count);
@@ -23,8 +22,8 @@ uint64_t uptibytes(uint64_t count);
 #define SAFE_VIRTUAL_DEALLOCATE(memory) \
     if(memory) {virtual_deallocate(memory); (memory) = NULL;}
 
-#define MOVE_ARRAY(to, from, count) \
-    move_memory(to, from, (count) * sizeof(*from))
+#define COPY_ARRAY(to, from, count) \
+    copy_memory(to, from, (count) * sizeof(*from))
 
 // Stack........................................................................
 

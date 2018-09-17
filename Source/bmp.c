@@ -84,7 +84,7 @@ bool bmp_write_file(const char* path, const uint8_t* pixels, int width, int heig
         uint64_t row_size = bytes_per_pixel * width;
         copy_memory(hand, &pixels[bytes_per_pixel * width * i], row_size);
         hand += row_size;
-        set_memory(hand, 0, row_padding);
+        zero_memory(hand, row_padding);
         hand += row_padding;
     }
 

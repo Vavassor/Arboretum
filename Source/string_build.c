@@ -125,7 +125,7 @@ void remove_substring(char* string, int start, int end)
         int after_size = size - end;
         if(after_size > 0)
         {
-            move_memory(&string[start], &string[end], after_size);
+            copy_memory(&string[start], &string[end], after_size);
         }
         int new_end = size - (end - start);
         string[new_end] = '\0';
