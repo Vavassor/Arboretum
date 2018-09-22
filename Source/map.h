@@ -17,13 +17,21 @@ typedef struct Map
     int count;
 } Map;
 
+typedef struct MapResult
+{
+    union
+    {
+        void* value_void;
+        uint64_t value_uint64;
+    };
+    bool found;
+} MapResult;
+
 void map_create(Map* map, int cap, Heap* heap);
 void map_destroy(Map* map, Heap* heap);
 void map_clear(Map* map);
-bool map_get(Map* map, void* key, void** value);
-bool map_get_uint64(Map* map, void* key, uint64_t* value);
-bool map_get_from_uint64(Map* map, uint64_t key, void** value);
-bool map_get_uint64_from_uint64(Map* map, uint64_t key, uint64_t* value);
+MapResult map_get(Map* map, void* key);
+MapResult map_get_from_uint64(Map* map, uint64_t key);
 void map_add(Map* map, void* key, void* value, Heap* heap);
 void map_add_uint64(Map* map, void* key, uint64_t value, Heap* heap);
 void map_add_from_uint64(Map* map, uint64_t key, void* value, Heap* heap);

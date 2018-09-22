@@ -673,15 +673,17 @@ void jan_extrude(JanMesh* mesh, JanSelection* selection, float distance, Heap* h
             {
                 // Add vertices only where they haven't been added already.
                 JanVertex* start = link->vertex;
-                JanVertex* end = link->next->vertex;
-                if(!map_get(&map, start, NULL))
+                MapResult start_result = map_get(&map, start);
+                if(!start_result.found)
                 {
                     Float3 position = float3_add(start->position, extrusion);
                     JanVertex* vertex = jan_add_vertex(mesh, position);
                     jan_add_edge(mesh, start, vertex);
                     map_add(&map, start, vertex, heap);
                 }
-                if(!map_get(&map, end, NULL))
+                JanVertex* end = link->next->vertex;
+                MapResult end_result = map_get(&map, end);
+                if(!end_result.found)
                 {
                     Float3 position = float3_add(end->position, extrusion);
                     JanVertex* vertex = jan_add_vertex(mesh, position);
@@ -693,8 +695,10 @@ void jan_extrude(JanMesh* mesh, JanSelection* selection, float distance, Heap* h
                 JanVertex* vertices[4];
                 vertices[0] = start;
                 vertices[1] = end;
-                map_get(&map, end, (void**) &vertices[2]);
-                map_get(&map, start, (void**) &vertices[3]);
+                MapResult result2 = map_get(&map, end);
+                vertices[2] = (JanVertex*) result2.value_void;
+                MapResult result3 = map_get(&map, start);
+                vertices[3] = (JanVertex*) result3.value_void;
                 JanEdge* edges[4];
                 edges[0] = link->edge;
                 edges[1] = vertices[2]->any_edge;
@@ -718,7 +722,8 @@ void jan_extrude(JanMesh* mesh, JanSelection* selection, float distance, Heap* h
         JanLink* link = face->first_border->first;
         for(int j = 0; j < vertices_count; j += 1)
         {
-            map_get(&map, link->vertex, (void**) &vertices[j]);
+            MapResult result = map_get(&map, link->vertex);
+            vertices[j] = (JanVertex*) result.value_void;
             link = link->next;
         }
         jan_connect_disconnected_vertices_and_add_face(mesh, vertices, vertices_count, stack);

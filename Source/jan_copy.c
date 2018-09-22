@@ -17,8 +17,10 @@ static JanFace* copy_face_and_first_border(JanMesh* copy, JanFace* face, Map* ve
     JanLink* link = first;
     do
     {
-        map_get(vertex_map, link->vertex, (void**) &vertices[i]);
-        map_get(edge_map, link->edge, (void**) &edges[i]);
+        MapResult vertex_result = map_get(vertex_map, link->vertex);
+        MapResult edge_result = map_get(edge_map, link->edge);
+        vertices[i] = (JanVertex*) vertex_result.value_void;
+        edges[i] = (JanEdge*) edge_result.value_void;
         i += 1;
         link = link->next;
     } while(link != first);
@@ -42,8 +44,10 @@ static void copy_border(JanMesh* copy, JanFace* added, JanBorder* border, Map* v
     JanLink* link = first;
     do
     {
-        map_get(vertex_map, link->vertex, (void**) &vertices[i]);
-        map_get(edge_map, link->edge, (void**) &edges[i]);
+        MapResult vertex_result = map_get(vertex_map, link->vertex);
+        MapResult edge_result = map_get(edge_map, link->edge);
+        vertices[i] = (JanVertex*) vertex_result.value_void;
+        edges[i] = (JanEdge*) edge_result.value_void;
         i += 1;
         link = link->next;
     } while(link != first);
@@ -97,9 +101,12 @@ void jan_copy_mesh(JanMesh* copy, JanMesh* original, Heap* heap, Stack* stack)
 
     FOR_EACH_IN_POOL(JanEdge, edge, original->edge_pool)
     {
+        MapResult results[2];
+        results[0] = map_get(&vertex_map, edge->vertices[0]);
+        results[1] = map_get(&vertex_map, edge->vertices[1]);
         JanVertex* vertices[2];
-        map_get(&vertex_map, edge->vertices[0], (void**) &vertices[0]);
-        map_get(&vertex_map, edge->vertices[1], (void**) &vertices[1]);
+        vertices[0] = (JanVertex*) results[0].value_void;
+        vertices[1] = (JanVertex*) results[1].value_void;
         JanEdge* added = jan_add_edge(copy, vertices[0], vertices[1]);
         map_add(&edge_map, edge, added, heap);
     }

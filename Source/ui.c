@@ -1822,11 +1822,10 @@ static int find_beginning_of_line(UiTextBlock* text_block, int start_index)
     start_index = imin(start_index, string_size(text_block->text) - 1);
 
     void* key = (void*) (uintptr_t) start_index;
-    void* value;
-    bool found = map_get(&text_block->glyph_map, key, &value);
-    if(found)
+    MapResult result = map_get(&text_block->glyph_map, key);
+    if(result.found)
     {
-        uintptr_t glyph_index = (uintptr_t) value;
+        uintptr_t glyph_index = (uintptr_t) result.value_void;
         UiGlyph first = text_block->glyphs[glyph_index];
         float first_y = first.baseline_start.y;
         for(uintptr_t i = glyph_index - 1; i >= 0; i -= 1)
@@ -1848,11 +1847,10 @@ static int find_end_of_line(UiTextBlock* text_block, int start_index)
     start_index = imin(start_index, end_of_text - 1);
 
     void* key = (void*) (uintptr_t) start_index;
-    void* value;
-    bool found = map_get(&text_block->glyph_map, key, &value);
-    if(found)
+    MapResult result = map_get(&text_block->glyph_map, key);
+    if(result.found)
     {
-        uintptr_t glyph_index = (uintptr_t) value;
+        uintptr_t glyph_index = (uintptr_t) result.value_void;
         UiGlyph first = text_block->glyphs[glyph_index];
         float first_y = first.baseline_start.y;
         for(uintptr_t i = glyph_index + 1; i < text_block->glyphs_count; i += 1)

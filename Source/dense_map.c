@@ -52,19 +52,17 @@ DenseMapId dense_map_add(DenseMap* map, Heap* heap)
 static int look_up_index(DenseMap* map, DenseMapId id)
 {
     void* key = (void*) (uintptr_t) id;
-    void* value;
-    bool got = map_get(&map->index_map, key, &value);
-    ASSERT(got);
-    return (int) (uintptr_t) value;
+    MapResult result = map_get(&map->index_map, key);
+    ASSERT(result.found);
+    return (int) (uintptr_t) result.value_void;
 }
 
 static DenseMapId look_up_id(DenseMap* map, int index)
 {
     void* key = (void*) (uintptr_t) index;
-    void* value;
-    bool got = map_get(&map->id_map, key, &value);
-    ASSERT(got);
-    return (DenseMapId) (uintptr_t) value;
+    MapResult result = map_get(&map->id_map, key);
+    ASSERT(result.found);
+    return (DenseMapId) (uintptr_t) result.value_void;
 }
 
 VideoObject* dense_map_look_up(DenseMap* map, DenseMapId id)

@@ -110,58 +110,40 @@ static int find_slot(void** keys, int cap, void* key, uint32_t hash)
     return probe;
 }
 
-bool map_get(Map* map, void* key, void** value)
+MapResult map_get(Map* map, void* key)
 {
+    MapResult result = {0};
+
     if(key == empty)
     {
         int overflow_index = map->cap;
         if(map->keys[overflow_index] == overflow_empty)
         {
-            return false;
+            result.found = false;
         }
-        else if(value)
+        else
         {
-            *value = map->values[overflow_index];
-            return true;
+            result.value_void = map->values[overflow_index];
+            result.found = true;
         }
+        return result;
     }
 
     uint32_t hash = hash_key((uint64_t) key);
     int slot = find_slot(map->keys, map->cap, key, hash);
 
     bool got = map->keys[slot] == key;
-    if(got && value)
-    {
-        *value = map->values[slot];
-    }
-    return got;
-}
-
-bool map_get_uint64(Map* map, void* key, uint64_t* value)
-{
-    void* pointer;
-    bool got = map_get(map, key, &pointer);
     if(got)
     {
-        *value = (uint64_t) (uintptr_t) pointer;
+        result.value_void = map->values[slot];
+        result.found = true;
     }
-    return got;
+    return result;
 }
 
-bool map_get_from_uint64(Map* map, uint64_t key, void** value)
+MapResult map_get_from_uint64(Map* map, uint64_t key)
 {
-    return map_get(map, (void*) (uintptr_t) key, value);
-}
-
-bool map_get_uint64_from_uint64(Map* map, uint64_t key, uint64_t* value)
-{
-    void* pointer;
-    bool got = map_get(map, (void*) (uintptr_t) key, &pointer);
-    if(got)
-    {
-        *value = (uint64_t) (uintptr_t) pointer;
-    }
-    return got;
+    return map_get(map, (void*) (uintptr_t) key);
 }
 
 static void map_grow(Map* map, int cap, Heap* heap)
