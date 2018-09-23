@@ -62,7 +62,7 @@ Float2 ui_compute_cursor_position(UiTextBlock* text_block, Float2 dimensions, fl
         MapResult result = map_get(&text_block->glyph_map, key);
         if(result.found)
         {
-            uintptr_t glyph_index = (uintptr_t) result.value_void;
+            uintptr_t glyph_index = (uintptr_t) result.value;
             UiGlyph glyph = text_block->glyphs[glyph_index];
             position = glyph.baseline_start;
         }

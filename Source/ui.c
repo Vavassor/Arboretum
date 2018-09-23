@@ -1825,7 +1825,7 @@ static int find_beginning_of_line(UiTextBlock* text_block, int start_index)
     MapResult result = map_get(&text_block->glyph_map, key);
     if(result.found)
     {
-        uintptr_t glyph_index = (uintptr_t) result.value_void;
+        uintptr_t glyph_index = (uintptr_t) result.value;
         UiGlyph first = text_block->glyphs[glyph_index];
         float first_y = first.baseline_start.y;
         for(uintptr_t i = glyph_index - 1; i >= 0; i -= 1)
@@ -1850,7 +1850,7 @@ static int find_end_of_line(UiTextBlock* text_block, int start_index)
     MapResult result = map_get(&text_block->glyph_map, key);
     if(result.found)
     {
-        uintptr_t glyph_index = (uintptr_t) result.value_void;
+        uintptr_t glyph_index = (uintptr_t) result.value;
         UiGlyph first = text_block->glyphs[glyph_index];
         float first_y = first.baseline_start.y;
         for(uintptr_t i = glyph_index + 1; i < text_block->glyphs_count; i += 1)

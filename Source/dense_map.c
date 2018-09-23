@@ -54,7 +54,7 @@ static int look_up_index(DenseMap* map, DenseMapId id)
     void* key = (void*) (uintptr_t) id;
     MapResult result = map_get(&map->index_map, key);
     ASSERT(result.found);
-    return (int) (uintptr_t) result.value_void;
+    return (int) (uintptr_t) result.value;
 }
 
 static DenseMapId look_up_id(DenseMap* map, int index)
@@ -62,7 +62,7 @@ static DenseMapId look_up_id(DenseMap* map, int index)
     void* key = (void*) (uintptr_t) index;
     MapResult result = map_get(&map->id_map, key);
     ASSERT(result.found);
-    return (DenseMapId) (uintptr_t) result.value_void;
+    return (DenseMapId) (uintptr_t) result.value;
 }
 
 VideoObject* dense_map_look_up(DenseMap* map, DenseMapId id)

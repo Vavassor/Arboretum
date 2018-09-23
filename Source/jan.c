@@ -696,9 +696,9 @@ void jan_extrude(JanMesh* mesh, JanSelection* selection, float distance, Heap* h
                 vertices[0] = start;
                 vertices[1] = end;
                 MapResult result2 = map_get(&map, end);
-                vertices[2] = (JanVertex*) result2.value_void;
+                vertices[2] = (JanVertex*) result2.value;
                 MapResult result3 = map_get(&map, start);
-                vertices[3] = (JanVertex*) result3.value_void;
+                vertices[3] = (JanVertex*) result3.value;
                 JanEdge* edges[4];
                 edges[0] = link->edge;
                 edges[1] = vertices[2]->any_edge;
@@ -723,7 +723,7 @@ void jan_extrude(JanMesh* mesh, JanSelection* selection, float distance, Heap* h
         for(int j = 0; j < vertices_count; j += 1)
         {
             MapResult result = map_get(&map, link->vertex);
-            vertices[j] = (JanVertex*) result.value_void;
+            vertices[j] = (JanVertex*) result.value;
             link = link->next;
         }
         jan_connect_disconnected_vertices_and_add_face(mesh, vertices, vertices_count, stack);

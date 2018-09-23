@@ -494,7 +494,7 @@ bool obj_save_file(const char* path, JanMesh* mesh, Heap* heap)
         do
         {
             MapResult result = map_get(&map, link->vertex);
-            uintptr_t index = (uintptr_t) result.value_void;
+            uintptr_t index = (uintptr_t) result.value;
             char text[22];
             text[0] = ' ';
             int_to_string(text + 1, 21, (int) index);

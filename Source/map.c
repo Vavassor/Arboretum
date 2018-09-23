@@ -123,7 +123,7 @@ MapResult map_get(Map* map, void* key)
         }
         else
         {
-            result.value_void = map->values[overflow_index];
+            result.value = map->values[overflow_index];
             result.found = true;
         }
         return result;
@@ -135,15 +135,37 @@ MapResult map_get(Map* map, void* key)
     bool got = map->keys[slot] == key;
     if(got)
     {
-        result.value_void = map->values[slot];
+        result.value = map->values[slot];
         result.found = true;
     }
     return result;
 }
 
+MapResultUint64 map_get_uint64(Map* map, void* key)
+{
+    MapResult result = map_get(map, key);
+    MapResultUint64 result_uint64 =
+    {
+        .found = result.found,
+        .value = (uint64_t) result.value,
+    };
+    return result_uint64;
+}
+
 MapResult map_get_from_uint64(Map* map, uint64_t key)
 {
     return map_get(map, (void*) (uintptr_t) key);
+}
+
+MapResultUint64 map_get_uint64_from_uint64(Map* map, uint64_t key)
+{
+    MapResult result = map_get(map, (void*) (uintptr_t) key);
+    MapResultUint64 result_uint64 =
+    {
+        .found = result.found,
+        .value = (uint64_t) result.value,
+    };
+    return result_uint64;
 }
 
 static void map_grow(Map* map, int cap, Heap* heap)

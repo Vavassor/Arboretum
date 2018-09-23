@@ -51,7 +51,7 @@ static bool test_get(Test* test, Heap* heap)
     void* value = (void*) 512;
     map_add(map, key, value, heap);
     MapResult result = map_get(map, key);
-    return result.found && result.value_void == value;
+    return result.found && result.value == value;
 }
 
 static bool test_get_missing(Test* test, Heap* heap)
@@ -69,7 +69,7 @@ static bool test_get_overflow(Test* test, Heap* heap)
     void* value = (void*) 612377;
     map_add(map, key, value, heap);
     MapResult result = map_get(map, key);
-    return result.found && result.value_void == value;
+    return result.found && result.value == value;
 }
 
 static bool is_key_before(Pair a, Pair b)

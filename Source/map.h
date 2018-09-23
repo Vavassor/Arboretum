@@ -17,21 +17,31 @@ typedef struct Map
     int count;
 } Map;
 
+typedef struct MapIterator
+{
+    Map* map;
+    int index;
+} MapIterator;
+
 typedef struct MapResult
 {
-    union
-    {
-        void* value_void;
-        uint64_t value_uint64;
-    };
+    void* value;
     bool found;
 } MapResult;
+
+typedef struct MapResultUint64
+{
+    uint64_t value;
+    bool found;
+} MapResultUint64;
 
 void map_create(Map* map, int cap, Heap* heap);
 void map_destroy(Map* map, Heap* heap);
 void map_clear(Map* map);
 MapResult map_get(Map* map, void* key);
+MapResultUint64 map_get_uint64(Map* map, void* key);
 MapResult map_get_from_uint64(Map* map, uint64_t key);
+MapResultUint64 map_get_uint64_from_uint64(Map* map, uint64_t key);
 void map_add(Map* map, void* key, void* value, Heap* heap);
 void map_add_uint64(Map* map, void* key, uint64_t value, Heap* heap);
 void map_add_from_uint64(Map* map, uint64_t key, void* value, Heap* heap);
@@ -39,12 +49,6 @@ void map_add_uint64_from_uint64(Map* map, uint64_t key, uint64_t value, Heap* he
 void map_remove(Map* map, void* key);
 void map_remove_uint64(Map* map, uint64_t key);
 void map_reserve(Map* map, int cap, Heap* heap);
-
-typedef struct MapIterator
-{
-    Map* map;
-    int index;
-} MapIterator;
 
 MapIterator map_iterator_next(MapIterator it);
 MapIterator map_iterator_start(Map* map);
