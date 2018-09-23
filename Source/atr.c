@@ -99,9 +99,8 @@ static bool load_header(Loader* loader)
 {
     FileHeader header = {0};
     uint64_t header_size = sizeof(header);
-    uint64_t bytes_read = 0;
-    bool read = read_file(loader->file, &header, header_size, &bytes_read);
-    if(!read || bytes_read != header_size)
+    ReadFileResult read_result = read_file(loader->file, &header, header_size);
+    if(!read_result.success || read_result.bytes != header_size)
     {
         return false;
     }
@@ -178,9 +177,9 @@ static bool load_chunks(Loader* loader)
     {
         ChunkHeader header = {0};
         uint64_t header_size = sizeof(header);
-        uint64_t bytes_read = 0;
-        bool read = read_file(loader->file, &header, header_size, &bytes_read);
-        if(!read || bytes_read != header_size)
+        ReadFileResult header_read = read_file(loader->file, &header,
+                header_size);
+        if(!header_read.success || header_read.bytes != header_size)
         {
             break;
         }
@@ -190,8 +189,9 @@ static bool load_chunks(Loader* loader)
         uint64_t chunk_size = header.size;
         chunk_data = HEAP_REALLOCATE(loader->heap, chunk_data, uint8_t,
                 chunk_size);
-        read = read_file(loader->file, chunk_data, chunk_size, &bytes_read);
-        if(!read || bytes_read != chunk_size)
+        ReadFileResult chunk_read = read_file(loader->file, chunk_data,
+                chunk_size);
+        if(!chunk_read.success || chunk_read.bytes != chunk_size)
         {
             success = false;
             break;

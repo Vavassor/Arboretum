@@ -137,18 +137,19 @@ bool make_file_permanent(File* file, const char* path)
     return result == 0;
 }
 
-bool read_file(File* file, void* data, uint64_t bytes, uint64_t* bytes_got)
+ReadFileResult read_file(File* file, void* data, uint64_t bytes)
 {
+    ReadFileResult result = {0};
     ssize_t bytes_read = read(file->descriptor, data, bytes);
     if(bytes_read != -1)
     {
-        *bytes_got = bytes_read;
-        return true;
+        result.bytes = bytes_read;
+        result.success = true;
     }
-    return false;
+    return result;
 }
 
-bool read_line(File* file, char** line, uint64_t* bytes, Heap* heap)
+static bool read_line(File* file, char** line, uint64_t* bytes, Heap* heap)
 {
     if(!*line)
     {
@@ -165,9 +166,8 @@ bool read_line(File* file, char** line, uint64_t* bytes, Heap* heap)
     char value;
     do
     {
-        uint64_t bytes_read;
-        bool char_read = read_file(file, &value, 1, &bytes_read);
-        if(!char_read || bytes_read != 1)
+        ReadFileResult char_read = read_file(file, &value, 1);
+        if(!char_read.success || char_read.bytes != 1)
         {
             if(read_index == 0)
             {

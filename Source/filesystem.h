@@ -13,6 +13,12 @@ typedef enum FileOpenMode
 
 typedef struct File File;
 
+typedef struct ReadFileResult
+{
+    uint64_t bytes;
+    bool success;
+} ReadFileResult;
+
 typedef struct WholeFile
 {
     void* contents;
@@ -21,12 +27,13 @@ typedef struct WholeFile
 } WholeFile;
 
 WholeFile load_whole_file(const char* path, Stack* stack);
-bool save_whole_file(const char* path, const void* contents, uint64_t bytes, Stack* stack);
+bool save_whole_file(const char* path, const void* contents, uint64_t bytes,
+        Stack* stack);
 
 File* open_file(const char* path, FileOpenMode open_mode, Heap* heap);
 void close_file(File* file);
 bool make_file_permanent(File* file, const char* path);
-bool read_file(File* file, void* data, uint64_t bytes, uint64_t* bytes_got);
+ReadFileResult read_file(File* file, void* data, uint64_t bytes);
 bool write_file(File* file, const void* data, uint64_t bytes);
 
 void write_to_standard_output(const char* text, bool error);
