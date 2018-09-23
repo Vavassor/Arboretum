@@ -334,20 +334,28 @@ static bool string_to_u64(const char* string, char** after, int base, uint64_t* 
     return true;
 }
 
-bool string_to_int(const char* string, int* value)
+MaybeInt string_to_int(const char* string)
 {
     uint64_t u;
     bool success = string_to_u64(string, NULL, 0, &u);
-    *value = (int) u;
-    return success;
+    MaybeInt result =
+    {
+        .valid = success,
+        .value = (int) u,
+    };
+    return result;
 }
 
-bool string_to_int_extra(const char* string, char** after, int base, int* value)
+MaybeInt string_to_int_extra(const char* string, char** after, int base)
 {
     uint64_t u;
     bool success = string_to_u64(string, after, base, &u);
-    *value = (int) u;
-    return success;
+    MaybeInt result =
+    {
+        .valid = success,
+        .value = (int) u,
+    };
+    return result;
 }
 
 static bool is_decimal_digit(char c)
@@ -355,7 +363,7 @@ static bool is_decimal_digit(char c)
     return c >= '0' && c <= '9';
 }
 
-bool string_to_double(const char* string, double* result)
+MaybeDouble string_to_double(const char* string)
 {
     const char* s = string;
 
@@ -442,16 +450,23 @@ bool string_to_double(const char* string, double* result)
         }
     }
 
-    *result = sign * value;
-    return true;
+    MaybeDouble result =
+    {
+        .value = sign * value,
+        .valid = true,
+    };
+    return result;
 }
 
-bool string_to_float(const char* string, float* value)
+MaybeFloat string_to_float(const char* string)
 {
-    double d;
-    bool success = string_to_double(string, &d);
-    *value = (float) d;
-    return success;
+    MaybeDouble d = string_to_double(string);
+    MaybeFloat result =
+    {
+        .value = (float) d.value,
+        .valid = d.valid,
+    };
+    return result;
 }
 
 // Value To String..............................................................
@@ -747,7 +762,12 @@ static bool parse_digits(FormatContext* context, int* value)
     // Reset the counter.
     context->digits_count = 0;
 
-    return string_to_int(context->digits, value);
+    MaybeInt digits = string_to_int(context->digits);
+    if(digits.valid)
+    {
+        *value = digits.value;
+    }
+    return digits.valid;
 }
 
 static void find_flags(FormatContext* context)

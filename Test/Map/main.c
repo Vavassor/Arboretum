@@ -50,16 +50,16 @@ static bool test_get(Test* test, Heap* heap)
     void* key = (void*) 253;
     void* value = (void*) 512;
     map_add(map, key, value, heap);
-    MapResult result = map_get(map, key);
-    return result.found && result.value == value;
+    MaybePointer result = map_get(map, key);
+    return result.valid && result.value == value;
 }
 
 static bool test_get_missing(Test* test, Heap* heap)
 {
     Map* map = &test->map;
     void* key = (void*) 0x12aa5f;
-    MapResult result = map_get(map, key);
-    return !result.found;
+    MaybePointer result = map_get(map, key);
+    return !result.valid;
 }
 
 static bool test_get_overflow(Test* test, Heap* heap)
@@ -68,8 +68,8 @@ static bool test_get_overflow(Test* test, Heap* heap)
     void* key = (void*) 0;
     void* value = (void*) 612377;
     map_add(map, key, value, heap);
-    MapResult result = map_get(map, key);
-    return result.found && result.value == value;
+    MaybePointer result = map_get(map, key);
+    return result.valid && result.value == value;
 }
 
 static bool is_key_before(Pair a, Pair b)
@@ -134,11 +134,11 @@ static bool test_remove(Test* test, Heap* heap)
     void* key = (void*) 6356;
     void* value = (void*) 711677;
     map_add(map, key, value, heap);
-    MapResult result = map_get(map, key);
-    bool was_in = result.found;
+    MaybePointer result = map_get(map, key);
+    bool was_in = result.valid;
     map_remove(map, key);
     result = map_get(map, key);
-    bool is_in = result.found;
+    bool is_in = result.valid;
     return was_in && !is_in;
 }
 
@@ -148,11 +148,11 @@ static bool test_remove_overflow(Test* test, Heap* heap)
     void* key = (void*) 0;
     void* value = (void*) 6143;
     map_add(map, key, value, heap);
-    MapResult result = map_get(map, key);
-    bool had = result.found;
+    MaybePointer result = map_get(map, key);
+    bool had = result.valid;
     map_remove(map, key);
     result = map_get(map, key);
-    bool got = result.found;
+    bool got = result.valid;
     return had && !got;
 }
 

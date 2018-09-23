@@ -59,8 +59,8 @@ Float2 ui_compute_cursor_position(UiTextBlock* text_block, Float2 dimensions, fl
     {
         void* value;
         void* key = (void*) (uintptr_t) index;
-        MapResult result = map_get(&text_block->glyph_map, key);
-        if(result.found)
+        MaybePointer result = map_get(&text_block->glyph_map, key);
+        if(result.valid)
         {
             uintptr_t glyph_index = (uintptr_t) result.value;
             UiGlyph glyph = text_block->glyphs[glyph_index];

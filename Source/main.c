@@ -88,11 +88,10 @@ static double get_dots_per_millimeter(PlatformX11* platform)
         {
             if(value.addr)
             {
-                double dots_per_inch;
-                bool success = string_to_double(value.addr, &dots_per_inch);
-                if(success)
+                MaybeDouble dots_per_inch = string_to_double(value.addr);
+                if(dots_per_inch.valid)
                 {
-                    dots_per_millimeter = dots_per_inch / 25.4;
+                    dots_per_millimeter = dots_per_inch.value / 25.4;
                 }
             }
         }

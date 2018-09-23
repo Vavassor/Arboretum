@@ -110,21 +110,21 @@ static int find_slot(void** keys, int cap, void* key, uint32_t hash)
     return probe;
 }
 
-MapResult map_get(Map* map, void* key)
+MaybePointer map_get(Map* map, void* key)
 {
-    MapResult result = {0};
+    MaybePointer result = {0};
 
     if(key == empty)
     {
         int overflow_index = map->cap;
         if(map->keys[overflow_index] == overflow_empty)
         {
-            result.found = false;
+            result.valid = false;
         }
         else
         {
             result.value = map->values[overflow_index];
-            result.found = true;
+            result.valid = true;
         }
         return result;
     }
@@ -136,33 +136,33 @@ MapResult map_get(Map* map, void* key)
     if(got)
     {
         result.value = map->values[slot];
-        result.found = true;
+        result.valid = true;
     }
     return result;
 }
 
-MapResultUint64 map_get_uint64(Map* map, void* key)
+MaybeUint64 map_get_uint64(Map* map, void* key)
 {
-    MapResult result = map_get(map, key);
-    MapResultUint64 result_uint64 =
+    MaybePointer result = map_get(map, key);
+    MaybeUint64 result_uint64 =
     {
-        .found = result.found,
+        .valid = result.valid,
         .value = (uint64_t) result.value,
     };
     return result_uint64;
 }
 
-MapResult map_get_from_uint64(Map* map, uint64_t key)
+MaybePointer map_get_from_uint64(Map* map, uint64_t key)
 {
     return map_get(map, (void*) (uintptr_t) key);
 }
 
-MapResultUint64 map_get_uint64_from_uint64(Map* map, uint64_t key)
+MaybeUint64 map_get_uint64_from_uint64(Map* map, uint64_t key)
 {
-    MapResult result = map_get(map, (void*) (uintptr_t) key);
-    MapResultUint64 result_uint64 =
+    MaybePointer result = map_get(map, (void*) (uintptr_t) key);
+    MaybeUint64 result_uint64 =
     {
-        .found = result.found,
+        .valid = result.valid,
         .value = (uint64_t) result.value,
     };
     return result_uint64;

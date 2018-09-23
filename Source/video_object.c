@@ -108,68 +108,75 @@ static void object_update_lines(VideoObject* object, Backend* backend, Log* logg
 
 void video_object_update_mesh(VideoObject* object, JanMesh* mesh, Backend* backend, Log* logger, Heap* heap)
 {
-    VertexPNC* vertices;
-    uint16_t* indices;
-    jan_triangulate(mesh, heap, &vertices, &indices);
+    Triangulation triangulation = jan_triangulate(mesh, heap);
 
-    object_finish_update(object, backend, logger, heap, vertices, indices);
+    object_finish_update(object, backend, logger, heap, triangulation.vertices,
+            triangulation.indices);
 }
 
 void video_object_update_selection(VideoObject* object, JanMesh* mesh, JanSelection* selection, Backend* backend, Log* logger, Heap* heap)
 {
-    VertexPNC* vertices;
-    uint16_t* indices;
-    jan_triangulate_selection(mesh, selection, heap, &vertices, &indices);
+    Triangulation triangulation = jan_triangulate_selection(mesh, selection,
+            heap);
 
-    object_finish_update(object, backend, logger, heap, vertices, indices);
+    object_finish_update(object, backend, logger, heap, triangulation.vertices,
+            triangulation.indices);
 }
 
 void video_object_update_wireframe(VideoObject* object, JanMesh* mesh, Backend* backend, Log* logger, Heap* heap)
 {
-    const Float4 colour = (Float4){{1.0f, 0.5f, 0.0f, 1.0f}};
+    WireframeSpec spec =
+    {
+        .colour = (Float4){{1.0f, 0.5f, 0.0f, 1.0f}},
+    };
+    Wireframe wireframe = jan_make_wireframe(mesh, heap, &spec);
 
-    LineVertex* vertices;
-    uint16_t* indices;
-    jan_make_wireframe(mesh, heap, colour, &vertices, &indices);
-
-    object_update_lines(object, backend, logger, heap, vertices, indices);
+    object_update_lines(object, backend, logger, heap, wireframe.vertices,
+            wireframe.indices);
 }
 
 void video_object_update_wireframe_selection(VideoObject* object, JanMesh* mesh, JanSelection* selection, JanEdge* hovered, Backend* backend, Log* logger, Heap* heap)
 {
-    const Float4 colour = (Float4){{1.0f, 1.0f, 1.0f, 1.0f}};
-    const Float4 hover_colour = (Float4){{0.0f, 1.0f, 1.0f, 1.0f}};
-    const Float4 select_colour = (Float4){{1.0f, 0.5f, 0.0f, 0.8f}};
+    WireframeSpec spec =
+    {
+        .colour = (Float4){{1.0f, 1.0f, 1.0f, 1.0f}},
+        .hover_colour = (Float4){{0.0f, 1.0f, 1.0f, 1.0f}},
+        .select_colour = (Float4){{1.0f, 0.5f, 0.0f, 0.8f}},
+        .selection = selection,
+        .hovered = hovered,
+    };
+    Wireframe wireframe = jan_make_wireframe(mesh, heap, &spec);
 
-    LineVertex* vertices;
-    uint16_t* indices;
-    jan_make_wireframe_selection(mesh, heap, colour, hovered, hover_colour, selection, select_colour, &vertices, &indices);
-
-    object_update_lines(object, backend, logger, heap, vertices, indices);
+    object_update_lines(object, backend, logger, heap, wireframe.vertices,
+            wireframe.indices);
 }
 
 void video_object_update_pointcloud(VideoObject* object, JanMesh* mesh, Backend* backend, Log* logger, Heap* heap)
 {
-    const Float4 colour = (Float4){{1.0f, 0.5f, 0.0f, 1.0f}};
+    PointcloudSpec spec =
+    {
+        .colour = (Float4){{1.0f, 0.5f, 0.0f, 1.0f}},
+    };
+    Pointcloud pointcloud = jan_make_pointcloud(mesh, heap, &spec);
 
-    PointVertex* vertices;
-    uint16_t* indices;
-    jan_make_pointcloud(mesh, heap, colour, &vertices, &indices);
-
-    object_update_points(object, backend, logger, heap, vertices, indices);
+    object_update_points(object, backend, logger, heap, pointcloud.vertices,
+            pointcloud.indices);
 }
 
 void video_object_update_pointcloud_selection(VideoObject* object, JanMesh* mesh, JanSelection* selection, JanVertex* hovered, Backend* backend, Log* logger, Heap* heap)
 {
-    const Float4 colour = (Float4){{1.0f, 1.0f, 1.0f, 1.0f}};
-    const Float4 hover_colour = (Float4){{0.0f, 1.0f, 1.0f, 1.0f}};
-    const Float4 select_colour = (Float4){{1.0f, 0.5f, 0.0f, 1.0f}};
+    PointcloudSpec spec =
+    {
+        .colour = (Float4){{1.0f, 1.0f, 1.0f, 1.0f}},
+        .hover_colour = (Float4){{0.0f, 1.0f, 1.0f, 1.0f}},
+        .select_colour = (Float4){{1.0f, 0.5f, 0.0f, 1.0f}},
+        .hovered = hovered,
+        .selection = selection,
+    };
+    Pointcloud pointcloud = jan_make_pointcloud(mesh, heap, &spec);
 
-    PointVertex* vertices;
-    uint16_t* indices;
-    jan_make_pointcloud_selection(mesh, colour, hovered, hover_colour, selection, select_colour, heap, &vertices, &indices);
-
-    object_update_points(object, backend, logger, heap, vertices, indices);
+    object_update_points(object, backend, logger, heap, pointcloud.vertices,
+            pointcloud.indices);
 }
 
 void video_object_set_matrices(VideoObject* object, Matrix4 view, Matrix4 projection)

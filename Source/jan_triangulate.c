@@ -9,10 +9,11 @@
 #include "math_basics.h"
 #include "sorting.h"
 
-static void add_to_pointcloud(JanVertex* vertex, Float4 colour, Heap* heap, PointVertex** out_vertices, uint16_t** out_indices)
+static void add_to_pointcloud(JanVertex* vertex, Float4 colour, Heap* heap,
+        Pointcloud* pointcloud)
 {
-    PointVertex* vertices = *out_vertices;
-    uint16_t* indices = *out_indices;
+    PointVertex* vertices = pointcloud->vertices;
+    uint16_t* indices = pointcloud->indices;
 
     const uint32_t texcoords[4] =
     {
@@ -46,47 +47,50 @@ static void add_to_pointcloud(JanVertex* vertex, Float4 colour, Heap* heap, Poin
     ARRAY_ADD(indices, base_index + 2, heap);
     ARRAY_ADD(indices, base_index + 3, heap);
 
-    *out_vertices = vertices;
-    *out_indices = indices;
+    pointcloud->vertices = vertices;
+    pointcloud->indices = indices;
 }
 
-void jan_make_pointcloud(JanMesh* mesh, Heap* heap, Float4 colour, PointVertex** vertices, uint16_t** indices)
+Pointcloud jan_make_pointcloud(JanMesh* mesh, Heap* heap, PointcloudSpec* spec)
 {
-    *vertices = NULL;
-    *indices = NULL;
+    Pointcloud pointcloud = {0};
 
-    FOR_EACH_IN_POOL(JanVertex, vertex, mesh->vertex_pool)
+    if(spec->selection)
     {
-        add_to_pointcloud(vertex, colour, heap, vertices, indices);
-    }
-}
-
-void jan_make_pointcloud_selection(JanMesh* mesh, Float4 colour, JanVertex* hovered, Float4 hover_colour, JanSelection* selection, Float4 select_colour, Heap* heap, PointVertex** vertices, uint16_t** indices)
-{
-    *vertices = NULL;
-    *indices = NULL;
-
-    FOR_EACH_IN_POOL(JanVertex, vertex, mesh->vertex_pool)
-    {
-        if(vertex == hovered)
+        FOR_EACH_IN_POOL(JanVertex, vertex, mesh->vertex_pool)
         {
-            add_to_pointcloud(vertex, hover_colour, heap, vertices, indices);
-        }
-        else if(jan_vertex_selected(selection, vertex))
-        {
-            add_to_pointcloud(vertex, select_colour, heap, vertices, indices);
-        }
-        else
-        {
-            add_to_pointcloud(vertex, colour, heap, vertices, indices);
+            if(vertex == spec->hovered)
+            {
+                add_to_pointcloud(vertex, spec->hover_colour, heap,
+                        &pointcloud);
+            }
+            else if(jan_vertex_selected(spec->selection, vertex))
+            {
+                add_to_pointcloud(vertex, spec->select_colour, heap,
+                        &pointcloud);
+            }
+            else
+            {
+                add_to_pointcloud(vertex, spec->colour, heap, &pointcloud);
+            }
         }
     }
+    else
+    {
+        FOR_EACH_IN_POOL(JanVertex, vertex, mesh->vertex_pool)
+        {
+            add_to_pointcloud(vertex, spec->colour, heap, &pointcloud);
+        }
+    }
+
+    return pointcloud;
 }
 
-static void add_edge_to_wireframe(JanEdge* edge, Float4 colour, Heap* heap, LineVertex** out_vertices, uint16_t** out_indices)
+static void add_edge_to_wireframe(JanEdge* edge, Float4 colour, Heap* heap,
+        Wireframe* wireframe)
 {
-    LineVertex* vertices = *out_vertices;
-    uint16_t* indices = *out_indices;
+    LineVertex* vertices = wireframe->vertices;
+    uint16_t* indices = wireframe->indices;
 
     const uint32_t texcoords[4] =
     {
@@ -125,41 +129,43 @@ static void add_edge_to_wireframe(JanEdge* edge, Float4 colour, Heap* heap, Line
     ARRAY_ADD(indices, base + 2, heap);
     ARRAY_ADD(indices, base + 3, heap);
 
-    *out_vertices = vertices;
-    *out_indices = indices;
+    wireframe->vertices = vertices;
+    wireframe->indices = indices;
 }
 
-void jan_make_wireframe(JanMesh* mesh, Heap* heap, Float4 colour, LineVertex** vertices, uint16_t** indices)
+Wireframe jan_make_wireframe(JanMesh* mesh, Heap* heap, WireframeSpec* spec)
 {
-    *vertices = NULL;
-    *indices = NULL;
+    Wireframe wireframe = {0};
 
-    FOR_EACH_IN_POOL(JanEdge, edge, mesh->edge_pool)
+    if(spec->selection)
     {
-        add_edge_to_wireframe(edge, colour, heap, vertices, indices);
-    }
-}
-
-void jan_make_wireframe_selection(JanMesh* mesh, Heap* heap, Float4 colour, JanEdge* hovered, Float4 hover_colour, JanSelection* selection, Float4 select_colour, LineVertex** vertices, uint16_t** indices)
-{
-    *vertices = NULL;
-    *indices = NULL;
-
-    FOR_EACH_IN_POOL(JanEdge, edge, mesh->edge_pool)
-    {
-        if(edge == hovered)
+        FOR_EACH_IN_POOL(JanEdge, edge, mesh->edge_pool)
         {
-            add_edge_to_wireframe(edge, hover_colour, heap, vertices, indices);
-        }
-        else if(jan_edge_selected(selection, edge))
-        {
-            add_edge_to_wireframe(edge, select_colour, heap, vertices, indices);
-        }
-        else
-        {
-            add_edge_to_wireframe(edge, colour, heap, vertices, indices);
+            if(edge == spec->hovered)
+            {
+                add_edge_to_wireframe(edge, spec->hover_colour, heap,
+                        &wireframe);
+            }
+            else if(jan_edge_selected(spec->selection, edge))
+            {
+                add_edge_to_wireframe(edge, spec->select_colour, heap,
+                        &wireframe);
+            }
+            else
+            {
+                add_edge_to_wireframe(edge, spec->colour, heap, &wireframe);
+            }
         }
     }
+    else
+    {
+        FOR_EACH_IN_POOL(JanEdge, edge, mesh->edge_pool)
+        {
+            add_edge_to_wireframe(edge, spec->colour, heap, &wireframe);
+        }
+    }
+
+    return wireframe;
 }
 
 static float signed_double_area(Float2 v0, Float2 v1, Float2 v2)
@@ -454,10 +460,11 @@ static bool is_triangle_vertex(Float2 v0, Float2 v1, Float2 v2, Float2 point)
             || float2_exactly_equals(v2, point);
 }
 
-static void triangulate_face(JanFace* face, Heap* heap, VertexPNC** vertices_array, uint16_t** indices_array)
+static void triangulate_face(JanFace* face, Heap* heap,
+        Triangulation* triangulation)
 {
-    VertexPNC* vertices = *vertices_array;
-    uint16_t* indices = *indices_array;
+    VertexPNC* vertices = triangulation->vertices;
+    uint16_t* indices = triangulation->indices;
 
     FlatLoop loop;
     if(face->borders_count > 1)
@@ -483,8 +490,8 @@ static void triangulate_face(JanFace* face, Heap* heap, VertexPNC** vertices_arr
                 ARRAY_ADD(indices, index, heap);
                 link = link->next;
             }
-            *vertices_array = vertices;
-            *indices_array = indices;
+            triangulation->vertices = vertices;
+            triangulation->indices = indices;
             return;
         }
 
@@ -599,30 +606,33 @@ static void triangulate_face(JanFace* face, Heap* heap, VertexPNC** vertices_arr
     HEAP_DEALLOCATE(heap, l);
     HEAP_DEALLOCATE(heap, r);
 
-    *vertices_array = vertices;
-    *indices_array = indices;
+    triangulation->vertices = vertices;
+    triangulation->indices = indices;
 }
 
-void jan_triangulate(JanMesh* mesh, Heap* heap, VertexPNC** vertices, uint16_t** indices)
+Triangulation jan_triangulate(JanMesh* mesh, Heap* heap)
 {
-    *vertices = NULL;
-    *indices = NULL;
+    Triangulation triangulation = {0};
 
     FOR_EACH_IN_POOL(JanFace, face, mesh->face_pool)
     {
-        triangulate_face(face, heap, vertices, indices);
+        triangulate_face(face, heap, &triangulation);
     }
+
+    return triangulation;
 }
 
-void jan_triangulate_selection(JanMesh* mesh, JanSelection* selection, Heap* heap, VertexPNC** vertices, uint16_t** indices)
+Triangulation jan_triangulate_selection(JanMesh* mesh, JanSelection* selection,
+        Heap* heap)
 {
     ASSERT(selection->type == JAN_SELECTION_TYPE_FACE);
 
-    *vertices = NULL;
-    *indices = NULL;
+    Triangulation triangulation = {0};
 
     FOR_ALL(JanPart, selection->parts)
     {
-        triangulate_face(it->face, heap, vertices, indices);
+        triangulate_face(it->face, heap, &triangulation);
     }
+
+    return triangulation;
 }

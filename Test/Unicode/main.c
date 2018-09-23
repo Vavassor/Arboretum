@@ -294,15 +294,14 @@ static bool run_test(TestType test_type, const char* path, Stack* stack)
 
             if(i & 1)
             {
-                int value;
-                bool parsed = string_to_int_extra(token, NULL, 16, &value);
-                if(!parsed)
+                MaybeInt codepoint = string_to_int_extra(token, NULL, 16);
+                if(!codepoint.valid)
                 {
                     printf("failure at token: %s\n", token);
                 }
                 else
                 {
-                    char32_t code = value;
+                    char32_t code = codepoint.value;
                     text_filled += utf32_to_utf8(&text[text_filled], code);
                 }
             }

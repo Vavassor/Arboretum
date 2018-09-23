@@ -18,6 +18,7 @@ Contents:
    invalid_index
    jan
    map
+   maybe_types
    memory
    vector_math
    string_utilities

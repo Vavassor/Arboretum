@@ -673,8 +673,8 @@ void jan_extrude(JanMesh* mesh, JanSelection* selection, float distance, Heap* h
             {
                 // Add vertices only where they haven't been added already.
                 JanVertex* start = link->vertex;
-                MapResult start_result = map_get(&map, start);
-                if(!start_result.found)
+                MaybePointer start_result = map_get(&map, start);
+                if(!start_result.valid)
                 {
                     Float3 position = float3_add(start->position, extrusion);
                     JanVertex* vertex = jan_add_vertex(mesh, position);
@@ -682,8 +682,8 @@ void jan_extrude(JanMesh* mesh, JanSelection* selection, float distance, Heap* h
                     map_add(&map, start, vertex, heap);
                 }
                 JanVertex* end = link->next->vertex;
-                MapResult end_result = map_get(&map, end);
-                if(!end_result.found)
+                MaybePointer end_result = map_get(&map, end);
+                if(!end_result.valid)
                 {
                     Float3 position = float3_add(end->position, extrusion);
                     JanVertex* vertex = jan_add_vertex(mesh, position);
@@ -695,9 +695,9 @@ void jan_extrude(JanMesh* mesh, JanSelection* selection, float distance, Heap* h
                 JanVertex* vertices[4];
                 vertices[0] = start;
                 vertices[1] = end;
-                MapResult result2 = map_get(&map, end);
+                MaybePointer result2 = map_get(&map, end);
                 vertices[2] = (JanVertex*) result2.value;
-                MapResult result3 = map_get(&map, start);
+                MaybePointer result3 = map_get(&map, start);
                 vertices[3] = (JanVertex*) result3.value;
                 JanEdge* edges[4];
                 edges[0] = link->edge;
@@ -722,7 +722,7 @@ void jan_extrude(JanMesh* mesh, JanSelection* selection, float distance, Heap* h
         JanLink* link = face->first_border->first;
         for(int j = 0; j < vertices_count; j += 1)
         {
-            MapResult result = map_get(&map, link->vertex);
+            MaybePointer result = map_get(&map, link->vertex);
             vertices[j] = (JanVertex*) result.value;
             link = link->next;
         }

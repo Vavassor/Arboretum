@@ -7,12 +7,6 @@ Map
     pairs. It uses open addressing and linear probing for its collision
     resolution.
 
-.. c:type:: MapResult
-        MapResultUint64
-
-    This is an optional type to return a value and whether it was found in the
-    map.
-
 .. c:function:: void map_add(Map* map, void* key, void* value, Heap* heap)
         void map_add_uint64(Map* map, void* key, uint64_t value, Heap* heap)
         void map_add_from_uint64(Map* map, uint64_t key, void* value, \
@@ -51,16 +45,16 @@ Map
     :param map: the map, or ``NULL``
     :param heap: the heap that the map was created using
 
-.. c:function:: MapResult map_get(Map* map, void* key)
-        MapResultUint64 map_get_uint64(Map* map, void* key)
-        MapResult map_get_from_uint64(Map* map, uint64_t key)
-        MapResultUint64 map_get_uint64_from_uint64(Map* map, uint64_t key)
+.. c:function:: MaybePointer map_get(Map* map, void* key)
+        MaybeUint64 map_get_uint64(Map* map, void* key)
+        MaybePointer map_get_from_uint64(Map* map, uint64_t key)
+        MaybeUint64 map_get_uint64_from_uint64(Map* map, uint64_t key)
 
     Get the value mapped to the given key.
 
     :param map: the map
     :param key: the key
-    :return: a result
+    :return: a value
 
 .. c:function:: void map_remove(Map* map, void* key)
         void map_remove_uint64(Map* map, uint64_t key)

@@ -2,6 +2,7 @@
 #define STRING_UTILITES_H_
 
 #include "invalid_index.h"
+#include "maybe_types.h"
 #include "restrict.h"
 #include "variable_arguments.h"
 
@@ -21,10 +22,10 @@ int count_substring_occurrences(const char* string, const char* pattern);
 bool only_control_characters(const char* string);
 void replace_chars(char* s, char original, char replacement);
 
-bool string_to_int(const char* string, int* value);
-bool string_to_int_extra(const char* string, char** after, int base, int* value);
-bool string_to_float(const char* string, float* value);
-bool string_to_double(const char* string, double* value);
+MaybeInt string_to_int(const char* string);
+MaybeInt string_to_int_extra(const char* string, char** after, int base);
+MaybeFloat string_to_float(const char* string);
+MaybeDouble string_to_double(const char* string);
 
 const char* bool_to_string(bool b);
 int int_to_string(char* string, int size, int value);

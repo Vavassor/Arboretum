@@ -164,14 +164,19 @@ bool obj_load_file(const char* path, JanMesh* result, Heap* heap, Stack* stack)
             char* w = next_token(&stream, stack);
 
             Float4 position;
-            bool success_x = string_to_float(x, &position.x);
-            bool success_y = string_to_float(y, &position.y);
-            bool success_z = string_to_float(z, &position.z);
+            MaybeFloat maybe_x = string_to_float(x);
+            MaybeFloat maybe_y = string_to_float(y);
+            MaybeFloat maybe_z = string_to_float(z);
+            position.x = maybe_x.value;
+            position.y = maybe_y.value;
+            position.z = maybe_z.value;
             position.w = 1.0f;
             bool success_w = true;
             if(w)
             {
-                success_w = string_to_float(w, &position.w);
+                MaybeFloat maybe_w = string_to_float(w);
+                success_w = maybe_w.valid;
+                position.w = maybe_w.value;
             }
 
             if(w)
@@ -182,7 +187,7 @@ bool obj_load_file(const char* path, JanMesh* result, Heap* heap, Stack* stack)
             STACK_DEALLOCATE(stack, y);
             STACK_DEALLOCATE(stack, x);
 
-            if(!success_x || !success_y || !success_z || !success_w)
+            if(!maybe_x.valid || !maybe_y.valid || !maybe_z.valid || !success_w)
             {
                 error_occurred = true;
             }
@@ -198,15 +203,18 @@ bool obj_load_file(const char* path, JanMesh* result, Heap* heap, Stack* stack)
             char* z = next_token(&stream, stack);
 
             Float3 normal;
-            bool success_x = string_to_float(x, &normal.x);
-            bool success_y = string_to_float(y, &normal.y);
-            bool success_z = string_to_float(z, &normal.z);
+            MaybeFloat maybe_x = string_to_float(x);
+            MaybeFloat maybe_y = string_to_float(y);
+            MaybeFloat maybe_z = string_to_float(z);
+            normal.x = maybe_x.value;
+            normal.y = maybe_y.value;
+            normal.z = maybe_z.value;
 
             STACK_DEALLOCATE(stack, z);
             STACK_DEALLOCATE(stack, y);
             STACK_DEALLOCATE(stack, x);
 
-            if(!success_x || !success_y || !success_z)
+            if(!maybe_x.valid || !maybe_y.valid || !maybe_z.valid)
             {
                 error_occurred = true;
             }
@@ -222,18 +230,24 @@ bool obj_load_file(const char* path, JanMesh* result, Heap* heap, Stack* stack)
             char* z = next_token(&stream, stack);
 
             Float3 texcoord;
-            bool success_x = string_to_float(x, &texcoord.x);
+            MaybeFloat maybe_x = string_to_float(x);
+            texcoord.x = maybe_x.value;
             texcoord.y = 0.0f;
             texcoord.z = 0.0f;
+            bool success_x = maybe_x.valid;
             bool success_y = true;
             bool success_z = true;
             if(y)
             {
-                success_y = string_to_float(y, &texcoord.y);
+                MaybeFloat maybe_y = string_to_float(y);
+                texcoord.y = maybe_y.value;
+                success_y = maybe_y.valid;
             }
             if(z)
             {
-                success_z = string_to_float(z, &texcoord.z);
+                MaybeFloat maybe_z = string_to_float(z);
+                texcoord.z = maybe_z.value;
+                success_z = maybe_z.valid;
             }
 
             if(z)
@@ -270,7 +284,8 @@ bool obj_load_file(const char* path, JanMesh* result, Heap* heap, Stack* stack)
                 char* normal_index = next_index(&token_stream, stack);
 
                 MultiIndex index;
-                bool success_position = string_to_int(position_index, &index.position);
+                MaybeInt position = string_to_int(position_index);
+                index.position = position.value;
                 index.texcoord = index.position;
                 index.normal = index.position;
 
@@ -279,12 +294,16 @@ bool obj_load_file(const char* path, JanMesh* result, Heap* heap, Stack* stack)
                 bool success_normal = true;
                 if(texcoord_index)
                 {
-                    success_texcoord = string_to_int(texcoord_index, &index.texcoord);
+                    MaybeInt texcoord = string_to_int(texcoord_index);
+                    success_texcoord = texcoord.valid;
+                    index.texcoord = texcoord.value;
                     index.texcoord = fix_index(index.texcoord, array_count(texcoords));
                 }
                 if(normal_index)
                 {
-                    success_normal = string_to_int(normal_index, &index.normal);
+                    MaybeInt normal = string_to_int(normal_index);
+                    success_normal = normal.valid;
+                    index.texcoord = normal.value;
                     index.normal = fix_index(index.normal, array_count(normals));
                 }
                 ARRAY_ADD(multi_indices, index, heap);
@@ -302,7 +321,7 @@ bool obj_load_file(const char* path, JanMesh* result, Heap* heap, Stack* stack)
                 indices_in_face += 1;
                 STACK_DEALLOCATE(stack, token);
 
-                if(!success_position || !success_texcoord || !success_normal)
+                if(!position.valid || !success_texcoord || !success_normal)
                 {
                     error_occurred = true;
                     break;
@@ -348,7 +367,9 @@ bool obj_load_file(const char* path, JanMesh* result, Heap* heap, Stack* stack)
             }
             else
             {
-                success_group = string_to_int(token, &group);
+                MaybeInt maybe_group = string_to_int(token);
+                success_group = maybe_group.valid;
+                group = maybe_group.value;
             }
             if(group >= 0)
             {
@@ -491,7 +512,7 @@ bool obj_save_file(const char* path, JanMesh* mesh, Heap* heap)
         JanLink* link = first;
         do
         {
-            MapResult result = map_get(&map, link->vertex);
+            MaybePointer result = map_get(&map, link->vertex);
             uintptr_t index = (uintptr_t) result.value;
             char text[22];
             text[0] = ' ';

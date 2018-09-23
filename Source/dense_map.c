@@ -52,16 +52,16 @@ DenseMapId dense_map_add(DenseMap* map, Heap* heap)
 static int look_up_index(DenseMap* map, DenseMapId id)
 {
     void* key = (void*) (uintptr_t) id;
-    MapResult result = map_get(&map->index_map, key);
-    ASSERT(result.found);
+    MaybePointer result = map_get(&map->index_map, key);
+    ASSERT(result.valid);
     return (int) (uintptr_t) result.value;
 }
 
 static DenseMapId look_up_id(DenseMap* map, int index)
 {
     void* key = (void*) (uintptr_t) index;
-    MapResult result = map_get(&map->id_map, key);
-    ASSERT(result.found);
+    MaybePointer result = map_get(&map->id_map, key);
+    ASSERT(result.valid);
     return (DenseMapId) (uintptr_t) result.value;
 }
 

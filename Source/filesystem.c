@@ -341,9 +341,9 @@ static void destroy_mount_info_entry(MountInfoEntry* entry, Heap* heap)
     }
 }
 
-static bool get_int(const char* original, const char** after, int* result)
+static MaybeInt get_int(const char* original, const char** after)
 {
-    return string_to_int_extra(original, ((char**) after), 0, result);
+    return string_to_int_extra(original, ((char**) after), 0);
 }
 
 static char* get_string(const char* line, const char* separator, const char** after, Heap* heap)
@@ -426,22 +426,23 @@ static char* get_path(const char* line, const char** after, Heap* heap)
 
 static bool parse_entry(const char* line, MountInfoEntry* entry, Heap* heap)
 {
-    bool got = get_int(line, &line, &entry->mount_id);
-    if(!got)
+    MaybeInt mount_id = get_int(line, &line);
+    if(!mount_id.valid)
     {
         return false;
     }
+    entry->mount_id = mount_id.value;
 
-    got = get_int(line, &line, &entry->parent_id);
-    if(!got)
+    MaybeInt parent_id = get_int(line, &line);
+    if(!parent_id.valid)
     {
         return false;
     }
+    entry->parent_id = parent_id.value;
 
     // device_id written "major:minor"
-    int major;
-    got = get_int(line, &line, &major);
-    if(!got)
+    MaybeInt major = get_int(line, &line);
+    if(!major.valid)
     {
         return false;
     }
@@ -450,13 +451,12 @@ static bool parse_entry(const char* line, MountInfoEntry* entry, Heap* heap)
         return false;
     }
     line += 1;
-    int minor;
-    got = get_int(line, &line, &minor);
-    if(!got)
+    MaybeInt minor = get_int(line, &line);
+    if(!minor.valid)
     {
         return false;
     }
-    entry->device_id = makedev(major, minor);
+    entry->device_id = makedev(major.value, minor.value);
 
     // Make sure not to call get_path starting with a space.
     if(*line != ' ')
@@ -548,11 +548,10 @@ static char* decode_label(const char* encoded, Heap* heap)
     {
         if(i <= end - 4 && encoded[i] == '\\' && encoded[i + 1] == 'x')
         {
-            int value;
-            bool success = string_to_int_extra(&encoded[i + 2], NULL, 16, &value);
-            if(success)
+            MaybeInt digit = string_to_int_extra(&encoded[i + 2], NULL, 16);
+            if(digit.valid)
             {
-                label[j] = value;
+                label[j] = digit.value;
             }
             i += 4;
         }

@@ -156,12 +156,13 @@ bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
             {
                 if(strings_match(pair.key, "size"))
                 {
-                    bool success = string_to_int(pair.value, &output_font.size);
-                    if(!success)
+                    MaybeInt size = string_to_int(pair.value);
+                    if(!size.valid)
                     {
                         error = true;
                         break;
                     }
+                    output_font.size = size.value;
                 }
             }
         }
@@ -171,52 +172,53 @@ bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
             {
                 if(strings_match(pair.key, "lineHeight"))
                 {
-                    int line_height;
-                    bool success = string_to_int(pair.value, &line_height);
-                    if(!success)
+                    MaybeInt line_height = string_to_int(pair.value);
+                    if(!line_height.valid)
                     {
                         error = true;
                         break;
                     }
-                    output_font.line_height = (float) line_height;
+                    output_font.line_height = (float) line_height.value;
                 }
                 else if(strings_match(pair.key, "base"))
                 {
-                    int baseline;
-                    bool success = string_to_int(pair.value, &baseline);
-                    if(!success)
+                    MaybeInt baseline = string_to_int(pair.value);
+                    if(!baseline.valid)
                     {
                         error = true;
                         break;
                     }
-                    output_font.baseline = (float) baseline;
+                    output_font.baseline = (float) baseline.value;
                 }
                 else if(strings_match(pair.key, "scaleW"))
                 {
-                    bool success = string_to_int(pair.value, &output_font.image_width);
-                    if(!success)
+                    MaybeInt image_width = string_to_int(pair.value);
+                    if(!image_width.valid)
                     {
                         error = true;
                         break;
                     }
+                    output_font.image_width = image_width.value;
                 }
                 else if(strings_match(pair.key, "scaleH"))
                 {
-                    bool success = string_to_int(pair.value, &output_font.image_height);
-                    if(!success)
+                    MaybeInt image_height = string_to_int(pair.value);
+                    if(!image_height.valid)
                     {
                         error = true;
                         break;
                     }
+                    output_font.image_height = image_height.value;
                 }
                 else if(strings_match(pair.key, "pages"))
                 {
-                    bool success = string_to_int(pair.value, &output_font.pages_count);
-                    if(!success)
+                    MaybeInt pages_count = string_to_int(pair.value);
+                    if(!pages_count.valid)
                     {
                         error = true;
                         break;
                     }
+                    output_font.pages_count = pages_count.value;
                     output_font.pages = HEAP_ALLOCATE(heap, BmfPage, output_font.pages_count);
                 }
             }
@@ -227,15 +229,14 @@ bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
             Pair filename = next_pair(&stream, stack);
             int filename_size = string_size(filename.value) + 1;
 
-            int page_index;
-            bool success = string_to_int(id.value, &page_index);
-            if(!success)
+            MaybeInt page_index = string_to_int(id.value);
+            if(!page_index.valid)
             {
                 error = true;
             }
             else
             {
-                BmfPage* page = &output_font.pages[page_index];
+                BmfPage* page = &output_font.pages[page_index.value];
                 page->bitmap_filename = HEAP_ALLOCATE(heap, char, filename_size);
                 copy_string(page->bitmap_filename, filename_size, filename.value);
             }
@@ -243,13 +244,14 @@ bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
         else if(strings_match(keyword, "chars"))
         {
             Pair pair = next_pair(&stream, stack);
-            bool success = string_to_int(pair.value, &output_font.glyphs_count);
-            if(!success)
+            MaybeInt glyphs_count = string_to_int(pair.value);
+            if(!glyphs_count.valid)
             {
                 error = true;
             }
             else
             {
+                output_font.glyphs_count = glyphs_count.value;
                 output_font.glyphs = HEAP_ALLOCATE(heap, BmfGlyph, output_font.glyphs_count);
             }
         }
@@ -261,100 +263,93 @@ bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
             {
                 if(strings_match(pair.key, "id"))
                 {
-                    int codepoint;
-                    bool success = string_to_int(pair.value, &codepoint);
-                    if(!success)
+                    MaybeInt codepoint = string_to_int(pair.value);
+                    if(!codepoint.valid)
                     {
                         error = true;
                         break;
                     }
-                    glyph->codepoint = codepoint;
+                    glyph->codepoint = codepoint.value;
                 }
                 else if(strings_match(pair.key, "x"))
                 {
-                    int x;
-                    bool success = string_to_int(pair.value, &x);
-                    if(!success)
+                    MaybeInt x = string_to_int(pair.value);
+                    if(!x.valid)
                     {
                         error = true;
                         break;
                     }
-                    glyph->rect.bottom_left.x = (float) x;
+                    glyph->rect.bottom_left.x = (float) x.value;
                 }
                 else if(strings_match(pair.key, "y"))
                 {
-                    int y;
-                    bool success = string_to_int(pair.value, &y);
-                    if(!success)
+                    MaybeInt y = string_to_int(pair.value);
+                    if(!y.valid)
                     {
                         error = true;
                         break;
                     }
-                    glyph->rect.bottom_left.y = (float) y;
+                    glyph->rect.bottom_left.y = (float) y.value;
                 }
                 else if(strings_match(pair.key, "width"))
                 {
-                    int width;
-                    bool success = string_to_int(pair.value, &width);
-                    if(!success)
+                    MaybeInt width = string_to_int(pair.value);
+                    if(!width.valid)
                     {
                         error = true;
                         break;
                     }
-                    glyph->rect.dimensions.x = (float) width;
+                    glyph->rect.dimensions.x = (float) width.value;
                 }
                 else if(strings_match(pair.key, "height"))
                 {
-                    int height;
-                    bool success = string_to_int(pair.value, &height);
-                    if(!success)
+                    MaybeInt height = string_to_int(pair.value);
+                    if(!height.valid)
                     {
                         error = true;
                         break;
                     }
-                    glyph->rect.dimensions.y = (float) height;
+                    glyph->rect.dimensions.y = (float) height.value;
                 }
                 else if(strings_match(pair.key, "xoffset"))
                 {
-                    int x_offset;
-                    bool success = string_to_int(pair.value, &x_offset);
-                    if(!success)
+                    MaybeInt x_offset = string_to_int(pair.value);
+                    if(!x_offset.valid)
                     {
                         error = true;
                         break;
                     }
-                    glyph->offset.x = (float) x_offset;
+                    glyph->offset.x = (float) x_offset.value;
                 }
                 else if(strings_match(pair.key, "yoffset"))
                 {
-                    int y_offset;
-                    bool success = string_to_int(pair.value, &y_offset);
-                    if(!success)
+                    MaybeInt y_offset = string_to_int(pair.value);
+                    if(!y_offset.valid)
                     {
                         error = true;
                         break;
                     }
-                    glyph->offset.y = (float) y_offset;
+                    glyph->offset.y = (float) y_offset.value;
                 }
                 else if(strings_match(pair.key, "xadvance"))
                 {
-                    int x_advance;
-                    bool success = string_to_int(pair.value, &x_advance);
-                    if(!success)
+                    MaybeInt x_advance = string_to_int(pair.value);
+                    if(!x_advance.valid)
                     {
                         error = true;
                         break;
                     }
-                    glyph->x_advance = (float) x_advance;
+                    glyph->x_advance = (float) x_advance.value;
                 }
                 else if(strings_match(pair.key, "page"))
                 {
-                    bool success = string_to_int(pair.value, &glyph->page);
-                    if(!success)
+                    MaybeInt page = string_to_int(pair.value);
+                    if(!page.valid)
                     {
                         error = true;
                         break;
                     }
+                    glyph->page = page.value;
                 }
             }
 
@@ -363,13 +358,14 @@ bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
         else if(strings_match(keyword, "kernings"))
         {
             Pair pair = next_pair(&stream, stack);
-            bool success = string_to_int(pair.value, &output_font.kerning_pairs_count);
-            if(!success)
+            MaybeInt kerning_pairs_count = string_to_int(pair.value);
+            if(!kerning_pairs_count.valid)
             {
                 error = true;
             }
             else
             {
+                output_font.kerning_pairs_count = kerning_pairs_count.value;
                 output_font.kerning_pairs = HEAP_ALLOCATE(heap, BmfKerningPair, output_font.kerning_pairs_count);
             }
         }
@@ -381,36 +377,33 @@ bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
             {
                 if(strings_match(pair.key, "first"))
                 {
-                    int first;
-                    bool success = string_to_int(pair.value, &first);
-                    if(!success)
+                    MaybeInt first = string_to_int(pair.value);
+                    if(!first.valid)
                     {
                         error = true;
                         break;
                     }
-                    kerning_pair->first = first;
+                    kerning_pair->first = first.value;
                 }
                 else if(strings_match(pair.key, "second"))
                 {
-                    int second;
-                    bool success = string_to_int(pair.value, &second);
-                    if(!success)
+                    MaybeInt second = string_to_int(pair.value);
+                    if(!second.valid)
                     {
                         error = true;
                         break;
                     }
-                    kerning_pair->second = second;
+                    kerning_pair->second = second.value;
                 }
                 else if(strings_match(pair.key, "amount"))
                 {
-                    int kerning;
-                    bool success = string_to_int(pair.value, &kerning);
-                    if(!success)
+                    MaybeInt kerning = string_to_int(pair.value);
+                    if(!kerning.valid)
                     {
                         error = true;
                         break;
                     }
-                    kerning_pair->kerning = (float) kerning;
+                    kerning_pair->kerning = (float) kerning.value;
                 }
             }
 
