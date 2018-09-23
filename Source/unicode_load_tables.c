@@ -10,20 +10,18 @@ static void* load_table(const char* asset_name, Heap* heap, Stack* stack)
 {
     char* path = get_unicode_data_path_by_name(asset_name, stack);
 
-    void* contents;
-    uint64_t bytes;
-    bool loaded = load_whole_file(path, &contents, &bytes, stack);
+    WholeFile whole_file = load_whole_file(path, stack);
 
     STACK_DEALLOCATE(stack, path);
 
-    if(!loaded)
+    if(!whole_file.loaded)
     {
         return NULL;
     }
     else
     {
-        void* table = heap_allocate(heap, (uint32_t) bytes);
-        copy_memory(table, contents, bytes);
+        void* table = heap_allocate(heap, (uint32_t) whole_file.bytes);
+        copy_memory(table, whole_file.contents, whole_file.bytes);
         return table;
     }
 }

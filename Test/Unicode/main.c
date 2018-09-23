@@ -251,17 +251,15 @@ static bool test_line(TestType test_type, const char* text, int text_filled, boo
 
 static bool run_test(TestType test_type, const char* path, Stack* stack)
 {
-    void* contents;
-    uint64_t bytes;
-    bool loaded = load_whole_file(path, &contents, &bytes, stack);
-    if(!loaded)
+    WholeFile whole_file = load_whole_file(path, stack);
+    if(!whole_file.loaded)
     {
         printf("%s failed to load.\n", path);
         return false;
     }
 
     Stream stream = {0};
-    stream.at = (const char*) contents;
+    stream.at = (const char*) whole_file.contents;
 
     const char* optional = "÷";
     const char* prohibited = "×";
@@ -339,7 +337,7 @@ static bool run_test(TestType test_type, const char* path, Stack* stack)
         skip_to_next_line(&stream);
     }
 
-    STACK_DEALLOCATE(stack, contents);
+    STACK_DEALLOCATE(stack, whole_file.contents);
 
     return failures == 0;
 }

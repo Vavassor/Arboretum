@@ -132,10 +132,8 @@ static Pair next_pair(Stream* stream, Stack* stack)
 
 bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
 {
-    void* contents;
-    uint64_t bytes;
-    bool contents_loaded = load_whole_file(path, &contents, &bytes, stack);
-    if(!contents_loaded)
+    WholeFile whole_file = load_whole_file(path, stack);
+    if(!whole_file.loaded)
     {
         return false;
     }
@@ -147,7 +145,7 @@ bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
     bool error = false;
 
     Stream stream = {0};
-    stream.buffer = (const char*) contents;
+    stream.buffer = (const char*) whole_file.contents;
     for(; stream_has_more(&stream) && !error; next_line(&stream))
     {
         char* keyword = next_token(&stream, stack);
@@ -422,7 +420,7 @@ bool bmf_load_font(BmfFont* font, const char* path, Heap* heap, Stack* stack)
         STACK_DEALLOCATE(stack, keyword);
     }
 
-    STACK_DEALLOCATE(stack, contents);
+    STACK_DEALLOCATE(stack, whole_file.contents);
 
     if(error)
     {

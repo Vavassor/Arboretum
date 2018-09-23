@@ -18,14 +18,16 @@
 #include <pwd.h>
 #include <stdlib.h>
 
-bool load_whole_file(const char* path, void** contents, uint64_t* bytes, Stack* stack)
+WholeFile load_whole_file(const char* path, Stack* stack)
 {
+    WholeFile whole_file = {0};
+
     int flag = O_RDONLY;
     mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
     int file = open(path, flag, mode);
     if(file == -1)
     {
-        return false;
+        return whole_file;
     }
 
     off_t end = lseek(file, 0, SEEK_END);
@@ -34,7 +36,7 @@ bool load_whole_file(const char* path, void** contents, uint64_t* bytes, Stack* 
     if(end == ((off_t) -1) || start == ((off_t) -1))
     {
         close(file);
-        return false;
+        return whole_file;
     }
 
     uint8_t* file_contents = STACK_ALLOCATE(stack, uint8_t, file_size + 1);
@@ -43,16 +45,17 @@ bool load_whole_file(const char* path, void** contents, uint64_t* bytes, Stack* 
     if(bytes_read == -1 || closed == -1)
     {
         STACK_DEALLOCATE(stack, file_contents);
-        return false;
+        return whole_file;
     }
 
     // Null-terminate the file data so it can be easily interpreted as text if
     // necessary.
     file_contents[file_size] = '\0';
 
-    *contents = file_contents;
-    *bytes = file_size;
-    return true;
+    whole_file.contents = file_contents;
+    whole_file.bytes = file_size;
+    whole_file.loaded = true;
+    return whole_file;
 }
 
 bool save_whole_file(const char* path, const void* contents, uint64_t bytes, Stack* stack)

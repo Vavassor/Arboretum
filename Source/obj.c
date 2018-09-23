@@ -127,16 +127,14 @@ typedef struct Face
 
 bool obj_load_file(const char* path, JanMesh* result, Heap* heap, Stack* stack)
 {
-    void* contents;
-    uint64_t bytes;
-    bool contents_loaded = load_whole_file(path, &contents, &bytes, stack);
-    if(!contents_loaded)
+    WholeFile whole_file = load_whole_file(path, stack);
+    if(!whole_file.loaded)
     {
         return false;
     }
 
     Stream stream;
-    stream.buffer = (char*) contents;
+    stream.buffer = (char*) whole_file.contents;
 
     Float4* positions = NULL;
     Float3* normals = NULL;
@@ -367,7 +365,7 @@ bool obj_load_file(const char* path, JanMesh* result, Heap* heap, Stack* stack)
         STACK_DEALLOCATE(stack, keyword);
     }
 
-    STACK_DEALLOCATE(stack, contents);
+    STACK_DEALLOCATE(stack, whole_file.contents);
 
     error_occurred = error_occurred || array_count(positions) == 0;
 

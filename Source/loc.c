@@ -238,14 +238,13 @@ bool loc_load_file(Platform* platform, const char* path)
     Stack stack = {0};
     stack_create(&stack, (uint32_t) capobytes(16));
 
-    void* contents;
-    uint64_t file_size;
-    bool loaded = load_whole_file(path, &contents, &file_size, &stack);
+    WholeFile whole_file = load_whole_file(path, &stack);
+    bool loaded = whole_file.loaded;
 
     if(loaded)
     {
         Stream stream;
-        stream.buffer = (const char*) contents;
+        stream.buffer = (const char*) whole_file.contents;
         stream.error_occurred = false;
         bool processed_fine = true;
 

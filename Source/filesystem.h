@@ -5,9 +5,6 @@
 
 #include <stdbool.h>
 
-bool load_whole_file(const char* path, void** contents, uint64_t* bytes, Stack* stack);
-bool save_whole_file(const char* path, const void* contents, uint64_t bytes, Stack* stack);
-
 typedef enum FileOpenMode
 {
     FILE_OPEN_MODE_READ,
@@ -15,6 +12,16 @@ typedef enum FileOpenMode
 } FileOpenMode;
 
 typedef struct File File;
+
+typedef struct WholeFile
+{
+    void* contents;
+    uint64_t bytes;
+    bool loaded;
+} WholeFile;
+
+WholeFile load_whole_file(const char* path, Stack* stack);
+bool save_whole_file(const char* path, const void* contents, uint64_t bytes, Stack* stack);
 
 File* open_file(const char* path, FileOpenMode open_mode, Heap* heap);
 void close_file(File* file);

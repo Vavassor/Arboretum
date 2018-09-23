@@ -224,27 +224,28 @@ static ShaderId build_shader(VideoContext* context, ShaderSpec* spec, const char
 
     ShaderId shader = {0};
 
-    void* contents;
-    uint64_t bytes;
-    bool loaded_fragment = load_whole_file(fragment_path, &contents, &bytes, &context->scratch);
-    char* fragment_source = (char*) contents;
+    WholeFile fragment_file = load_whole_file(fragment_path, &context->scratch);
+    char* fragment_source = (char*) fragment_file.contents;
 
-    bool loaded_vertex = load_whole_file(vertex_path, &contents, &bytes, &context->scratch);
-    char* vertex_source = (char*) contents;
+    WholeFile vertex_file = load_whole_file(vertex_path, &context->scratch);
+    char* vertex_source = (char*) vertex_file.contents;
 
-    if(loaded_fragment && loaded_vertex)
+    if(fragment_file.loaded && vertex_file.loaded)
     {
         spec->fragment.source = fragment_source;
         spec->vertex.source = vertex_source;
         shader = create_shader(context->backend, spec, &context->heap, context->logger);
     }
-    else if(!loaded_fragment)
+    else
     {
-        log_error(context->logger, "Failed to compile %s.", fragment_name);
-    }
-    else if(!loaded_vertex)
-    {
-        log_error(context->logger, "Failed to compile %s.", vertex_name);
+        if(!fragment_file.loaded)
+        {
+            log_error(context->logger, "Failed to compile %s.", fragment_name);
+        }
+        if(!vertex_file.loaded)
+        {
+            log_error(context->logger, "Failed to compile %s.", vertex_name);
+        }
     }
 
     STACK_DEALLOCATE(&context->scratch, vertex_source);
