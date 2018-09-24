@@ -5,11 +5,23 @@
 
 #include <uchar.h>
 
+typedef struct CodepointLocation
+{
+    char32_t codepoint;
+    int index;
+} CodepointLocation;
+
+typedef struct DecodedCodepoint
+{
+    char32_t codepoint;
+    int bytes_read;
+} DecodedCodepoint;
+
 int utf8_codepoint_count(const char* s);
-char32_t utf8_get_codepoint(const char* string, int* bytes_read);
-int utf8_get_prior_codepoint(const char* string, int start, char32_t* result);
+DecodedCodepoint utf8_get_codepoint(const char* string);
+CodepointLocation utf8_get_prior_codepoint(const char* string, int start);
 int utf8_skip_to_prior_codepoint(const char* string, int start);
-int utf8_get_next_codepoint(const char* string, int size, int start, char32_t* result);
+CodepointLocation utf8_get_next_codepoint(const char* string, int size, int start);
 int utf8_skip_to_next_codepoint(const char* string, int size, int start);
 int utf8_to_utf32(const char* from, int from_size, char32_t* to, int to_size);
 

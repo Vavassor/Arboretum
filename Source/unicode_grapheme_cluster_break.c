@@ -85,13 +85,13 @@ static int get_break_at(GraphemeClusterBreakContext* context, int text_index, in
     }
 
     // Obtain the next break.
-    char32_t codepoint;
-    int index = utf8_get_prior_codepoint(context->text, text_index, &codepoint);
+    CodepointLocation location = utf8_get_prior_codepoint(context->text, text_index);
+    int index = location.index;
     if(index == invalid_index)
     {
         return invalid_index;
     }
-    GraphemeClusterBreak grapheme_break = get_grapheme_cluster_break(codepoint);
+    GraphemeClusterBreak grapheme_break = get_grapheme_cluster_break(location.codepoint);
 
     // Store the break and return it.
     if(index < context->lowest_in_text || first_fetch)
@@ -344,8 +344,7 @@ int find_next_end_of_grapheme_cluster(const char* text, int start_index, Stack* 
     context.head = 0;
     context.tail = 0;
 
-    char32_t dummy;
-    int adjusted_start = utf8_get_next_codepoint(context.text, context.text_size, start_index + 1, &dummy);
+    int adjusted_start = utf8_skip_to_next_codepoint(context.text, context.text_size, start_index + 1);
 
     int found = invalid_index;
     for(int i = adjusted_start, j = 0; i != invalid_index; j += 1)
@@ -357,7 +356,7 @@ int find_next_end_of_grapheme_cluster(const char* text, int start_index, Stack* 
             break;
         }
 
-        i = utf8_get_next_codepoint(context.text, context.text_size, i + 1, &dummy);
+        i = utf8_skip_to_next_codepoint(context.text, context.text_size, i + 1);
     }
 
     STACK_DEALLOCATE(stack, context.breaks);

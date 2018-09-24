@@ -195,8 +195,7 @@ static bool test_line(TestType test_type, const char* text, int text_filled, boo
                     return false;
                 }
 
-                char32_t dummy;
-                index = utf8_get_next_codepoint(text, text_filled, index + 1, &dummy);
+                index = utf8_skip_to_next_codepoint(text, text_filled, index + 1);
                 if(index == invalid_index)
                 {
                     index = text_filled;
@@ -215,8 +214,7 @@ static bool test_line(TestType test_type, const char* text, int text_filled, boo
                     return false;
                 }
 
-                char32_t dummy;
-                index = utf8_get_next_codepoint(text, text_filled, index + 1, &dummy);
+                index = utf8_skip_to_next_codepoint(text, text_filled, index + 1);
                 if(index == invalid_index)
                 {
                     index = text_filled;
@@ -235,8 +233,7 @@ static bool test_line(TestType test_type, const char* text, int text_filled, boo
                     return false;
                 }
 
-                char32_t dummy;
-                index = utf8_get_next_codepoint(text, text_filled, index + 1, &dummy);
+                index = utf8_skip_to_next_codepoint(text, text_filled, index + 1);
                 if(index == invalid_index)
                 {
                     index = text_filled;

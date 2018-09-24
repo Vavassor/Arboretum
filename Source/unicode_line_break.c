@@ -110,13 +110,13 @@ static int get_break_at(LineBreakContext* context, int start_index, int break_in
     }
 
     // Obtain the next break.
-    char32_t codepoint;
-    int index = utf8_get_prior_codepoint(context->text, start_index, &codepoint);
+    CodepointLocation location = utf8_get_prior_codepoint(context->text, start_index);
+    int index = location.index;
     if(index == invalid_index)
     {
         return invalid_index;
     }
-    LineBreak line_break = get_line_break(codepoint);
+    LineBreak line_break = get_line_break(location.codepoint);
 
     // Store the break and return it.
     if(index < context->lowest_in_text || first_fetch)

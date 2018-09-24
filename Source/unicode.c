@@ -18,14 +18,17 @@ int utf8_codepoint_count(const char* s)
     return count;
 }
 
-char32_t utf8_get_codepoint(const char* string, int* bytes_read)
+DecodedCodepoint utf8_get_codepoint(const char* string)
 {
+    DecodedCodepoint result = {0};
+
     // Check if the next byte is ASCII.
     const char first_char = *string;
     if((first_char & 0x80) == 0)
     {
-        *bytes_read = 1;
-        return first_char;
+        result.bytes_read = 1;
+        result.codepoint = first_char;
+        return result;
     }
 
     // Otherwise, decode the multi-byte sequence.
@@ -44,48 +47,57 @@ char32_t utf8_get_codepoint(const char* string, int* bytes_read)
     ignore_mask |= mask;
     codepoint &= ~(ignore_mask << (6 * (to_read - 1)));
 
-    *bytes_read = to_read;
-    return codepoint;
+    result.codepoint = codepoint;
+    result.bytes_read = to_read;
+    return result;
 }
 
-int utf8_get_prior_codepoint(const char* string, int start, char32_t* result)
+CodepointLocation utf8_get_prior_codepoint(const char* string, int start)
 {
+    CodepointLocation result = {.index = invalid_index};
+
     for(int i = start; i >= 0; i -= 1)
     {
         if(is_heading_byte(string[i]))
         {
-            int bytes_read;
-            *result = utf8_get_codepoint(&string[i], &bytes_read);
-            return i;
+            DecodedCodepoint decoded = utf8_get_codepoint(&string[i]);
+            result.codepoint = decoded.codepoint;
+            result.index = i;
+            return result;
         }
     }
-    return invalid_index;
+
+    return result;
 }
 
 int utf8_skip_to_prior_codepoint(const char* string, int start)
 {
-    char32_t dummy;
-    return utf8_get_prior_codepoint(string, start, &dummy);
+    CodepointLocation location = utf8_get_prior_codepoint(string, start);
+    return location.index;
 }
 
-int utf8_get_next_codepoint(const char* string, int size, int start, char32_t* result)
+CodepointLocation utf8_get_next_codepoint(const char* string, int size, int start)
 {
+    CodepointLocation result = {.index = invalid_index};
+
     for(int i = start; i < size; i += 1)
     {
         if(is_heading_byte(string[i]))
         {
-            int bytes_read;
-            *result = utf8_get_codepoint(&string[i], &bytes_read);
-            return i;
+            DecodedCodepoint decoded = utf8_get_codepoint(&string[i]);
+            result.codepoint = decoded.codepoint;
+            result.index = i;
+            return result;
         }
     }
-    return invalid_index;
+
+    return result;
 }
 
 int utf8_skip_to_next_codepoint(const char* string, int size, int start)
 {
-    char32_t dummy;
-    return utf8_get_next_codepoint(string, size, start, &dummy);
+    CodepointLocation location = utf8_get_next_codepoint(string, size, start);
+    return location.index;
 }
 
 int utf8_to_utf32(const char* from, int from_size, char32_t* to, int to_size)
@@ -95,9 +107,9 @@ int utf8_to_utf32(const char* from, int from_size, char32_t* to, int to_size)
     int i = 0;
     for(; i < to_size - 1 && current < end; i += 1)
     {
-        int bytes_read;
-        to[i] = utf8_get_codepoint(current, &bytes_read);
-        current += bytes_read;
+        DecodedCodepoint decoded = utf8_get_codepoint(current);
+        to[i] = decoded.codepoint;
+        current += decoded.bytes_read;
     }
     to[i] = U'\0';
 

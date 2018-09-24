@@ -440,8 +440,9 @@ static Float2 measure_ideal_dimensions_text_block(UiTextBlock* text_block, UiCon
     {
         // @Incomplete: There isn't a one-to-one mapping between chars and
         // glyphs. Add a lookup to glyph given the next sequence of text.
-        char32_t current;
-        int text_index = utf8_get_next_codepoint(text_block->text, size, i, &current);
+        CodepointLocation location = utf8_get_next_codepoint(text_block->text, size, i);
+        int text_index = location.index;
+        char32_t current = location.codepoint;
         if(text_index == invalid_index)
         {
             break;
@@ -583,16 +584,15 @@ static float compute_run_length(const char* text, int start, int end, BmfFont* f
     {
         // @Incomplete: There isn't a one-to-one mapping between chars and
         // glyphs. Add a lookup to glyph given the next sequence of text.
-        char32_t current;
-        int text_index = utf8_get_next_codepoint(text, end, i, &current);
-        if(text_index == invalid_index)
+        CodepointLocation location = utf8_get_next_codepoint(text, end, i);
+        if(location.index == invalid_index)
         {
             break;
         }
 
-        BmfGlyph* glyph = bmf_find_glyph(font, current);
+        BmfGlyph* glyph = bmf_find_glyph(font, location.codepoint);
         length += glyph->x_advance;
-        i = text_index;
+        i = location.index;
     }
     return length;
 }
@@ -664,8 +664,9 @@ static Float2 measure_bound_dimensions_text_block(UiTextBlock* text_block, Float
     {
         // @Incomplete: There isn't a one-to-one mapping between chars and
         // glyphs. Add a lookup to glyph given the next sequence of text.
-        char32_t current;
-        text_index = utf8_get_next_codepoint(text_block->text, size, i, &current);
+        CodepointLocation location = utf8_get_next_codepoint(text_block->text, size, i);
+        char32_t current = location.codepoint;
+        text_index = location.index;
         if(text_index == invalid_index)
         {
             break;
@@ -769,23 +770,22 @@ static Float2 measure_bound_dimensions_text_block(UiTextBlock* text_block, Float
         int size = string_size(ellipsize_text);
         for(int i = 0; i < size; i += 1)
         {
-            char32_t current;
-            int index = utf8_get_next_codepoint(ellipsize_text, size, i, &current);
-            if(index == invalid_index)
+            CodepointLocation location = utf8_get_next_codepoint(ellipsize_text, size, i);
+            if(location.index == invalid_index)
             {
                 break;
             }
 
-            BmfGlyph* glyph = bmf_find_glyph(font, current);
-            float kerning = bmf_lookup_kerning(font, prior_char, current);
+            BmfGlyph* glyph = bmf_find_glyph(font, location.codepoint);
+            float kerning = bmf_lookup_kerning(font, prior_char, location.codepoint);
             pen.x += kerning;
 
             place_glyph(text_block, glyph, font, text_index, pen, texture_dimensions, context);
 
             pen.x += glyph->x_advance;
 
-            prior_char = current;
-            i = index;
+            prior_char = location.codepoint;
+            i = location.index;
         }
     }
 
