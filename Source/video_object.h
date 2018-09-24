@@ -16,16 +16,6 @@ typedef struct MeshUpdate
     Heap* heap;
 } MeshUpdate;
 
-typedef struct VideoObject
-{
-    Matrix4 model;
-    Matrix4 normal;
-    BufferId buffers[2];
-    int vertices_count;
-    int indices_count;
-    VertexLayout vertex_layout;
-} VideoObject;
-
 typedef struct PointcloudUpdate
 {
     JanMesh* mesh;
@@ -35,6 +25,16 @@ typedef struct PointcloudUpdate
     Log* logger;
     Heap* heap;
 } PointcloudUpdate;
+
+typedef struct VideoObject
+{
+    Matrix4 model;
+    Matrix4 normal;
+    BufferId buffers[2];
+    int vertices_count;
+    int indices_count;
+    VertexLayout vertex_layout;
+} VideoObject;
 
 typedef struct WireframeUpdate
 {

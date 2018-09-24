@@ -8,6 +8,13 @@
 
 #include <stdbool.h>
 
+typedef struct ConvertedInt
+{
+    char* after;
+    int value;
+    bool valid;
+} ConvertedInt;
+
 int copy_string(char* RESTRICT to, int to_size, const char* RESTRICT from);
 int string_size(const char* string);
 bool strings_match(const char* RESTRICT a, const char* RESTRICT b);
@@ -23,7 +30,7 @@ bool only_control_characters(const char* string);
 void replace_chars(char* s, char original, char replacement);
 
 MaybeInt string_to_int(const char* string);
-MaybeInt string_to_int_extra(const char* string, char** after, int base);
+ConvertedInt string_to_int_extra(const char* string, int base);
 MaybeFloat string_to_float(const char* string);
 MaybeDouble string_to_double(const char* string);
 

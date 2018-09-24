@@ -291,7 +291,7 @@ static bool run_test(TestType test_type, const char* path, Stack* stack)
 
             if(i & 1)
             {
-                MaybeInt codepoint = string_to_int_extra(token, NULL, 16);
+                ConvertedInt codepoint = string_to_int_extra(token, 16);
                 if(!codepoint.valid)
                 {
                     printf("failure at token: %s\n", token);

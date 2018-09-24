@@ -346,12 +346,14 @@ MaybeInt string_to_int(const char* string)
     return result;
 }
 
-MaybeInt string_to_int_extra(const char* string, char** after, int base)
+ConvertedInt string_to_int_extra(const char* string, int base)
 {
     uint64_t u;
-    bool success = string_to_u64(string, after, base, &u);
-    MaybeInt result =
+    char* after;
+    bool success = string_to_u64(string, &after, base, &u);
+    ConvertedInt result =
     {
+        .after = after,
         .valid = success,
         .value = (int) u,
     };

@@ -341,9 +341,9 @@ static void destroy_mount_info_entry(MountInfoEntry* entry, Heap* heap)
     }
 }
 
-static MaybeInt get_int(const char* original, const char** after)
+static ConvertedInt get_int(const char* original)
 {
-    return string_to_int_extra(original, ((char**) after), 0);
+    return string_to_int_extra(original, 0);
 }
 
 static char* get_string(const char* line, const char* separator, const char** after, Heap* heap)
@@ -426,14 +426,16 @@ static char* get_path(const char* line, const char** after, Heap* heap)
 
 static bool parse_entry(const char* line, MountInfoEntry* entry, Heap* heap)
 {
-    MaybeInt mount_id = get_int(line, &line);
+    ConvertedInt mount_id = get_int(line);
+    line = mount_id.after;
     if(!mount_id.valid)
     {
         return false;
     }
     entry->mount_id = mount_id.value;
 
-    MaybeInt parent_id = get_int(line, &line);
+    ConvertedInt parent_id = get_int(line);
+    line = parent_id.after;
     if(!parent_id.valid)
     {
         return false;
@@ -441,7 +443,8 @@ static bool parse_entry(const char* line, MountInfoEntry* entry, Heap* heap)
     entry->parent_id = parent_id.value;
 
     // device_id written "major:minor"
-    MaybeInt major = get_int(line, &line);
+    ConvertedInt major = get_int(line);
+    line = major.after;
     if(!major.valid)
     {
         return false;
@@ -451,7 +454,8 @@ static bool parse_entry(const char* line, MountInfoEntry* entry, Heap* heap)
         return false;
     }
     line += 1;
-    MaybeInt minor = get_int(line, &line);
+    ConvertedInt minor = get_int(line);
+    line = minor.after;
     if(!minor.valid)
     {
         return false;
@@ -548,7 +552,7 @@ static char* decode_label(const char* encoded, Heap* heap)
     {
         if(i <= end - 4 && encoded[i] == '\\' && encoded[i + 1] == 'x')
         {
-            MaybeInt digit = string_to_int_extra(&encoded[i + 2], NULL, 16);
+            ConvertedInt digit = string_to_int_extra(&encoded[i + 2], 16);
             if(digit.valid)
             {
                 label[j] = digit.value;
