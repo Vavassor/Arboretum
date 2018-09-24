@@ -1,6 +1,22 @@
 String Utilities
 ================
 
+.. c:type:: ConvertedInt
+
+    This is an integer converted from a string.
+
+    .. c:member:: char* after
+
+        a pointer to the character after the integer in the string
+
+    .. c:member:: int value
+        
+        the integer itself
+
+    .. c:member:: bool valid
+
+        true if an integer was read successfully
+
 .. c:function:: const char* bool_to_string(bool b)
 
     Produce a string representing a boolean value.
@@ -150,23 +166,21 @@ String Utilities
     :param b: the substring
     :return: true if the string starts with the substring
 
-.. c:function:: bool string_to_double(const char* string, double* value)
+.. c:function:: MaybeDouble string_to_double(const char* string)
 
     Read a number string and produce the real number it represents.
 
     :param string: the string
-    :param value: the real number
-    :return: true if the number was read successfully
+    :return: the real number
 
-.. c:function:: bool string_to_float(const char* string, float* value)
+.. c:function:: MaybeFloat string_to_float(const char* string)
 
     Read a number string and produce the real number it represents.
 
     :param string: the string
-    :param value: the real number
-    :return: true if the number was read successfully
+    :return: the real number
 
-.. c:function:: bool string_to_int(const char* string, int* value)
+.. c:function:: MaybeInt string_to_int(const char* string)
 
     Read a number string and produce the integer it represents.
 
@@ -174,14 +188,11 @@ String Utilities
     :param value: the integer
     :return: true if the integer was read successfully
 
-.. c:function:: bool string_to_int_extra(const char* string, char** after, \
-        int base, int* value)
+.. c:function:: ConvertedInt string_to_int_extra(const char* string, int base)
 
     Read a number string and produce the integer it represents.
 
     :param string: the string
-    :param after: optionally return a pointer to the byte after the integer, \
-            or ``NULL``
     :param base: the base of the integer to read
 
             If this is zero, look for an prefix to indicate the base.
@@ -189,8 +200,7 @@ String Utilities
             - ``0x`` for hexadecimal
             - ``0`` for octal
             - nothing for decimal
-    :param value: the integer
-    :return: true if the integer was read successfully
+    :return: the integer
 
 .. c:function:: bool strings_match(const char* RESTRICT a, \
         const char* RESTRICT b)

@@ -1,3 +1,6 @@
+Maybe Types
+===========
+
 .. c:type:: MaybeDouble
 
     An optional type containing a double precision floating-point number
