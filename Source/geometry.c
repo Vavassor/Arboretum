@@ -50,7 +50,7 @@ bool point_in_rect(Rect rect, Float2 point)
         && point.y >= min.y && point.y <= max.y;
 }
 
-bool clip_rects(Rect inner, Rect outer, Rect* result)
+ClippedRect clip_rects(Rect inner, Rect outer)
 {
     float i_right = inner.bottom_left.x + inner.dimensions.x;
     float o_right = outer.bottom_left.x + outer.dimensions.x;
@@ -65,16 +65,20 @@ bool clip_rects(Rect inner, Rect outer, Rect* result)
     float width = i_right - x;
     float height = i_top - y;
 
+    ClippedRect result = {0};
+
     if(width <= 0.0f && height <= 0.0f)
     {
-        return false;
+        result.intersected = false;
     }
     else
     {
-        result->bottom_left.x = x;
-        result->bottom_left.y = y;
-        result->dimensions.x = width;
-        result->dimensions.y = height;
-        return true;
+        result.rect.bottom_left.x = x;
+        result.rect.bottom_left.y = y;
+        result.rect.dimensions.x = width;
+        result.rect.dimensions.y = height;
+        result.intersected = true;
     }
+
+    return result;
 }

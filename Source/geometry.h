@@ -24,6 +24,12 @@ typedef struct Quad
     Float3 vertices[4];
 } Quad;
 
+typedef struct ClippedRect
+{
+    Rect rect;
+    bool intersected;
+} ClippedRect;
+
 Quad rect_to_quad(Rect r);
 Float2 rect_top_left(Rect rect);
 Float2 rect_top_right(Rect rect);
@@ -31,6 +37,6 @@ Float2 rect_bottom_right(Rect rect);
 float rect_top(Rect rect);
 float rect_right(Rect rect);
 bool point_in_rect(Rect rect, Float2 point);
-bool clip_rects(Rect inner, Rect outer, Rect* result);
+ClippedRect clip_rects(Rect inner, Rect outer);
 
 #endif // GEOMETRY_H_

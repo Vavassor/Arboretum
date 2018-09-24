@@ -2419,31 +2419,71 @@ void video_set_model(VideoContext* context, DenseMapId id, Matrix4 model)
 void video_update_mesh(VideoContext* context, DenseMapId id, JanMesh* mesh, Heap* heap)
 {
     VideoObject* object = dense_map_look_up(&context->objects, id);
-    video_object_update_mesh(object, mesh, context->backend, context->logger, heap);
+    MeshUpdate update =
+    {
+        .backend = context->backend,
+        .logger = context->logger,
+        .heap = heap,
+        .mesh = mesh,
+    };
+    video_object_update_mesh(object, &update);
 }
 
 void video_update_wireframe(VideoContext* context, DenseMapId id, JanMesh* mesh, Heap* heap)
 {
     VideoObject* object = dense_map_look_up(&context->objects, id);
-    video_object_update_wireframe(object, mesh, context->backend, context->logger, heap);
+    WireframeUpdate update =
+    {
+        .mesh = mesh,
+        .backend = context->backend,
+        .logger = context->logger,
+        .heap = heap,
+    };
+    video_object_update_wireframe(object, &update);
 }
 
 void video_update_selection(VideoContext* context, DenseMapId id, JanMesh* mesh, JanSelection* selection, Heap* heap)
 {
     VideoObject* object = dense_map_look_up(&context->objects, id);
-    video_object_update_selection(object, mesh, selection, context->backend, context->logger, heap);
+    MeshUpdate update =
+    {
+        .backend = context->backend,
+        .logger = context->logger,
+        .heap = heap,
+        .mesh = mesh,
+        .selection = selection,
+    };
+    video_object_update_mesh(object, &update);
 }
 
 void video_update_pointcloud_selection(VideoContext* context, DenseMapId id, JanMesh* mesh, JanSelection* selection, JanVertex* hovered, Heap* heap)
 {
     VideoObject* object = dense_map_look_up(&context->objects, id);
-    video_object_update_pointcloud_selection(object, mesh, selection, hovered, context->backend, context->logger, heap);
+    PointcloudUpdate update =
+    {
+        .mesh = mesh,
+        .selection = selection,
+        .hovered = hovered,
+        .backend = context->backend,
+        .logger = context->logger,
+        .heap = heap,
+    };
+    video_object_update_pointcloud(object, &update);
 }
 
 void video_update_wireframe_selection(VideoContext* context, DenseMapId id, JanMesh* mesh, JanSelection* selection, JanEdge* hovered, Heap* heap)
 {
     VideoObject* object = dense_map_look_up(&context->objects, id);
-    video_object_update_wireframe_selection(object, mesh, selection, hovered, context->backend, context->logger, heap);
+    WireframeUpdate update =
+    {
+        .mesh = mesh,
+        .selection = selection,
+        .hovered = hovered,
+        .backend = context->backend,
+        .logger = context->logger,
+        .heap = heap,
+    };
+    video_object_update_wireframe(object, &update);
 }
 
 int get_vertex_layout_size(VertexLayout vertex_layout)

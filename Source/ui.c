@@ -1453,13 +1453,16 @@ static bool detect_list_hover(UiItem* item, Float2 pointer_position, Platform* p
     {
         Rect bounds = list->items_bounds[i];
         bounds.bottom_left.y += list->scroll_top;
-        clip_rects(bounds, item->bounds, &bounds);
-        bool hovered = point_in_rect(bounds, pointer_position);
-        if(hovered)
+        ClippedRect clipped = clip_rects(bounds, item->bounds);
+        if(clipped.intersected)
         {
-            list->hovered_item_index = i;
-            change_cursor(platform, CURSOR_TYPE_ARROW);
-            detected = true;
+            bool hovered = point_in_rect(clipped.rect, pointer_position);
+            if(hovered)
+            {
+                list->hovered_item_index = i;
+                change_cursor(platform, CURSOR_TYPE_ARROW);
+                detected = true;
+            }
         }
     }
     return detected;
