@@ -328,11 +328,10 @@ static void move(Editor* editor, Ray mouse_ray)
         normal = float3_normalise(quaternion_rotate(quaternion_conjugate(object->orientation), normal));
 
         Float3 origin = float3_subtract(object->position, move_tool->reference_offset);
-        Float3 intersection;
-        bool intersected = intersect_ray_plane(mouse_ray, origin, normal, &intersection);
-        if(intersected)
+        MaybeFloat3 intersection = intersect_ray_plane(mouse_ray, origin, normal);
+        if(intersection.valid)
         {
-            point = intersection;
+            point = intersection.value;
         }
         else
         {
@@ -378,11 +377,11 @@ static void update_object_hover_and_selection(Editor* editor, Platform* platform
         Matrix4 model = matrix4_compose_transform(object->position, object->orientation, float3_one);
         Ray ray = camera_get_ray(camera, mouse->position, viewport);
         ray = transform_ray(ray, matrix4_inverse_transform(model));
-        float distance;
-        JanFace* face = jan_first_face_hit_by_ray(mesh, ray, &distance, &editor->scratch);
-        if(face && distance < closest)
+
+        FaceContact contact = jan_first_face_hit_by_ray(mesh, ray, &editor->scratch);
+        if(contact.face && contact.distance < closest)
         {
-            closest = distance;
+            closest = contact.distance;
             editor->hovered_object_index = i;
         }
     }
@@ -441,10 +440,10 @@ static void detect_move_tool_arrow_hover(MoveTool* move_tool, float* closest, Ra
             .radius = move_tool->scale * move_tool->shaft_radius,
         };
 
-        Float3 intersection;
-        bool intersected = intersect_ray_cylinder(ray, cylinder, &intersection);
-        float distance = float3_squared_distance(ray.origin, intersection);
-        if(intersected && distance < *closest)
+
+        MaybeFloat3 intersection = intersect_ray_cylinder(ray, cylinder);
+        float distance = float3_squared_distance(ray.origin, intersection.value);
+        if(intersection.valid && distance < *closest)
         {
             *closest = distance;
             hovered_axis = axis_index;
@@ -457,9 +456,9 @@ static void detect_move_tool_arrow_hover(MoveTool* move_tool, float* closest, Ra
             .radius = move_tool->scale * move_tool->head_radius,
         };
 
-        intersected = intersect_ray_cone(ray, cone, &intersection);
-        distance = float3_squared_distance(ray.origin, intersection);
-        if(intersected && distance < *closest)
+        intersection = intersect_ray_cone(ray, cone);
+        distance = float3_squared_distance(ray.origin, intersection.value);
+        if(intersection.valid && distance < *closest)
         {
             *closest = distance;
             hovered_axis = axis_index;
@@ -486,11 +485,10 @@ static void detect_move_tool_plane_hover(MoveTool* move_tool, float* closest, Ra
             .orientation = move_tool->orientation,
         };
 
-        Float3 intersection;
-        bool intersected = intersect_ray_box(ray, box, &intersection);
-        if(intersected)
+        MaybeFloat3 intersection = intersect_ray_box(ray, box);
+        if(intersection.valid)
         {
-            float distance = float3_squared_distance(ray.origin, intersection);
+            float distance = float3_squared_distance(ray.origin, intersection.value);
             if(distance < *closest)
             {
                 *closest = distance;
@@ -739,20 +737,20 @@ static void update_edge_mode(Editor* editor, Platform* platform)
     Ray ray = ray_from_viewport_point(mouse->position, viewport, view, projection, false);
     ray = transform_ray(ray, inverse_model);
 
-    float distance_to_edge;
-    JanEdge* edge = jan_first_edge_under_point(mesh, mouse->position, touch_radius, model_view_projection, inverse, viewport, ray.origin, ray.direction, &distance_to_edge);
-    if(edge)
+    EdgeContact edge_contact = jan_first_edge_under_point(mesh, mouse->position, touch_radius, model_view_projection, inverse, viewport, ray.origin, ray.direction);
+    if(edge_contact.edge)
     {
-        float distance_to_face = infinity;
-        jan_first_face_hit_by_ray(mesh, ray, &distance_to_face, &editor->scratch);
+        FaceContact face_contact = jan_first_face_hit_by_ray(mesh, ray, &editor->scratch);
 
-        if(distance_to_edge < distance_to_face && input_get_mouse_clicked(platform->input_context, MOUSE_BUTTON_LEFT))
+        if(face_contact.face
+                && edge_contact.distance < face_contact.distance
+                && input_get_mouse_clicked(platform->input_context, MOUSE_BUTTON_LEFT))
         {
-            jan_toggle_edge_in_selection(&editor->selection, edge);
+            jan_toggle_edge_in_selection(&editor->selection, edge_contact.edge);
         }
     }
 
-    video_update_wireframe_selection(editor->video_context, editor->selection_wireframe_id, mesh, &editor->selection, edge, &editor->heap);
+    video_update_wireframe_selection(editor->video_context, editor->selection_wireframe_id, mesh, &editor->selection, edge_contact.edge, &editor->heap);
 }
 
 static void enter_face_mode(Editor* editor)
@@ -821,10 +819,10 @@ static void select_face(Editor* editor, Platform* platform, Object* object)
     Ray ray = camera_get_ray(camera, mouse->position, viewport);
     ray = transform_ray(ray, matrix4_inverse_transform(model));
 
-    JanFace* face = jan_first_face_hit_by_ray(mesh, ray, NULL, &editor->scratch);
-    if(face && input_get_mouse_clicked(input_context, MOUSE_BUTTON_LEFT))
+    FaceContact contact = jan_first_face_hit_by_ray(mesh, ray, &editor->scratch);
+    if(contact.face && input_get_mouse_clicked(input_context, MOUSE_BUTTON_LEFT))
     {
-        jan_toggle_face_in_selection(&editor->selection, face);
+        jan_toggle_face_in_selection(&editor->selection, contact.face);
     }
 
     video_update_selection(video_context, editor->selection_id, mesh, &editor->selection, &editor->heap);
@@ -902,20 +900,20 @@ static void update_vertex_mode(Editor* editor, Platform* platform)
     Ray ray = ray_from_viewport_point(mouse->position, viewport, view, projection, false);
     ray = transform_ray(ray, matrix4_inverse_transform(model));
 
-    float distance_to_vertex;
-    JanVertex* vertex = jan_first_vertex_hit_by_ray(mesh, ray, touch_radius, (float) viewport.x, &distance_to_vertex);
-    if(vertex)
+    VertexContact vertex_contact = jan_first_vertex_hit_by_ray(mesh, ray, touch_radius, (float) viewport.x);
+    if(vertex_contact.vertex)
     {
-        float distance_to_face;
-        jan_first_face_hit_by_ray(mesh, ray, &distance_to_face, &editor->scratch);
+        FaceContact face_contact = jan_first_face_hit_by_ray(mesh, ray, &editor->scratch);
 
-        if(distance_to_vertex <= distance_to_face && input_get_mouse_clicked(platform->input_context, MOUSE_BUTTON_LEFT))
+        if(face_contact.face
+                && vertex_contact.distance <= face_contact.distance
+                && input_get_mouse_clicked(platform->input_context, MOUSE_BUTTON_LEFT))
         {
-            jan_toggle_vertex_in_selection(&editor->selection, vertex);
+            jan_toggle_vertex_in_selection(&editor->selection, vertex_contact.vertex);
         }
     }
 
-    video_update_pointcloud_selection(editor->video_context, editor->selection_pointcloud_id, mesh, &editor->selection, vertex, &editor->heap);
+    video_update_pointcloud_selection(editor->video_context, editor->selection_pointcloud_id, mesh, &editor->selection, vertex_contact.vertex, &editor->heap);
 }
 
 static void request_mode_change(Editor* editor, Mode requested_mode)

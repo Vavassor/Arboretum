@@ -34,11 +34,29 @@ typedef struct Disk
     float radius;
 } Disk;
 
+typedef struct EdgeContact
+{
+    JanEdge* edge;
+    float distance;
+} EdgeContact;
+
+typedef struct FaceContact
+{
+    JanFace* face;
+    float distance;
+} FaceContact;
+
 typedef struct LineSegment
 {
     Float3 start;
     Float3 end;
 } LineSegment;
+
+typedef struct MaybeFloat3
+{
+    Float3 value;
+    bool valid;
+} MaybeFloat3;
 
 typedef struct Ray
 {
@@ -60,18 +78,24 @@ typedef struct Torus
     float minor_radius;
 } Torus;
 
-JanVertex* jan_first_vertex_hit_by_ray(JanMesh* mesh, Ray ray, float hit_radius, float viewport_width, float* vertex_distance);
-JanEdge* jan_first_edge_under_point(JanMesh* mesh, Float2 hit_center, float hit_radius, Matrix4 model_view_projection, Matrix4 inverse, Int2 viewport, Float3 view_position, Float3 view_direction, float* edge_distance);
-JanFace* jan_first_face_hit_by_ray(JanMesh* mesh, Ray ray, float* face_distance, Stack* stack);
+typedef struct VertexContact
+{
+    JanVertex* vertex;
+    float distance;
+} VertexContact;
+
+VertexContact jan_first_vertex_hit_by_ray(JanMesh* mesh, Ray ray, float hit_radius, float viewport_width);
+EdgeContact jan_first_edge_under_point(JanMesh* mesh, Float2 hit_center, float hit_radius, Matrix4 model_view_projection, Matrix4 inverse, Int2 viewport, Float3 view_position, Float3 view_direction);
+FaceContact jan_first_face_hit_by_ray(JanMesh* mesh, Ray ray, Stack* stack);
 
 bool point_in_polygon(Float2 point, Float2* vertices, int vertices_count);
 float distance_point_plane(Float3 point, Float3 origin, Float3 normal);
 Ray transform_ray(Ray ray, Matrix4 transform);
-bool intersect_ray_plane(Ray ray, Float3 origin, Float3 normal, Float3* intersection);
-bool intersect_ray_sphere(Ray ray, Sphere sphere, Float3* intersection);
-bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Float3* intersection);
-bool intersect_ray_cone(Ray ray, Cone cone, Float3* intersection);
-bool intersect_ray_torus(Ray ray, Torus torus, Float3* intersection);
-bool intersect_ray_box(Ray ray, Box box, Float3* intersection);
+MaybeFloat3 intersect_ray_plane(Ray ray, Float3 origin, Float3 normal);
+MaybeFloat3 intersect_ray_sphere(Ray ray, Sphere sphere);
+MaybeFloat3 intersect_ray_cylinder(Ray ray, Cylinder cylinder);
+MaybeFloat3 intersect_ray_cone(Ray ray, Cone cone);
+MaybeFloat3 intersect_ray_torus(Ray ray, Torus torus);
+MaybeFloat3 intersect_ray_box(Ray ray, Box box);
 
 #endif // INTERSECTION_H_

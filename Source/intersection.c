@@ -215,38 +215,43 @@ static int solve_real_quartic_equation(float coefficients[5], float roots[4])
     return real_roots;
 }
 
-bool intersect_ray_plane(Ray ray, Float3 origin, Float3 normal, Float3* intersection)
+MaybeFloat3 intersect_ray_plane(Ray ray, Float3 origin, Float3 normal)
 {
     ASSERT(float3_is_normalised(normal));
     ASSERT(float3_is_normalised(ray.direction));
 
+    MaybeFloat3 result = {0};
+
     float d = float3_dot(float3_negate(normal), ray.direction);
     if(fabsf(d) < 1e-6f)
     {
-        return false;
+        return result;
     }
 
     float t = float3_dot(float3_subtract(origin, ray.origin), float3_negate(normal)) / d;
     if(t < 0.0f)
     {
-        return false;
+        return result;
     }
     else
     {
-        *intersection = float3_madd(t, ray.direction, ray.origin);
-        return true;
+        result.valid = true;
+        result.value = float3_madd(t, ray.direction, ray.origin);
+        return result;
     }
 }
 
-bool intersect_ray_sphere(Ray ray, Sphere sphere, Float3* intersection)
+MaybeFloat3 intersect_ray_sphere(Ray ray, Sphere sphere)
 {
+    MaybeFloat3 intersection = {0};
+
     Float3 to_center = float3_subtract(sphere.center, ray.origin);
     float radius2 = sphere.radius * sphere.radius;
     float t_axis = float3_dot(to_center, ray.direction);
     float distance2 = float3_squared_length(to_center) - (t_axis * t_axis);
     if(distance2 > radius2)
     {
-        return false;
+        return intersection;
     }
 
     float t_intersect = sqrtf(radius2 - distance2);
@@ -266,17 +271,20 @@ bool intersect_ray_sphere(Ray ray, Sphere sphere, Float3* intersection)
         t[0] = t[1];
         if(t[0] < 0.0f)
         {
-            return false;
+            return intersection;
         }
     }
 
-    *intersection = float3_madd(t[0], ray.direction, ray.origin);
+    intersection.value = float3_madd(t[0], ray.direction, ray.origin);
+    intersection.valid = true;
 
-    return true;
+    return intersection;
 }
 
-bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Float3* intersection)
+MaybeFloat3 intersect_ray_cylinder(Ray ray, Cylinder cylinder)
 {
+    MaybeFloat3 intersection = {0};
+
     float radius = cylinder.radius;
     Float3 center = float3_divide(float3_add(cylinder.start, cylinder.end), 2.0f);
     float half_length = float3_distance(center, cylinder.end);
@@ -304,7 +312,7 @@ bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Float3* intersection)
     float t0, t1;
     if(!solve_quadratic_equation(a, b, c, &t0, &t1))
     {
-        return false;
+        return intersection;
     }
     float z0 = (t0 * direction.z) + origin.z;
     float z1 = (t1 * direction.z) + origin.z;
@@ -313,62 +321,67 @@ bool intersect_ray_cylinder(Ray ray, Cylinder cylinder, Float3* intersection)
     {
         if(z1 < -1.0f)
         {
-            return false;
+            return intersection;
         }
 
         float t2 = t0 + (t1 - t0) * (z0 + 1.0f) / (z0 - z1);
         if(t2 <= 0.0f)
         {
-            return false;
+            return intersection;
         }
         else
         {
             Float3 point = float3_madd(t2, direction, origin);
             Matrix4 inverse = matrix4_multiply(matrix4_inverse_view(view), matrix4_dilation(dilation));
-            *intersection = matrix4_transform_point(inverse, point);
-            return true;
+            intersection.value = matrix4_transform_point(inverse, point);
+            intersection.valid = true;
+            return intersection;
         }
     }
     else if(z0 >= -1.0f && z0 <= 1.0f)
     {
         if(t0 <= 0.0f)
         {
-            return false;
+            return intersection;
         }
         else
         {
             Float3 point = float3_madd(t0, direction, origin);
             Matrix4 inverse = matrix4_multiply(matrix4_inverse_view(view), matrix4_dilation(dilation));
-            *intersection = matrix4_transform_point(inverse, point);
-            return true;
+            intersection.value = matrix4_transform_point(inverse, point);
+            intersection.valid = true;
+            return intersection;
         }
     }
     else if(z0 > 1.0f)
     {
         if(z1 > 1.0f)
         {
-            return false;
+            return intersection;
         }
 
         float t2 = t0 + (t1 - t0) * (z0 - 1.0f) / (z0 - z1);
         if(t2 <= 0.0f)
         {
-            return false;
+            return intersection;
         }
         else
         {
             Float3 point = float3_madd(t2, direction, origin);
             Matrix4 inverse = matrix4_multiply(matrix4_inverse_view(view), matrix4_dilation(dilation));
-            *intersection = matrix4_transform_point(inverse, point);
-            return true;
+            intersection.value = matrix4_transform_point(inverse, point);
+            intersection.valid = true;
+            return intersection;
         }
     }
 
-    return false;
+    return intersection;
 }
 
-bool intersect_ray_cone(Ray ray, Cone cone, Float3* intersection)
+MaybeFloat3 intersect_ray_cone(Ray ray, Cone cone)
 {
+    MaybeFloat3 intersection = {0};
+
     float radius = cone.radius;
     float height = float3_length(cone.axis);
     Float3 tip = float3_add(cone.axis, cone.base_center);
@@ -398,7 +411,7 @@ bool intersect_ray_cone(Ray ray, Cone cone, Float3* intersection)
     float t0, t1;
     if(!solve_quadratic_equation(a, b, c, &t0, &t1))
     {
-        return false;
+        return intersection;
     }
 
     float z0 = (t0 * direction.z) + origin.z;
@@ -408,42 +421,46 @@ bool intersect_ray_cone(Ray ray, Cone cone, Float3* intersection)
     {
         if(t0 <= 0.0f)
         {
-            return false;
+            return intersection;
         }
         else
         {
             Float3 point = float3_madd(t0, direction, origin);
             Matrix4 inverse = matrix4_multiply(matrix4_inverse_view(view), matrix4_dilation(dilation));
-            *intersection = matrix4_transform_point(inverse, point);
-            return true;
+            intersection.value = matrix4_transform_point(inverse, point);
+            intersection.valid = true;
+            return intersection;
         }
     }
     else if(z0 < -1.0f)
     {
         if(z1 < -1.0f || z1 > 0.0f)
         {
-            return false;
+            return intersection;
         }
 
         float t2 = t0 + (t1 - t0) * (z0 + 1.0f) / (z0 - z1);
         if(t2 <= 0.0f)
         {
-            return false;
+            return intersection;
         }
         else
         {
             Float3 point = float3_madd(t2, direction, origin);
             Matrix4 inverse = matrix4_multiply(matrix4_inverse_view(view), matrix4_dilation(dilation));
-            *intersection = matrix4_transform_point(inverse, point);
-            return true;
+            intersection.value = matrix4_transform_point(inverse, point);
+            intersection.valid = true;
+            return intersection;
         }
     }
 
-    return false;
+    return intersection;
 }
 
-bool intersect_ray_torus(Ray ray, Torus torus, Float3* intersection)
+MaybeFloat3 intersect_ray_torus(Ray ray, Torus torus)
 {
+    MaybeFloat3 intersection = {0};
+
     float r = torus.major_radius;
     float s = torus.minor_radius;
 
@@ -482,7 +499,7 @@ bool intersect_ray_torus(Ray ray, Torus torus, Float3* intersection)
     int roots_found = solve_real_quartic_equation(coefficients, roots);
     if(roots_found == 0)
     {
-        return false;
+        return intersection;
     }
 
     float t = 1e-4f;
@@ -494,12 +511,15 @@ bool intersect_ray_torus(Ray ray, Torus torus, Float3* intersection)
         }
     }
 
-    *intersection = float3_madd(t, ray.direction, ray.origin);
-    return true;
+    intersection.value = float3_madd(t, ray.direction, ray.origin);
+    intersection.valid = true;
+    return intersection;
 }
 
-bool intersect_ray_box(Ray ray, Box box, Float3* intersection)
+MaybeFloat3 intersect_ray_box(Ray ray, Box box)
 {
+    MaybeFloat3 intersection = {0};
+
     Float3 direction = quaternion_rotate(box.orientation, ray.direction);
     Float3 origin = quaternion_rotate(box.orientation, float3_subtract(ray.origin, box.center));
 
@@ -520,12 +540,13 @@ bool intersect_ray_box(Ray ray, Box box, Float3* intersection)
 
     if(th <= fmaxf(tl, 0.0f))
     {
-        return false;
+        return intersection;
     }
     else
     {
-        *intersection = float3_madd(tl, ray.direction, ray.origin);
-        return true;
+        intersection.value = float3_madd(tl, ray.direction, ray.origin);
+        intersection.valid = true;
+        return intersection;
     }
 }
 
@@ -644,10 +665,12 @@ static bool intersect_line_segment_cylinder(LineSegment segment, Cylinder cylind
     return false;
 }
 
-JanVertex* jan_first_vertex_hit_by_ray(JanMesh* mesh, Ray ray, float hit_radius, float viewport_width, float* vertex_distance)
+VertexContact jan_first_vertex_hit_by_ray(JanMesh* mesh, Ray ray, float hit_radius, float viewport_width)
 {
-    float closest = infinity;
-    JanVertex* result = NULL;
+    VertexContact result =
+    {
+        .distance = infinity,
+    };
 
     float radius = hit_radius / viewport_width;
 
@@ -657,31 +680,27 @@ JanVertex* jan_first_vertex_hit_by_ray(JanMesh* mesh, Ray ray, float hit_radius,
         sphere.center = vertex->position;
         sphere.radius = radius * distance_point_plane(vertex->position, ray.origin, ray.direction);
 
-        Float3 intersection;
-        bool hit = intersect_ray_sphere(ray, sphere, &intersection);
-        if(hit)
+        MaybeFloat3 intersection = intersect_ray_sphere(ray, sphere);
+        if(intersection.valid)
         {
-            float distance = float3_squared_distance(ray.origin, intersection);
-            if(distance < closest)
+            float distance = float3_squared_distance(ray.origin, intersection.value);
+            if(distance < result.distance)
             {
-                closest = distance;
-                result = vertex;
+                result.distance = distance;
+                result.vertex = vertex;
             }
         }
-    }
-
-    if(vertex_distance)
-    {
-        *vertex_distance = closest;
     }
 
     return result;
 }
 
-JanEdge* jan_first_edge_under_point(JanMesh* mesh, Float2 hit_center, float hit_radius, Matrix4 model_view_projection, Matrix4 inverse, Int2 viewport, Float3 view_position, Float3 view_direction, float* edge_distance)
+EdgeContact jan_first_edge_under_point(JanMesh* mesh, Float2 hit_center, float hit_radius, Matrix4 model_view_projection, Matrix4 inverse, Int2 viewport, Float3 view_position, Float3 view_direction)
 {
-    float closest = infinity;
-    JanEdge* result = NULL;
+    EdgeContact result =
+    {
+        .distance = infinity,
+    };
 
     Float2 ndc_point = viewport_point_to_ndc(hit_center, viewport);
     Float3 near = {{ndc_point.x, ndc_point.y, -1.0f}};
@@ -701,17 +720,12 @@ JanEdge* jan_first_edge_under_point(JanMesh* mesh, Float2 hit_center, float hit_
             Float3 world_point = matrix4_transform_point(inverse, intersection);
 
             float distance = distance_point_plane(world_point, view_position, view_direction);
-            if(distance < closest)
+            if(distance < result.distance)
             {
-                closest = distance;
-                result = edge;
+                result.distance = distance;
+                result.edge = edge;
             }
         }
-    }
-
-    if(edge_distance)
-    {
-        *edge_distance = closest;
     }
 
     return result;
@@ -730,10 +744,12 @@ static void project_border_onto_plane(JanBorder* border, Matrix3 transform, Floa
     } while(link != first);
 }
 
-JanFace* jan_first_face_hit_by_ray(JanMesh* mesh, Ray ray, float* face_distance, Stack* stack)
+FaceContact jan_first_face_hit_by_ray(JanMesh* mesh, Ray ray, Stack* stack)
 {
-    float closest = infinity;
-    JanFace* result = NULL;
+    FaceContact result =
+    {
+        .distance = infinity,
+    };
 
     FOR_EACH_IN_POOL(JanFace, face, mesh->face_pool)
     {
@@ -743,7 +759,7 @@ JanFace* jan_first_face_hit_by_ray(JanMesh* mesh, Ray ray, float* face_distance,
         if(intersected)
         {
             float distance = float3_squared_distance(ray.origin, intersection);
-            if(distance < closest)
+            if(distance < result.distance)
             {
                 Matrix3 mi = matrix3_transpose(matrix3_orthogonal_basis(face->normal));
                 Float2 point = matrix3_transform(mi, intersection);
@@ -772,16 +788,11 @@ JanFace* jan_first_face_hit_by_ray(JanMesh* mesh, Ray ray, float* face_distance,
 
                 if(on_face)
                 {
-                    closest = distance;
-                    result = face;
+                    result.distance = distance;
+                    result.face = face;
                 }
             }
         }
-    }
-
-    if(face_distance)
-    {
-        *face_distance = closest;
     }
 
     return result;

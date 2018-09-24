@@ -793,14 +793,16 @@ char* get_executable_folder(Heap* heap)
 #endif
 #include <Windows.h>
 
-bool load_whole_file(const char* path, void** contents, uint64_t* bytes, Stack* stack)
+WholeFile load_whole_file(const char* path, Stack* stack)
 {
+    WholeFile whole_file = {0};
+
     wchar_t* wide_path = utf8_to_wide_char_stack(path, stack);
     HANDLE handle = CreateFileW(wide_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     STACK_DEALLOCATE(stack, wide_path);
     if(handle == INVALID_HANDLE_VALUE)
     {
-        return false;
+        return whole_file;
     }
 
     BY_HANDLE_FILE_INFORMATION info;
@@ -808,7 +810,7 @@ bool load_whole_file(const char* path, void** contents, uint64_t* bytes, Stack* 
     if(!got)
     {
         CloseHandle(handle);
-        return false;
+        return whole_file;
     }
 
     uint64_t size = (uint64_t) info.nFileSizeHigh << 32 | info.nFileSizeLow;
@@ -822,16 +824,17 @@ bool load_whole_file(const char* path, void** contents, uint64_t* bytes, Stack* 
     if(!read || bytes_read != size)
     {
         STACK_DEALLOCATE(stack, buffer);
-        return false;
+        return whole_file;
     }
 
     // Null-terminate the file data so it can be easily interpreted as text if
     // necessary.
     buffer[size] = '\0';
-    *contents = buffer;
-    *bytes = size;
+    whole_file.contents = buffer;
+    whole_file.bytes = size;
+    whole_file.loaded = true;
 
-    return true;
+    return whole_file;
 }
 
 bool save_whole_file(const char* path, const void* contents, uint64_t bytes, Stack* stack)
