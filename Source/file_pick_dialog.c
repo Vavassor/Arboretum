@@ -424,7 +424,12 @@ static void import_file(FilePickDialog* dialog, const char* name, ObjectLady* la
         object_set_position(imported_model, (Float3){{-2.0f, 0.0f, 0.0f}}, video_context);
 
         jan_colour_all_faces(&imported_model->mesh, float3_magenta);
-        video_update_mesh(video_context, imported_model->video_object, &imported_model->mesh, heap);
+        VideoMeshUpdate update =
+        {
+            .mesh = &imported_model->mesh,
+            .object = imported_model->video_object,
+        };
+        video_update_mesh(video_context, &update);
 
         add_object_to_history(history, imported_model, heap);
 

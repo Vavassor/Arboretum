@@ -12,6 +12,29 @@
 #include "tools.h"
 #include "ui.h"
 
+typedef enum VertexLayout
+{
+    VERTEX_LAYOUT_PC,
+    VERTEX_LAYOUT_PNC,
+    VERTEX_LAYOUT_POINT,
+    VERTEX_LAYOUT_LINE,
+} VertexLayout;
+
+typedef struct VideoMeshUpdate
+{
+    JanMesh* mesh;
+    JanSelection* selection;
+    DenseMapId object;
+} VideoMeshUpdate;
+
+typedef struct VideoPointcloudUpdate
+{
+    JanVertex* hovered;
+    JanMesh* mesh;
+    JanSelection* selection;
+    DenseMapId object;
+} VideoPointcloudUpdate;
+
 typedef struct VideoUpdate
 {
     Int2 viewport;
@@ -33,13 +56,13 @@ typedef struct VideoUpdate
     DenseMapId selection_halo;
 } VideoUpdate;
 
-typedef enum VertexLayout
+typedef struct VideoWireframeUpdate
 {
-    VERTEX_LAYOUT_PC,
-    VERTEX_LAYOUT_PNC,
-    VERTEX_LAYOUT_POINT,
-    VERTEX_LAYOUT_LINE,
-} VertexLayout;
+    JanEdge* hovered;
+    JanMesh* mesh;
+    JanSelection* selection;
+    DenseMapId object;
+} VideoWireframeUpdate;
 
 typedef struct VideoContext VideoContext;
 
@@ -53,11 +76,9 @@ void video_remove_object(VideoContext* context, DenseMapId id);
 void video_set_up_font(VideoContext* context, BmfFont* font);
 
 void video_set_model(VideoContext* context, DenseMapId id, Matrix4 model);
-void video_update_mesh(VideoContext* context, DenseMapId id, JanMesh* mesh, Heap* heap);
-void video_update_wireframe(VideoContext* context, DenseMapId id, JanMesh* mesh, Heap* heap);
-void video_update_selection(VideoContext* context, DenseMapId id, JanMesh* mesh, JanSelection* selection, Heap* heap);
-void video_update_pointcloud_selection(VideoContext* context, DenseMapId id, JanMesh* mesh, JanSelection* selection, JanVertex* hovered, Heap* heap);
-void video_update_wireframe_selection(VideoContext* context, DenseMapId id, JanMesh* mesh, JanSelection* selection, JanEdge* hovered, Heap* heap);
+void video_update_mesh(VideoContext* context, VideoMeshUpdate* update);
+void video_update_wireframe(VideoContext* context, VideoWireframeUpdate* update);
+void video_update_pointcloud(VideoContext* context, VideoPointcloudUpdate* update);
 
 int get_vertex_layout_size(VertexLayout vertex_layout);
 

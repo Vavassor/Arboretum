@@ -413,13 +413,23 @@ static void update_object_hover_and_selection(Editor* editor, Platform* platform
     if(prior_hovered != editor->hovered_object_index && is_valid_index(editor->hovered_object_index))
     {
         Object* object = &editor->lady.objects[editor->hovered_object_index];
-        video_update_wireframe(editor->video_context, editor->hover_halo, &object->mesh, &editor->heap);
+        VideoWireframeUpdate update =
+        {
+            .mesh = &object->mesh,
+            .object = editor->hover_halo,
+        };
+        video_update_wireframe(editor->video_context, &update);
     }
 
     if(prior_selected != editor->selected_object_index && is_valid_index(editor->selected_object_index))
     {
         Object* object = &editor->lady.objects[editor->selected_object_index];
-        video_update_wireframe(editor->video_context, editor->selection_halo, &object->mesh, &editor->heap);
+        VideoWireframeUpdate update =
+        {
+            .mesh = &object->mesh,
+            .object = editor->selection_halo,
+        };
+        video_update_wireframe(editor->video_context, &update);
     }
 }
 
@@ -617,7 +627,12 @@ static void enter_object_mode(Editor* editor)
     if(is_valid_index(editor->selected_object_index))
     {
         Object* object = &editor->lady.objects[editor->selected_object_index];
-        video_update_wireframe(editor->video_context, editor->selection_halo, &object->mesh, &editor->heap);
+        VideoWireframeUpdate update =
+        {
+            .mesh = &object->mesh,
+            .object = editor->selection_halo,
+        };
+        video_update_wireframe(editor->video_context, &update);
     }
 
     editor->hover_halo = video_add_object(editor->video_context, VERTEX_LAYOUT_LINE);
@@ -698,7 +713,13 @@ static void enter_edge_mode(Editor* editor)
     video_set_model(editor->video_context, editor->selection_wireframe_id, model);
 
     add_halo(editor);
-    video_update_wireframe(editor->video_context, editor->selection_halo, &object->mesh, &editor->heap);
+
+    VideoWireframeUpdate update =
+    {
+        .mesh = &object->mesh,
+        .object = editor->selection_halo,
+    };
+    video_update_wireframe(editor->video_context, &update);
 }
 
 static void exit_edge_mode(Editor* editor)
@@ -750,7 +771,14 @@ static void update_edge_mode(Editor* editor, Platform* platform)
         }
     }
 
-    video_update_wireframe_selection(editor->video_context, editor->selection_wireframe_id, mesh, &editor->selection, edge_contact.edge, &editor->heap);
+    VideoWireframeUpdate update =
+    {
+        .hovered = edge_contact.edge,
+        .mesh = mesh,
+        .object = editor->selection_wireframe_id,
+        .selection = &editor->selection,
+    };
+    video_update_wireframe(editor->video_context, &update);
 }
 
 static void enter_face_mode(Editor* editor)
@@ -766,7 +794,13 @@ static void enter_face_mode(Editor* editor)
     video_set_model(editor->video_context, editor->selection_wireframe_id, model);
 
     add_halo(editor);
-    video_update_wireframe(editor->video_context, editor->selection_halo, &object->mesh, &editor->heap);
+
+    VideoWireframeUpdate update =
+    {
+        .mesh = &object->mesh,
+        .object = editor->selection_halo,
+    };
+    video_update_wireframe(editor->video_context, &update);
 }
 
 static void exit_face_mode(Editor* editor)
@@ -803,7 +837,12 @@ static void translate_faces(Editor* editor, Object* object, Platform* platform)
 
     ASSERT(jan_validate_mesh(mesh, logger));
 
-    video_update_mesh(video_context, object->video_object, mesh, &editor->heap);
+    VideoMeshUpdate update =
+    {
+        .mesh = mesh,
+        .object = object->video_object,
+    };
+    video_update_mesh(video_context, &update);
 }
 
 static void select_face(Editor* editor, Platform* platform, Object* object)
@@ -825,8 +864,20 @@ static void select_face(Editor* editor, Platform* platform, Object* object)
         jan_toggle_face_in_selection(&editor->selection, contact.face);
     }
 
-    video_update_selection(video_context, editor->selection_id, mesh, &editor->selection, &editor->heap);
-    video_update_wireframe(video_context, editor->selection_wireframe_id, mesh, &editor->heap);
+    VideoMeshUpdate update =
+    {
+        .mesh = mesh,
+        .object = editor->selection_id,
+        .selection = &editor->selection,
+    };
+    video_update_mesh(video_context, &update);
+
+    VideoWireframeUpdate wireframe_update =
+    {
+        .mesh = mesh,
+        .object = editor->selection_wireframe_id,
+    };
+    video_update_wireframe(video_context, &wireframe_update);
 }
 
 static void update_face_mode(Editor* editor, Platform* platform)
@@ -864,7 +915,13 @@ static void enter_vertex_mode(Editor* editor)
     video_set_model(editor->video_context, editor->selection_pointcloud_id, model);
 
     add_halo(editor);
-    video_update_wireframe(editor->video_context, editor->selection_halo, &object->mesh, &editor->heap);
+
+    VideoWireframeUpdate update =
+    {
+        .mesh = &object->mesh,
+        .object = editor->selection_halo,
+    };
+    video_update_wireframe(editor->video_context, &update);
 }
 
 static void exit_vertex_mode(Editor* editor)
@@ -913,7 +970,14 @@ static void update_vertex_mode(Editor* editor, Platform* platform)
         }
     }
 
-    video_update_pointcloud_selection(editor->video_context, editor->selection_pointcloud_id, mesh, &editor->selection, vertex_contact.vertex, &editor->heap);
+    VideoPointcloudUpdate update =
+    {
+        .hovered = vertex_contact.vertex,
+        .mesh = mesh,
+        .object = editor->selection_pointcloud_id,
+        .selection = &editor->selection,
+    };
+    video_update_pointcloud(editor->video_context, &update);
 }
 
 static void request_mode_change(Editor* editor, Mode requested_mode)
@@ -1349,7 +1413,12 @@ Editor* editor_start_up(Platform* platform)
 
         jan_colour_all_faces(mesh, float3_cyan);
 
-        video_update_mesh(video_context, dodecahedron->video_object, mesh, heap);
+        VideoMeshUpdate update =
+        {
+            .mesh = mesh,
+            .object = dodecahedron->video_object,
+        };
+        video_update_mesh(video_context, &update);
 
         Float3 position = (Float3){{2.0f, 0.0f, 0.0f}};
         Quaternion orientation = quaternion_axis_angle(float3_unit_x, pi / 4.0f);
@@ -1366,7 +1435,12 @@ Editor* editor_start_up(Platform* platform)
 
         jan_make_a_face_with_holes(mesh, stack);
 
-        video_update_mesh(video_context, cheese->video_object, mesh, heap);
+        VideoMeshUpdate update =
+        {
+            .mesh = mesh,
+            .object = cheese->video_object,
+        };
+        video_update_mesh(video_context, &update);
 
         Float3 position = (Float3){{0.0f, -2.0f, 0.0f}};
         object_set_position(cheese, position, video_context);
@@ -1388,7 +1462,12 @@ Editor* editor_start_up(Platform* platform)
         Float3 position = (Float3){{-2.0f, 0.0f, 0.0f}};
         object_set_position(test_model, position, video_context);
 
-        video_update_mesh(video_context, test_model->video_object, mesh, heap);
+        VideoMeshUpdate update =
+        {
+            .mesh = mesh,
+            .object = test_model->video_object,
+        };
+        video_update_mesh(video_context, &update);
 
         add_object_to_history(history, test_model, heap);
     }
