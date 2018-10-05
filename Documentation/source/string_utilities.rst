@@ -185,8 +185,7 @@ String Utilities
     Read a number string and produce the integer it represents.
 
     :param string: the string, with digits in base 10
-    :param value: the integer
-    :return: true if the integer was read successfully
+    :return: the integer
 
 .. c:function:: ConvertedInt string_to_int_extra(const char* string, int base)
 

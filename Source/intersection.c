@@ -75,12 +75,20 @@ LineSegment transform_line_segment(LineSegment segment, Matrix4 transform)
     return result;
 }
 
-static bool solve_quadratic_equation(float a, float b, float c, float* RESTRICT t0, float* RESTRICT t1)
+typedef struct QuadraticSolution
 {
+    float t[2];
+    bool exists;
+} QuadraticSolution;
+
+static QuadraticSolution solve_quadratic_equation(float a, float b, float c)
+{
+    QuadraticSolution solution = {0};
+
     float discriminant = (b * b) - (4.0f * a * c);
     if(discriminant < 0.0f)
     {
-        return false;
+        return solution;
     }
     else
     {
@@ -98,15 +106,16 @@ static bool solve_quadratic_equation(float a, float b, float c, float* RESTRICT 
         }
         if(u[0] > u[1])
         {
-            *t0 = u[1];
-            *t1 = u[0];
+            solution.t[0] = u[1];
+            solution.t[1] = u[0];
         }
         else
         {
-            *t0 = u[0];
-            *t1 = u[1];
+            solution.t[0] = u[0];
+            solution.t[1] = u[1];
         }
-        return true;
+        solution.exists = true;
+        return solution;
     }
 }
 
@@ -309,11 +318,16 @@ MaybeFloat3 intersect_ray_cylinder(Ray ray, Cylinder cylinder)
     float b = (2.0f * ox * dx) + (2.0f * oy * dy);
     float c = (ox * ox) + (oy * oy) - 1.0f;
 
-    float t0, t1;
-    if(!solve_quadratic_equation(a, b, c, &t0, &t1))
+
+    QuadraticSolution solution = solve_quadratic_equation(a, b, c);
+    if(!solution.exists)
     {
         return intersection;
     }
+
+    float t0 = solution.t[0];
+    float t1 = solution.t[1];
+
     float z0 = (t0 * direction.z) + origin.z;
     float z1 = (t1 * direction.z) + origin.z;
 
@@ -408,11 +422,14 @@ MaybeFloat3 intersect_ray_cone(Ray ray, Cone cone)
     float b = (2.0f * ox * dx) + (2.0f * oy * dy) - (2.0f * oz * dz);
     float c = (ox * ox) + (oy * oy) - (oz * oz);
 
-    float t0, t1;
-    if(!solve_quadratic_equation(a, b, c, &t0, &t1))
+    QuadraticSolution solution = solve_quadratic_equation(a, b, c);
+    if(!solution.exists)
     {
         return intersection;
     }
+
+    float t0 = solution.t[0];
+    float t1 = solution.t[1];
 
     float z0 = (t0 * direction.z) + origin.z;
     float z1 = (t1 * direction.z) + origin.z;
@@ -550,25 +567,30 @@ MaybeFloat3 intersect_ray_box(Ray ray, Box box)
     }
 }
 
-static bool intersect_ray_plane_one_sided(Float3 start, Float3 direction, Float3 origin, Float3 normal, Float3* intersection)
+static MaybeFloat3 intersect_ray_plane_one_sided(Float3 start, Float3 direction, Float3 origin, Float3 normal)
 {
     ASSERT(float3_is_normalised(normal));
     ASSERT(float3_is_normalised(direction));
+
+    MaybeFloat3 result = {0};
+
     float d = float3_dot(float3_negate(normal), direction);
     if(d > 1e-6)
     {
         float t = float3_dot(float3_subtract(origin, start), float3_negate(normal)) / d;
         if(t < 0.0f)
         {
-            return false;
+            return result;
         }
         else
         {
-            *intersection = float3_madd(t, direction, start);
-            return true;
+            result.value = float3_madd(t, direction, start);
+            result.valid = true;
+            return result;
         }
     }
-    return false;
+
+    return result;
 }
 
 static bool intersect_line_segment_cylinder(LineSegment segment, Cylinder cylinder, Float3* intersection)
@@ -599,11 +621,15 @@ static bool intersect_line_segment_cylinder(LineSegment segment, Cylinder cylind
     float b = (2.0f * ox * dx) + (2.0f * oy * dy);
     float c = (ox * ox) + (oy * oy) - 1.0f;
 
-    float t0, t1;
-    if(!solve_quadratic_equation(a, b, c, &t0, &t1))
+    QuadraticSolution solution = solve_quadratic_equation(a, b, c);
+    if(!solution.exists)
     {
         return false;
     }
+
+    float t0 = solution.t[0];
+    float t1 = solution.t[1];
+
     float z0 = (t0 * direction.z) + start.z;
     float z1 = (t1 * direction.z) + start.z;
 
@@ -753,16 +779,15 @@ FaceContact jan_first_face_hit_by_ray(JanMesh* mesh, Ray ray, Stack* stack)
 
     FOR_EACH_IN_POOL(JanFace, face, mesh->face_pool)
     {
-        Float3 intersection;
         Float3 any_point = face->first_border->first->vertex->position;
-        bool intersected = intersect_ray_plane_one_sided(ray.origin, ray.direction, any_point, face->normal, &intersection);
-        if(intersected)
+        MaybeFloat3 intersection = intersect_ray_plane_one_sided(ray.origin, ray.direction, any_point, face->normal);
+        if(intersection.valid)
         {
-            float distance = float3_squared_distance(ray.origin, intersection);
+            float distance = float3_squared_distance(ray.origin, intersection.value);
             if(distance < result.distance)
             {
                 Matrix3 mi = matrix3_transpose(matrix3_orthogonal_basis(face->normal));
-                Float2 point = matrix3_transform(mi, intersection);
+                Float2 point = matrix3_transform(mi, intersection.value);
 
                 bool on_face = false;
 
