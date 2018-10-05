@@ -342,8 +342,8 @@ int main(int argc, char** argv)
 {
     Heap heap = {0};
     Stack stack = {0};
-    heap_create(&heap, capobytes(64));
-    stack_create(&stack, capobytes(128));
+    heap_create(&heap, (uint32_t) capobytes(64));
+    stack_create(&stack, (uint32_t) capobytes(128));
 
     set_asset_path(&heap);
     unicode_load_tables(&heap, &stack);

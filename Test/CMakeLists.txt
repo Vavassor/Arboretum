@@ -1,5 +1,12 @@
 add_executable(TestMap "")
 
+if(WIN32)
+	set(
+		PLATFORM_SPECIFIC_SOURCES
+		../Source/wide_char.c
+	)
+endif()
+
 target_sources(
     TestMap
     PRIVATE
@@ -15,6 +22,7 @@ target_sources(
     ../Source/string_build.c
     ../Source/string_utilities.c
     Map/main.c
+	${PLATFORM_SPECIFIC_SOURCES}
 )
 
 if(LINUX)
@@ -52,6 +60,7 @@ target_sources(
     ../Source/unicode_line_break.c
     ../Source/unicode_word_break.c
     Unicode/main.c
+	${PLATFORM_SPECIFIC_SOURCES}
 )
 
 if(LINUX)

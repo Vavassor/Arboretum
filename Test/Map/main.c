@@ -79,16 +79,17 @@ static bool is_key_before(Pair a, Pair b)
 
 DEFINE_QUICK_SORT(Pair, is_key_before, by_keys);
 
+#define PAIRS_COUNT 256
+
 static bool test_iterate(Test* test, Heap* heap)
 {
     Map* map = &test->map;
 
-    const int pairs_count = 256;
-    Pair insert_pairs[pairs_count];
+    Pair insert_pairs[PAIRS_COUNT];
 
     random_seed(&test->generator, 1635899);
 
-    for(int pair_index = 0; pair_index < pairs_count; pair_index += 1)
+    for(int pair_index = 0; pair_index < PAIRS_COUNT; pair_index += 1)
     {
         void* key = (void*) random_generate(&test->generator);
         void* value = (void*) random_generate(&test->generator);
@@ -97,7 +98,7 @@ static bool test_iterate(Test* test, Heap* heap)
         map_add(map, key, value, heap);
     }
 
-    Pair pairs[pairs_count];
+    Pair pairs[PAIRS_COUNT];
     int found = 0;
 
     ITERATE_MAP(it, map)
@@ -106,17 +107,17 @@ static bool test_iterate(Test* test, Heap* heap)
         pairs[found].value = map_iterator_get_value(it);
         found += 1;
     }
-    if(found != pairs_count)
+    if(found != PAIRS_COUNT)
     {
         return false;
     }
 
-    quick_sort_by_keys(pairs, pairs_count);
-    quick_sort_by_keys(insert_pairs, pairs_count);
+    quick_sort_by_keys(pairs, PAIRS_COUNT);
+    quick_sort_by_keys(insert_pairs, PAIRS_COUNT);
 
     int mismatches = 0;
 
-    for(int pair_index = 0; pair_index < pairs_count; pair_index += 1)
+    for(int pair_index = 0; pair_index < PAIRS_COUNT; pair_index += 1)
     {
         Pair insert = insert_pairs[pair_index];
         Pair found = pairs[pair_index];
@@ -193,7 +194,7 @@ static bool run_tests(Heap* heap)
         TEST_TYPE_REMOVE_OVERFLOW,
         TEST_TYPE_RESERVE,
     };
-    bool which_failed[TEST_TYPE_COUNT] = {};
+    bool which_failed[TEST_TYPE_COUNT] = {0};
 
     int failed = 0;
 

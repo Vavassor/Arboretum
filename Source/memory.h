@@ -140,10 +140,10 @@ void heap_deallocate(Heap* heap, void* memory);
 HeapInfo heap_get_info(Heap* heap);
 
 #define HEAP_ALLOCATE(heap, type, count) \
-    ((type*) heap_allocate(heap, sizeof(type) * (count)))
+    ((type*) heap_allocate(heap, (uint32_t) (sizeof(type) * (count))))
 
 #define HEAP_REALLOCATE(heap, array, type, count) \
-    ((type*) heap_reallocate(heap, array, sizeof(type) * (count)))
+    ((type*) heap_reallocate(heap, array, (uint32_t) (sizeof(type) * (count))))
 
 #define HEAP_DEALLOCATE(heap, array) \
     heap_deallocate(heap, array)

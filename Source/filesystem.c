@@ -944,6 +944,20 @@ bool make_file_permanent(File* file, const char* path)
     return moved;
 }
 
+ReadFileResult read_file(File* file, void* data, uint64_t bytes)
+{
+	ReadFileResult result = {0};
+	DWORD bytes_read = 0;
+	BOOL file_read = ReadFile(file->handle, data, (DWORD) bytes, &bytes_read,
+			NULL);
+	if(file_read && (uint64_t) bytes_read == bytes)
+	{
+		result.bytes = bytes;
+		result.success = true;
+	}
+	return result;
+}
+
 bool write_file(File* file, const void* data, uint64_t bytes)
 {
     ASSERT(bytes <= UINT32_MAX);
