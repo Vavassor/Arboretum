@@ -195,13 +195,13 @@ void immediate_context_destroy(Heap* heap)
     {
         for(int i = 0; i < CONTEXT_VERTEX_TYPE_COUNT; i += 1)
         {
-            destroy_buffer(context->backend, context->buffers[i]);
+            context->backend->destroy_buffer(context->backend, context->buffers[i]);
         }
         for(int i = 0; i < CONTEXT_BLEND_MODE_COUNT; i += 1)
         {
             for(int j = 0; j < CONTEXT_VERTEX_TYPE_COUNT; j += 1)
             {
-                destroy_pipeline(context->backend, context->pipelines[i][j]);
+                context->backend->destroy_pipeline(context->backend, context->pipelines[i][j]);
             }
         }
         HEAP_DEALLOCATE(heap, context);
@@ -241,6 +241,7 @@ void immediate_set_override_pipeline(PipelineId pipeline)
 
 void immediate_set_clip_area(Rect rect, int viewport_width, int viewport_height)
 {
+    Backend* backend = context->backend;
     ScissorRect scissor_rect =
     {
         .bottom_left =
@@ -250,12 +251,13 @@ void immediate_set_clip_area(Rect rect, int viewport_width, int viewport_height)
         },
         .dimensions = {(int) rect.dimensions.x, (int) rect.dimensions.y},
     };
-    set_scissor_rect(context->backend, &scissor_rect);
+    backend->set_scissor_rect(backend, &scissor_rect);
 }
 
 void immediate_stop_clip_area()
 {
-    set_scissor_rect(context->backend, NULL);
+    Backend* backend = context->backend;
+    backend->set_scissor_rect(backend, NULL);
 }
 
 static bool is_fresh(Context* c)

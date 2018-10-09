@@ -195,8 +195,9 @@ typedef struct Features
     bool texture_compression_s3tc : 1;
 } Features;
 
-struct Backend
+typedef struct BackendGl
 {
+    Backend base;
     Capabilities capabilities;
     Features features;
     IdPool buffer_id_pool;
@@ -213,7 +214,7 @@ struct Backend
     Shader* shaders;
     PipelineId current_pipeline;
     PassId current_pass;
-};
+} BackendGl;
 
 static BlendFactor default_blend_factor(BlendFactor factor, BlendFactor default_factor)
 {
@@ -375,7 +376,6 @@ static GLenum get_cull_mode(CullMode cull_mode)
     {
         case CULL_MODE_BACK:           return GL_BACK;
         case CULL_MODE_FRONT:          return GL_FRONT;
-        case CULL_MODE_FRONT_AND_BACK: return GL_FRONT_AND_BACK;
         default:                       return 0;
     }
 }
@@ -677,7 +677,7 @@ static GLenum translate_index_type(IndexType index_type)
     }
 }
 
-static bool is_pixel_format_supported(Backend* backend, PixelFormat pixel_format)
+static bool is_pixel_format_supported(BackendGl* backend, PixelFormat pixel_format)
 {
     switch(pixel_format)
     {
@@ -695,7 +695,7 @@ static bool is_pixel_format_supported(Backend* backend, PixelFormat pixel_format
     }
 }
 
-static Buffer* fetch_buffer(Backend* backend, BufferId id)
+static Buffer* fetch_buffer(BackendGl* backend, BufferId id)
 {
     if(id.value != invalid_id)
     {
@@ -706,7 +706,7 @@ static Buffer* fetch_buffer(Backend* backend, BufferId id)
     return NULL;
 }
 
-static Image* fetch_image(Backend* backend, ImageId id)
+static Image* fetch_image(BackendGl* backend, ImageId id)
 {
     if(id.value != invalid_id)
     {
@@ -717,7 +717,7 @@ static Image* fetch_image(Backend* backend, ImageId id)
     return NULL;
 }
 
-static Pass* fetch_pass(Backend* backend, PassId id)
+static Pass* fetch_pass(BackendGl* backend, PassId id)
 {
     if(id.value != invalid_id)
     {
@@ -728,7 +728,7 @@ static Pass* fetch_pass(Backend* backend, PassId id)
     return NULL;
 }
 
-static Pipeline* fetch_pipeline(Backend* backend, PipelineId id)
+static Pipeline* fetch_pipeline(BackendGl* backend, PipelineId id)
 {
     if(id.value != invalid_id)
     {
@@ -739,7 +739,7 @@ static Pipeline* fetch_pipeline(Backend* backend, PipelineId id)
     return NULL;
 }
 
-static Sampler* fetch_sampler(Backend* backend, SamplerId id)
+static Sampler* fetch_sampler(BackendGl* backend, SamplerId id)
 {
     if(id.value != invalid_id)
     {
@@ -750,7 +750,7 @@ static Sampler* fetch_sampler(Backend* backend, SamplerId id)
     return NULL;
 }
 
-static Shader* fetch_shader(Backend* backend, ShaderId id)
+static Shader* fetch_shader(BackendGl* backend, ShaderId id)
 {
     if(id.value != invalid_id)
     {
@@ -796,7 +796,7 @@ static void copy_to_buffer(Buffer* buffer, const void* memory, int base, int siz
     glBufferSubData(buffer->type, base, size, memory);
 }
 
-static void load_image(Image* image, ImageSpec* spec, Backend* backend)
+static void load_image(Image* image, ImageSpec* spec, BackendGl* backend)
 {
     ASSERT(spec->width > 0);
     ASSERT(spec->height > 0);
@@ -975,7 +975,7 @@ static void set_up_attachment_image(Attachment* attachment, Image* image, GLuint
     }
 }
 
-static void load_pass(Pass* pass, PassSpec* spec, Backend* backend)
+static void load_pass(Pass* pass, PassSpec* spec, BackendGl* backend)
 {
     Attachment* attachment;
     AttachmentSpec* attachment_spec;
@@ -1110,7 +1110,7 @@ static void load_rasterizer_state(RasterizerState* state, RasterizerStateSpec* s
     state->depth_bias_enabled = spec->depth_bias_enabled;
 }
 
-static void load_vertex_layout(Pipeline* pipeline, VertexLayoutSpec* spec, Backend* backend)
+static void load_vertex_layout(Pipeline* pipeline, VertexLayoutSpec* spec, BackendGl* backend)
 {
     for(int attribute_index = 0; attribute_index < VERTEX_ATTRIBUTE_CAP; attribute_index += 1)
     {
@@ -1152,7 +1152,7 @@ static void load_vertex_layout(Pipeline* pipeline, VertexLayoutSpec* spec, Backe
     }
 }
 
-static void load_pipeline(Pipeline* pipeline, PipelineSpec* spec, Backend* backend)
+static void load_pipeline(Pipeline* pipeline, PipelineSpec* spec, BackendGl* backend)
 {
     ASSERT(spec->shader.value != invalid_id);
     pipeline->shader = spec->shader;
@@ -1175,7 +1175,7 @@ static void unload_pipeline(Pipeline* pipeline)
     pipeline->resource.status = RESOURCE_STATUS_INVALID;
 }
 
-static void load_sampler(Sampler* sampler, SamplerSpec* spec, Backend* backend)
+static void load_sampler(Sampler* sampler, SamplerSpec* spec, BackendGl* backend)
 {
     glGenSamplers(1, &sampler->handle);
 
@@ -1436,9 +1436,9 @@ static void set_up_capabilities(Capabilities* capabilities, Features* features)
     }
 }
 
-Backend* create_backend(Heap* heap)
+static void create_backend_gl(Backend* backend_base, Heap* heap)
 {
-    Backend* backend = HEAP_ALLOCATE(heap, Backend, 1);
+    BackendGl* backend = (BackendGl*) backend_base;
 
     create_id_pool(&backend->buffer_id_pool, heap, 32);
     create_id_pool(&backend->image_id_pool, heap, 16);
@@ -1460,12 +1460,12 @@ Backend* create_backend(Heap* heap)
 #if defined(PROFILE_CORE_3_3)
     glEnable(GL_FRAMEBUFFER_SRGB);
 #endif
-
-    return backend;
 }
 
-void destroy_backend(Backend* backend, Heap* heap)
+static void destroy_backend_gl(Backend* backend_base, Heap* heap)
 {
+    BackendGl* backend = (BackendGl*) backend_base;
+
     for(int buffer_index = 0; buffer_index < backend->buffer_id_pool.cap; buffer_index += 1)
     {
         Buffer* buffer = &backend->buffers[buffer_index];
@@ -1535,8 +1535,9 @@ void destroy_backend(Backend* backend, Heap* heap)
     HEAP_DEALLOCATE(heap, backend->shaders);
 }
 
-BufferId create_buffer(Backend* backend, BufferSpec* spec, Log* log)
+static BufferId create_buffer_gl(Backend* backend_base, BufferSpec* spec, Log* log)
 {
+    BackendGl* backend = (BackendGl*) backend_base;
     IdPool* pool = &backend->buffer_id_pool;
     BufferId id = (BufferId){allocate_id(pool)};
     if(id.value != invalid_id)
@@ -1552,8 +1553,9 @@ BufferId create_buffer(Backend* backend, BufferSpec* spec, Log* log)
     return id;
 }
 
-ImageId create_image(Backend* backend, ImageSpec* spec, Log* log)
+static ImageId create_image_gl(Backend* backend_base, ImageSpec* spec, Log* log)
 {
+    BackendGl* backend = (BackendGl*) backend_base;
     IdPool* pool = &backend->image_id_pool;
     ImageId id = (ImageId){allocate_id(pool)};
     if(id.value != invalid_id)
@@ -1569,8 +1571,9 @@ ImageId create_image(Backend* backend, ImageSpec* spec, Log* log)
     return id;
 }
 
-PassId create_pass(Backend* backend, PassSpec* spec, Log* log)
+static PassId create_pass_gl(Backend* backend_base, PassSpec* spec, Log* log)
 {
+    BackendGl* backend = (BackendGl*) backend_base;
     IdPool* pool = &backend->pass_id_pool;
     PassId id = (PassId){allocate_id(pool)};
     if(id.value != invalid_id)
@@ -1586,8 +1589,9 @@ PassId create_pass(Backend* backend, PassSpec* spec, Log* log)
     return id;
 }
 
-PipelineId create_pipeline(Backend* backend, PipelineSpec* spec, Log* log)
+static PipelineId create_pipeline_gl(Backend* backend_base, PipelineSpec* spec, Log* log)
 {
+    BackendGl* backend = (BackendGl*) backend_base;
     IdPool* pool = &backend->pipeline_id_pool;
     PipelineId id = (PipelineId){allocate_id(pool)};
     if(id.value != invalid_id)
@@ -1603,8 +1607,9 @@ PipelineId create_pipeline(Backend* backend, PipelineSpec* spec, Log* log)
     return id;
 }
 
-SamplerId create_sampler(Backend* backend, SamplerSpec* spec, Log* log)
+static SamplerId create_sampler_gl(Backend* backend_base, SamplerSpec* spec, Log* log)
 {
+    BackendGl* backend = (BackendGl*) backend_base;
     IdPool* pool = &backend->sampler_id_pool;
     SamplerId id = (SamplerId){allocate_id(pool)};
     if(id.value != invalid_id)
@@ -1620,8 +1625,9 @@ SamplerId create_sampler(Backend* backend, SamplerSpec* spec, Log* log)
     return id;
 }
 
-ShaderId create_shader(Backend* backend, ShaderSpec* spec, Heap* heap, Log* log)
+static ShaderId create_shader_gl(Backend* backend_base, ShaderSpec* spec, Heap* heap, Log* log)
 {
+    BackendGl* backend = (BackendGl*) backend_base;
     IdPool* pool = &backend->shader_id_pool;
     ShaderId id = (ShaderId){allocate_id(pool)};
     if(id.value != invalid_id)
@@ -1637,8 +1643,9 @@ ShaderId create_shader(Backend* backend, ShaderSpec* spec, Heap* heap, Log* log)
     return id;
 }
 
-void destroy_buffer(Backend* backend, BufferId id)
+static void destroy_buffer_gl(Backend* backend_base, BufferId id)
 {
+    BackendGl* backend = (BackendGl*) backend_base;
     Buffer* buffer = fetch_buffer(backend, id);
     if(buffer)
     {
@@ -1648,8 +1655,9 @@ void destroy_buffer(Backend* backend, BufferId id)
     }
 }
 
-void destroy_image(Backend* backend, ImageId id)
+static void destroy_image_gl(Backend* backend_base, ImageId id)
 {
+    BackendGl* backend = (BackendGl*) backend_base;
     Image* image = fetch_image(backend, id);
     if(image)
     {
@@ -1659,8 +1667,9 @@ void destroy_image(Backend* backend, ImageId id)
     }
 }
 
-void destroy_pass(Backend* backend, PassId id)
+static void destroy_pass_gl(Backend* backend_base, PassId id)
 {
+    BackendGl* backend = (BackendGl*) backend_base;
     Pass* pass = fetch_pass(backend, id);
     if(pass)
     {
@@ -1670,8 +1679,9 @@ void destroy_pass(Backend* backend, PassId id)
     }
 }
 
-void destroy_pipeline(Backend* backend, PipelineId id)
+static void destroy_pipeline_gl(Backend* backend_base, PipelineId id)
 {
+    BackendGl* backend = (BackendGl*) backend_base;
     Pipeline* pipeline = fetch_pipeline(backend, id);
     if(pipeline)
     {
@@ -1681,8 +1691,9 @@ void destroy_pipeline(Backend* backend, PipelineId id)
     }
 }
 
-void destroy_sampler(Backend* backend, SamplerId id)
+static void destroy_sampler_gl(Backend* backend_base, SamplerId id)
 {
+    BackendGl* backend = (BackendGl*) backend_base;
     Sampler* sampler = fetch_sampler(backend, id);
     if(sampler)
     {
@@ -1692,8 +1703,9 @@ void destroy_sampler(Backend* backend, SamplerId id)
     }
 }
 
-void destroy_shader(Backend* backend, ShaderId id)
+static void destroy_shader_gl(Backend* backend_base, ShaderId id)
 {
+    BackendGl* backend = (BackendGl*) backend_base;
     Shader* shader = fetch_shader(backend, id);
     if(shader)
     {
@@ -1727,7 +1739,7 @@ static GLuint get_pass_framebuffer(Pass* pass)
     }
 }
 
-static void get_colour_attachment_dimensions(Backend* backend, Pass* pass, int* width, int* height)
+static void get_colour_attachment_dimensions(BackendGl* backend, Pass* pass, int* width, int* height)
 {
     if(pass)
     {
@@ -1738,8 +1750,10 @@ static void get_colour_attachment_dimensions(Backend* backend, Pass* pass, int* 
     }
 }
 
-void blit_pass_colour(Backend* backend, PassId source_id, PassId target_id)
+static void blit_pass_colour_gl(Backend* backend_base, PassId source_id, PassId target_id)
 {
+    BackendGl* backend = (BackendGl*) backend_base;
+
     Pass* source = fetch_pass(backend, source_id);
     Pass* target = fetch_pass(backend, target_id);
 
@@ -1841,9 +1855,9 @@ static bool validate_attachments(ClearState* clear_state, bool is_default_frameb
     return good;
 }
 
-void clear_target(Backend* backend, ClearState* clear_state)
+static void clear_target_gl(Backend* backend_base, ClearState* clear_state)
 {
-    (void) backend;
+    BackendGl* backend = (BackendGl*) backend_base;
 
     ASSERT(validate_attachments(clear_state, backend->current_pass.value == default_pass.value));
 
@@ -1876,8 +1890,10 @@ void clear_target(Backend* backend, ClearState* clear_state)
     glClear(mask);
 }
 
-void draw(Backend* backend, DrawAction* draw_action)
+static void draw_gl(Backend* backend_base, DrawAction* draw_action)
 {
+    BackendGl* backend = (BackendGl*) backend_base;
+
     Pipeline* pipeline = fetch_pipeline(backend, backend->current_pipeline);
 
     glBindVertexArray(pipeline->vertex_array);
@@ -1914,8 +1930,10 @@ void draw(Backend* backend, DrawAction* draw_action)
     }
 }
 
-void set_images(Backend* backend, ImageSet* image_set)
+static void set_images_gl(Backend* backend_base, ImageSet* image_set)
 {
+    BackendGl* backend = (BackendGl*) backend_base;
+
     Pipeline* pipeline = fetch_pipeline(backend, backend->current_pipeline);
     Shader* shader = fetch_shader(backend, pipeline->shader);
 
@@ -1944,8 +1962,10 @@ void set_images(Backend* backend, ImageSet* image_set)
     }
 }
 
-void set_pass(Backend* backend, PassId id)
+static void set_pass_gl(Backend* backend_base, PassId id)
 {
+    BackendGl* backend = (BackendGl*) backend_base;
+
     Pass* pass = fetch_pass(backend, id);
 
     if(pass)
@@ -2127,7 +2147,7 @@ static void set_depth_stencil_state(DepthStencilState* state, DepthStencilState*
     set_stencil_state(&state->front_stencil, front, GL_FRONT);
 }
 
-static void set_rasterizer_state(RasterizerState* state, RasterizerState* prior, Backend* backend)
+static void set_rasterizer_state(RasterizerState* state, RasterizerState* prior, BackendGl* backend)
 {
     if(!prior || state->cull_mode != prior->cull_mode)
     {
@@ -2179,8 +2199,9 @@ static void set_rasterizer_state(RasterizerState* state, RasterizerState* prior,
     }
 }
 
-void set_pipeline(Backend* backend, PipelineId id)
+static void set_pipeline_gl(Backend* backend_base, PipelineId id)
 {
+    BackendGl* backend = (BackendGl*) backend_base;
     Pipeline* pipeline = fetch_pipeline(backend, id);
     Pipeline* prior = fetch_pipeline(backend, backend->current_pipeline);
     if(pipeline != prior)
@@ -2205,7 +2226,7 @@ void set_pipeline(Backend* backend, PipelineId id)
     }
 }
 
-void set_scissor_rect(Backend* backend, ScissorRect* rect)
+static void set_scissor_rect_gl(Backend* backend, ScissorRect* rect)
 {
     (void) backend;
 
@@ -2225,7 +2246,7 @@ void set_scissor_rect(Backend* backend, ScissorRect* rect)
     }
 }
 
-void set_viewport(Backend* backend, Viewport* viewport)
+static void set_viewport_gl(Backend* backend, Viewport* viewport)
 {
     (void) backend;
 
@@ -2238,8 +2259,9 @@ void set_viewport(Backend* backend, Viewport* viewport)
 #endif
 }
 
-void update_buffer(Backend* backend, BufferId id, const void* memory, int base, int size)
+static void update_buffer_gl(Backend* backend_base, BufferId id, const void* memory, int base, int size)
 {
+    BackendGl* backend = (BackendGl*) backend_base;
     if(!size)
     {
         return;
@@ -2247,4 +2269,39 @@ void update_buffer(Backend* backend, BufferId id, const void* memory, int base, 
     Buffer* buffer = fetch_buffer(backend, id);
     ASSERT(buffer);
     copy_to_buffer(buffer, memory, base, size);
+}
+
+Backend* setup_backend_gl(Heap* heap)
+{
+    BackendGl* backend_gl = HEAP_ALLOCATE(heap, BackendGl, 1);
+    Backend* backend = &backend_gl->base;
+
+    backend->create_backend = create_backend_gl;
+    backend->destroy_backend = destroy_backend_gl;
+
+    backend->create_buffer = create_buffer_gl;
+    backend->create_image = create_image_gl;
+    backend->create_pass = create_pass_gl;
+    backend->create_pipeline = create_pipeline_gl;
+    backend->create_sampler = create_sampler_gl;
+    backend->create_shader = create_shader_gl;
+
+    backend->destroy_buffer = destroy_buffer_gl;
+    backend->destroy_image = destroy_image_gl;
+    backend->destroy_pass = destroy_pass_gl;
+    backend->destroy_pipeline = destroy_pipeline_gl;
+    backend->destroy_sampler = destroy_sampler_gl;
+    backend->destroy_shader = destroy_shader_gl;
+    
+    backend->blit_pass_colour = blit_pass_colour_gl;
+    backend->clear_target = clear_target_gl;
+    backend->draw = draw_gl;
+    backend->set_images = set_images_gl;
+    backend->set_pass = set_pass_gl;
+    backend->set_pipeline = set_pipeline_gl;
+    backend->set_scissor_rect = set_scissor_rect_gl;
+    backend->set_viewport = set_viewport_gl;
+    backend->update_buffer = update_buffer_gl;
+
+    return backend;
 }

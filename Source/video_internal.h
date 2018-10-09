@@ -91,7 +91,6 @@ typedef enum CullMode
     CULL_MODE_NONE,
     CULL_MODE_BACK,
     CULL_MODE_FRONT,
-    CULL_MODE_FRONT_AND_BACK,
 } CullMode;
 
 typedef enum FaceWinding
@@ -445,13 +444,71 @@ typedef struct ClearState
 
 // Functions....................................................................
 
+typedef struct Backend Backend;
+
+typedef void (*CreateBackendCall)(Backend* backend, Heap* heap);
+typedef void (*DestroyBackendCall)(Backend* backend, Heap* heap);
+
+typedef BufferId (*CreateBufferCall)(Backend* backend, BufferSpec* spec, Log* log);
+typedef ImageId (*CreateImageCall)(Backend* backend, ImageSpec* spec, Log* log);
+typedef PassId (*CreatePassCall)(Backend* backend, PassSpec* spec, Log* log);
+typedef PipelineId (*CreatePipelineCall)(Backend* backend, PipelineSpec* spec, Log* log);
+typedef SamplerId (*CreateSamplerCall)(Backend* backend, SamplerSpec* spec, Log* log);
+typedef ShaderId (*CreateShaderCall)(Backend* backend, ShaderSpec* spec, Heap* heap, Log* log);
+
+typedef void (*DestroyBufferCall)(Backend* backend, BufferId id);
+typedef void (*DestroyImageCall)(Backend* backend, ImageId id);
+typedef void (*DestroyPassCall)(Backend* backend, PassId id);
+typedef void (*DestroyPipelineCall)(Backend* backend, PipelineId id);
+typedef void (*DestroySamplerCall)(Backend* backend, SamplerId id);
+typedef void (*DestroyShaderCall)(Backend* backend, ShaderId id);
+
+typedef void (*BlitPassColourCall)(Backend* backend, PassId source_id, PassId target_id);
+typedef void (*ClearTargetCall)(Backend* backend, ClearState* clear_state);
+typedef void (*DrawCall)(Backend* backend, DrawAction* draw_action);
+typedef void (*SetImagesCall)(Backend* backend, ImageSet* image_set);
+typedef void (*SetPassCall)(Backend* backend, PassId id);
+typedef void (*SetPipelineCall)(Backend* backend, PipelineId id);
+typedef void (*SetScissorRectCall)(Backend* backend, ScissorRect* scissor_rect);
+typedef void (*SetViewportCall)(Backend* backend, Viewport* viewport);
+typedef void (*UpdateBufferCall)(Backend* backend, BufferId id, const void* memory, int base, int size);
+
+struct Backend
+{
+    CreateBackendCall create_backend;
+    DestroyBackendCall destroy_backend;
+
+    CreateBufferCall create_buffer;
+    CreateImageCall create_image;
+    CreatePassCall create_pass;
+    CreatePipelineCall create_pipeline;
+    CreateSamplerCall create_sampler;
+    CreateShaderCall create_shader;
+
+    DestroyBufferCall destroy_buffer;
+    DestroyImageCall destroy_image;
+    DestroyPassCall destroy_pass;
+    DestroyPipelineCall destroy_pipeline;
+    DestroySamplerCall destroy_sampler;
+    DestroyShaderCall destroy_shader;
+
+    BlitPassColourCall blit_pass_colour;
+    ClearTargetCall clear_target;
+    DrawCall draw;
+    SetImagesCall set_images;
+    SetPassCall set_pass;
+    SetPipelineCall set_pipeline;
+    SetScissorRectCall set_scissor_rect;
+    SetViewportCall set_viewport;
+    UpdateBufferCall update_buffer;
+};
+
 int count_mip_levels(int width, int height);
 int get_vertex_format_component_count(VertexFormat format);
 int get_vertex_format_size(VertexFormat format);
 bool is_pixel_format_compressed(PixelFormat pixel_format);
 
-typedef struct Backend Backend;
-Backend* create_backend(Heap* heap);
+void create_backend(Backend* backend, Heap* heap);
 void destroy_backend(Backend* backend, Heap* heap);
 
 BufferId create_buffer(Backend* backend, BufferSpec* spec, Log* log);
@@ -477,6 +534,9 @@ void set_pipeline(Backend* backend, PipelineId id);
 void set_scissor_rect(Backend* backend, ScissorRect* scissor_rect);
 void set_viewport(Backend* backend, Viewport* viewport);
 void update_buffer(Backend* backend, BufferId id, const void* memory, int base, int size);
+
+Backend* setup_backend_d3d12(Heap* heap);
+Backend* setup_backend_gl(Heap* heap);
 
 extern const PassId default_pass;
 

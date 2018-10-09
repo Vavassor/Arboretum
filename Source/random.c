@@ -2,6 +2,47 @@
 
 #include <time.h>
 
+#include "platform_definitions.h"
+
+typedef struct Uint128
+{
+#if defined(COMPILER_GCC)
+    unsigned __int128 value;
+#elif defined(COMPILER_MSVC)
+    uint64_t high;
+    uint64_t low;
+#endif
+} Uint128;
+
+#if defined(COMPILER_GCC)
+
+static uint64_t uint128_low_part(Uint128 x)
+{
+    return (uint64_t) (x.value << 64);
+}
+
+static Uint128 uint128_multiply(uint64_t a, uint64_t b)
+{
+    unsigned __int128 product = (unsigned __int128) a * b;
+    return (Uint128){product};
+}
+
+#elif defined(COMPILER_MSVC)
+
+static uint64_t uint128_low_part(Uint128 x)
+{
+    return x.low;
+}
+
+static Uint128 uint128_multiply(uint64_t a, uint64_t b)
+{
+    uint64_t high;
+    uint64_t low = _umul128(a, b, &high);
+    return (Uint128){low, high};
+}
+
+#endif // defined(COMPILER_MSVC)
+
 /*  Written in 2015 by Sebastiano Vigna (vigna@acm.org)
 
 To the extent possible under law, the author has dedicated all copyright and
@@ -48,6 +89,24 @@ uint64_t random_generate(RandomGenerator* generator)
 
 // End of Blackman & Vigna's code
 
+static uint64_t random_uint64_range(RandomGenerator* generator, uint64_t range)
+{
+    uint64_t value = random_generate(generator);
+    Uint128 multiresult = uint128_multiply(value, range);
+    uint64_t leftover = uint128_low_part(multiresult);
+    if(leftover < range)
+    {
+        uint64_t threshold = (~range + UINT64_C(1)) % range;
+        while(leftover < threshold)
+        {
+            value = random_generate(generator);
+            multiresult = uint128_multiply(value, range);
+            leftover = uint128_low_part(multiresult);
+        }
+    }
+    return uint128_low_part(multiresult);
+}
+
 static float to_float(uint64_t x)
 {
     union
@@ -67,7 +126,7 @@ float random_float_range(RandomGenerator* generator, float min, float max)
 
 int random_int_range(RandomGenerator* generator, int min, int max)
 {
-    int x = random_generate(generator) % (uint64_t) (max - min + 1);
+    int x = (int) random_uint64_range(generator, max - min + 1);
     return min + x;
 }
 

@@ -365,9 +365,10 @@ static void create_samplers(VideoContext* context, Samplers* samplers)
 
 static void destroy_samplers(VideoContext* context, Samplers* samplers)
 {
-    destroy_sampler(context->backend, samplers->nearest_repeat);
-    destroy_sampler(context->backend, samplers->linear_repeat);
-    destroy_sampler(context->backend, samplers->linear_mipmap_repeat);
+    Backend* backend = context->backend;
+    destroy_sampler(backend, samplers->nearest_repeat);
+    destroy_sampler(backend, samplers->linear_repeat);
+    destroy_sampler(backend, samplers->linear_mipmap_repeat);
 }
 
 static void create_shaders(VideoContext* context, Shaders* shaders)
@@ -1112,7 +1113,9 @@ static void create_context(VideoContext* context, Log* logger)
     heap_create(&context->heap, (uint32_t) uptibytes(1));
     dense_map_create(&context->objects, &context->heap);
 
-    context->backend = create_backend(&context->heap);
+    context->backend = setup_backend_gl(&context->heap);
+    create_backend(context->backend, &context->heap);
+    
     context->logger = logger;
     context->anti_aliasing_mode = ANTI_ALIASING_MODE_FXAA;
 
@@ -1187,13 +1190,14 @@ static void apply_object_block(VideoContext* context, VideoObject* object)
 
 static void draw_object(VideoContext* context, VideoObject* object)
 {
+    Backend* backend = context->backend;
     DrawAction draw_action =
     {
         .index_buffer = object->buffers[1],
         .indices_count = object->indices_count,
         .vertex_buffers[0] = object->buffers[0],
     };
-    draw(context->backend, &draw_action);
+    draw(backend, &draw_action);
 }
 
 static void set_model_matrix(VideoContext* context, Matrix4 model)
@@ -1707,6 +1711,7 @@ static void draw_selection(VideoContext* context, DenseMapId faces_id, DenseMapI
 
 static void set_regular_view(VideoContext* context, Int2 viewport, Matrix4 view, Matrix4 projection)
 {
+    Backend* backend = context->backend;
     Viewport viewport_state =
     {
         .bottom_left = {0, 0},
@@ -1714,7 +1719,7 @@ static void set_regular_view(VideoContext* context, Int2 viewport, Matrix4 view,
         .far_depth = 1.0f,
         .near_depth = 0.0f,
     };
-    set_viewport(context->backend, &viewport_state);
+    set_viewport(backend, &viewport_state);
     set_view_projection(context, view, projection, int2_to_float2(viewport));
 }
 
@@ -2403,7 +2408,9 @@ void video_set_up_font(VideoContext* context, BmfFont* font)
 {
     Images* images = &context->images;
 
-    for(int texture_index = 0; texture_index < font->pages_count; texture_index += 1)
+    for(int texture_index = 0;
+            texture_index < font->pages_count;
+            texture_index += 1)
     {
         char* filename = font->pages[texture_index].bitmap_filename;
         images->font_textures[texture_index] = build_image(context, filename, false, NULL);

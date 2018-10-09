@@ -34,6 +34,7 @@ if(WIN32)
     target_link_libraries(Arboretum PRIVATE imm32 opengl32)
 	set(
 		PLATFORM_SPECIFIC_SOURCES
+		Source/video_d3d12.c
 		Source/wgl_extensions.c
 		Source/wide_char.c
 	)

@@ -89,3 +89,118 @@ bool is_pixel_format_depth_only(PixelFormat pixel_format)
             return false;
     }
 }
+
+void create_backend(Backend* backend, Heap* heap)
+{
+    backend->create_backend(backend, heap);
+}
+
+void destroy_backend(Backend* backend, Heap* heap)
+{
+    backend->destroy_backend(backend, heap);
+}
+
+BufferId create_buffer(Backend* backend, BufferSpec* spec, Log* log)
+{
+    return backend->create_buffer(backend, spec, log);
+}
+
+ImageId create_image(Backend* backend, ImageSpec* spec, Log* log)
+{
+    return backend->create_image(backend, spec, log);
+}
+
+PassId create_pass(Backend* backend, PassSpec* spec, Log* log)
+{
+    return backend->create_pass(backend, spec, log);
+}
+
+PipelineId create_pipeline(Backend* backend, PipelineSpec* spec, Log* log)
+{
+    return backend->create_pipeline(backend, spec, log);
+}
+
+SamplerId create_sampler(Backend* backend, SamplerSpec* spec, Log* log)
+{
+    return backend->create_sampler(backend, spec, log);
+}
+
+ShaderId create_shader(Backend* backend, ShaderSpec* spec, Heap* heap, Log* log)
+{
+    return backend->create_shader(backend, spec, heap, log);
+}
+
+void destroy_buffer(Backend* backend, BufferId id)
+{
+    backend->destroy_buffer(backend, id);
+}
+
+void destroy_image(Backend* backend, ImageId id)
+{
+    backend->destroy_image(backend, id);
+}
+
+void destroy_pass(Backend* backend, PassId id)
+{
+    backend->destroy_pass(backend, id);
+}
+
+void destroy_pipeline(Backend* backend, PipelineId id)
+{
+    backend->destroy_pipeline(backend, id);
+}
+
+void destroy_sampler(Backend* backend, SamplerId id)
+{
+    backend->destroy_sampler(backend, id);
+}
+
+void destroy_shader(Backend* backend, ShaderId id)
+{
+    backend->destroy_shader(backend, id);
+}
+
+void blit_pass_colour(Backend* backend, PassId source_id, PassId target_id)
+{
+    backend->blit_pass_colour(backend, source_id, target_id);
+}
+
+void clear_target(Backend* backend, ClearState* clear_state)
+{
+    backend->clear_target(backend, clear_state);
+}
+
+void draw(Backend* backend, DrawAction* draw_action)
+{
+    backend->draw(backend, draw_action);
+}
+
+void set_images(Backend* backend, ImageSet* image_set)
+{
+    backend->set_images(backend, image_set);
+}
+
+void set_pass(Backend* backend, PassId id)
+{
+    backend->set_pass(backend, id);
+}
+
+void set_pipeline(Backend* backend, PipelineId id)
+{
+    backend->set_pipeline(backend, id);
+}
+
+void set_scissor_rect(Backend* backend, ScissorRect* scissor_rect)
+{
+    backend->set_scissor_rect(backend, scissor_rect);
+}
+
+void set_viewport(Backend* backend, Viewport* viewport)
+{
+    backend->set_viewport(backend, viewport);
+}
+
+void update_buffer(Backend* backend, BufferId id, const void* memory, int base, int size)
+{
+    backend->update_buffer(backend, id, memory, base, size);
+}
