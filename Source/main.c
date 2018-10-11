@@ -1718,14 +1718,109 @@ static InputModifier fetch_modifiers()
     return modifier;
 }
 
+static IDXGIAdapter1* create_adapter(IDXGIFactory4* factory)
+{
+    IDXGIAdapter1* adapter = NULL;
+
+    for(UINT adapter_index = 0; ; adapter_index += 1)
+    {
+        HRESULT result = IDXGIFactory4_EnumAdapters1(factory, adapter_index,
+                &adapter);
+        if(FAILED(result))
+        {
+            break;
+        }
+
+        DXGI_ADAPTER_DESC1 desc = {0};
+        IDXGIAdapter1_GetDesc1(adapter, &desc);
+        if(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+        {
+            continue;
+        }
+
+        result = D3D12CreateDevice((IUnknown*) adapter, D3D_FEATURE_LEVEL_11_0,
+                &IID_ID3D12Device, NULL);
+        if(SUCCEEDED(result))
+        {
+            break;
+        }
+    }
+
+    return adapter;
+}
+
+static ID3D12Device* create_device(IDXGIFactory4* factory)
+{
+    IDXGIAdapter1* adapter = create_adapter(factory);
+
+    ID3D12Device* device = NULL;
+    D3D_FEATURE_LEVEL feature_level = D3D_FEATURE_LEVEL_11_0;
+    HRESULT result = D3D12CreateDevice((IUnknown*) adapter, feature_level,
+            &IID_ID3D12Device, (LPVOID*) &device);
+    if(adapter)
+    {
+        IDXGIAdapter1_Release(adapter);
+    }
+    if(FAILED(result))
+    {
+        return NULL;
+    }
+
+    return device;
+}
+
 static bool create_platform_windows_d3d12(PlatformWindows* platform)
 {
     PlatformWindowsD3d12* d3d12 = &platform->video_backend.d3d12;
+
+    UINT dxgi_factory_flags = 0;
+    HRESULT result;
+
+#if !defined(NDEBUG)
+    ID3D12Debug* debug_controller;
+    result = D3D12GetDebugInterface(&IID_ID3D12Debug, &debug_controller);
+    if(FAILED(result))
+    {
+        return false;
+    }
+    d3d12->base.debug_controller = debug_controller;
+    ID3D12Debug_EnableDebugLayer(debug_controller);
+    dxgi_factory_flags |= DXGI_CREATE_FACTORY_DEBUG;
+#endif
+
+    IDXGIFactory4* factory;
+    result = CreateDXGIFactory2(dxgi_factory_flags, &IID_IDXGIFactory4,
+            &factory);
+    if(FAILED(result))
+    {
+        return false;
+    }
+
+    d3d12->base.device = create_device(factory);
+    if(!d3d12->base.device)
+    {
+        IDXGIFactory4_Release(factory);
+        return false;
+    }
 
     platform->base.video = &d3d12->base.base;
     platform->base.video->backend_type = VIDEO_BACKEND_TYPE_D3D12;
 
     return true;
+}
+
+static void destroy_platform_windows_d3d12(PlatformWindows* platform)
+{
+    PlatformWindowsD3d12* d3d12 = &platform->video_backend.d3d12;
+    PlatformVideoD3d12* video = &d3d12->base;
+    if(video->debug_controller)
+    {
+        ID3D12Debug_Release(video->debug_controller);
+    }
+    if(video->device)
+    {
+        ID3D12Device_Release(video->device);
+    }
 }
 
 static bool create_platform_windows_gl(PlatformWindows* platform)
@@ -1814,6 +1909,7 @@ static void destroy_video_backend(PlatformWindows* platform)
     {
         case VIDEO_BACKEND_TYPE_D3D12:
         {
+            destroy_platform_windows_d3d12(platform);
             break;
         }
         case VIDEO_BACKEND_TYPE_GL:
@@ -1860,7 +1956,7 @@ static bool is_video_backend_ready(PlatformWindows* platform)
     {
         case VIDEO_BACKEND_TYPE_D3D12:
         {
-            return false;
+            return true;
         }
         case VIDEO_BACKEND_TYPE_GL:
         {

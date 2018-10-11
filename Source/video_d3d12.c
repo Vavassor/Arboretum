@@ -7,6 +7,7 @@
 
 #include "assert.h"
 #include "id_pool.h"
+#include "platform_d3d12.h"
 
 
 typedef enum ResourceStatus
@@ -269,6 +270,9 @@ static void create_backend_d3d12(Backend* backend_base, PlatformVideo* video,
     create_id_pool(&backend->buffer_id_pool, heap, 32);
 
     backend->buffers = HEAP_ALLOCATE(heap, Buffer, backend->buffer_id_pool.cap);
+
+    PlatformVideoD3d12* platform = (PlatformVideoD3d12*) video;
+    backend->device = platform->device;
 }
 
 static void destroy_backend_d3d12(Backend* backend_base, Heap* heap)

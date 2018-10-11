@@ -11,6 +11,7 @@
 struct PlatformVideoD3d12
 {
     PlatformVideo base;
+    ID3D12Debug* debug_controller;
     ID3D12Device* device;
 };
 

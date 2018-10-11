@@ -31,7 +31,7 @@ if("${CMAKE_SYSTEM}" MATCHES "Linux")
 endif()
 
 if(WIN32)
-    target_link_libraries(Arboretum PRIVATE imm32 opengl32)
+    target_link_libraries(Arboretum PRIVATE d3d12 dxgi imm32 opengl32)
 	set(
 		PLATFORM_SPECIFIC_SOURCES
 		Source/video_d3d12.c
@@ -130,7 +130,7 @@ macro(mirror_files directory_name)
         get_filename_component(dir ${resource} DIRECTORY)
         get_filename_component(dirname ${dir} NAME)
      
-        set (output "")
+        set(output "")
      
         while(NOT ${dirname} STREQUAL ${directory_name})
             get_filename_component(path_component ${dir} NAME)
