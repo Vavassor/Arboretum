@@ -1356,12 +1356,38 @@ int main(int argc, char** argv)
 #include <Windows.h>
 #include <windowsx.h>
 
+#include "platform_d3d12.h"
+#include "platform_gl.h"
+
+typedef struct PlatformWindowsGl
+{
+    PlatformVideoGl base;
+    HGLRC rendering_context;
+    HDC device_context;
+    bool functions_loaded;
+} PlatformWindowsGl;
+
+typedef struct PlatformWindowsD3d12
+{
+    PlatformVideoD3d12 base;
+} PlatformWindowsD3d12;
+
+typedef struct PlatformVideoBackend
+{
+    union
+    {
+        PlatformWindowsGl gl;
+        PlatformWindowsD3d12 d3d12;
+    };
+    VideoBackendType type;
+} PlatformVideoBackend;
+
 typedef struct PlatformWindows
 {
     Platform base;
+    PlatformVideoBackend video_backend;
 
     HWND window;
-    HDC device_context;
     Int2 viewport;
 
     CursorType cursor_type;
@@ -1692,12 +1718,162 @@ static InputModifier fetch_modifiers()
     return modifier;
 }
 
+static bool create_platform_windows_d3d12(PlatformWindows* platform)
+{
+    PlatformWindowsD3d12* d3d12 = &platform->video_backend.d3d12;
+
+    platform->base.video = &d3d12->base.base;
+    platform->base.video->backend_type = VIDEO_BACKEND_TYPE_D3D12;
+
+    return true;
+}
+
+static bool create_platform_windows_gl(PlatformWindows* platform)
+{
+    PlatformWindowsGl* gl = &platform->video_backend.gl;
+
+    HDC device_context = GetDC(platform->window);
+    if(!device_context)
+    {
+        log_error(&platform->base.logger, "Couldn't obtain the device context.");
+        return false;
+    }
+    gl->device_context = device_context;
+
+    PIXELFORMATDESCRIPTOR descriptor = {0};
+    descriptor.nSize = sizeof descriptor;
+    descriptor.nVersion = 1;
+    descriptor.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
+    descriptor.iPixelType = PFD_TYPE_RGBA;
+    descriptor.cColorBits = 32;
+    descriptor.cDepthBits = 24;
+    descriptor.cStencilBits = 8;
+    descriptor.iLayerType = PFD_MAIN_PLANE;
+    int format_index = ChoosePixelFormat(gl->device_context, &descriptor);
+    if(format_index == 0)
+    {
+        log_error(&platform->base.logger, "Failed to set up the pixel format.");
+        return false;
+    }
+    if(SetPixelFormat(gl->device_context, format_index, &descriptor) == FALSE)
+    {
+        log_error(&platform->base.logger, "Failed to set up the pixel format.");
+        return false;
+    }
+
+    HGLRC rendering_context = wglCreateContext(gl->device_context);
+    if (!rendering_context)
+    {
+        log_error(&platform->base.logger, "Couldn't create the rendering context.");
+        return false;
+    }
+    gl->rendering_context = rendering_context;
+
+    // Set it to be this thread's rendering context.
+    if(wglMakeCurrent(gl->device_context, gl->rendering_context) == FALSE)
+    {
+        log_error(&platform->base.logger, "Couldn't set this thread's rendering context (wglMakeCurrent failed).");
+        return false;
+    }
+
+    bool functions_loaded = ogl_LoadFunctions();
+    if(!functions_loaded)
+    {
+        log_error(&platform->base.logger, "OpenGL functions could not be loaded!");
+        return false;
+    }
+    gl->functions_loaded = functions_loaded;
+
+    platform->base.video = &gl->base.base;
+    platform->base.video->backend_type = VIDEO_BACKEND_TYPE_GL;
+
+    return true;
+}
+
+static bool create_video_backend(PlatformWindows* platform)
+{
+    PlatformVideoBackend* video_backend = &platform->video_backend;
+    switch(video_backend->type)
+    {
+        case VIDEO_BACKEND_TYPE_D3D12:
+        {
+            return create_platform_windows_d3d12(platform);
+        }
+        case VIDEO_BACKEND_TYPE_GL:
+        {
+            return create_platform_windows_gl(platform);
+        }
+    }
+    return false;
+}
+
+static void destroy_video_backend(PlatformWindows* platform)
+{
+    PlatformVideoBackend* video_backend = &platform->video_backend;
+    switch(video_backend->type)
+    {
+        case VIDEO_BACKEND_TYPE_D3D12:
+        {
+            break;
+        }
+        case VIDEO_BACKEND_TYPE_GL:
+        {
+            PlatformWindowsGl* gl = &video_backend->gl;
+            if(gl->rendering_context)
+            {
+                wglMakeCurrent(NULL, NULL);
+                ReleaseDC(platform->window, gl->device_context);
+                wglDeleteContext(gl->rendering_context);
+            }
+            else if(gl->device_context)
+            {
+                ReleaseDC(platform->window, gl->device_context);
+            }
+            break;
+        }
+    }
+}
+
+static void update_video_backend(PlatformWindows* platform)
+{
+    PlatformVideoBackend* video_backend = &platform->video_backend;
+
+    switch(video_backend->type)
+    {
+        case VIDEO_BACKEND_TYPE_D3D12:
+        {
+            break;
+        }
+        case VIDEO_BACKEND_TYPE_GL:
+        {
+            PlatformWindowsGl* gl = &video_backend->gl;
+            SwapBuffers(gl->device_context);
+            break;
+        }
+    }
+}
+
+static bool is_video_backend_ready(PlatformWindows* platform)
+{
+    PlatformVideoBackend* backend = &platform->video_backend;
+    switch(backend->type)
+    {
+        case VIDEO_BACKEND_TYPE_D3D12:
+        {
+            return false;
+        }
+        case VIDEO_BACKEND_TYPE_GL:
+        {
+            return backend->gl.functions_loaded;
+        }
+    }
+    return false;
+}
+
 static const int window_width = 800;
 static const int window_height = 600;
 
 static PlatformWindows platform;
-static HGLRC rendering_context;
-static bool functions_loaded;
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_param)
 {
@@ -1710,13 +1886,24 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
         }
         case WM_DESTROY:
         {
-            HGLRC rc = wglGetCurrentContext();
-            if(rc)
+            switch(platform.video_backend.type)
             {
-                HDC dc = wglGetCurrentDC();
-                wglMakeCurrent(NULL, NULL);
-                ReleaseDC(hwnd, dc);
-                wglDeleteContext(rc);
+                case VIDEO_BACKEND_TYPE_D3D12:
+                {
+                    break;
+                }
+                case VIDEO_BACKEND_TYPE_GL:
+                {
+                    HGLRC rc = wglGetCurrentContext();
+                    if(rc)
+                    {
+                        HDC dc = wglGetCurrentDC();
+                        wglMakeCurrent(NULL, NULL);
+                        ReleaseDC(hwnd, dc);
+                        wglDeleteContext(rc);
+                    }
+                    break;
+                }
             }
             DestroyWindow(hwnd);
             if(hwnd == platform.window)
@@ -1922,7 +2109,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
             int height = HIWORD(l_param);
             platform.viewport = (Int2){width, height};
             double dpmm = get_dots_per_millimeter(&platform);
-            if(functions_loaded)
+            if(platform.editor && is_video_backend_ready(&platform))
             {
                 resize_viewport(platform.editor, platform.viewport, dpmm);
             }
@@ -1991,56 +2178,10 @@ static bool main_start_up(HINSTANCE instance, int show_command)
         return false;
     }
 
-    platform.device_context = GetDC(platform.window);
-    if(!platform.device_context)
-    {
-        log_error(&platform.base.logger, "Couldn't obtain the device context.");
-        return false;
-    }
-
-    PIXELFORMATDESCRIPTOR descriptor = {0};
-    descriptor.nSize = sizeof descriptor;
-    descriptor.nVersion = 1;
-    descriptor.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
-    descriptor.iPixelType = PFD_TYPE_RGBA;
-    descriptor.cColorBits = 32;
-    descriptor.cDepthBits = 24;
-    descriptor.cStencilBits = 8;
-    descriptor.iLayerType = PFD_MAIN_PLANE;
-    int format_index = ChoosePixelFormat(platform.device_context, &descriptor);
-    if(format_index == 0)
-    {
-        log_error(&platform.base.logger, "Failed to set up the pixel format.");
-        return false;
-    }
-    if(SetPixelFormat(platform.device_context, format_index, &descriptor) == FALSE)
-    {
-        log_error(&platform.base.logger, "Failed to set up the pixel format.");
-        return false;
-    }
-
-    rendering_context = wglCreateContext(platform.device_context);
-    if(!rendering_context)
-    {
-        log_error(&platform.base.logger, "Couldn't create the rendering context.");
-        return false;
-    }
-
     ShowWindow(platform.window, show_command);
 
-    // Set it to be this thread's rendering context.
-    if(wglMakeCurrent(platform.device_context, rendering_context) == FALSE)
-    {
-        log_error(&platform.base.logger, "Couldn't set this thread's rendering context (wglMakeCurrent failed).");
-        return false;
-    }
-
-    functions_loaded = ogl_LoadFunctions();
-    if(!functions_loaded)
-    {
-        log_error(&platform.base.logger, "OpenGL functions could not be loaded!");
-        return false;
-    }
+    platform.video_backend.type = VIDEO_BACKEND_TYPE_GL;
+    create_video_backend(&platform);
 
     platform.base.input_context = input_create_context(&platform.base.stack);
 
@@ -2060,20 +2201,10 @@ static bool main_start_up(HINSTANCE instance, int show_command)
 
 static void main_shut_down()
 {
-    editor_shut_down(platform.editor, functions_loaded);
+    editor_shut_down(platform.editor, is_video_backend_ready(&platform));
     destroy_stack(&platform.base);
     platform_destroy_heap(&platform.base);
-
-    if(rendering_context)
-    {
-        wglMakeCurrent(NULL, NULL);
-        ReleaseDC(platform.window, platform.device_context);
-        wglDeleteContext(rendering_context);
-    }
-    else if(platform.device_context)
-    {
-        ReleaseDC(platform.window, platform.device_context);
-    }
+    destroy_video_backend(&platform);
     if(platform.window)
     {
         DestroyWindow(platform.window);
@@ -2117,8 +2248,7 @@ static int main_loop()
 
         editor_update(platform.editor, &platform.base);
         input_update_context(platform.base.input_context);
-
-        SwapBuffers(platform.device_context);
+        update_video_backend(&platform);
 
         while(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
         {

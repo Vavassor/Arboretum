@@ -261,7 +261,8 @@ static void unload_buffer(Buffer* buffer)
 }
 
 
-static void create_backend_d3d12(Backend* backend_base, Heap* heap)
+static void create_backend_d3d12(Backend* backend_base, PlatformVideo* video,
+        Heap* heap)
 {
     BackendD3d12* backend = (BackendD3d12*) backend_base;
 

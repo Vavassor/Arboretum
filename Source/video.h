@@ -66,7 +66,7 @@ typedef struct VideoWireframeUpdate
 
 typedef struct VideoContext VideoContext;
 
-VideoContext* video_create_context(Heap* heap, Log* logger);
+VideoContext* video_create_context(Heap* heap, Platform* platform);
 void video_destroy_context(VideoContext* context, Heap* heap, bool functions_loaded);
 void video_update_context(VideoContext* context, VideoUpdate* update, Platform* platform);
 void video_resize_viewport(VideoContext* context, Int2 dimensions, double dots_per_millimeter, float fov);

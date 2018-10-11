@@ -1107,14 +1107,27 @@ static void destroy_uniforms(VideoContext* context, Uniforms* uniforms)
     destroy_buffer(backend, uniforms->per_point);
 }
 
-static void create_context(VideoContext* context, Log* logger)
+static void create_context(VideoContext* context, PlatformVideo* platform,
+        Log* logger)
 {
     stack_create(&context->scratch, (uint32_t) uptibytes(1));
     heap_create(&context->heap, (uint32_t) uptibytes(1));
     dense_map_create(&context->objects, &context->heap);
 
-    context->backend = setup_backend_gl(&context->heap);
-    create_backend(context->backend, &context->heap);
+    switch(platform->backend_type)
+    {
+        case VIDEO_BACKEND_TYPE_D3D12:
+        {
+            context->backend = setup_backend_d3d12(&context->heap);
+            break;
+        }
+        case VIDEO_BACKEND_TYPE_GL:
+        {
+            context->backend = setup_backend_gl(&context->heap);
+            break;
+        }
+    }
+    create_backend(context->backend, platform, &context->heap);
     
     context->logger = logger;
     context->anti_aliasing_mode = ANTI_ALIASING_MODE_FXAA;
@@ -2307,10 +2320,10 @@ static void draw_screen_phase(VideoContext* context, VideoUpdate* update, Matric
     draw_debug_images(context, viewport);
 }
 
-VideoContext* video_create_context(Heap* heap, Log* logger)
+VideoContext* video_create_context(Heap* heap, Platform* platform)
 {
     VideoContext* context = HEAP_ALLOCATE(heap, VideoContext, 1);
-    create_context(context, logger);
+    create_context(context, platform->video, &platform->logger);
     return context;
 }
 

@@ -1377,7 +1377,7 @@ Editor* editor_start_up(Platform* platform)
 
     unicode_load_tables(heap, stack);
 
-    editor->video_context = video_create_context(heap, &platform->logger);
+    editor->video_context = video_create_context(heap, platform);
 
     editor->hovered_object_index = invalid_index;
     editor->selected_object_index = invalid_index;

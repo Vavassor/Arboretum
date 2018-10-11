@@ -90,9 +90,9 @@ bool is_pixel_format_depth_only(PixelFormat pixel_format)
     }
 }
 
-void create_backend(Backend* backend, Heap* heap)
+void create_backend(Backend* backend, PlatformVideo* platform, Heap* heap)
 {
-    backend->create_backend(backend, heap);
+    backend->create_backend(backend, platform, heap);
 }
 
 void destroy_backend(Backend* backend, Heap* heap)

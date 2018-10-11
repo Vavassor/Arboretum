@@ -1436,7 +1436,8 @@ static void set_up_capabilities(Capabilities* capabilities, Features* features)
     }
 }
 
-static void create_backend_gl(Backend* backend_base, Heap* heap)
+static void create_backend_gl(Backend* backend_base, PlatformVideo* platform,
+        Heap* heap)
 {
     BackendGl* backend = (BackendGl*) backend_base;
 

@@ -4,9 +4,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "memory.h"
 #include "int2.h"
 #include "log.h"
+#include "memory.h"
+#include "platform_video.h"
 
 #define PROFILE_CORE_3_3
 // #define PROFILE_ES_3
@@ -446,7 +447,7 @@ typedef struct ClearState
 
 typedef struct Backend Backend;
 
-typedef void (*CreateBackendCall)(Backend* backend, Heap* heap);
+typedef void (*CreateBackendCall)(Backend* backend, PlatformVideo* platform, Heap* heap);
 typedef void (*DestroyBackendCall)(Backend* backend, Heap* heap);
 
 typedef BufferId (*CreateBufferCall)(Backend* backend, BufferSpec* spec, Log* log);
@@ -508,7 +509,7 @@ int get_vertex_format_component_count(VertexFormat format);
 int get_vertex_format_size(VertexFormat format);
 bool is_pixel_format_compressed(PixelFormat pixel_format);
 
-void create_backend(Backend* backend, Heap* heap);
+void create_backend(Backend* backend, PlatformVideo* platform, Heap* heap);
 void destroy_backend(Backend* backend, Heap* heap);
 
 BufferId create_buffer(Backend* backend, BufferSpec* spec, Log* log);

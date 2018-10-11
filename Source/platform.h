@@ -4,6 +4,7 @@
 #include "input.h"
 #include "log.h"
 #include "memory.h"
+#include "platform_video.h"
 
 typedef enum CursorType
 {
@@ -43,6 +44,7 @@ typedef struct Platform
     Log logger;
     Stack stack;
     InputContext* input_context;
+    PlatformVideo* video;
 
     LocaleId locale_id;
 } Platform;
