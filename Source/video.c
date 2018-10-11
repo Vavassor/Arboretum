@@ -23,6 +23,7 @@
 #include "math_basics.h"
 #include "obj.h"
 #include "object_lady.h"
+#include "platform_definitions.h"
 #include "sorting.h"
 #include "string_utilities.h"
 #include "string_build.h"
@@ -1118,7 +1119,11 @@ static void create_context(VideoContext* context, PlatformVideo* platform,
     {
         case VIDEO_BACKEND_TYPE_D3D12:
         {
+#if defined(OS_WINDOWS)
             context->backend = setup_backend_d3d12(&context->heap);
+#else
+            ASSERT(false);
+#endif
             break;
         }
         case VIDEO_BACKEND_TYPE_GL:

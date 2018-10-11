@@ -1,5 +1,6 @@
 add_executable(TestMap "")
 
+unset(PLATFORM_SPECIFIC_SOURCES)
 if(WIN32)
 	set(
 		PLATFORM_SPECIFIC_SOURCES
