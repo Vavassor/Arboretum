@@ -3,16 +3,15 @@
 
 #include "platform_video.h"
 
-#define COBJMACROS
-#include <initguid.h>
-#include <d3d12.h>
-#include <dxgi1_6.h>
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <Windows.h>
 
-struct PlatformVideoD3d12
+typedef struct PlatformVideoD3d12
 {
     PlatformVideo base;
-    ID3D12Debug* debug_controller;
-    ID3D12Device* device;
-};
+    HWND window;
+} PlatformVideoD3d12;
 
 #endif // PLATFORM_D3D12_H_

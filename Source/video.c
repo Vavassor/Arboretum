@@ -1119,16 +1119,12 @@ static void create_context(VideoContext* context, PlatformVideo* platform,
     {
         case VIDEO_BACKEND_TYPE_D3D12:
         {
-#if defined(OS_WINDOWS)
-            context->backend = setup_backend_d3d12(&context->heap);
-#else
-            ASSERT(false);
-#endif
+            context->backend = set_up_backend_d3d12(&context->heap);
             break;
         }
         case VIDEO_BACKEND_TYPE_GL:
         {
-            context->backend = setup_backend_gl(&context->heap);
+            context->backend = set_up_backend_gl(&context->heap);
             break;
         }
     }
@@ -1169,23 +1165,20 @@ static void create_context(VideoContext* context, PlatformVideo* platform,
     immediate_context_create(&immediate_spec, &context->heap, logger);
 }
 
-static void destroy_context(VideoContext* context, bool functions_loaded)
+static void destroy_context(VideoContext* context)
 {
-    if(functions_loaded)
-    {
-        destroy_buffers(context, &context->buffers);
-        destroy_images(context, &context->images);
-        destroy_samplers(context, &context->samplers);
-        destroy_shaders(context, &context->shaders);
-        destroy_pipelines(context, &context->pipelines);
-        destroy_uniforms(context, &context->uniforms);
+    destroy_buffers(context, &context->buffers);
+    destroy_images(context, &context->images);
+    destroy_samplers(context, &context->samplers);
+    destroy_shaders(context, &context->shaders);
+    destroy_pipelines(context, &context->pipelines);
+    destroy_uniforms(context, &context->uniforms);
 
-        video_object_destroy(&context->sky, context->backend);
+    video_object_destroy(&context->sky, context->backend);
 
-        immediate_context_destroy(&context->heap);
+    immediate_context_destroy(&context->heap);
 
-        destroy_backend(context->backend, &context->heap);
-    }
+    destroy_backend(context->backend, &context->heap);
 
     dense_map_destroy(&context->objects, &context->heap);
 
@@ -2332,9 +2325,9 @@ VideoContext* video_create_context(Heap* heap, Platform* platform)
     return context;
 }
 
-void video_destroy_context(VideoContext* context, Heap* heap, bool functions_loaded)
+void video_destroy_context(VideoContext* context, Heap* heap)
 {
-    destroy_context(context, functions_loaded);
+    destroy_context(context);
     SAFE_HEAP_DEALLOCATE(heap, context);
 }
 
@@ -2346,6 +2339,8 @@ void video_update_context(VideoContext* context, VideoUpdate* update, Platform* 
     draw_opaque_phase(context, update, &matrices);
     draw_transparent_phase(context, update, &matrices);
     draw_screen_phase(context, update, &matrices);
+
+    swap_buffers(context->backend, platform->video);
 }
 
 static void clean_up_g_buffer_pass(VideoContext* context)
@@ -2401,8 +2396,11 @@ static void recreate_g_buffer_pass(VideoContext* context, Int2 dimensions)
 
 void video_resize_viewport(VideoContext* context, Int2 dimensions, double dots_per_millimeter, float fov)
 {
-    clean_up_g_buffer_pass(context);
-    recreate_g_buffer_pass(context, dimensions);
+    if(context)
+    {
+        clean_up_g_buffer_pass(context);
+        recreate_g_buffer_pass(context, dimensions);
+    }
 }
 
 DenseMapId video_add_object(VideoContext* context, VertexLayout vertex_layout)

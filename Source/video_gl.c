@@ -1455,6 +1455,7 @@ static void create_backend_gl(Backend* backend_base, PlatformVideo* platform,
     backend->samplers = HEAP_ALLOCATE(heap, Sampler, backend->sampler_id_pool.cap);
     backend->shaders = HEAP_ALLOCATE(heap, Shader, backend->shader_id_pool.cap);
 
+    platform_video_create(platform);
     set_up_features(&backend->features);
     set_up_capabilities(&backend->capabilities, &backend->features);
 
@@ -1931,6 +1932,12 @@ static void draw_gl(Backend* backend_base, DrawAction* draw_action)
     }
 }
 
+static void resize_swap_buffers_gl(Backend* backend, Int2 dimensions)
+{
+    (void) backend;
+    (void) dimensions;
+}
+
 static void set_images_gl(Backend* backend_base, ImageSet* image_set)
 {
     BackendGl* backend = (BackendGl*) backend_base;
@@ -2272,7 +2279,12 @@ static void update_buffer_gl(Backend* backend_base, BufferId id, const void* mem
     copy_to_buffer(buffer, memory, base, size);
 }
 
-Backend* setup_backend_gl(Heap* heap)
+static void swap_buffers_gl(Backend* backend, PlatformVideo* video)
+{
+    platform_video_swap_buffers(video);
+}
+
+Backend* set_up_backend_gl(Heap* heap)
 {
     BackendGl* backend_gl = HEAP_ALLOCATE(heap, BackendGl, 1);
     Backend* backend = &backend_gl->base;
@@ -2297,11 +2309,13 @@ Backend* setup_backend_gl(Heap* heap)
     backend->blit_pass_colour = blit_pass_colour_gl;
     backend->clear_target = clear_target_gl;
     backend->draw = draw_gl;
+    backend->resize_swap_buffers = resize_swap_buffers_gl;
     backend->set_images = set_images_gl;
     backend->set_pass = set_pass_gl;
     backend->set_pipeline = set_pipeline_gl;
     backend->set_scissor_rect = set_scissor_rect_gl;
     backend->set_viewport = set_viewport_gl;
+    backend->swap_buffers = swap_buffers_gl;
     backend->update_buffer = update_buffer_gl;
 
     return backend;

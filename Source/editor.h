@@ -8,7 +8,7 @@
 typedef struct Editor Editor;
 
 Editor* editor_start_up(Platform* platform);
-void editor_shut_down(Editor* editor, bool functions_loaded);
+void editor_shut_down(Editor* editor);
 void editor_update(Editor* editor, Platform* platform);
 void editor_destroy_clipboard_copy(Editor* editor, char* clipboard);
 void editor_paste_from_clipboard(Editor* editor, Platform* platform, char* clipboard);

@@ -34,6 +34,7 @@ if(WIN32)
     target_link_libraries(Arboretum PRIVATE d3d12 dxgi imm32 opengl32)
 	set(
 		PLATFORM_SPECIFIC_SOURCES
+		Source/platform_d3d12.c
 		Source/video_d3d12.c
 		Source/wgl_extensions.c
 		Source/wide_char.c
@@ -95,6 +96,8 @@ target_sources(
 	Source/object.c
 	Source/object_lady.c
 	Source/platform.c
+	Source/platform_video.c
+	Source/platform_wgl.c
 	Source/string_build.c
 	Source/string_utilities.c
 	Source/ui.c

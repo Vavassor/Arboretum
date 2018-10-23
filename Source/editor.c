@@ -1518,7 +1518,7 @@ Editor* editor_start_up(Platform* platform)
     return editor;
 }
 
-void editor_shut_down(Editor* editor, bool functions_loaded)
+void editor_shut_down(Editor* editor)
 {
     Heap* heap = &editor->heap;
 
@@ -1533,7 +1533,7 @@ void editor_shut_down(Editor* editor, bool functions_loaded)
 
     history_destroy(&editor->history, heap);
 
-    video_destroy_context(editor->video_context, heap, functions_loaded);
+    video_destroy_context(editor->video_context, heap);
 
     unicode_unload_tables(heap);
 

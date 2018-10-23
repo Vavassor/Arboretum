@@ -10,6 +10,9 @@
 #include "platform_d3d12.h"
 
 
+#define FRAME_COUNT 2
+
+
 typedef enum ResourceStatus
 {
 	RESOURCE_STATUS_INVALID,
@@ -34,9 +37,19 @@ typedef struct Buffer
 typedef struct BackendD3d12
 {
     Backend base;
-    ID3D12Device* device;
-    Buffer* buffers;
     IdPool buffer_id_pool;
+    ID3D12Resource* render_targets[FRAME_COUNT];
+    Buffer* buffers;
+    ID3D12CommandQueue* command_queue;
+    ID3D12Debug* debug_controller;
+    ID3D12Device* device;
+    ID3D12Fence* fence;
+    IDXGISwapChain3* swap_chain;
+    ID3D12DescriptorHeap* rtv_heap;
+    HANDLE fence_event;
+    UINT64 fence_value;
+    UINT frame_index;
+    UINT rtv_descriptor_size;
 } BackendD3d12;
 
 
@@ -103,7 +116,7 @@ static D3D12_CULL_MODE get_cull_mode(CullMode cull_mode)
 
 static DXGI_FORMAT translate_index_type(IndexType index_type)
 {
-    switch (index_type)
+    switch(index_type)
     {
         case INDEX_TYPE_NONE:   return DXGI_FORMAT_UNKNOWN;
         case INDEX_TYPE_UINT16: return DXGI_FORMAT_R16_UINT;
@@ -147,6 +160,26 @@ static D3D12_TEXTURE_ADDRESS_MODE get_wrap_parameter(SamplerAddressMode mode)
         case SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE:   return D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
     }
 }
+
+
+static void wait_for_prior_frame(BackendD3d12* backend)
+{
+    UINT64 fence = backend->fence_value;
+    HRESULT result = ID3D12CommandQueue_Signal(backend->command_queue,
+            backend->fence, fence);
+    backend->fence_value += 1;
+
+    if(ID3D12Fence_GetCompletedValue(backend->fence) < fence)
+    {
+        result = ID3D12Fence_SetEventOnCompletion(backend->fence, fence,
+                backend->fence_event);
+        WaitForSingleObject(backend->fence_event, INFINITE);
+    }
+
+    backend->frame_index = IDXGISwapChain3_GetCurrentBackBufferIndex(
+            backend->swap_chain);
+}
+
 
 static Buffer* fetch_buffer(BackendD3d12* backend, BufferId id)
 {
@@ -261,6 +294,87 @@ static void unload_buffer(Buffer* buffer)
     buffer->resource.status = RESOURCE_STATUS_INVALID;
 }
 
+static bool create_fence(BackendD3d12* backend)
+{
+    ID3D12Fence* fence;
+    HRESULT result = ID3D12Device_CreateFence(backend->device, 0,
+            D3D12_FENCE_FLAG_NONE, &IID_ID3D12Fence, &fence);
+    if(FAILED(result))
+    {
+        return false;
+    }
+    backend->fence = fence;
+
+    HANDLE fence_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+    if(!fence_event)
+    {
+        return false;
+    }
+    backend->fence_event = fence_event;
+
+    return true;
+}
+
+static IDXGIAdapter1* create_adapter(IDXGIFactory4* factory)
+{
+    IDXGIAdapter1* adapter = NULL;
+
+    for(UINT adapter_index = 0; ; adapter_index += 1)
+    {
+        HRESULT result = IDXGIFactory4_EnumAdapters1(factory, adapter_index,
+                &adapter);
+        if(FAILED(result))
+        {
+            break;
+        }
+
+        DXGI_ADAPTER_DESC1 desc = {0};
+        IDXGIAdapter1_GetDesc1(adapter, &desc);
+        if(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+        {
+            continue;
+        }
+
+        result = D3D12CreateDevice((IUnknown*) adapter, D3D_FEATURE_LEVEL_11_0,
+                &IID_ID3D12Device, NULL);
+        if(SUCCEEDED(result))
+        {
+            break;
+        }
+    }
+
+    return adapter;
+}
+
+static ID3D12Device* create_device(IDXGIFactory4* factory)
+{
+    IDXGIAdapter1* adapter = create_adapter(factory);
+
+    ID3D12Device* device = NULL;
+    D3D_FEATURE_LEVEL feature_level = D3D_FEATURE_LEVEL_11_0;
+    HRESULT result = D3D12CreateDevice((IUnknown*) adapter, feature_level,
+            &IID_ID3D12Device, (LPVOID*) &device);
+    if(adapter)
+    {
+        IDXGIAdapter1_Release(adapter);
+    }
+    if(FAILED(result))
+    {
+        return NULL;
+    }
+
+    return device;
+}
+
+static D3D12_CPU_DESCRIPTOR_HANDLE get_cpu_descriptor_handle_for_heap_start(
+        ID3D12DescriptorHeap* heap)
+{
+    D3D12_CPU_DESCRIPTOR_HANDLE handle;
+    ((void(__stdcall*)(ID3D12DescriptorHeap*, D3D12_CPU_DESCRIPTOR_HANDLE*))
+            heap->lpVtbl->GetCPUDescriptorHandleForHeapStart)(heap, &handle);
+    return handle;
+}
+
 
 static void create_backend_d3d12(Backend* backend_base, PlatformVideo* video,
         Heap* heap)
@@ -272,7 +386,125 @@ static void create_backend_d3d12(Backend* backend_base, PlatformVideo* video,
     backend->buffers = HEAP_ALLOCATE(heap, Buffer, backend->buffer_id_pool.cap);
 
     PlatformVideoD3d12* platform = (PlatformVideoD3d12*) video;
-    backend->device = platform->device;
+
+    UINT dxgi_factory_flags = 0;
+    HRESULT result;
+
+#if !defined(NDEBUG)
+    ID3D12Debug* debug_controller;
+    result = D3D12GetDebugInterface(&IID_ID3D12Debug, &debug_controller);
+    if(FAILED(result))
+    {
+        return;
+    }
+    backend->debug_controller = debug_controller;
+    ID3D12Debug_EnableDebugLayer(debug_controller);
+    dxgi_factory_flags |= DXGI_CREATE_FACTORY_DEBUG;
+#endif
+
+    IDXGIFactory4* factory;
+    result = CreateDXGIFactory2(dxgi_factory_flags, &IID_IDXGIFactory4,
+            &factory);
+    if(FAILED(result))
+    {
+        return;
+    }
+
+    backend->device = create_device(factory);
+    if(!backend->device)
+    {
+        IDXGIFactory4_Release(factory);
+        return;
+    }
+
+    D3D12_COMMAND_QUEUE_DESC queue_desc =
+    {
+        .Flags = D3D12_COMMAND_QUEUE_FLAG_NONE,
+        .Type = D3D12_COMMAND_LIST_TYPE_DIRECT,
+    };
+    result = ID3D12Device_CreateCommandQueue(backend->device, &queue_desc,
+            &IID_ID3D12CommandQueue, &backend->command_queue);
+    if(FAILED(result))
+    {
+        IDXGIFactory4_Release(factory);
+        return;
+    }
+
+    DXGI_SWAP_CHAIN_DESC1 swap_chain_desc =
+    {
+        .BufferCount = FRAME_COUNT,
+        .Width = 800,
+        .Height = 600,
+        .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
+        .BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT,
+        .SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD,
+        .SampleDesc =
+        {
+            .Count = 1,
+        },
+    };
+    IDXGISwapChain1* swap_chain;
+    result = IDXGIFactory4_CreateSwapChainForHwnd(factory,
+            (IUnknown*) backend->command_queue, platform->window,
+            &swap_chain_desc, NULL, NULL, &swap_chain);
+    if(FAILED(result))
+    {
+        IDXGIFactory4_Release(factory);
+        return;
+    }
+    backend->swap_chain = (IDXGISwapChain3*) swap_chain;
+
+    result = IDXGIFactory4_MakeWindowAssociation(factory, platform->window,
+            DXGI_MWA_NO_ALT_ENTER);
+    IDXGIFactory4_Release(factory);
+    if(FAILED(result))
+    {
+        return;
+    }
+
+    backend->frame_index = IDXGISwapChain3_GetCurrentBackBufferIndex(
+            backend->swap_chain);
+
+    bool fence_created = create_fence(backend);
+    if(!fence_created)
+    {
+        return;
+    }
+
+    D3D12_DESCRIPTOR_HEAP_DESC rtv_heap_desc =
+    {
+        .NumDescriptors = FRAME_COUNT,
+        .Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
+        .Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE,
+    };
+    result = ID3D12Device_CreateDescriptorHeap(backend->device, &rtv_heap_desc,
+            &IID_ID3D12DescriptorHeap, &backend->rtv_heap);
+    if(FAILED(result))
+    {
+        return;
+    }
+
+    backend->rtv_descriptor_size =
+            ID3D12Device_GetDescriptorHandleIncrementSize(
+                    backend->device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+    D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle =
+            get_cpu_descriptor_handle_for_heap_start(backend->rtv_heap);
+
+    for(UINT frame = 0; frame < FRAME_COUNT; frame += 1)
+    {
+        ID3D12Resource* target = backend->render_targets[frame];
+        result = IDXGISwapChain1_GetBuffer(backend->swap_chain, frame,
+                &IID_ID3D12Resource, &target);
+        if(FAILED(result))
+        {
+            return;
+        }
+        backend->render_targets[frame] = target;
+        ID3D12Device_CreateRenderTargetView(backend->device, target, NULL,
+                rtv_handle);
+        rtv_handle.ptr += backend->rtv_descriptor_size;
+    }
 }
 
 static void destroy_backend_d3d12(Backend* backend_base, Heap* heap)
@@ -293,6 +525,50 @@ static void destroy_backend_d3d12(Backend* backend_base, Heap* heap)
     destroy_id_pool(&backend->buffer_id_pool, heap);
 
     HEAP_DEALLOCATE(heap, backend->buffers);
+
+    if(backend->command_queue
+            && backend->fence
+            && backend->fence_event)
+    {
+        wait_for_prior_frame(backend);
+    }
+
+    if(backend->command_queue)
+    {
+        ID3D12CommandQueue_Release(backend->command_queue);
+    }
+    if(backend->debug_controller)
+    {
+        ID3D12Debug_Release(backend->debug_controller);
+    }
+    if(backend->device)
+    {
+        ID3D12Device_Release(backend->device);
+    }
+    if(backend->fence)
+    {
+        ID3D12Fence_Release(backend->fence);
+    }
+    if(backend->fence_event)
+    {
+        CloseHandle(backend->fence_event);
+    }
+    for(int target_index = 0; target_index < FRAME_COUNT; target_index += 1)
+    {
+        ID3D12Resource* target = backend->render_targets[target_index];
+        if(target)
+        {
+            ID3D12Resource_Release(target);
+        }
+    }
+    if(backend->rtv_heap)
+    {
+        ID3D12DescriptorHeap_Release(backend->rtv_heap);
+    }
+    if(backend->swap_chain)
+    {
+        IDXGISwapChain1_Release(backend->swap_chain);
+    }
 }
 
 static BufferId create_buffer_d3d12(Backend* backend_base, BufferSpec* spec,
@@ -327,8 +603,17 @@ static void destroy_buffer_d3d12(Backend* backend_base, BufferId id)
     }
 }
 
+static void swap_buffers_d3d12(Backend* backend_base, PlatformVideo* video)
+{
+    BackendD3d12* backend = (BackendD3d12*) backend_base;
+    HRESULT result = IDXGISwapChain_Present(backend->swap_chain, 1, 0);
+    ASSERT(SUCCEEDED(result));
+    wait_for_prior_frame(backend);
+    platform_video_swap_buffers(video);
+}
 
-Backend* setup_backend_d3d12(Heap* heap)
+
+Backend* set_up_backend_d3d12(Heap* heap)
 {
     BackendD3d12* backend_d3d12 = HEAP_ALLOCATE(heap, BackendD3d12, 1);
     Backend* backend = &backend_d3d12->base;
@@ -338,6 +623,7 @@ Backend* setup_backend_d3d12(Heap* heap)
 
     backend->create_buffer = create_buffer_d3d12;
     backend->destroy_buffer = destroy_buffer_d3d12;
+    backend->swap_buffers = swap_buffers_d3d12;
 
     return backend;
 }

@@ -467,11 +467,13 @@ typedef void (*DestroyShaderCall)(Backend* backend, ShaderId id);
 typedef void (*BlitPassColourCall)(Backend* backend, PassId source_id, PassId target_id);
 typedef void (*ClearTargetCall)(Backend* backend, ClearState* clear_state);
 typedef void (*DrawCall)(Backend* backend, DrawAction* draw_action);
+typedef void (*ResizeSwapBuffersCall)(Backend* backend, Int2 dimensions);
 typedef void (*SetImagesCall)(Backend* backend, ImageSet* image_set);
 typedef void (*SetPassCall)(Backend* backend, PassId id);
 typedef void (*SetPipelineCall)(Backend* backend, PipelineId id);
 typedef void (*SetScissorRectCall)(Backend* backend, ScissorRect* scissor_rect);
 typedef void (*SetViewportCall)(Backend* backend, Viewport* viewport);
+typedef void (*SwapBuffersCall)(Backend* backend, PlatformVideo* platform);
 typedef void (*UpdateBufferCall)(Backend* backend, BufferId id, const void* memory, int base, int size);
 
 struct Backend
@@ -496,11 +498,13 @@ struct Backend
     BlitPassColourCall blit_pass_colour;
     ClearTargetCall clear_target;
     DrawCall draw;
+    ResizeSwapBuffersCall resize_swap_buffers;
     SetImagesCall set_images;
     SetPassCall set_pass;
     SetPipelineCall set_pipeline;
     SetScissorRectCall set_scissor_rect;
     SetViewportCall set_viewport;
+    SwapBuffersCall swap_buffers;
     UpdateBufferCall update_buffer;
 };
 
@@ -529,15 +533,17 @@ void destroy_shader(Backend* backend, ShaderId id);
 void blit_pass_colour(Backend* backend, PassId source_id, PassId target_id);
 void clear_target(Backend* backend, ClearState* clear_state);
 void draw(Backend* backend, DrawAction* draw_action);
+void resize_swap_buffers(Backend* backend, Int2 dimensions);
 void set_images(Backend* backend, ImageSet* image_set);
 void set_pass(Backend* backend, PassId id);
 void set_pipeline(Backend* backend, PipelineId id);
 void set_scissor_rect(Backend* backend, ScissorRect* scissor_rect);
 void set_viewport(Backend* backend, Viewport* viewport);
+void swap_buffers(Backend* backend, PlatformVideo* video);
 void update_buffer(Backend* backend, BufferId id, const void* memory, int base, int size);
 
-Backend* setup_backend_d3d12(Heap* heap);
-Backend* setup_backend_gl(Heap* heap);
+Backend* set_up_backend_d3d12(Heap* heap);
+Backend* set_up_backend_gl(Heap* heap);
 
 extern const PassId default_pass;
 

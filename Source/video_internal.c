@@ -175,6 +175,11 @@ void draw(Backend* backend, DrawAction* draw_action)
     backend->draw(backend, draw_action);
 }
 
+void resize_swap_buffers(Backend* backend, Int2 dimensions)
+{
+    backend->resize_swap_buffers(backend, dimensions);
+}
+
 void set_images(Backend* backend, ImageSet* image_set)
 {
     backend->set_images(backend, image_set);
@@ -198,6 +203,11 @@ void set_scissor_rect(Backend* backend, ScissorRect* scissor_rect)
 void set_viewport(Backend* backend, Viewport* viewport)
 {
     backend->set_viewport(backend, viewport);
+}
+
+void swap_buffers(Backend* backend, PlatformVideo* video)
+{
+    backend->swap_buffers(backend, video);
 }
 
 void update_buffer(Backend* backend, BufferId id, const void* memory, int base, int size)

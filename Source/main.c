@@ -1478,10 +1478,10 @@ int main(int argc, char** argv)
 #include "int2.h"
 #include "log.h"
 #include "platform.h"
+#include "platform_wgl.h"
 #include "string_build.h"
 #include "string_utilities.h"
 #include "video.h"
-#include "wgl_extensions.h"
 #include "wide_char.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -1490,36 +1490,13 @@ int main(int argc, char** argv)
 #include <Windows.h>
 #include <windowsx.h>
 
-#include "platform_d3d12.h"
-#include "platform_gl.h"
-
-typedef struct PlatformWindowsGl
-{
-    PlatformVideoGl base;
-    HGLRC rendering_context;
-    HDC device_context;
-    bool functions_loaded;
-} PlatformWindowsGl;
-
-typedef struct PlatformWindowsD3d12
-{
-    PlatformVideoD3d12 base;
-} PlatformWindowsD3d12;
-
-typedef struct PlatformVideoBackend
-{
-    union
-    {
-        PlatformWindowsGl gl;
-        PlatformWindowsD3d12 d3d12;
-    };
-    VideoBackendType type;
-} PlatformVideoBackend;
-
 typedef struct PlatformWindows
 {
     Platform base;
-    PlatformVideoBackend video_backend;
+    union
+    {
+        PlatformWgl video_wgl;
+    };
 
     HWND window;
     Int2 viewport;
@@ -1852,254 +1829,6 @@ static InputModifier fetch_modifiers()
     return modifier;
 }
 
-static IDXGIAdapter1* create_adapter(IDXGIFactory4* factory)
-{
-    IDXGIAdapter1* adapter = NULL;
-
-    for(UINT adapter_index = 0; ; adapter_index += 1)
-    {
-        HRESULT result = IDXGIFactory4_EnumAdapters1(factory, adapter_index,
-                &adapter);
-        if(FAILED(result))
-        {
-            break;
-        }
-
-        DXGI_ADAPTER_DESC1 desc = {0};
-        IDXGIAdapter1_GetDesc1(adapter, &desc);
-        if(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
-        {
-            continue;
-        }
-
-        result = D3D12CreateDevice((IUnknown*) adapter, D3D_FEATURE_LEVEL_11_0,
-                &IID_ID3D12Device, NULL);
-        if(SUCCEEDED(result))
-        {
-            break;
-        }
-    }
-
-    return adapter;
-}
-
-static ID3D12Device* create_device(IDXGIFactory4* factory)
-{
-    IDXGIAdapter1* adapter = create_adapter(factory);
-
-    ID3D12Device* device = NULL;
-    D3D_FEATURE_LEVEL feature_level = D3D_FEATURE_LEVEL_11_0;
-    HRESULT result = D3D12CreateDevice((IUnknown*) adapter, feature_level,
-            &IID_ID3D12Device, (LPVOID*) &device);
-    if(adapter)
-    {
-        IDXGIAdapter1_Release(adapter);
-    }
-    if(FAILED(result))
-    {
-        return NULL;
-    }
-
-    return device;
-}
-
-static bool create_platform_windows_d3d12(PlatformWindows* platform)
-{
-    PlatformWindowsD3d12* d3d12 = &platform->video_backend.d3d12;
-
-    UINT dxgi_factory_flags = 0;
-    HRESULT result;
-
-#if !defined(NDEBUG)
-    ID3D12Debug* debug_controller;
-    result = D3D12GetDebugInterface(&IID_ID3D12Debug, &debug_controller);
-    if(FAILED(result))
-    {
-        return false;
-    }
-    d3d12->base.debug_controller = debug_controller;
-    ID3D12Debug_EnableDebugLayer(debug_controller);
-    dxgi_factory_flags |= DXGI_CREATE_FACTORY_DEBUG;
-#endif
-
-    IDXGIFactory4* factory;
-    result = CreateDXGIFactory2(dxgi_factory_flags, &IID_IDXGIFactory4,
-            &factory);
-    if(FAILED(result))
-    {
-        return false;
-    }
-
-    d3d12->base.device = create_device(factory);
-    if(!d3d12->base.device)
-    {
-        IDXGIFactory4_Release(factory);
-        return false;
-    }
-
-    platform->base.video = &d3d12->base.base;
-    platform->base.video->backend_type = VIDEO_BACKEND_TYPE_D3D12;
-
-    return true;
-}
-
-static void destroy_platform_windows_d3d12(PlatformWindows* platform)
-{
-    PlatformWindowsD3d12* d3d12 = &platform->video_backend.d3d12;
-    PlatformVideoD3d12* video = &d3d12->base;
-    if(video->debug_controller)
-    {
-        ID3D12Debug_Release(video->debug_controller);
-    }
-    if(video->device)
-    {
-        ID3D12Device_Release(video->device);
-    }
-}
-
-static bool create_platform_windows_gl(PlatformWindows* platform)
-{
-    PlatformWindowsGl* gl = &platform->video_backend.gl;
-
-    HDC device_context = GetDC(platform->window);
-    if(!device_context)
-    {
-        log_error(&platform->base.logger, "Couldn't obtain the device context.");
-        return false;
-    }
-    gl->device_context = device_context;
-
-    PIXELFORMATDESCRIPTOR descriptor = {0};
-    descriptor.nSize = sizeof descriptor;
-    descriptor.nVersion = 1;
-    descriptor.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
-    descriptor.iPixelType = PFD_TYPE_RGBA;
-    descriptor.cColorBits = 32;
-    descriptor.cDepthBits = 24;
-    descriptor.cStencilBits = 8;
-    descriptor.iLayerType = PFD_MAIN_PLANE;
-    int format_index = ChoosePixelFormat(gl->device_context, &descriptor);
-    if(format_index == 0)
-    {
-        log_error(&platform->base.logger, "Failed to set up the pixel format.");
-        return false;
-    }
-    if(SetPixelFormat(gl->device_context, format_index, &descriptor) == FALSE)
-    {
-        log_error(&platform->base.logger, "Failed to set up the pixel format.");
-        return false;
-    }
-
-    HGLRC rendering_context = wglCreateContext(gl->device_context);
-    if (!rendering_context)
-    {
-        log_error(&platform->base.logger, "Couldn't create the rendering context.");
-        return false;
-    }
-    gl->rendering_context = rendering_context;
-
-    // Set it to be this thread's rendering context.
-    if(wglMakeCurrent(gl->device_context, gl->rendering_context) == FALSE)
-    {
-        log_error(&platform->base.logger, "Couldn't set this thread's rendering context (wglMakeCurrent failed).");
-        return false;
-    }
-
-    bool functions_loaded = ogl_LoadFunctions();
-    if(!functions_loaded)
-    {
-        log_error(&platform->base.logger, "OpenGL functions could not be loaded!");
-        return false;
-    }
-    gl->functions_loaded = functions_loaded;
-
-    platform->base.video = &gl->base.base;
-    platform->base.video->backend_type = VIDEO_BACKEND_TYPE_GL;
-
-    return true;
-}
-
-static bool create_video_backend(PlatformWindows* platform)
-{
-    PlatformVideoBackend* video_backend = &platform->video_backend;
-    switch(video_backend->type)
-    {
-        case VIDEO_BACKEND_TYPE_D3D12:
-        {
-            return create_platform_windows_d3d12(platform);
-        }
-        case VIDEO_BACKEND_TYPE_GL:
-        {
-            return create_platform_windows_gl(platform);
-        }
-    }
-    return false;
-}
-
-static void destroy_video_backend(PlatformWindows* platform)
-{
-    PlatformVideoBackend* video_backend = &platform->video_backend;
-    switch(video_backend->type)
-    {
-        case VIDEO_BACKEND_TYPE_D3D12:
-        {
-            destroy_platform_windows_d3d12(platform);
-            break;
-        }
-        case VIDEO_BACKEND_TYPE_GL:
-        {
-            PlatformWindowsGl* gl = &video_backend->gl;
-            if(gl->rendering_context)
-            {
-                wglMakeCurrent(NULL, NULL);
-                ReleaseDC(platform->window, gl->device_context);
-                wglDeleteContext(gl->rendering_context);
-            }
-            else if(gl->device_context)
-            {
-                ReleaseDC(platform->window, gl->device_context);
-            }
-            break;
-        }
-    }
-}
-
-static void update_video_backend(PlatformWindows* platform)
-{
-    PlatformVideoBackend* video_backend = &platform->video_backend;
-
-    switch(video_backend->type)
-    {
-        case VIDEO_BACKEND_TYPE_D3D12:
-        {
-            break;
-        }
-        case VIDEO_BACKEND_TYPE_GL:
-        {
-            PlatformWindowsGl* gl = &video_backend->gl;
-            SwapBuffers(gl->device_context);
-            break;
-        }
-    }
-}
-
-static bool is_video_backend_ready(PlatformWindows* platform)
-{
-    PlatformVideoBackend* backend = &platform->video_backend;
-    switch(backend->type)
-    {
-        case VIDEO_BACKEND_TYPE_D3D12:
-        {
-            return true;
-        }
-        case VIDEO_BACKEND_TYPE_GL:
-        {
-            return backend->gl.functions_loaded;
-        }
-    }
-    return false;
-}
-
 static const int window_width = 800;
 static const int window_height = 600;
 
@@ -2116,25 +1845,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
         }
         case WM_DESTROY:
         {
-            switch(platform.video_backend.type)
-            {
-                case VIDEO_BACKEND_TYPE_D3D12:
-                {
-                    break;
-                }
-                case VIDEO_BACKEND_TYPE_GL:
-                {
-                    HGLRC rc = wglGetCurrentContext();
-                    if(rc)
-                    {
-                        HDC dc = wglGetCurrentDC();
-                        wglMakeCurrent(NULL, NULL);
-                        ReleaseDC(hwnd, dc);
-                        wglDeleteContext(rc);
-                    }
-                    break;
-                }
-            }
             DestroyWindow(hwnd);
             if(hwnd == platform.window)
             {
@@ -2339,7 +2049,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
             int height = HIWORD(l_param);
             platform.viewport = (Int2){width, height};
             double dpmm = get_dots_per_millimeter(&platform);
-            if(platform.editor && is_video_backend_ready(&platform))
+            if(platform.editor)
             {
                 resize_viewport(platform.editor, platform.viewport, dpmm);
             }
@@ -2381,15 +2091,17 @@ static bool main_start_up(HINSTANCE instance, int show_command)
     }
     load_cursors(&platform);
 
-    WNDCLASSEXW window_class = {0};
-    window_class.cbSize = sizeof window_class;
-    window_class.style = CS_HREDRAW | CS_VREDRAW;
-    window_class.lpfnWndProc = WindowProc;
-    window_class.hInstance = instance;
-    window_class.hIcon = LoadIcon(instance, IDI_APPLICATION);
-    window_class.hIconSm = (HICON) LoadIcon(instance, IDI_APPLICATION);
-    window_class.hCursor = LoadCursor(NULL, IDC_ARROW);
-    window_class.lpszClassName = L"ArboretumWindowClass";
+    WNDCLASSEXW window_class =
+    {
+        .cbSize = sizeof window_class,
+        .style = CS_HREDRAW | CS_VREDRAW,
+        .lpfnWndProc = WindowProc,
+        .hInstance = instance,
+        .hIcon = LoadIcon(instance, IDI_APPLICATION),
+        .hIconSm = (HICON)LoadIcon(instance, IDI_APPLICATION),
+        .hCursor = LoadCursor(NULL, IDC_ARROW),
+        .lpszClassName = L"ArboretumWindowClass",
+    };
     ATOM registered_class = RegisterClassExW(&window_class);
     if(registered_class == 0)
     {
@@ -2410,8 +2122,23 @@ static bool main_start_up(HINSTANCE instance, int show_command)
 
     ShowWindow(platform.window, show_command);
 
-    platform.video_backend.type = VIDEO_BACKEND_TYPE_GL;
-    create_video_backend(&platform);
+    platform.video_wgl.base.backend_type = VIDEO_BACKEND_TYPE_GL;
+    platform.base.video = &platform.video_wgl.base;
+    switch(platform.video_wgl.base.backend_type)
+    {
+        case VIDEO_BACKEND_TYPE_D3D12:
+        {
+            set_up_platform_video_d3d12(platform.base.video);
+            break;
+        }
+        case VIDEO_BACKEND_TYPE_GL:
+        {
+            platform.video_wgl.window = platform.window;
+            set_up_platform_video_wgl(platform.base.video);
+            break;
+        }
+    }
+    platform_video_create(platform.base.video);
 
     platform.base.input_context = input_create_context(&platform.base.stack);
 
@@ -2431,10 +2158,10 @@ static bool main_start_up(HINSTANCE instance, int show_command)
 
 static void main_shut_down()
 {
-    editor_shut_down(platform.editor, is_video_backend_ready(&platform));
+    editor_shut_down(platform.editor);
     destroy_stack(&platform.base);
     platform_destroy_heap(&platform.base);
-    destroy_video_backend(&platform);
+    platform_video_destroy(platform.base.video);
     if(platform.window)
     {
         DestroyWindow(platform.window);
@@ -2478,7 +2205,6 @@ static int main_loop()
 
         editor_update(platform.editor, &platform.base);
         input_update_context(platform.base.input_context);
-        update_video_backend(&platform);
 
         while(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
         {
