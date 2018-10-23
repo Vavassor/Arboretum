@@ -27,6 +27,7 @@ bool platform_video_create(PlatformVideo* platform);
 void platform_video_destroy(PlatformVideo* platform);
 void platform_video_swap_buffers(PlatformVideo* platform);
 void set_up_platform_video_d3d12(PlatformVideo* platform);
+void set_up_platform_video_glx(PlatformVideo* platform);
 void set_up_platform_video_wgl(PlatformVideo* platform);
 
 #endif // PLATFORM_VIDEO_H_

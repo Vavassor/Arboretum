@@ -23,7 +23,7 @@
 #include "int_utilities.h"
 #include "log.h"
 #include "platform.h"
-#include "platform_gl.h"
+#include "platform_video_glx.h"
 #include "string_utilities.h"
 #include "unicode_load_tables.h"
 #include "video.h"
@@ -33,29 +33,14 @@
 #include <stdlib.h>
 #include <time.h>
 
-typedef GLXContext (*glXCreateContextAttribsARBProc)(Display*, GLXFBConfig, GLXContext, Bool, const int*);
-
-typedef struct PlatformX11Gl
-{
-    PlatformVideoGl base;
-    GLXFBConfig chosen_framebuffer_config;
-    GLXContext rendering_context;
-    bool functions_loaded;
-} PlatformX11Gl;
-
-typedef struct PlatformVideoBackend
-{
-    union
-    {
-        PlatformX11Gl gl;
-    };
-    VideoBackendType type;
-} PlatformVideoBackend;
 
 typedef struct PlatformX11
 {
     Platform base;
-    PlatformVideoBackend video_backend;
+    union
+    {
+        PlatformVideoGlx video_glx;
+    };
 
     InputKey key_table[256];
     Display* display;
@@ -214,235 +199,6 @@ void request_paste_from_clipboard(Platform* base)
     PlatformX11* platform = (PlatformX11*) base;
 
     XConvertSelection(platform->display, platform->selection_clipboard, platform->utf8_string, platform->paste_code, platform->window, CurrentTime);
-}
-
-static GLXFBConfig choose_best_framebuffer_configuration(PlatformX11* platform)
-{
-    const GLint visual_attributes[] =
-    {
-        GLX_X_RENDERABLE, True,
-        GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
-        GLX_RENDER_TYPE, GLX_RGBA_BIT,
-        GLX_X_VISUAL_TYPE, GLX_TRUE_COLOR,
-        GLX_RED_SIZE, 8,
-        GLX_GREEN_SIZE, 8,
-        GLX_BLUE_SIZE, 8,
-        GLX_ALPHA_SIZE, 8,
-        GLX_DEPTH_SIZE, 24,
-        GLX_STENCIL_SIZE, 8,
-        GLX_DOUBLEBUFFER, True,
-        X11_NONE,
-    };
-
-    int config_count;
-    GLXFBConfig* framebuffer_configs = glXChooseFBConfig(platform->display, platform->screen, visual_attributes, &config_count);
-    if(!framebuffer_configs)
-    {
-        return NULL;
-    }
-
-    int best_config = invalid_index;
-    int worst_config = invalid_index;
-    int best_samples = -1;
-    int worst_samples = 999;
-    for(int config_index = 0;
-            config_index < config_count;
-            config_index += 1)
-    {
-        XVisualInfo* visual_info = glXGetVisualFromFBConfig(platform->display, framebuffer_configs[config_index]);
-        if(visual_info)
-        {
-            int sample_buffers;
-            int samples;
-            glXGetFBConfigAttrib(platform->display, framebuffer_configs[config_index], GLX_SAMPLE_BUFFERS, &sample_buffers);
-            glXGetFBConfigAttrib(platform->display, framebuffer_configs[config_index], GLX_SAMPLES, &samples);
-            if(!is_valid_index(best_config) || (sample_buffers && samples > best_samples))
-            {
-                best_config = config_index;
-                best_samples = samples;
-            }
-            if(!is_valid_index(worst_config) || !sample_buffers || samples < worst_samples)
-            {
-                worst_config = config_index;
-                worst_samples = samples;
-            }
-        }
-        XFree(visual_info);
-    }
-    GLXFBConfig chosen_framebuffer_config = framebuffer_configs[best_config];
-    XFree(framebuffer_configs);
-
-    return chosen_framebuffer_config;
-}
-
-static bool create_video_backend_pre_window_gl(PlatformX11* platform)
-{
-    PlatformX11Gl* gl = &platform->video_backend.gl;
-
-    GLXFBConfig chosen_framebuffer_config = choose_best_framebuffer_configuration(platform);
-    if(!chosen_framebuffer_config)
-    {
-        log_error(&platform->base.logger, "Failed to retrieve a framebuffer configuration.");
-        return false;
-    }
-    gl->chosen_framebuffer_config = chosen_framebuffer_config;
-
-    // Choose the abstract "Visual" type that will be used to describe both the
-    // window and the OpenGL rendering context.
-    platform->visual_info = glXGetVisualFromFBConfig(platform->display, chosen_framebuffer_config);
-    if(!platform->visual_info)
-    {
-        log_error(&platform->base.logger, "Wasn't able to choose an appropriate Visual type given the requested attributes. [The Visual type contains information on color mappings for the display hardware]");
-        return false;
-    }
-
-    return true;
-}
-
-static bool create_video_backend_gl(PlatformX11* platform)
-{
-    PlatformX11Gl* gl = &platform->video_backend.gl;
-
-    glXCreateContextAttribsARBProc glXCreateContextAttribsARB = NULL;
-    glXCreateContextAttribsARB = (glXCreateContextAttribsARBProc) glXGetProcAddressARB((const GLubyte*) "glXCreateContextAttribsARB");
-    if(!glXCreateContextAttribsARB)
-    {
-        log_error(&platform->base.logger, "Couldn't load glXCreateContextAttribsARB.");
-        return false;
-    }
-
-    // Create the rendering context for OpenGL. The rendering context can only
-    // be "made current" after the window is mapped (with XMapWindow).
-    const int context_attributes[] =
-    {
-        GLX_CONTEXT_MAJOR_VERSION_ARB, 3,
-        GLX_CONTEXT_MINOR_VERSION_ARB, 3,
-        X11_NONE,
-    };
-    GLXContext rendering_context = glXCreateContextAttribsARB(platform->display, gl->chosen_framebuffer_config, NULL, True, context_attributes);
-    if(!rendering_context)
-    {
-        log_error(&platform->base.logger, "Couldn't create a GLX rendering context.");
-        return false;
-    }
-    gl->rendering_context = rendering_context;
-
-    XMapWindow(platform->display, platform->window);
-
-    Bool made_current = glXMakeCurrent(platform->display, platform->window, rendering_context);
-    if(!made_current)
-    {
-        log_error(&platform->base.logger, "Failed to attach the GLX context to the platform.");
-        return false;
-    }
-
-    gl->functions_loaded = ogl_LoadFunctions();
-    if(!gl->functions_loaded)
-    {
-        log_error(&platform->base.logger, "OpenGL functions could not be loaded!");
-        return false;
-    }
-
-    platform->base.video = &gl->base.base;
-    platform->base.video->backend_type = VIDEO_BACKEND_TYPE_GL;
-
-    return true;
-}
-
-static void destroy_video_backend_gl(PlatformX11* platform)
-{
-    PlatformX11Gl* gl = &platform->video_backend.gl;
-
-    if(gl->rendering_context)
-    {
-        glXDestroyContext(platform->display, gl->rendering_context);
-    }
-}
-
-static bool create_video_backend_pre_window(PlatformX11* platform)
-{
-    PlatformVideoBackend* backend = &platform->video_backend;
-    switch(backend->type)
-    {
-        case VIDEO_BACKEND_TYPE_D3D12:
-        {
-            ASSERT(false);
-            return false;
-        }
-        case VIDEO_BACKEND_TYPE_GL:
-        {
-            return create_video_backend_pre_window_gl(platform);
-        }
-    }
-}
-
-static bool create_video_backend(PlatformX11* platform)
-{
-    PlatformVideoBackend* backend = &platform->video_backend;
-    switch(backend->type)
-    {
-        case VIDEO_BACKEND_TYPE_D3D12:
-        {
-            ASSERT(false);
-            return false;
-        }
-        case VIDEO_BACKEND_TYPE_GL:
-        {
-            return create_video_backend_gl(platform);
-        }
-    }
-}
-
-static void destroy_video_backend(PlatformX11* platform)
-{
-    PlatformVideoBackend* backend = &platform->video_backend;
-    switch(backend->type)
-    {
-        case VIDEO_BACKEND_TYPE_D3D12:
-        {
-            ASSERT(false);
-            break;
-        }
-        case VIDEO_BACKEND_TYPE_GL:
-        {
-            destroy_video_backend_gl(platform);
-        }
-    }
-}
-
-static void update_video_backend(PlatformX11* platform)
-{
-    PlatformVideoBackend* backend = &platform->video_backend;
-    switch(backend->type)
-    {
-        case VIDEO_BACKEND_TYPE_D3D12:
-        {
-            ASSERT(false);
-            break;
-        }
-        case VIDEO_BACKEND_TYPE_GL:
-        {
-            glXSwapBuffers(platform->display, platform->window);
-            break;
-        }
-    }
-}
-
-static bool is_video_backend_ready(PlatformX11* platform)
-{
-    PlatformVideoBackend* backend = &platform->video_backend;
-    switch(backend->type)
-    {
-        case VIDEO_BACKEND_TYPE_D3D12:
-        {
-            ASSERT(false);
-            return false;
-        }
-        case VIDEO_BACKEND_TYPE_GL:
-        {
-            return backend->gl.functions_loaded;
-        }
-    }
 }
 
 static const int window_width = 800;
@@ -930,8 +686,39 @@ bool main_start_up()
         return false;
     }
 
-    platform.video_backend.type = VIDEO_BACKEND_TYPE_GL;
-    create_video_backend_pre_window(&platform);
+    platform.video_glx.base.backend_type = VIDEO_BACKEND_TYPE_GL;
+    platform.base.video = &platform.video_glx.base;
+    switch(platform.base.video->backend_type)
+    {
+        case VIDEO_BACKEND_TYPE_D3D12:
+        {
+            ASSERT(false);
+            break;
+        }
+        case VIDEO_BACKEND_TYPE_GL:
+        {
+            platform.video_glx.display = platform.display;
+            platform.video_glx.screen = platform.screen;
+            set_up_platform_video_glx(platform.base.video);
+            break;
+        }
+    }
+
+    platform_video_create(platform.base.video);
+
+    switch(platform.base.video->backend_type)
+    {
+        case VIDEO_BACKEND_TYPE_D3D12:
+        {
+            ASSERT(false);
+            break;
+        }
+        case VIDEO_BACKEND_TYPE_GL:
+        {
+            platform.visual_info = platform.video_glx.visual_info;
+            break;
+        }
+    }
 
     create_window();
 
@@ -948,7 +735,20 @@ bool main_start_up()
 
     set_up_clipboard();
 
-    create_video_backend(&platform);
+    switch(platform.base.video->backend_type)
+    {
+        case VIDEO_BACKEND_TYPE_D3D12:
+        {
+            ASSERT(false);
+            break;
+        }
+        case VIDEO_BACKEND_TYPE_GL:
+        {
+            platform.video_glx.window = platform.window;
+            platform_video_glx_create_post_window(platform.base.video);
+            break;
+        }
+    }
 
     platform.base.input_context = input_create_context(&platform.base.stack);
 
@@ -969,9 +769,10 @@ bool main_start_up()
 
 void main_shut_down()
 {
-    editor_shut_down(platform.editor, is_video_backend_ready(&platform));
+    editor_shut_down(platform.editor);
     destroy_stack(&platform.base);
     platform_destroy_heap(&platform.base);
+    platform_video_destroy(platform.base.video);
 
     if(platform.visual_info)
     {
@@ -979,7 +780,6 @@ void main_shut_down()
     }
     if(platform.display)
     {
-        destroy_video_backend(&platform);
         if(platform.colormap != X11_NONE)
         {
             XFreeColormap(platform.display, platform.colormap);
@@ -1423,8 +1223,6 @@ void main_loop()
 
         editor_update(platform.editor, &platform.base);
         input_update_context(platform.base.input_context);
-
-        update_video_backend(&platform);
 
         // Handle window events.
         while(XPending(platform.display) > 0)

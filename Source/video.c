@@ -1119,7 +1119,11 @@ static void create_context(VideoContext* context, PlatformVideo* platform,
     {
         case VIDEO_BACKEND_TYPE_D3D12:
         {
+#if defined(OS_WINDOWS)
             context->backend = set_up_backend_d3d12(&context->heap);
+#else
+            ASSERT(false);
+#endif
             break;
         }
         case VIDEO_BACKEND_TYPE_GL:

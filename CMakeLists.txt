@@ -35,6 +35,7 @@ if(WIN32)
 	set(
 		PLATFORM_SPECIFIC_SOURCES
 		Source/platform_d3d12.c
+		Source/platform_wgl.c
 		Source/video_d3d12.c
 		Source/wgl_extensions.c
 		Source/wide_char.c
@@ -44,6 +45,7 @@ elseif(LINUX)
     target_link_libraries(Arboretum PRIVATE m GL X11 Xcursor)
 	set(
 		PLATFORM_SPECIFIC_SOURCES
+		Source/platform_video_glx.c
 		Source/glx_extensions.c
 	)
     set(DATA_DIRECTORY ${CMAKE_INSTALL_DATAROOTDIR})
@@ -97,7 +99,6 @@ target_sources(
 	Source/object_lady.c
 	Source/platform.c
 	Source/platform_video.c
-	Source/platform_wgl.c
 	Source/string_build.c
 	Source/string_utilities.c
 	Source/ui.c
